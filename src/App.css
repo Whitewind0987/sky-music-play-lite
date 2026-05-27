@@ -329,6 +329,29 @@ textarea {
   background: #ffffff;
 }
 
+.language-options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.language-option {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.language-option.is-selected {
+  border-color: #2f80ed;
+  color: #ffffff;
+  background: #2f80ed;
+}
+
 .fake-segment {
   color: #ffffff;
   background: #2f80ed;

@@ -7,6 +7,13 @@ import {
 } from "./lib/scoreFileImport";
 import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
+import {
+  defaultLanguage,
+  languageOptions,
+  uiText,
+  type LanguageCode,
+  type UiText,
+} from "./i18n/uiText";
 import type { Note, Song } from "./types/score";
 import "../font/iconfont.css";
 import "./App.css";
@@ -20,10 +27,12 @@ type PanelHeaderProps = {
 type KeyboardPreviewProps = {
   activeKey: string;
   keys: PreviewKey[];
+  text: UiText["keyboard"];
 };
 
 type PlaybackLogProps = {
   entries: string[];
+  text: UiText["logs"];
 };
 
 type ScoreInputProps = {
@@ -38,10 +47,12 @@ type ScoreInputProps = {
   onSelectImportedSong: (songIndex: number | null) => void;
   selectedSongIndex: number | null;
   songs: Song[];
+  text: UiText["score"];
 };
 
 type ExampleScoresProps = {
   songs: Song[];
+  text: UiText["score"];
 };
 
 type PreviewKey = {
@@ -70,46 +81,14 @@ const defaultKeyboardPreviewKeys: PreviewKey[] = [
 const sidebarItems = [
   {
     iconClass: "icon-Homehomepagemenu",
-    label: "Home",
     section: "Workspace",
   },
-  { iconClass: "icon-shuru", label: "Score", section: "Score" },
-  { iconClass: "icon-yulan", label: "Playback", section: "Playback" },
-  { iconClass: "icon-rizhi", label: "Logs", section: "Logs" },
-  { iconClass: "icon-shezhi", label: "Settings", section: "Settings" },
+  { iconClass: "icon-shuru", section: "Score" },
+  { iconClass: "icon-yulan", section: "Playback" },
+  { iconClass: "icon-rizhi", section: "Logs" },
+  { iconClass: "icon-shezhi", section: "Settings" },
 ] as const;
 type AppSection = (typeof sidebarItems)[number]["section"];
-
-const sectionHeaders: Record<
-  AppSection,
-  { eyebrow: string; title: string; status: string }
-> = {
-  Workspace: {
-    eyebrow: "Workspace",
-    title: "Music preview workspace",
-    status: "App is running",
-  },
-  Score: {
-    eyebrow: "Score",
-    title: "Score input",
-    status: "Text parsing preview",
-  },
-  Playback: {
-    eyebrow: "Playback",
-    title: "Playback preview",
-    status: "UI preview only",
-  },
-  Logs: {
-    eyebrow: "Logs",
-    title: "Runtime log",
-    status: "In-memory messages",
-  },
-  Settings: {
-    eyebrow: "Settings",
-    title: "Settings",
-    status: "Placeholder only",
-  },
-};
 
 function PanelHeader({ id, title, description }: PanelHeaderProps) {
   return (
@@ -123,20 +102,21 @@ function PanelHeader({ id, title, description }: PanelHeaderProps) {
 type AppSidebarProps = {
   activeSection: AppSection;
   onSectionChange: (section: AppSection) => void;
+  text: UiText;
 };
 
-function AppSidebar({ activeSection, onSectionChange }: AppSidebarProps) {
+function AppSidebar({ activeSection, onSectionChange, text }: AppSidebarProps) {
   return (
-    <aside className="app-sidebar" aria-label="Application navigation">
+    <aside className="app-sidebar" aria-label={text.app.navigationAria}>
       <div className="sidebar-brand">
         <span className="brand-mark">S</span>
         <div>
-          <p className="eyebrow">Sky tools</p>
-          <h1>SkyMusicPlay Lite</h1>
+          <p className="eyebrow">{text.brand.eyebrow}</p>
+          <h1>{text.brand.name}</h1>
         </div>
       </div>
 
-      <nav className="sidebar-nav" aria-label="Main sections">
+      <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
         {sidebarItems.map((item) => (
           <button
             className={`sidebar-link${
@@ -150,7 +130,7 @@ function AppSidebar({ activeSection, onSectionChange }: AppSidebarProps) {
               className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()} iconfont ${item.iconClass}`}
               aria-hidden="true"
             />
-            <span>{item.label}</span>
+            <span>{text.navigation[item.section]}</span>
           </button>
         ))}
       </nav>
@@ -161,24 +141,26 @@ function AppSidebar({ activeSection, onSectionChange }: AppSidebarProps) {
 type WorkspaceHeaderProps = {
   activeSection: AppSection;
   onSettingsClick: () => void;
+  text: UiText;
 };
 
 function WorkspaceHeader({
   activeSection,
   onSettingsClick,
+  text,
 }: WorkspaceHeaderProps) {
-  const header = sectionHeaders[activeSection];
+  const header = text.sections[activeSection];
 
   return (
     <header className="workspace-header">
       <h2>{header.title}</h2>
-      <div className="header-actions" aria-label="Placeholder actions">
+      <div className="header-actions" aria-label={text.app.placeholderActionsAria}>
         <button
           className="icon-action"
           type="button"
           onClick={onSettingsClick}
-          title="Settings"
-          aria-label="Settings"
+          title={text.actions.settings}
+          aria-label={text.actions.settings}
         >
           <span className="iconfont icon-shezhi" aria-hidden="true" />
         </button>
@@ -186,8 +168,8 @@ function WorkspaceHeader({
           className="icon-action"
           type="button"
           disabled
-          title="User Manual"
-          aria-label="User Manual"
+          title={text.actions.userManual}
+          aria-label={text.actions.userManual}
         >
           <span className="iconfont icon-wenhao" aria-hidden="true" />
         </button>
@@ -200,47 +182,53 @@ type WorkspaceOverviewProps = {
   isPreviewPlaying: boolean;
   logCount: number;
   noteCount: number;
+  text: UiText["workspace"];
 };
 
 function WorkspaceOverview({
   isPreviewPlaying,
   logCount,
   noteCount,
+  text,
 }: WorkspaceOverviewProps) {
   return (
-    <section className="overview-grid" aria-label="Workspace overview">
+    <section className="overview-grid" aria-label={text.aria}>
       <article className="overview-card">
-        <p className="eyebrow">Score</p>
-        <h3>{noteCount} parsed notes</h3>
-        <p>Use the Score section to edit and parse text notes.</p>
+        <p className="eyebrow">{text.scoreTitle}</p>
+        <h3>
+          {noteCount} {text.parsedNotes}
+        </h3>
+        <p>{text.scoreDescription}</p>
       </article>
       <article className="overview-card">
-        <p className="eyebrow">Playback</p>
-        <h3>{isPreviewPlaying ? "Preview running" : "Preview idle"}</h3>
-        <p>Use the Playback section to preview highlighted keys.</p>
+        <p className="eyebrow">{text.playbackTitle}</p>
+        <h3>{isPreviewPlaying ? text.previewRunning : text.previewIdle}</h3>
+        <p>{text.playbackDescription}</p>
       </article>
       <article className="overview-card">
-        <p className="eyebrow">Logs</p>
-        <h3>{logCount} log entries</h3>
-        <p>Use the Logs section to inspect runtime messages.</p>
+        <p className="eyebrow">{text.logsTitle}</p>
+        <h3>
+          {logCount} {text.logEntries}
+        </h3>
+        <p>{text.logsDescription}</p>
       </article>
     </section>
   );
 }
 
-function ExampleScores({ songs }: ExampleScoresProps) {
+function ExampleScores({ songs, text }: ExampleScoresProps) {
   return (
-    <div className="example-scores" aria-label="Example score metadata">
+    <div className="example-scores" aria-label={text.exampleScoresAria}>
       {songs.map((song) => (
         <article className="score-card" key={song.name}>
           <h3>{song.name}</h3>
           <dl>
             <div>
-              <dt>BPM</dt>
+              <dt>{text.bpm}</dt>
               <dd>{song.bpm}</dd>
             </div>
             <div>
-              <dt>Notes</dt>
+              <dt>{text.notes}</dt>
               <dd>{song.songNotes.length}</dd>
             </div>
           </dl>
@@ -254,23 +242,25 @@ type ImportedScoresProps = {
   selectedSongIndex: number | null;
   songs: Song[];
   onSelectImportedSong: (songIndex: number | null) => void;
+  text: UiText["score"];
 };
 
 function ImportedScores({
   selectedSongIndex,
   songs,
   onSelectImportedSong,
+  text,
 }: ImportedScoresProps) {
   if (songs.length === 0) {
-    return <p className="import-empty">No imported scores yet.</p>;
+    return <p className="import-empty">{text.noImportedScores}</p>;
   }
 
   return (
-    <div className="imported-scores" aria-label="Imported score files">
+    <div className="imported-scores" aria-label={text.importedScoresAria}>
       <div className="imported-scores-header">
-        <h3>Imported scores</h3>
+        <h3>{text.importedScoresTitle}</h3>
         <button type="button" onClick={() => onSelectImportedSong(null)}>
-          Use text input
+          {text.useTextInput}
         </button>
       </div>
       <div className="imported-score-list">
@@ -284,8 +274,10 @@ function ImportedScores({
             onClick={() => onSelectImportedSong(index)}
           >
             <span>{song.name}</span>
-            <span>BPM {song.bpm}</span>
-            <span>{song.songNotes.length} notes</span>
+            <span>{text.bpm} {song.bpm}</span>
+            <span>
+              {song.songNotes.length} {text.notes}
+            </span>
           </button>
         ))}
       </div>
@@ -293,19 +285,29 @@ function ImportedScores({
   );
 }
 
-function ParsedNotes({ notes }: { notes: Note[] }) {
+function ParsedNotes({
+  notes,
+  text,
+}: {
+  notes: Note[];
+  text: UiText["score"];
+}) {
   if (notes.length === 0) {
-    return <p className="parse-empty">No parsed notes yet.</p>;
+    return <p className="parse-empty">{text.noParsedNotes}</p>;
   }
 
   return (
     <div className="parsed-notes" aria-label="Parsed score notes">
-      <p>{notes.length} notes parsed.</p>
+      <p>
+        {notes.length} {text.notesParsed}
+      </p>
       <ol>
         {notes.map((note) => (
           <li key={`${note.time}-${note.key}`}>
             <span>{note.key}</span>
-            <span>{note.time} ms</span>
+            <span>
+              {note.time} {text.milliseconds}
+            </span>
           </li>
         ))}
       </ol>
@@ -325,22 +327,23 @@ function ScoreInput({
   onSelectImportedSong,
   selectedSongIndex,
   songs,
+  text,
 }: ScoreInputProps) {
   return (
     <section className="panel score-panel" aria-labelledby="score-input-title">
       <PanelHeader
         id="score-input-title"
-        title="Score input area"
-        description="A simple score editor will be added in a later phase."
+        title={text.panelTitle}
+        description={text.panelDescription}
       />
       <textarea
         aria-labelledby="score-input-title"
         onChange={(event) => onInputChange(event.currentTarget.value)}
-        placeholder="Type score keys, for example: 1Key5 1Key6 1Key7 2Key1"
+        placeholder={text.placeholder}
         value={input}
       />
       <label className="file-import-control">
-        <span>Import .json or .txt score file</span>
+        <span>{text.importLabel}</span>
         <input
           accept=".json,.txt"
           type="file"
@@ -360,18 +363,19 @@ function ScoreInput({
         selectedSongIndex={selectedSongIndex}
         songs={importedSongs}
         onSelectImportedSong={onSelectImportedSong}
+        text={text}
       />
       <button className="parse-button" type="button" onClick={onParseScore}>
-        Parse Score
+        {text.parseButton}
       </button>
       {error ? <p className="parse-error">{error}</p> : null}
-      <ParsedNotes notes={notes} />
-      <ExampleScores songs={songs} />
+      <ParsedNotes notes={notes} text={text} />
+      <ExampleScores songs={songs} text={text} />
     </section>
   );
 }
 
-function KeyboardPreview({ activeKey, keys }: KeyboardPreviewProps) {
+function KeyboardPreview({ activeKey, keys, text }: KeyboardPreviewProps) {
   const activePreviewKey = getPreviewKeyName(activeKey);
 
   return (
@@ -381,10 +385,10 @@ function KeyboardPreview({ activeKey, keys }: KeyboardPreviewProps) {
     >
       <PanelHeader
         id="keyboard-preview-title"
-        title="Keyboard preview area"
-        description="Sky keys and their keyboard mapping are shown for preview only."
+        title={text.panelTitle}
+        description={text.panelDescription}
       />
-      <div className="keyboard-grid" aria-label="Static keyboard preview">
+      <div className="keyboard-grid" aria-label={text.previewAria}>
         {keys.map((key) => (
           <button
             className={`key-button${
@@ -407,16 +411,28 @@ function getPreviewKeyName(scoreKey: string) {
   return scoreKey.match(/Key\d+$/)?.[0] ?? scoreKey;
 }
 
+function formatText(
+  template: string,
+  values: Record<string, string | number>,
+) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replace(`{${key}}`, String(value)),
+    template,
+  );
+}
+
 type PlaybackControlsProps = {
   isPreviewPlaying: boolean;
   onPlayPreview: () => void;
   onTestRust: () => void;
+  text: UiText["playback"];
 };
 
 function PlaybackControls({
   isPreviewPlaying,
   onPlayPreview,
   onTestRust,
+  text,
 }: PlaybackControlsProps) {
   return (
     <section
@@ -425,44 +441,44 @@ function PlaybackControls({
     >
       <PanelHeader
         id="playback-controls-title"
-        title="Playback controls area"
-        description="Playback buttons are placeholders in this phase."
+        title={text.panelTitle}
+        description={text.panelDescription}
       />
       <div className="control-row">
         <button type="button" disabled>
-          Play
+          {text.play}
         </button>
         <button type="button" disabled>
-          Pause
+          {text.pause}
         </button>
         <button type="button" disabled>
-          Resume
+          {text.resume}
         </button>
         <button type="button" disabled>
-          Stop
+          {text.stop}
         </button>
         <button
           className={isPreviewPlaying ? "is-playing" : ""}
           type="button"
           onClick={onPlayPreview}
         >
-          {isPreviewPlaying ? "Stop Preview" : "Play Preview"}
+          {isPreviewPlaying ? text.stopPreview : text.playPreview}
         </button>
         <button type="button" onClick={onTestRust}>
-          Test Rust
+          {text.testRust}
         </button>
       </div>
     </section>
   );
 }
 
-function PlaybackLog({ entries }: PlaybackLogProps) {
+function PlaybackLog({ entries, text }: PlaybackLogProps) {
   return (
     <section className="panel log-panel" aria-labelledby="playback-log-title">
       <PanelHeader
         id="playback-log-title"
-        title="Log area"
-        description="Runtime messages will appear here in a later phase."
+        title={text.panelTitle}
+        description={text.panelDescription}
       />
       <ul className="log-list">
         {entries.map((entry, index) => (
@@ -473,27 +489,51 @@ function PlaybackLog({ entries }: PlaybackLogProps) {
   );
 }
 
-function SettingsPlaceholder() {
+type SettingsPlaceholderProps = {
+  language: LanguageCode;
+  onLanguageChange: (language: LanguageCode) => void;
+  text: UiText["settings"];
+};
+
+function SettingsPlaceholder({
+  language,
+  onLanguageChange,
+  text,
+}: SettingsPlaceholderProps) {
   return (
-    <section className="settings-grid" aria-label="Settings placeholder">
+    <section className="settings-grid" aria-label={text.aria}>
       <article className="panel settings-panel">
         <PanelHeader
           id="settings-system-title"
-          title="System settings"
-          description="Real settings will be added in a later phase."
+          title={text.systemTitle}
+          description={text.systemDescription}
         />
         <div className="setting-placeholder-list">
           <div className="setting-row">
-            <span>Language</span>
-            <span className="fake-select">English</span>
+            <span>{text.language}</span>
+            <div className="language-options">
+              {languageOptions.map((option) => (
+                <button
+                  className={`language-option${
+                    language === option.code ? " is-selected" : ""
+                  }`}
+                  key={option.code}
+                  type="button"
+                  aria-pressed={language === option.code}
+                  onClick={() => onLanguageChange(option.code)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="setting-row">
-            <span>Theme</span>
-            <span className="fake-segment">System</span>
+            <span>{text.theme}</span>
+            <span className="fake-segment">{text.systemTheme}</span>
           </div>
           <div className="setting-row">
-            <span>Default page</span>
-            <span className="fake-select">Home</span>
+            <span>{text.defaultPage}</span>
+            <span className="fake-select">{text.home}</span>
           </div>
         </div>
       </article>
@@ -501,21 +541,21 @@ function SettingsPlaceholder() {
       <article className="panel settings-panel">
         <PanelHeader
           id="settings-preview-title"
-          title="Preview options"
-          description="These controls are placeholders and do not save yet."
+          title={text.previewTitle}
+          description={text.previewDescription}
         />
         <div className="setting-placeholder-list">
           <div className="setting-row">
-            <span>Detailed logs</span>
+            <span>{text.detailedLogs}</span>
             <span className="fake-toggle is-on" />
           </div>
           <div className="setting-row">
-            <span>Real keyboard mode</span>
+            <span>{text.realKeyboardMode}</span>
             <span className="fake-toggle" />
           </div>
           <div className="setting-row">
-            <span>Manual</span>
-            <span className="fake-link">Open later</span>
+            <span>{text.manual}</span>
+            <span className="fake-link">{text.openLater}</span>
           </div>
         </div>
       </article>
@@ -525,6 +565,7 @@ function SettingsPlaceholder() {
 
 function App() {
   const previewStopRef = useRef<(() => void) | null>(null);
+  const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [scoreInput, setScoreInput] = useState("1Key5 1Key6 1Key7 2Key1");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
   const [parseError, setParseError] = useState("");
@@ -534,10 +575,11 @@ function App() {
   const [activeKey, setActiveKey] = useState("");
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
-  const [logEntries, setLogEntries] = useState([
-    "App layout is ready.",
-    "No playback features yet.",
+  const [logEntries, setLogEntries] = useState<string[]>(() => [
+    uiText[defaultLanguage].logs.appReady,
+    uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
+  const text = uiText[language];
 
   useEffect(() => {
     return () => {
@@ -564,7 +606,7 @@ function App() {
   async function handleImportScoreFile(file: File) {
     try {
       if (!isSupportedScoreFileName(file.name)) {
-        throw new Error("Only .json and .txt score files are supported.");
+        throw new Error(text.score.unsupportedFile);
       }
 
       const content = await file.text();
@@ -575,7 +617,12 @@ function App() {
       setParsedNotes(songs[0].songNotes);
       setImportError("");
       setParseError("");
-      appendLog(`Imported ${songs.length} score(s) from ${file.name}.`);
+      appendLog(
+        formatText(text.logs.importedScores, {
+          count: songs.length,
+          fileName: file.name,
+        }),
+      );
     } catch (error) {
       setImportedSongs([]);
       setSelectedSongIndex(null);
@@ -602,7 +649,7 @@ function App() {
   function handlePlayPreview() {
     if (isPreviewPlaying) {
       stopCurrentPreview();
-      appendLog("Preview stopped.");
+      appendLog(text.logs.previewStopped);
       return;
     }
 
@@ -618,21 +665,23 @@ function App() {
       setIsPreviewPlaying(true);
       appendLog(
         selectedSong
-          ? `Preview started from imported score: ${selectedSong.name}.`
-          : "Preview started.",
+          ? formatText(text.logs.previewStartedFromSong, {
+              songName: selectedSong.name,
+            })
+          : text.logs.previewStarted,
       );
 
       previewStopRef.current = schedulePreviewPlayback(
         notes,
         (note) => {
           setActiveKey(note.key);
-          appendLog(`Playing preview key: ${note.key}`);
+          appendLog(formatText(text.logs.playingPreviewKey, { key: note.key }));
         },
         () => {
           setActiveKey("");
           setIsPreviewPlaying(false);
           previewStopRef.current = null;
-          appendLog("Preview finished.");
+          appendLog(text.logs.previewFinished);
         },
       );
     } catch (error) {
@@ -648,7 +697,7 @@ function App() {
     } catch (error) {
       setLogEntries((currentEntries) => [
         ...currentEntries,
-        `Rust command failed: ${String(error)}`,
+        formatText(text.logs.rustCommandFailed, { error: String(error) }),
       ]);
     }
   }
@@ -668,6 +717,7 @@ function App() {
           onSelectImportedSong={handleSelectImportedSong}
           selectedSongIndex={selectedSongIndex}
           songs={exampleScores}
+          text={text.score}
         />
       );
     }
@@ -678,22 +728,30 @@ function App() {
           <KeyboardPreview
             activeKey={activeKey}
             keys={defaultKeyboardPreviewKeys}
+            text={text.keyboard}
           />
           <PlaybackControls
             isPreviewPlaying={isPreviewPlaying}
             onPlayPreview={handlePlayPreview}
             onTestRust={handleTestRust}
+            text={text.playback}
           />
         </>
       );
     }
 
     if (activeSection === "Logs") {
-      return <PlaybackLog entries={logEntries} />;
+      return <PlaybackLog entries={logEntries} text={text.logs} />;
     }
 
     if (activeSection === "Settings") {
-      return <SettingsPlaceholder />;
+      return (
+        <SettingsPlaceholder
+          language={language}
+          onLanguageChange={setLanguage}
+          text={text.settings}
+        />
+      );
     }
 
     return (
@@ -701,6 +759,7 @@ function App() {
         isPreviewPlaying={isPreviewPlaying}
         logCount={logEntries.length}
         noteCount={parsedNotes.length}
+        text={text.workspace}
       />
     );
   }
@@ -710,12 +769,14 @@ function App() {
       <AppSidebar
         activeSection={activeSection}
         onSectionChange={setActiveSection}
+        text={text}
       />
 
-      <section className="workspace-shell" aria-label="Workspace content">
+      <section className="workspace-shell" aria-label={text.app.contentAria}>
         <WorkspaceHeader
           activeSection={activeSection}
           onSettingsClick={() => setActiveSection("Settings")}
+          text={text}
         />
 
         <div
