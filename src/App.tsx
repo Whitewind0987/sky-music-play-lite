@@ -19,7 +19,7 @@ type PanelHeaderProps = {
 
 type KeyboardPreviewProps = {
   activeKey: string;
-  keys: string[];
+  keys: PreviewKey[];
 };
 
 type PlaybackLogProps = {
@@ -43,6 +43,29 @@ type ScoreInputProps = {
 type ExampleScoresProps = {
   songs: Song[];
 };
+
+type PreviewKey = {
+  skyKey: string;
+  keyboardKey: string;
+};
+
+const defaultKeyboardPreviewKeys: PreviewKey[] = [
+  { skyKey: "Key0", keyboardKey: "Y" },
+  { skyKey: "Key1", keyboardKey: "U" },
+  { skyKey: "Key2", keyboardKey: "I" },
+  { skyKey: "Key3", keyboardKey: "O" },
+  { skyKey: "Key4", keyboardKey: "P" },
+  { skyKey: "Key5", keyboardKey: "H" },
+  { skyKey: "Key6", keyboardKey: "J" },
+  { skyKey: "Key7", keyboardKey: "K" },
+  { skyKey: "Key8", keyboardKey: "L" },
+  { skyKey: "Key9", keyboardKey: ";" },
+  { skyKey: "Key10", keyboardKey: "N" },
+  { skyKey: "Key11", keyboardKey: "M" },
+  { skyKey: "Key12", keyboardKey: "," },
+  { skyKey: "Key13", keyboardKey: "." },
+  { skyKey: "Key14", keyboardKey: "/" },
+];
 
 const sidebarItems = [
   {
@@ -349,6 +372,8 @@ function ScoreInput({
 }
 
 function KeyboardPreview({ activeKey, keys }: KeyboardPreviewProps) {
+  const activePreviewKey = getPreviewKeyName(activeKey);
+
   return (
     <section
       className="panel keyboard-panel"
@@ -357,22 +382,29 @@ function KeyboardPreview({ activeKey, keys }: KeyboardPreviewProps) {
       <PanelHeader
         id="keyboard-preview-title"
         title="Keyboard preview area"
-        description="Keys are shown as a static preview for now."
+        description="Sky keys and their keyboard mapping are shown for preview only."
       />
       <div className="keyboard-grid" aria-label="Static keyboard preview">
         {keys.map((key) => (
           <button
-            className={`key-button${activeKey === key ? " is-active" : ""}`}
+            className={`key-button${
+              activePreviewKey === key.skyKey ? " is-active" : ""
+            }`}
             type="button"
             disabled
-            key={key}
+            key={key.skyKey}
           >
-            {key}
+            <span className="sky-key-label">{key.skyKey}</span>
+            <span className="keyboard-key-label">{key.keyboardKey}</span>
           </button>
         ))}
       </div>
     </section>
   );
+}
+
+function getPreviewKeyName(scoreKey: string) {
+  return scoreKey.match(/Key\d+$/)?.[0] ?? scoreKey;
 }
 
 type PlaybackControlsProps = {
@@ -492,17 +524,6 @@ function SettingsPlaceholder() {
 }
 
 function App() {
-  const previewKeys = [
-    "1Key1",
-    "1Key2",
-    "1Key3",
-    "1Key4",
-    "1Key5",
-    "1Key6",
-    "1Key7",
-    "1Key8",
-    "2Key1",
-  ];
   const previewStopRef = useRef<(() => void) | null>(null);
   const [scoreInput, setScoreInput] = useState("1Key5 1Key6 1Key7 2Key1");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
@@ -654,7 +675,10 @@ function App() {
     if (activeSection === "Playback") {
       return (
         <>
-          <KeyboardPreview activeKey={activeKey} keys={previewKeys} />
+          <KeyboardPreview
+            activeKey={activeKey}
+            keys={defaultKeyboardPreviewKeys}
+          />
           <PlaybackControls
             isPreviewPlaying={isPreviewPlaying}
             onPlayPreview={handlePlayPreview}

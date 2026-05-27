@@ -586,8 +586,9 @@ textarea {
 
 .keyboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 86px), 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: minmax(48px, 1fr);
+  gap: clamp(6px, 1.2vw, 10px);
 }
 
 .key-button,
@@ -601,7 +602,29 @@ textarea {
 }
 
 .key-button {
+  display: grid;
+  gap: clamp(2px, 0.6vw, 4px);
+  place-items: center;
+  padding: clamp(4px, 1vw, 8px);
   font-weight: 700;
+}
+
+.sky-key-label {
+  color: #1f2933;
+  font-size: clamp(10px, 1.45vw, 14px);
+  line-height: 1.1;
+}
+
+.keyboard-key-label {
+  min-width: clamp(20px, 3vw, 28px);
+  min-height: clamp(18px, 2.8vw, 24px);
+  display: inline-grid;
+  place-items: center;
+  border-radius: 5px;
+  color: #52616f;
+  background: #ffffff;
+  font-size: clamp(10px, 1.35vw, 13px);
+  line-height: 1;
 }
 
 .key-button.is-active:disabled {
@@ -609,6 +632,11 @@ textarea {
   color: #0b3d75;
   background: #d8ebff;
   box-shadow: inset 0 0 0 2px #2f80ed;
+}
+
+.key-button.is-active:disabled .keyboard-key-label {
+  color: #0b3d75;
+  background: #ffffff;
 }
 
 .control-row {
