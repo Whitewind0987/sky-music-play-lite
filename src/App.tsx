@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { exampleScores } from "./data/exampleScores";
 import { schedulePreviewPlayback } from "./lib/playbackScheduler";
+import {
+  isSupportedScoreFileName,
+  parseScoreFileContent,
+} from "./lib/scoreFileImport";
 import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
 import type { Note, Song } from "./types/score";
@@ -24,10 +28,15 @@ type PlaybackLogProps = {
 
 type ScoreInputProps = {
   error: string;
+  importedSongs: Song[];
+  importError: string;
   input: string;
   notes: Note[];
+  onImportFile: (file: File) => void;
   onInputChange: (value: string) => void;
   onParseScore: () => void;
+  onSelectImportedSong: (songIndex: number | null) => void;
+  selectedSongIndex: number | null;
   songs: Song[];
 };
 
@@ -218,6 +227,49 @@ function ExampleScores({ songs }: ExampleScoresProps) {
   );
 }
 
+type ImportedScoresProps = {
+  selectedSongIndex: number | null;
+  songs: Song[];
+  onSelectImportedSong: (songIndex: number | null) => void;
+};
+
+function ImportedScores({
+  selectedSongIndex,
+  songs,
+  onSelectImportedSong,
+}: ImportedScoresProps) {
+  if (songs.length === 0) {
+    return <p className="import-empty">No imported scores yet.</p>;
+  }
+
+  return (
+    <div className="imported-scores" aria-label="Imported score files">
+      <div className="imported-scores-header">
+        <h3>Imported scores</h3>
+        <button type="button" onClick={() => onSelectImportedSong(null)}>
+          Use text input
+        </button>
+      </div>
+      <div className="imported-score-list">
+        {songs.map((song, index) => (
+          <button
+            className={`imported-score-card${
+              selectedSongIndex === index ? " is-selected" : ""
+            }`}
+            key={`${song.name}-${index}`}
+            type="button"
+            onClick={() => onSelectImportedSong(index)}
+          >
+            <span>{song.name}</span>
+            <span>BPM {song.bpm}</span>
+            <span>{song.songNotes.length} notes</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ParsedNotes({ notes }: { notes: Note[] }) {
   if (notes.length === 0) {
     return <p className="parse-empty">No parsed notes yet.</p>;
@@ -240,10 +292,15 @@ function ParsedNotes({ notes }: { notes: Note[] }) {
 
 function ScoreInput({
   error,
+  importedSongs,
+  importError,
   input,
   notes,
+  onImportFile,
   onInputChange,
   onParseScore,
+  onSelectImportedSong,
+  selectedSongIndex,
   songs,
 }: ScoreInputProps) {
   return (
@@ -258,6 +315,28 @@ function ScoreInput({
         onChange={(event) => onInputChange(event.currentTarget.value)}
         placeholder="Type score keys, for example: 1Key5 1Key6 1Key7 2Key1"
         value={input}
+      />
+      <label className="file-import-control">
+        <span>Import .json or .txt score file</span>
+        <input
+          accept=".json,.txt"
+          type="file"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+
+            if (file) {
+              onImportFile(file);
+            }
+
+            event.currentTarget.value = "";
+          }}
+        />
+      </label>
+      {importError ? <p className="parse-error">{importError}</p> : null}
+      <ImportedScores
+        selectedSongIndex={selectedSongIndex}
+        songs={importedSongs}
+        onSelectImportedSong={onSelectImportedSong}
       />
       <button className="parse-button" type="button" onClick={onParseScore}>
         Parse Score
@@ -335,7 +414,7 @@ function PlaybackControls({
           type="button"
           onClick={onPlayPreview}
         >
-          {isPreviewPlaying ? "Restart Preview" : "Play Preview"}
+          {isPreviewPlaying ? "Stop Preview" : "Play Preview"}
         </button>
         <button type="button" onClick={onTestRust}>
           Test Rust
@@ -428,6 +507,9 @@ function App() {
   const [scoreInput, setScoreInput] = useState("1Key5 1Key6 1Key7 2Key1");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
   const [parseError, setParseError] = useState("");
+  const [importedSongs, setImportedSongs] = useState<Song[]>([]);
+  const [importError, setImportError] = useState("");
+  const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
   const [activeKey, setActiveKey] = useState("");
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
@@ -451,9 +533,41 @@ function App() {
       const notes = parseTextScore(scoreInput);
       setParsedNotes(notes);
       setParseError("");
+      setSelectedSongIndex(null);
     } catch (error) {
       setParsedNotes([]);
       setParseError(String(error instanceof Error ? error.message : error));
+    }
+  }
+
+  async function handleImportScoreFile(file: File) {
+    try {
+      if (!isSupportedScoreFileName(file.name)) {
+        throw new Error("Only .json and .txt score files are supported.");
+      }
+
+      const content = await file.text();
+      const songs = parseScoreFileContent(content);
+
+      setImportedSongs(songs);
+      setSelectedSongIndex(0);
+      setParsedNotes(songs[0].songNotes);
+      setImportError("");
+      setParseError("");
+      appendLog(`Imported ${songs.length} score(s) from ${file.name}.`);
+    } catch (error) {
+      setImportedSongs([]);
+      setSelectedSongIndex(null);
+      setImportError(String(error instanceof Error ? error.message : error));
+    }
+  }
+
+  function handleSelectImportedSong(songIndex: number | null) {
+    setSelectedSongIndex(songIndex);
+
+    if (songIndex !== null) {
+      setParsedNotes(importedSongs[songIndex]?.songNotes ?? []);
+      setParseError("");
     }
   }
 
@@ -465,14 +579,27 @@ function App() {
   }
 
   function handlePlayPreview() {
+    if (isPreviewPlaying) {
+      stopCurrentPreview();
+      appendLog("Preview stopped.");
+      return;
+    }
+
     stopCurrentPreview();
 
     try {
-      const notes = parseTextScore(scoreInput);
+      const selectedSong =
+        selectedSongIndex === null ? null : importedSongs[selectedSongIndex];
+      const notes = selectedSong ? selectedSong.songNotes : parseTextScore(scoreInput);
+
       setParsedNotes(notes);
       setParseError("");
       setIsPreviewPlaying(true);
-      appendLog("Preview started.");
+      appendLog(
+        selectedSong
+          ? `Preview started from imported score: ${selectedSong.name}.`
+          : "Preview started.",
+      );
 
       previewStopRef.current = schedulePreviewPlayback(
         notes,
@@ -510,10 +637,15 @@ function App() {
       return (
         <ScoreInput
           error={parseError}
+          importedSongs={importedSongs}
+          importError={importError}
           input={scoreInput}
           notes={parsedNotes}
+          onImportFile={handleImportScoreFile}
           onInputChange={setScoreInput}
           onParseScore={handleParseScore}
+          onSelectImportedSong={handleSelectImportedSong}
+          selectedSongIndex={selectedSongIndex}
           songs={exampleScores}
         />
       );
