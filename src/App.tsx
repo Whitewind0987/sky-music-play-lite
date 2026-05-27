@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { exampleScores } from "./data/exampleScores";
+import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
-import type { Song } from "./types/score";
+import type { Note, Song } from "./types/score";
 import "./App.css";
 
 type PanelHeaderProps = {
@@ -19,6 +20,15 @@ type PlaybackLogProps = {
 };
 
 type ScoreInputProps = {
+  error: string;
+  input: string;
+  notes: Note[];
+  onInputChange: (value: string) => void;
+  onParseScore: () => void;
+  songs: Song[];
+};
+
+type ExampleScoresProps = {
   songs: Song[];
 };
 
@@ -31,7 +41,7 @@ function PanelHeader({ id, title, description }: PanelHeaderProps) {
   );
 }
 
-function ExampleScores({ songs }: ScoreInputProps) {
+function ExampleScores({ songs }: ExampleScoresProps) {
   return (
     <div className="example-scores" aria-label="Example score metadata">
       {songs.map((song) => (
@@ -53,7 +63,34 @@ function ExampleScores({ songs }: ScoreInputProps) {
   );
 }
 
-function ScoreInput({ songs }: ScoreInputProps) {
+function ParsedNotes({ notes }: { notes: Note[] }) {
+  if (notes.length === 0) {
+    return <p className="parse-empty">No parsed notes yet.</p>;
+  }
+
+  return (
+    <div className="parsed-notes" aria-label="Parsed score notes">
+      <p>{notes.length} notes parsed.</p>
+      <ol>
+        {notes.map((note) => (
+          <li key={`${note.time}-${note.key}`}>
+            <span>{note.key}</span>
+            <span>{note.time} ms</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function ScoreInput({
+  error,
+  input,
+  notes,
+  onInputChange,
+  onParseScore,
+  songs,
+}: ScoreInputProps) {
   return (
     <section className="panel score-panel" aria-labelledby="score-input-title">
       <PanelHeader
@@ -63,9 +100,15 @@ function ScoreInput({ songs }: ScoreInputProps) {
       />
       <textarea
         aria-labelledby="score-input-title"
-        placeholder="Score input is not active yet."
-        disabled
+        onChange={(event) => onInputChange(event.currentTarget.value)}
+        placeholder="Type score keys, for example: 1Key5 1Key6 1Key7 2Key1"
+        value={input}
       />
+      <button className="parse-button" type="button" onClick={onParseScore}>
+        Parse Score
+      </button>
+      {error ? <p className="parse-error">{error}</p> : null}
+      <ParsedNotes notes={notes} />
       <ExampleScores songs={songs} />
     </section>
   );
@@ -148,10 +191,24 @@ function PlaybackLog({ entries }: PlaybackLogProps) {
 
 function App() {
   const previewKeys = ["A", "S", "D", "F", "G", "H", "J", "K"];
+  const [scoreInput, setScoreInput] = useState("1Key5 1Key6 1Key7 2Key1");
+  const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
+  const [parseError, setParseError] = useState("");
   const [logEntries, setLogEntries] = useState([
     "App layout is ready.",
     "No playback features yet.",
   ]);
+
+  function handleParseScore() {
+    try {
+      const notes = parseTextScore(scoreInput);
+      setParsedNotes(notes);
+      setParseError("");
+    } catch (error) {
+      setParsedNotes([]);
+      setParseError(String(error instanceof Error ? error.message : error));
+    }
+  }
 
   async function handleTestRust() {
     try {
@@ -176,7 +233,14 @@ function App() {
       </header>
 
       <div className="app-layout">
-        <ScoreInput songs={exampleScores} />
+        <ScoreInput
+          error={parseError}
+          input={scoreInput}
+          notes={parsedNotes}
+          onInputChange={setScoreInput}
+          onParseScore={handleParseScore}
+          songs={exampleScores}
+        />
         <KeyboardPreview keys={previewKeys} />
         <PlaybackControls onTestRust={handleTestRust} />
         <PlaybackLog entries={logEntries} />

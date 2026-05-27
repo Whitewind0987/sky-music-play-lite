@@ -125,6 +125,59 @@ textarea {
   background: #f3f6f9;
 }
 
+.parse-button {
+  min-height: 44px;
+  border: 1px solid #9bb1c9;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #e7eef6;
+  cursor: pointer;
+}
+
+.parse-button:hover {
+  background: #dbe7f2;
+}
+
+.parse-error {
+  margin: 0;
+  color: #b42318;
+  font-weight: 700;
+}
+
+.parse-empty {
+  margin: 0;
+  color: #52616f;
+}
+
+.parsed-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parsed-notes p,
+.parsed-notes ol {
+  margin: 0;
+}
+
+.parsed-notes ol {
+  display: grid;
+  gap: 6px;
+  padding-left: 20px;
+}
+
+.parsed-notes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #52616f;
+}
+
+.parsed-notes li span:first-child {
+  color: #1f2933;
+  font-weight: 700;
+}
+
 .example-scores {
   display: grid;
   gap: 10px;
