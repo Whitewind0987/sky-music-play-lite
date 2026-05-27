@@ -18,24 +18,167 @@ body {
   min-height: 100vh;
 }
 
+button,
+textarea {
+  font: inherit;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  text-align: center;
+  gap: 16px;
+  padding: 20px;
 }
 
-.app-shell h1 {
+.app-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.app-header h1,
+.panel-header h2,
+.app-header p,
+.panel-header p,
+.log-list {
   margin: 0;
-  font-size: 32px;
+}
+
+.app-header h1 {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.eyebrow {
+  margin-bottom: 4px;
+  color: #52616f;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.app-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr);
+  grid-template-areas:
+    "score keyboard"
+    "controls log";
+  gap: 16px;
+}
+
+.panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.score-panel {
+  grid-area: score;
+}
+
+.keyboard-panel {
+  grid-area: keyboard;
+}
+
+.controls-panel {
+  grid-area: controls;
+}
+
+.log-panel {
+  grid-area: log;
+}
+
+.panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.panel-header h2 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.panel-header p {
+  color: #52616f;
+}
+
+.score-panel textarea {
+  min-height: 180px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  padding: 12px;
+  color: #52616f;
+  background: #f3f6f9;
+}
+
+.keyboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(52px, 1fr));
+  gap: 10px;
+}
+
+.key-button,
+.control-row button {
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #52616f;
+  background: #f3f6f9;
+}
+
+.key-button {
   font-weight: 700;
 }
 
-.app-shell p {
-  margin: 0;
-  font-size: 18px;
+.control-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 72px), 1fr));
+  gap: 10px;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 18px;
+  color: #52616f;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .app-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "score"
+      "keyboard"
+      "controls"
+      "log";
+  }
+
+  .control-row {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr));
+  }
 }
