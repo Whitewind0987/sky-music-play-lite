@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { testRustCommand } from "./lib/tauriApi";
 import "./App.css";
 
 type PanelHeaderProps = {
@@ -62,7 +64,11 @@ function KeyboardPreview({ keys }: KeyboardPreviewProps) {
   );
 }
 
-function PlaybackControls() {
+type PlaybackControlsProps = {
+  onTestRust: () => void;
+};
+
+function PlaybackControls({ onTestRust }: PlaybackControlsProps) {
   return (
     <section
       className="panel controls-panel"
@@ -85,6 +91,9 @@ function PlaybackControls() {
         </button>
         <button type="button" disabled>
           Stop
+        </button>
+        <button type="button" onClick={onTestRust}>
+          Test Rust
         </button>
       </div>
     </section>
@@ -110,7 +119,22 @@ function PlaybackLog({ entries }: PlaybackLogProps) {
 
 function App() {
   const previewKeys = ["A", "S", "D", "F", "G", "H", "J", "K"];
-  const logEntries = ["App layout is ready.", "No playback features yet."];
+  const [logEntries, setLogEntries] = useState([
+    "App layout is ready.",
+    "No playback features yet.",
+  ]);
+
+  async function handleTestRust() {
+    try {
+      const message = await testRustCommand();
+      setLogEntries((currentEntries) => [...currentEntries, message]);
+    } catch (error) {
+      setLogEntries((currentEntries) => [
+        ...currentEntries,
+        `Rust command failed: ${String(error)}`,
+      ]);
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -125,7 +149,7 @@ function App() {
       <div className="app-layout">
         <ScoreInput />
         <KeyboardPreview keys={previewKeys} />
-        <PlaybackControls />
+        <PlaybackControls onTestRust={handleTestRust} />
         <PlaybackLog entries={logEntries} />
       </div>
     </main>
