@@ -4,6 +4,7 @@ import { schedulePreviewPlayback } from "./lib/playbackScheduler";
 import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
 import type { Note, Song } from "./types/score";
+import "../font_5185981_ws56cq2qimf/iconfont.css";
 import "./App.css";
 
 type PanelHeaderProps = {
@@ -34,12 +35,164 @@ type ExampleScoresProps = {
   songs: Song[];
 };
 
+const sidebarItems = [
+  {
+    iconClass: "icon-Homehomepagemenu",
+    label: "Home",
+    section: "Workspace",
+  },
+  { iconClass: "icon-shuru", label: "Score", section: "Score" },
+  { iconClass: "icon-yulan", label: "Playback", section: "Playback" },
+  { iconClass: "icon-rizhi", label: "Logs", section: "Logs" },
+  { iconClass: "icon-shezhi", label: "Settings", section: "Settings" },
+] as const;
+type AppSection = (typeof sidebarItems)[number]["section"];
+
+const sectionHeaders: Record<
+  AppSection,
+  { eyebrow: string; title: string; status: string }
+> = {
+  Workspace: {
+    eyebrow: "Workspace",
+    title: "Music preview workspace",
+    status: "App is running",
+  },
+  Score: {
+    eyebrow: "Score",
+    title: "Score input",
+    status: "Text parsing preview",
+  },
+  Playback: {
+    eyebrow: "Playback",
+    title: "Playback preview",
+    status: "UI preview only",
+  },
+  Logs: {
+    eyebrow: "Logs",
+    title: "Runtime log",
+    status: "In-memory messages",
+  },
+  Settings: {
+    eyebrow: "Settings",
+    title: "Settings",
+    status: "Placeholder only",
+  },
+};
+
 function PanelHeader({ id, title, description }: PanelHeaderProps) {
   return (
     <div className="panel-header">
       <h2 id={id}>{title}</h2>
       <p>{description}</p>
     </div>
+  );
+}
+
+type AppSidebarProps = {
+  activeSection: AppSection;
+  onSectionChange: (section: AppSection) => void;
+};
+
+function AppSidebar({ activeSection, onSectionChange }: AppSidebarProps) {
+  return (
+    <aside className="app-sidebar" aria-label="Application navigation">
+      <div className="sidebar-brand">
+        <span className="brand-mark">S</span>
+        <div>
+          <p className="eyebrow">Sky tools</p>
+          <h1>SkyMusicPlay Lite</h1>
+        </div>
+      </div>
+
+      <nav className="sidebar-nav" aria-label="Main sections">
+        {sidebarItems.map((item) => (
+          <button
+            className={`sidebar-link${
+              activeSection === item.section ? " is-active" : ""
+            }`}
+            key={item.section}
+            type="button"
+            onClick={() => onSectionChange(item.section)}
+          >
+            <span
+              className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()} iconfont ${item.iconClass}`}
+              aria-hidden="true"
+            />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+type WorkspaceHeaderProps = {
+  activeSection: AppSection;
+  onSettingsClick: () => void;
+};
+
+function WorkspaceHeader({
+  activeSection,
+  onSettingsClick,
+}: WorkspaceHeaderProps) {
+  const header = sectionHeaders[activeSection];
+
+  return (
+    <header className="workspace-header">
+      <h2>{header.title}</h2>
+      <div className="header-actions" aria-label="Placeholder actions">
+        <button
+          className="icon-action"
+          type="button"
+          onClick={onSettingsClick}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <span className="iconfont icon-shezhi" aria-hidden="true" />
+        </button>
+        <button
+          className="icon-action"
+          type="button"
+          disabled
+          title="User Manual"
+          aria-label="User Manual"
+        >
+          <span className="iconfont icon-wenhao" aria-hidden="true" />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+type WorkspaceOverviewProps = {
+  isPreviewPlaying: boolean;
+  logCount: number;
+  noteCount: number;
+};
+
+function WorkspaceOverview({
+  isPreviewPlaying,
+  logCount,
+  noteCount,
+}: WorkspaceOverviewProps) {
+  return (
+    <section className="overview-grid" aria-label="Workspace overview">
+      <article className="overview-card">
+        <p className="eyebrow">Score</p>
+        <h3>{noteCount} parsed notes</h3>
+        <p>Use the Score section to edit and parse text notes.</p>
+      </article>
+      <article className="overview-card">
+        <p className="eyebrow">Playback</p>
+        <h3>{isPreviewPlaying ? "Preview running" : "Preview idle"}</h3>
+        <p>Use the Playback section to preview highlighted keys.</p>
+      </article>
+      <article className="overview-card">
+        <p className="eyebrow">Logs</p>
+        <h3>{logCount} log entries</h3>
+        <p>Use the Logs section to inspect runtime messages.</p>
+      </article>
+    </section>
   );
 }
 
@@ -209,6 +362,56 @@ function PlaybackLog({ entries }: PlaybackLogProps) {
   );
 }
 
+function SettingsPlaceholder() {
+  return (
+    <section className="settings-grid" aria-label="Settings placeholder">
+      <article className="panel settings-panel">
+        <PanelHeader
+          id="settings-system-title"
+          title="System settings"
+          description="Real settings will be added in a later phase."
+        />
+        <div className="setting-placeholder-list">
+          <div className="setting-row">
+            <span>Language</span>
+            <span className="fake-select">English</span>
+          </div>
+          <div className="setting-row">
+            <span>Theme</span>
+            <span className="fake-segment">System</span>
+          </div>
+          <div className="setting-row">
+            <span>Default page</span>
+            <span className="fake-select">Home</span>
+          </div>
+        </div>
+      </article>
+
+      <article className="panel settings-panel">
+        <PanelHeader
+          id="settings-preview-title"
+          title="Preview options"
+          description="These controls are placeholders and do not save yet."
+        />
+        <div className="setting-placeholder-list">
+          <div className="setting-row">
+            <span>Detailed logs</span>
+            <span className="fake-toggle is-on" />
+          </div>
+          <div className="setting-row">
+            <span>Real keyboard mode</span>
+            <span className="fake-toggle" />
+          </div>
+          <div className="setting-row">
+            <span>Manual</span>
+            <span className="fake-link">Open later</span>
+          </div>
+        </div>
+      </article>
+    </section>
+  );
+}
+
 function App() {
   const previewKeys = [
     "1Key1",
@@ -227,6 +430,7 @@ function App() {
   const [parseError, setParseError] = useState("");
   const [activeKey, setActiveKey] = useState("");
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
   const [logEntries, setLogEntries] = useState([
     "App layout is ready.",
     "No playback features yet.",
@@ -301,17 +505,9 @@ function App() {
     }
   }
 
-  return (
-    <main className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">Header area</p>
-          <h1>SkyMusicPlay Lite</h1>
-        </div>
-        <p>App is running</p>
-      </header>
-
-      <div className="app-layout">
+  function renderActiveSection() {
+    if (activeSection === "Score") {
+      return (
         <ScoreInput
           error={parseError}
           input={scoreInput}
@@ -320,14 +516,58 @@ function App() {
           onParseScore={handleParseScore}
           songs={exampleScores}
         />
-        <KeyboardPreview activeKey={activeKey} keys={previewKeys} />
-        <PlaybackControls
-          isPreviewPlaying={isPreviewPlaying}
-          onPlayPreview={handlePlayPreview}
-          onTestRust={handleTestRust}
+      );
+    }
+
+    if (activeSection === "Playback") {
+      return (
+        <>
+          <KeyboardPreview activeKey={activeKey} keys={previewKeys} />
+          <PlaybackControls
+            isPreviewPlaying={isPreviewPlaying}
+            onPlayPreview={handlePlayPreview}
+            onTestRust={handleTestRust}
+          />
+        </>
+      );
+    }
+
+    if (activeSection === "Logs") {
+      return <PlaybackLog entries={logEntries} />;
+    }
+
+    if (activeSection === "Settings") {
+      return <SettingsPlaceholder />;
+    }
+
+    return (
+      <WorkspaceOverview
+        isPreviewPlaying={isPreviewPlaying}
+        logCount={logEntries.length}
+        noteCount={parsedNotes.length}
+      />
+    );
+  }
+
+  return (
+    <main className="app-shell">
+      <AppSidebar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
+
+      <section className="workspace-shell" aria-label="Workspace content">
+        <WorkspaceHeader
+          activeSection={activeSection}
+          onSettingsClick={() => setActiveSection("Settings")}
         />
-        <PlaybackLog entries={logEntries} />
-      </div>
+
+        <div
+          className={`app-layout app-layout-${activeSection.toLowerCase()}`}
+        >
+          {renderActiveSection()}
+        </div>
+      </section>
     </main>
   );
 }

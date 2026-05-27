@@ -1,0 +1,58 @@
+{
+  "id": "5185981",
+  "name": "sky",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "604655",
+      "name": "预览",
+      "font_class": "yulan",
+      "unicode": "e633",
+      "unicode_decimal": 58931
+    },
+    {
+      "icon_id": "5387542",
+      "name": "控制中心",
+      "font_class": "kongzhizhongxin",
+      "unicode": "eafa",
+      "unicode_decimal": 60154
+    },
+    {
+      "icon_id": "9626934",
+      "name": "输入",
+      "font_class": "shuru",
+      "unicode": "e87d",
+      "unicode_decimal": 59517
+    },
+    {
+      "icon_id": "11982742",
+      "name": "Home, homepage, menu",
+      "font_class": "Homehomepagemenu",
+      "unicode": "e9db",
+      "unicode_decimal": 59867
+    },
+    {
+      "icon_id": "14668884",
+      "name": "日志",
+      "font_class": "rizhi",
+      "unicode": "e613",
+      "unicode_decimal": 58899
+    },
+    {
+      "icon_id": "8361816",
+      "name": "问号",
+      "font_class": "wenhao",
+      "unicode": "e6c9",
+      "unicode_decimal": 59081
+    },
+    {
+      "icon_id": "18309270",
+      "name": "设 置",
+      "font_class": "shezhi",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    }
+  ]
+}
