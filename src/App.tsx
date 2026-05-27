@@ -4,7 +4,7 @@ import { schedulePreviewPlayback } from "./lib/playbackScheduler";
 import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
 import type { Note, Song } from "./types/score";
-import "../font_5185981_ws56cq2qimf/iconfont.css";
+import "../font/iconfont.css";
 import "./App.css";
 
 type PanelHeaderProps = {
