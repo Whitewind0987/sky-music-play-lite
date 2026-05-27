@@ -239,10 +239,33 @@ textarea {
   font-weight: 700;
 }
 
+.key-button.is-active:disabled {
+  border-color: #2f80ed;
+  color: #0b3d75;
+  background: #d8ebff;
+  box-shadow: inset 0 0 0 2px #2f80ed;
+}
+
 .control-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 72px), 1fr));
   gap: 10px;
+}
+
+.control-row button:not(:disabled) {
+  color: #1f2933;
+  background: #e7eef6;
+  cursor: pointer;
+}
+
+.control-row button:not(:disabled):hover {
+  background: #dbe7f2;
+}
+
+.control-row button.is-playing {
+  border-color: #2f80ed;
+  color: #0b3d75;
+  background: #d8ebff;
 }
 
 .log-list {

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { exampleScores } from "./data/exampleScores";
+import { schedulePreviewPlayback } from "./lib/playbackScheduler";
 import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
 import type { Note, Song } from "./types/score";
@@ -12,6 +13,7 @@ type PanelHeaderProps = {
 };
 
 type KeyboardPreviewProps = {
+  activeKey: string;
   keys: string[];
 };
 
@@ -114,7 +116,7 @@ function ScoreInput({
   );
 }
 
-function KeyboardPreview({ keys }: KeyboardPreviewProps) {
+function KeyboardPreview({ activeKey, keys }: KeyboardPreviewProps) {
   return (
     <section
       className="panel keyboard-panel"
@@ -127,7 +129,12 @@ function KeyboardPreview({ keys }: KeyboardPreviewProps) {
       />
       <div className="keyboard-grid" aria-label="Static keyboard preview">
         {keys.map((key) => (
-          <button className="key-button" type="button" disabled key={key}>
+          <button
+            className={`key-button${activeKey === key ? " is-active" : ""}`}
+            type="button"
+            disabled
+            key={key}
+          >
             {key}
           </button>
         ))}
@@ -137,10 +144,16 @@ function KeyboardPreview({ keys }: KeyboardPreviewProps) {
 }
 
 type PlaybackControlsProps = {
+  isPreviewPlaying: boolean;
+  onPlayPreview: () => void;
   onTestRust: () => void;
 };
 
-function PlaybackControls({ onTestRust }: PlaybackControlsProps) {
+function PlaybackControls({
+  isPreviewPlaying,
+  onPlayPreview,
+  onTestRust,
+}: PlaybackControlsProps) {
   return (
     <section
       className="panel controls-panel"
@@ -164,6 +177,13 @@ function PlaybackControls({ onTestRust }: PlaybackControlsProps) {
         <button type="button" disabled>
           Stop
         </button>
+        <button
+          className={isPreviewPlaying ? "is-playing" : ""}
+          type="button"
+          onClick={onPlayPreview}
+        >
+          {isPreviewPlaying ? "Restart Preview" : "Play Preview"}
+        </button>
         <button type="button" onClick={onTestRust}>
           Test Rust
         </button>
@@ -181,8 +201,8 @@ function PlaybackLog({ entries }: PlaybackLogProps) {
         description="Runtime messages will appear here in a later phase."
       />
       <ul className="log-list">
-        {entries.map((entry) => (
-          <li key={entry}>{entry}</li>
+        {entries.map((entry, index) => (
+          <li key={`${entry}-${index}`}>{entry}</li>
         ))}
       </ul>
     </section>
@@ -190,14 +210,37 @@ function PlaybackLog({ entries }: PlaybackLogProps) {
 }
 
 function App() {
-  const previewKeys = ["A", "S", "D", "F", "G", "H", "J", "K"];
+  const previewKeys = [
+    "1Key1",
+    "1Key2",
+    "1Key3",
+    "1Key4",
+    "1Key5",
+    "1Key6",
+    "1Key7",
+    "1Key8",
+    "2Key1",
+  ];
+  const previewStopRef = useRef<(() => void) | null>(null);
   const [scoreInput, setScoreInput] = useState("1Key5 1Key6 1Key7 2Key1");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
   const [parseError, setParseError] = useState("");
+  const [activeKey, setActiveKey] = useState("");
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [logEntries, setLogEntries] = useState([
     "App layout is ready.",
     "No playback features yet.",
   ]);
+
+  useEffect(() => {
+    return () => {
+      previewStopRef.current?.();
+    };
+  }, []);
+
+  function appendLog(entry: string) {
+    setLogEntries((currentEntries) => [...currentEntries, entry]);
+  }
 
   function handleParseScore() {
     try {
@@ -210,10 +253,46 @@ function App() {
     }
   }
 
+  function stopCurrentPreview() {
+    previewStopRef.current?.();
+    previewStopRef.current = null;
+    setActiveKey("");
+    setIsPreviewPlaying(false);
+  }
+
+  function handlePlayPreview() {
+    stopCurrentPreview();
+
+    try {
+      const notes = parseTextScore(scoreInput);
+      setParsedNotes(notes);
+      setParseError("");
+      setIsPreviewPlaying(true);
+      appendLog("Preview started.");
+
+      previewStopRef.current = schedulePreviewPlayback(
+        notes,
+        (note) => {
+          setActiveKey(note.key);
+          appendLog(`Playing preview key: ${note.key}`);
+        },
+        () => {
+          setActiveKey("");
+          setIsPreviewPlaying(false);
+          previewStopRef.current = null;
+          appendLog("Preview finished.");
+        },
+      );
+    } catch (error) {
+      setParsedNotes([]);
+      setParseError(String(error instanceof Error ? error.message : error));
+    }
+  }
+
   async function handleTestRust() {
     try {
       const message = await testRustCommand();
-      setLogEntries((currentEntries) => [...currentEntries, message]);
+      appendLog(message);
     } catch (error) {
       setLogEntries((currentEntries) => [
         ...currentEntries,
@@ -241,8 +320,12 @@ function App() {
           onParseScore={handleParseScore}
           songs={exampleScores}
         />
-        <KeyboardPreview keys={previewKeys} />
-        <PlaybackControls onTestRust={handleTestRust} />
+        <KeyboardPreview activeKey={activeKey} keys={previewKeys} />
+        <PlaybackControls
+          isPreviewPlaying={isPreviewPlaying}
+          onPlayPreview={handlePlayPreview}
+          onTestRust={handleTestRust}
+        />
         <PlaybackLog entries={logEntries} />
       </div>
     </main>
