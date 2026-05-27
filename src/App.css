@@ -125,6 +125,47 @@ textarea {
   background: #f3f6f9;
 }
 
+.example-scores {
+  display: grid;
+  gap: 10px;
+}
+
+.score-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  background: #fbfcfd;
+}
+
+.score-card h3,
+.score-card dl,
+.score-card dd {
+  margin: 0;
+}
+
+.score-card h3 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.score-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.score-card dt {
+  color: #52616f;
+  font-size: 13px;
+}
+
+.score-card dd {
+  font-weight: 700;
+}
+
 .keyboard-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(52px, 1fr));

@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { exampleScores } from "./data/exampleScores";
 import { testRustCommand } from "./lib/tauriApi";
+import type { Song } from "./types/score";
 import "./App.css";
 
 type PanelHeaderProps = {
@@ -16,6 +18,10 @@ type PlaybackLogProps = {
   entries: string[];
 };
 
+type ScoreInputProps = {
+  songs: Song[];
+};
+
 function PanelHeader({ id, title, description }: PanelHeaderProps) {
   return (
     <div className="panel-header">
@@ -25,7 +31,29 @@ function PanelHeader({ id, title, description }: PanelHeaderProps) {
   );
 }
 
-function ScoreInput() {
+function ExampleScores({ songs }: ScoreInputProps) {
+  return (
+    <div className="example-scores" aria-label="Example score metadata">
+      {songs.map((song) => (
+        <article className="score-card" key={song.name}>
+          <h3>{song.name}</h3>
+          <dl>
+            <div>
+              <dt>BPM</dt>
+              <dd>{song.bpm}</dd>
+            </div>
+            <div>
+              <dt>Notes</dt>
+              <dd>{song.songNotes.length}</dd>
+            </div>
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ScoreInput({ songs }: ScoreInputProps) {
   return (
     <section className="panel score-panel" aria-labelledby="score-input-title">
       <PanelHeader
@@ -38,6 +66,7 @@ function ScoreInput() {
         placeholder="Score input is not active yet."
         disabled
       />
+      <ExampleScores songs={songs} />
     </section>
   );
 }
@@ -147,7 +176,7 @@ function App() {
       </header>
 
       <div className="app-layout">
-        <ScoreInput />
+        <ScoreInput songs={exampleScores} />
         <KeyboardPreview keys={previewKeys} />
         <PlaybackControls onTestRust={handleTestRust} />
         <PlaybackLog entries={logEntries} />
