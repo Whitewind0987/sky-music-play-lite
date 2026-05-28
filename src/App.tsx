@@ -38,6 +38,7 @@ import "../font/iconfont.css";
 import "./App.css";
 
 const ignoredKeyMappingKeys = new Set(["Alt", "Control", "Meta", "Shift"]);
+const letterKeyPattern = /^[a-z]$/i;
 
 function formatText(
   template: string,
@@ -55,6 +56,22 @@ function formatImportError(error: unknown, text: UiText) {
   }
 
   return String(error instanceof Error ? error.message : error);
+}
+
+function getBindableKey(event: KeyboardEvent) {
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return null;
+  }
+
+  if (ignoredKeyMappingKeys.has(event.key)) {
+    return null;
+  }
+
+  if (letterKeyPattern.test(event.key)) {
+    return event.key.toLowerCase();
+  }
+
+  return event.key;
 }
 
 function App() {
@@ -98,17 +115,15 @@ function App() {
         return;
       }
 
-      if (event.altKey || event.ctrlKey || event.metaKey) {
-        return;
-      }
+      const bindableKey = getBindableKey(event);
 
-      if (ignoredKeyMappingKeys.has(event.key)) {
+      if (bindableKey === null) {
         return;
       }
 
       setKeyMapping((currentMapping) => ({
         ...currentMapping,
-        [skyKeyBeingMapped]: event.key,
+        [skyKeyBeingMapped]: bindableKey,
       }));
       setListeningSkyKey(null);
     }
