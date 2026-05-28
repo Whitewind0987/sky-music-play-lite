@@ -1,4 +1,5 @@
 import type { UiText } from "../i18n/uiText";
+import type { PlaybackState } from "../types/playback";
 import { PanelHeader } from "./PanelHeader";
 
 export type PreviewKey = {
@@ -74,19 +75,32 @@ export function getPreviewKeyName(scoreKey: string) {
 
 type PlaybackControlsProps = {
   canPlayPreview: boolean;
-  isPreviewPlaying: boolean;
+  playbackState: PlaybackState;
+  onPausePreview: () => void;
   onPlayPreview: () => void;
+  onResumePreview: () => void;
+  onStopPreview: () => void;
   onTestRust: () => void;
   text: UiText["playback"];
 };
 
 export function PlaybackControls({
   canPlayPreview,
-  isPreviewPlaying,
+  playbackState,
+  onPausePreview,
   onPlayPreview,
+  onResumePreview,
+  onStopPreview,
   onTestRust,
   text,
 }: PlaybackControlsProps) {
+  const canStartPlayback =
+    canPlayPreview && (playbackState === "idle" || playbackState === "finished");
+  const canPausePlayback = playbackState === "playing";
+  const canResumePlayback = playbackState === "paused";
+  const canStopPlayback =
+    playbackState === "playing" || playbackState === "paused";
+
   return (
     <section
       className="panel controls-panel"
@@ -97,26 +111,38 @@ export function PlaybackControls({
         title={text.panelTitle}
         description={text.panelDescription}
       />
+      <p className="playback-state">
+        {text.stateLabel}: {text.states[playbackState]}
+      </p>
       <div className="control-row">
-        <button type="button" disabled>
-          {text.play}
-        </button>
-        <button type="button" disabled>
-          {text.pause}
-        </button>
-        <button type="button" disabled>
-          {text.resume}
-        </button>
-        <button type="button" disabled>
-          {text.stop}
-        </button>
         <button
-          className={isPreviewPlaying ? "is-playing" : ""}
+          className={playbackState === "playing" ? "is-playing" : ""}
           type="button"
-          disabled={!isPreviewPlaying && !canPlayPreview}
+          disabled={!canStartPlayback}
           onClick={onPlayPreview}
         >
-          {isPreviewPlaying ? text.stopPreview : text.playPreview}
+          {text.play}
+        </button>
+        <button
+          type="button"
+          disabled={!canPausePlayback}
+          onClick={onPausePreview}
+        >
+          {text.pause}
+        </button>
+        <button
+          type="button"
+          disabled={!canResumePlayback}
+          onClick={onResumePreview}
+        >
+          {text.resume}
+        </button>
+        <button
+          type="button"
+          disabled={!canStopPlayback}
+          onClick={onStopPreview}
+        >
+          {text.stop}
         </button>
         <button type="button" onClick={onTestRust}>
           {text.testRust}

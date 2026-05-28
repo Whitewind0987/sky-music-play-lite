@@ -661,6 +661,12 @@ button {
   gap: 10px;
 }
 
+.playback-state {
+  margin: 0;
+  color: #52616f;
+  font-weight: 700;
+}
+
 .control-row button:not(:disabled) {
   color: #1f2933;
   background: #e7eef6;

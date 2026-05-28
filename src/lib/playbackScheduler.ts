@@ -5,39 +5,121 @@ type PreviewFinishHandler = () => void;
 
 const NOTE_HIGHLIGHT_MS = 300;
 
+type PreviewNoteGroup = {
+  time: number;
+  notes: Note[];
+};
+
+type ScheduledTask = "note" | "finish";
+
+export type PreviewPlaybackController = {
+  pause: () => void;
+  resume: () => void;
+  stop: () => void;
+};
+
 export function schedulePreviewPlayback(
   notes: Note[],
   onNoteGroup: PreviewNoteGroupHandler,
   onFinish: PreviewFinishHandler,
-) {
-  const timeoutIds: number[] = [];
-
+): PreviewPlaybackController {
   const sortedNotes = [...notes].sort((left, right) => left.time - right.time);
   const noteGroups = groupNotesByTime(sortedNotes);
+  let currentGroupIndex = 0;
+  let timeoutId: number | null = null;
+  let scheduledTask: ScheduledTask =
+    noteGroups.length > 0 ? "note" : "finish";
+  let scheduledDelayMs =
+    noteGroups.length > 0 ? Math.max(0, noteGroups[0].time) : 0;
+  let scheduledAtMs = 0;
+  let remainingDelayMs = scheduledDelayMs;
+  let isPaused = false;
+  let isStopped = false;
 
-  noteGroups.forEach((noteGroup) => {
-    const timeoutId = window.setTimeout(() => {
-      onNoteGroup(noteGroup.notes);
-    }, Math.max(0, noteGroup.time));
+  function clearCurrentTimeout() {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  }
 
-    timeoutIds.push(timeoutId);
-  });
+  function scheduleTask(task: ScheduledTask, delayMs: number) {
+    if (isStopped) {
+      return;
+    }
 
-  const lastNoteTime =
-    sortedNotes.length > 0 ? sortedNotes[sortedNotes.length - 1].time : 0;
-  const finishTimeoutId = window.setTimeout(() => {
-    onFinish();
-  }, Math.max(0, lastNoteTime) + NOTE_HIGHLIGHT_MS);
+    scheduledTask = task;
+    scheduledDelayMs = Math.max(0, delayMs);
+    remainingDelayMs = scheduledDelayMs;
+    scheduledAtMs = Date.now();
 
-  timeoutIds.push(finishTimeoutId);
+    timeoutId = window.setTimeout(() => {
+      timeoutId = null;
 
-  return function stopPreviewPlayback() {
-    timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      if (isStopped || isPaused) {
+        return;
+      }
+
+      if (task === "finish") {
+        onFinish();
+        return;
+      }
+
+      playCurrentGroup();
+    }, scheduledDelayMs);
+  }
+
+  function playCurrentGroup() {
+    const currentGroup = noteGroups[currentGroupIndex];
+
+    if (!currentGroup) {
+      scheduleTask("finish", 0);
+      return;
+    }
+
+    onNoteGroup(currentGroup.notes);
+    currentGroupIndex += 1;
+
+    const nextGroup = noteGroups[currentGroupIndex];
+
+    if (!nextGroup) {
+      scheduleTask("finish", NOTE_HIGHLIGHT_MS);
+      return;
+    }
+
+    scheduleTask("note", nextGroup.time - currentGroup.time);
+  }
+
+  scheduleTask(scheduledTask, scheduledDelayMs);
+
+  return {
+    pause() {
+      if (isStopped || isPaused || timeoutId === null) {
+        return;
+      }
+
+      const elapsedMs = Date.now() - scheduledAtMs;
+      remainingDelayMs = Math.max(0, scheduledDelayMs - elapsedMs);
+      isPaused = true;
+      clearCurrentTimeout();
+    },
+    resume() {
+      if (isStopped || !isPaused) {
+        return;
+      }
+
+      isPaused = false;
+      scheduleTask(scheduledTask, remainingDelayMs);
+    },
+    stop() {
+      isStopped = true;
+      clearCurrentTimeout();
+    },
   };
 }
 
 function groupNotesByTime(notes: Note[]) {
-  const noteGroups: Array<{ time: number; notes: Note[] }> = [];
+  const noteGroups: PreviewNoteGroup[] = [];
 
   notes.forEach((note) => {
     const lastGroup = noteGroups[noteGroups.length - 1];

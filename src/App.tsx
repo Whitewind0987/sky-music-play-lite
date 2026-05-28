@@ -18,12 +18,16 @@ import {
   uiText,
   type LanguageCode,
 } from "./i18n/uiText";
-import { schedulePreviewPlayback } from "./lib/playbackScheduler";
+import {
+  schedulePreviewPlayback,
+  type PreviewPlaybackController,
+} from "./lib/playbackScheduler";
 import {
   isSupportedScoreFileName,
   parseScoreFileContent,
 } from "./lib/scoreFileImport";
 import { testRustCommand } from "./lib/tauriApi";
+import type { PlaybackState } from "./types/playback";
 import type { Song } from "./types/score";
 import "../font/iconfont.css";
 import "./App.css";
@@ -39,13 +43,13 @@ function formatText(
 }
 
 function App() {
-  const previewStopRef = useRef<(() => void) | null>(null);
+  const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [importedSongs, setImportedSongs] = useState<Song[]>([]);
   const [importError, setImportError] = useState("");
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
   const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
   const [logEntries, setLogEntries] = useState<string[]>(() => [
     uiText[defaultLanguage].logs.appReady,
@@ -57,7 +61,7 @@ function App() {
 
   useEffect(() => {
     return () => {
-      previewStopRef.current?.();
+      playbackControllerRef.current?.stop();
     };
   }, []);
 
@@ -66,6 +70,8 @@ function App() {
   }
 
   async function handleImportScoreFile(file: File) {
+    stopCurrentPreview();
+
     try {
       if (!isSupportedScoreFileName(file.name)) {
         throw new Error(text.score.unsupportedFile);
@@ -91,23 +97,18 @@ function App() {
   }
 
   function handleSelectImportedSong(songIndex: number | null) {
+    stopCurrentPreview();
     setSelectedSongIndex(songIndex);
   }
 
-  function stopCurrentPreview() {
-    previewStopRef.current?.();
-    previewStopRef.current = null;
+  function stopCurrentPreview(nextState: PlaybackState = "idle") {
+    playbackControllerRef.current?.stop();
+    playbackControllerRef.current = null;
     setActiveKeys([]);
-    setIsPreviewPlaying(false);
+    setPlaybackState(nextState);
   }
 
   function handlePlayPreview() {
-    if (isPreviewPlaying) {
-      stopCurrentPreview();
-      appendLog(text.logs.previewStopped);
-      return;
-    }
-
     stopCurrentPreview();
 
     try {
@@ -118,14 +119,14 @@ function App() {
 
       const notes = currentSelectedSong.songNotes;
 
-      setIsPreviewPlaying(true);
+      setPlaybackState("playing");
       appendLog(
         formatText(text.logs.previewStartedFromSong, {
           songName: currentSelectedSong.name,
         }),
       );
 
-      previewStopRef.current = schedulePreviewPlayback(
+      playbackControllerRef.current = schedulePreviewPlayback(
         notes,
         (noteGroup) => {
           const keys = noteGroup.map((note) => note.key);
@@ -137,14 +138,45 @@ function App() {
         },
         () => {
           setActiveKeys([]);
-          setIsPreviewPlaying(false);
-          previewStopRef.current = null;
+          setPlaybackState("finished");
+          playbackControllerRef.current = null;
           appendLog(text.logs.previewFinished);
         },
       );
     } catch (error) {
+      stopCurrentPreview();
       appendLog(String(error instanceof Error ? error.message : error));
     }
+  }
+
+  function handlePausePreview() {
+    if (playbackState !== "playing") {
+      return;
+    }
+
+    playbackControllerRef.current?.pause();
+    setActiveKeys([]);
+    setPlaybackState("paused");
+    appendLog(text.logs.previewPaused);
+  }
+
+  function handleResumePreview() {
+    if (playbackState !== "paused") {
+      return;
+    }
+
+    playbackControllerRef.current?.resume();
+    setPlaybackState("playing");
+    appendLog(text.logs.previewResumed);
+  }
+
+  function handleStopPreview() {
+    if (playbackState !== "playing" && playbackState !== "paused") {
+      return;
+    }
+
+    stopCurrentPreview();
+    appendLog(text.logs.previewStopped);
   }
 
   async function handleTestRust() {
@@ -183,8 +215,11 @@ function App() {
           />
           <PlaybackControls
             canPlayPreview={currentSelectedSong !== null}
-            isPreviewPlaying={isPreviewPlaying}
+            playbackState={playbackState}
+            onPausePreview={handlePausePreview}
             onPlayPreview={handlePlayPreview}
+            onResumePreview={handleResumePreview}
+            onStopPreview={handleStopPreview}
             onTestRust={handleTestRust}
             text={text.playback}
           />
@@ -208,7 +243,7 @@ function App() {
 
     return (
       <WorkspaceOverview
-        isPreviewPlaying={isPreviewPlaying}
+        isPreviewPlaying={playbackState === "playing"}
         logCount={logEntries.length}
         noteCount={currentSelectedSong?.songNotes.length ?? 0}
         text={text.workspace}
