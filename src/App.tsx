@@ -5,6 +5,7 @@ import {
   WorkspaceOverview,
   type AppSection,
 } from "./components/AppShell";
+import { BottomPlayer } from "./components/BottomPlayer";
 import { PlaybackLog } from "./components/LogPanel";
 import {
   KeyboardPreview,
@@ -400,6 +401,16 @@ function App() {
         >
           {renderActiveSection()}
         </div>
+
+        <BottomPlayer
+          currentSong={currentSelectedSong}
+          onPause={handlePausePreview}
+          onPlay={handlePlayPreview}
+          onResume={handleResumePreview}
+          onStop={handleStopPreview}
+          playbackState={playbackState}
+          text={text.bottomPlayer}
+        />
       </section>
     </main>
   );
