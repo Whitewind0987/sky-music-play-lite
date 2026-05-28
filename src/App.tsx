@@ -402,16 +402,17 @@ function App() {
           {renderActiveSection()}
         </div>
 
-        <BottomPlayer
-          currentSong={currentSelectedSong}
-          onPause={handlePausePreview}
-          onPlay={handlePlayPreview}
-          onResume={handleResumePreview}
-          onStop={handleStopPreview}
-          playbackState={playbackState}
-          text={text.bottomPlayer}
-        />
       </section>
+
+      <BottomPlayer
+        currentSong={currentSelectedSong}
+        onPause={handlePausePreview}
+        onPlay={handlePlayPreview}
+        onResume={handleResumePreview}
+        onStop={handleStopPreview}
+        playbackState={playbackState}
+        text={text.bottomPlayer}
+      />
     </main>
   );
 }

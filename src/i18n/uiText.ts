@@ -136,6 +136,8 @@ export const uiText = {
       progress: "进度占位",
       queue: "队列",
       mode: "模式",
+      repeat: "循环",
+      shuffle: "随机播放",
     },
     logs: {
       panelTitle: "日志区",
@@ -317,6 +319,8 @@ export const uiText = {
       progress: "Progress placeholder",
       queue: "Queue",
       mode: "Mode",
+      repeat: "Repeat",
+      shuffle: "Shuffle",
     },
     logs: {
       panelTitle: "Log area",
