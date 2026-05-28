@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   AppSidebar,
   WorkspaceHeader,
-  WorkspaceOverview,
   type AppSection,
 } from "./components/AppShell";
 import { BottomPlayer } from "./components/BottomPlayer";
+import { HomePanel } from "./components/HomePanel";
 import { PlaybackLog } from "./components/LogPanel";
 import {
   KeyboardPreview,
@@ -372,11 +372,12 @@ function App() {
     }
 
     return (
-      <WorkspaceOverview
-        isPreviewPlaying={playbackState === "playing"}
-        logCount={logEntries.length}
-        noteCount={currentSelectedSong?.songNotes.length ?? 0}
-        text={text.workspace}
+      <HomePanel
+        onGoToScore={() => setActiveSection("Score")}
+        onSelectSong={handleSelectImportedSong}
+        selectedSongIndex={selectedSongIndex}
+        songs={importedSongs}
+        text={text.home}
       />
     );
   }
