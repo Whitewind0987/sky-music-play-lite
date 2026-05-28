@@ -28,7 +28,7 @@ import {
   parseScoreFileContent,
   ScoreFileImportError,
 } from "./lib/scoreFileImport";
-import { testRustCommand } from "./lib/tauriApi";
+import { dryRunPlayback, testRustCommand } from "./lib/tauriApi";
 import type { PlaybackState } from "./types/playback";
 import type { Song } from "./types/score";
 import "../font/iconfont.css";
@@ -213,6 +213,42 @@ function App() {
     }
   }
 
+  async function handleDryRunPlayback() {
+    if (!currentSelectedSong) {
+      appendLog(text.logs.noSelectedScore);
+      return;
+    }
+
+    try {
+      appendLog(
+        formatText(text.logs.dryRunStarted, {
+          songName: currentSelectedSong.name,
+        }),
+      );
+
+      const result = await dryRunPlayback(currentSelectedSong.songNotes);
+      const firstNote = result.first_note;
+      const lastNote = result.last_note;
+
+      appendLog(
+        formatText(text.logs.dryRunFinished, {
+          firstKey: firstNote?.key ?? text.logs.noNoteSummary,
+          firstTime: firstNote?.time ?? text.logs.noNoteSummary,
+          lastKey: lastNote?.key ?? text.logs.noNoteSummary,
+          lastTime: lastNote?.time ?? text.logs.noNoteSummary,
+          noteCount: result.note_count,
+          status: result.status,
+        }),
+      );
+    } catch (error) {
+      appendLog(
+        formatText(text.logs.dryRunFailed, {
+          error: String(error),
+        }),
+      );
+    }
+  }
+
   function renderActiveSection() {
     if (activeSection === "Score") {
       return (
@@ -236,7 +272,9 @@ function App() {
             text={text.keyboard}
           />
           <PlaybackControls
+            canRunDryRun={currentSelectedSong !== null}
             canPlayPreview={currentSelectedSong !== null}
+            onDryRunPlayback={handleDryRunPlayback}
             playbackState={playbackState}
             onPausePreview={handlePausePreview}
             onPlayPreview={handlePlayPreview}

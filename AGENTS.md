@@ -39,6 +39,9 @@ direction.
 - Do not commit or push unless the human user explicitly allows it.
 - Suggest Git commands for the human user to run instead of doing commits or
   pushes automatically.
+- At the end of each task, check whether `src-tauri/Cargo.toml` only has
+  line-ending noise. If so, restore it before reporting the final status so it
+  is not accidentally committed.
 
 ## Dependency Safety
 

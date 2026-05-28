@@ -74,8 +74,10 @@ export function getPreviewKeyName(scoreKey: string) {
 }
 
 type PlaybackControlsProps = {
+  canRunDryRun: boolean;
   canPlayPreview: boolean;
   playbackState: PlaybackState;
+  onDryRunPlayback: () => void;
   onPausePreview: () => void;
   onPlayPreview: () => void;
   onResumePreview: () => void;
@@ -85,8 +87,10 @@ type PlaybackControlsProps = {
 };
 
 export function PlaybackControls({
+  canRunDryRun,
   canPlayPreview,
   playbackState,
+  onDryRunPlayback,
   onPausePreview,
   onPlayPreview,
   onResumePreview,
@@ -146,6 +150,9 @@ export function PlaybackControls({
         </button>
         <button type="button" onClick={onTestRust}>
           {text.testRust}
+        </button>
+        <button type="button" disabled={!canRunDryRun} onClick={onDryRunPlayback}>
+          {text.rustDryRun}
         </button>
       </div>
     </section>
