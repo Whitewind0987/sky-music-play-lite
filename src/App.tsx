@@ -25,7 +25,7 @@ type PanelHeaderProps = {
 };
 
 type KeyboardPreviewProps = {
-  activeKey: string;
+  activeKeys: string[];
   keys: PreviewKey[];
   text: UiText["keyboard"];
 };
@@ -302,8 +302,8 @@ function ParsedNotes({
         {notes.length} {text.notesParsed}
       </p>
       <ol>
-        {notes.map((note) => (
-          <li key={`${note.time}-${note.key}`}>
+        {notes.map((note, index) => (
+          <li key={`${note.time}-${note.key}-${index}`}>
             <span>{note.key}</span>
             <span>
               {note.time} {text.milliseconds}
@@ -375,8 +375,10 @@ function ScoreInput({
   );
 }
 
-function KeyboardPreview({ activeKey, keys, text }: KeyboardPreviewProps) {
-  const activePreviewKey = getPreviewKeyName(activeKey);
+function KeyboardPreview({ activeKeys, keys, text }: KeyboardPreviewProps) {
+  const activePreviewKeys = activeKeys.map((activeKey) =>
+    getPreviewKeyName(activeKey),
+  );
 
   return (
     <section
@@ -392,7 +394,7 @@ function KeyboardPreview({ activeKey, keys, text }: KeyboardPreviewProps) {
         {keys.map((key) => (
           <button
             className={`key-button${
-              activePreviewKey === key.skyKey ? " is-active" : ""
+              activePreviewKeys.includes(key.skyKey) ? " is-active" : ""
             }`}
             type="button"
             disabled
@@ -572,7 +574,7 @@ function App() {
   const [importedSongs, setImportedSongs] = useState<Song[]>([]);
   const [importError, setImportError] = useState("");
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
-  const [activeKey, setActiveKey] = useState("");
+  const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
   const [logEntries, setLogEntries] = useState<string[]>(() => [
@@ -642,7 +644,7 @@ function App() {
   function stopCurrentPreview() {
     previewStopRef.current?.();
     previewStopRef.current = null;
-    setActiveKey("");
+    setActiveKeys([]);
     setIsPreviewPlaying(false);
   }
 
@@ -673,12 +675,16 @@ function App() {
 
       previewStopRef.current = schedulePreviewPlayback(
         notes,
-        (note) => {
-          setActiveKey(note.key);
-          appendLog(formatText(text.logs.playingPreviewKey, { key: note.key }));
+        (noteGroup) => {
+          const keys = noteGroup.map((note) => note.key);
+
+          setActiveKeys(keys);
+          appendLog(
+            formatText(text.logs.playingPreviewKey, { key: keys.join(", ") }),
+          );
         },
         () => {
-          setActiveKey("");
+          setActiveKeys([]);
           setIsPreviewPlaying(false);
           previewStopRef.current = null;
           appendLog(text.logs.previewFinished);
@@ -726,7 +732,7 @@ function App() {
       return (
         <>
           <KeyboardPreview
-            activeKey={activeKey}
+            activeKeys={activeKeys}
             keys={defaultKeyboardPreviewKeys}
             text={text.keyboard}
           />
