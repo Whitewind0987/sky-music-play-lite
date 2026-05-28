@@ -13,7 +13,6 @@ import {
 } from "./components/PlaybackPanel";
 import { ScoreInput } from "./components/ScorePanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
-import { exampleScores } from "./data/exampleScores";
 import {
   defaultLanguage,
   uiText,
@@ -24,9 +23,8 @@ import {
   isSupportedScoreFileName,
   parseScoreFileContent,
 } from "./lib/scoreFileImport";
-import { parseTextScore } from "./lib/scoreParser";
 import { testRustCommand } from "./lib/tauriApi";
-import type { Note, Song } from "./types/score";
+import type { Song } from "./types/score";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -43,9 +41,6 @@ function formatText(
 function App() {
   const previewStopRef = useRef<(() => void) | null>(null);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
-  const [scoreInput, setScoreInput] = useState("1Key5 1Key6 1Key7 2Key1");
-  const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
-  const [parseError, setParseError] = useState("");
   const [importedSongs, setImportedSongs] = useState<Song[]>([]);
   const [importError, setImportError] = useState("");
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
@@ -57,6 +52,8 @@ function App() {
     uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
   const text = uiText[language];
+  const currentSelectedSong =
+    selectedSongIndex === null ? null : importedSongs[selectedSongIndex] ?? null;
 
   useEffect(() => {
     return () => {
@@ -66,18 +63,6 @@ function App() {
 
   function appendLog(entry: string) {
     setLogEntries((currentEntries) => [...currentEntries, entry]);
-  }
-
-  function handleParseScore() {
-    try {
-      const notes = parseTextScore(scoreInput);
-      setParsedNotes(notes);
-      setParseError("");
-      setSelectedSongIndex(null);
-    } catch (error) {
-      setParsedNotes([]);
-      setParseError(String(error instanceof Error ? error.message : error));
-    }
   }
 
   async function handleImportScoreFile(file: File) {
@@ -91,9 +76,7 @@ function App() {
 
       setImportedSongs(songs);
       setSelectedSongIndex(0);
-      setParsedNotes(songs[0].songNotes);
       setImportError("");
-      setParseError("");
       appendLog(
         formatText(text.logs.importedScores, {
           count: songs.length,
@@ -109,11 +92,6 @@ function App() {
 
   function handleSelectImportedSong(songIndex: number | null) {
     setSelectedSongIndex(songIndex);
-
-    if (songIndex !== null) {
-      setParsedNotes(importedSongs[songIndex]?.songNotes ?? []);
-      setParseError("");
-    }
   }
 
   function stopCurrentPreview() {
@@ -133,19 +111,18 @@ function App() {
     stopCurrentPreview();
 
     try {
-      const selectedSong =
-        selectedSongIndex === null ? null : importedSongs[selectedSongIndex];
-      const notes = selectedSong ? selectedSong.songNotes : parseTextScore(scoreInput);
+      if (!currentSelectedSong) {
+        appendLog(text.logs.noSelectedScore);
+        return;
+      }
 
-      setParsedNotes(notes);
-      setParseError("");
+      const notes = currentSelectedSong.songNotes;
+
       setIsPreviewPlaying(true);
       appendLog(
-        selectedSong
-          ? formatText(text.logs.previewStartedFromSong, {
-              songName: selectedSong.name,
-            })
-          : text.logs.previewStarted,
+        formatText(text.logs.previewStartedFromSong, {
+          songName: currentSelectedSong.name,
+        }),
       );
 
       previewStopRef.current = schedulePreviewPlayback(
@@ -166,8 +143,7 @@ function App() {
         },
       );
     } catch (error) {
-      setParsedNotes([]);
-      setParseError(String(error instanceof Error ? error.message : error));
+      appendLog(String(error instanceof Error ? error.message : error));
     }
   }
 
@@ -187,17 +163,11 @@ function App() {
     if (activeSection === "Score") {
       return (
         <ScoreInput
-          error={parseError}
           importedSongs={importedSongs}
           importError={importError}
-          input={scoreInput}
-          notes={parsedNotes}
           onImportFile={handleImportScoreFile}
-          onInputChange={setScoreInput}
-          onParseScore={handleParseScore}
           onSelectImportedSong={handleSelectImportedSong}
           selectedSongIndex={selectedSongIndex}
-          songs={exampleScores}
           text={text.score}
         />
       );
@@ -212,6 +182,7 @@ function App() {
             text={text.keyboard}
           />
           <PlaybackControls
+            canPlayPreview={currentSelectedSong !== null}
             isPreviewPlaying={isPreviewPlaying}
             onPlayPreview={handlePlayPreview}
             onTestRust={handleTestRust}
@@ -239,7 +210,7 @@ function App() {
       <WorkspaceOverview
         isPreviewPlaying={isPreviewPlaying}
         logCount={logEntries.length}
-        noteCount={parsedNotes.length}
+        noteCount={currentSelectedSong?.songNotes.length ?? 0}
         text={text.workspace}
       />
     );

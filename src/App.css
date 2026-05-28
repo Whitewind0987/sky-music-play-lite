@@ -27,8 +27,7 @@ body {
   background: #e9e9e9;
 }
 
-button,
-textarea {
+button {
   font: inherit;
 }
 
@@ -419,17 +418,6 @@ textarea {
   color: #52616f;
 }
 
-.score-panel textarea {
-  min-height: 180px;
-  width: 100%;
-  resize: vertical;
-  border: 1px solid #c7d0dc;
-  border-radius: 6px;
-  padding: 12px;
-  color: #52616f;
-  background: #f3f6f9;
-}
-
 .parse-button {
   min-height: 44px;
   border: 1px solid #9bb1c9;
@@ -508,7 +496,7 @@ textarea {
 .imported-score-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 10px;
   align-items: center;
   min-height: 42px;
@@ -529,6 +517,11 @@ textarea {
 .imported-score-card.is-selected {
   border-color: #2f80ed;
   background: #d8ebff;
+}
+
+.selected-score-status {
+  color: #2f80ed;
+  font-weight: 700;
 }
 
 .parse-empty {

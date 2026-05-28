@@ -73,6 +73,7 @@ export function getPreviewKeyName(scoreKey: string) {
 }
 
 type PlaybackControlsProps = {
+  canPlayPreview: boolean;
   isPreviewPlaying: boolean;
   onPlayPreview: () => void;
   onTestRust: () => void;
@@ -80,6 +81,7 @@ type PlaybackControlsProps = {
 };
 
 export function PlaybackControls({
+  canPlayPreview,
   isPreviewPlaying,
   onPlayPreview,
   onTestRust,
@@ -111,6 +113,7 @@ export function PlaybackControls({
         <button
           className={isPreviewPlaying ? "is-playing" : ""}
           type="button"
+          disabled={!isPreviewPlaying && !canPlayPreview}
           onClick={onPlayPreview}
         >
           {isPreviewPlaying ? text.stopPreview : text.playPreview}
