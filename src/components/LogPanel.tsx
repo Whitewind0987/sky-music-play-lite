@@ -14,11 +14,15 @@ export function PlaybackLog({ entries, text }: PlaybackLogProps) {
         title={text.panelTitle}
         description={text.panelDescription}
       />
-      <ul className="log-list">
-        {entries.map((entry, index) => (
-          <li key={`${entry}-${index}`}>{entry}</li>
-        ))}
-      </ul>
+      {entries.length === 0 ? (
+        <p className="log-empty">{text.emptyState}</p>
+      ) : (
+        <ul className="log-list" aria-live="polite">
+          {entries.map((entry, index) => (
+            <li key={`${entry}-${index}`}>{entry}</li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

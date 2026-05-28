@@ -100,9 +100,17 @@ function App() {
         }),
       );
     } catch (error) {
+      const importErrorMessage = formatImportError(error, text);
+
       setImportedSongs([]);
       setSelectedSongIndex(null);
-      setImportError(formatImportError(error, text));
+      setImportError(importErrorMessage);
+      appendLog(
+        formatText(text.logs.importFailed, {
+          error: importErrorMessage,
+          fileName: file.name,
+        }),
+      );
     }
   }
 
@@ -155,7 +163,11 @@ function App() {
       );
     } catch (error) {
       stopCurrentPreview();
-      appendLog(String(error instanceof Error ? error.message : error));
+      appendLog(
+        formatText(text.logs.playbackError, {
+          error: String(error instanceof Error ? error.message : error),
+        }),
+      );
     }
   }
 
