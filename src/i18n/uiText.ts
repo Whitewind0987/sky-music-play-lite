@@ -80,6 +80,18 @@ export const uiText = {
       bpm: "BPM",
       notes: "音符",
       unsupportedFile: "只支持 .json 和 .txt 曲谱文件。",
+      importErrors: {
+        emptyFile: "曲谱文件是空的。",
+        invalidJson: "曲谱文件不是有效的 JSON。详细信息：{jsonError}",
+        topLevelNotArray: "曲谱文件最外层必须是曲谱数组。",
+        emptySongArray: "曲谱文件里没有任何曲谱。",
+        songNotObject: "第 {songIndex} 首曲谱必须是一个对象。",
+        songFieldInvalid: "第 {songIndex} 首曲谱的 {fieldName} 字段类型不正确。",
+        songNotesInvalid: "曲谱“{songName}”必须包含 songNotes 数组。",
+        noteNotObject: "曲谱“{songName}”里的第 {noteIndex} 个音符必须是一个对象。",
+        noteTimeInvalid: "曲谱“{songName}”里的第 {noteIndex} 个音符必须包含数字 time。",
+        noteKeyInvalid: "曲谱“{songName}”里的第 {noteIndex} 个音符必须包含文本 key。",
+      },
     },
     keyboard: {
       panelTitle: "琴键预览区",
@@ -205,6 +217,22 @@ export const uiText = {
       bpm: "BPM",
       notes: "Notes",
       unsupportedFile: "Only .json and .txt score files are supported.",
+      importErrors: {
+        emptyFile: "Score file is empty.",
+        invalidJson: "Score file is not valid JSON. Details: {jsonError}",
+        topLevelNotArray: "Score file must contain a JSON array of songs.",
+        emptySongArray: "Score file does not contain any songs.",
+        songNotObject: "Song at index {songIndex} must be an object.",
+        songFieldInvalid:
+          "Song at index {songIndex} must have a {expectedType} {fieldName}.",
+        songNotesInvalid: 'Song "{songName}" must have a songNotes array.',
+        noteNotObject:
+          'Note {noteIndex} in song "{songName}" must be an object.',
+        noteTimeInvalid:
+          'Note {noteIndex} in song "{songName}" must have a numeric time.',
+        noteKeyInvalid:
+          'Note {noteIndex} in song "{songName}" must have a string key.',
+      },
     },
     keyboard: {
       panelTitle: "Keyboard preview area",

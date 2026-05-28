@@ -17,6 +17,7 @@ import {
   defaultLanguage,
   uiText,
   type LanguageCode,
+  type UiText,
 } from "./i18n/uiText";
 import {
   schedulePreviewPlayback,
@@ -25,6 +26,7 @@ import {
 import {
   isSupportedScoreFileName,
   parseScoreFileContent,
+  ScoreFileImportError,
 } from "./lib/scoreFileImport";
 import { testRustCommand } from "./lib/tauriApi";
 import type { PlaybackState } from "./types/playback";
@@ -40,6 +42,14 @@ function formatText(
     (result, [key, value]) => result.replace(`{${key}}`, String(value)),
     template,
   );
+}
+
+function formatImportError(error: unknown, text: UiText) {
+  if (error instanceof ScoreFileImportError) {
+    return formatText(text.score.importErrors[error.code], error.details);
+  }
+
+  return String(error instanceof Error ? error.message : error);
 }
 
 function App() {
@@ -92,7 +102,7 @@ function App() {
     } catch (error) {
       setImportedSongs([]);
       setSelectedSongIndex(null);
-      setImportError(String(error instanceof Error ? error.message : error));
+      setImportError(formatImportError(error, text));
     }
   }
 

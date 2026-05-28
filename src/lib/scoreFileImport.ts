@@ -2,6 +2,35 @@ import type { Note, Song } from "../types/score";
 
 const SUPPORTED_SCORE_EXTENSIONS = [".json", ".txt"];
 
+export type ScoreFileImportErrorCode =
+  | "emptyFile"
+  | "invalidJson"
+  | "topLevelNotArray"
+  | "emptySongArray"
+  | "songNotObject"
+  | "songFieldInvalid"
+  | "songNotesInvalid"
+  | "noteNotObject"
+  | "noteTimeInvalid"
+  | "noteKeyInvalid";
+
+type ScoreFileImportErrorDetails = Record<string, string | number>;
+
+export class ScoreFileImportError extends Error {
+  code: ScoreFileImportErrorCode;
+  details: ScoreFileImportErrorDetails;
+
+  constructor(
+    code: ScoreFileImportErrorCode,
+    details: ScoreFileImportErrorDetails = {},
+  ) {
+    super(code);
+    this.name = "ScoreFileImportError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
 export function isSupportedScoreFileName(fileName: string) {
   const normalizedFileName = fileName.toLowerCase();
 
@@ -12,7 +41,7 @@ export function isSupportedScoreFileName(fileName: string) {
 
 export function parseScoreFileContent(content: string): Song[] {
   if (content.trim().length === 0) {
-    throw new Error("Score file is empty.");
+    throw new ScoreFileImportError("emptyFile");
   }
 
   let parsed: unknown;
@@ -20,19 +49,17 @@ export function parseScoreFileContent(content: string): Song[] {
   try {
     parsed = JSON.parse(content);
   } catch (error) {
-    throw new Error(
-      `Score file is not valid JSON: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    throw new ScoreFileImportError("invalidJson", {
+      jsonError: error instanceof Error ? error.message : String(error),
+    });
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error("Score file must contain a JSON array of songs.");
+    throw new ScoreFileImportError("topLevelNotArray");
   }
 
   if (parsed.length === 0) {
-    throw new Error("Score file does not contain any songs.");
+    throw new ScoreFileImportError("emptySongArray");
   }
 
   return parsed.map((song, songIndex) => validateSong(song, songIndex));
@@ -40,7 +67,7 @@ export function parseScoreFileContent(content: string): Song[] {
 
 function validateSong(value: unknown, songIndex: number): Song {
   if (!isRecord(value)) {
-    throw new Error(`Song at index ${songIndex} must be an object.`);
+    throw new ScoreFileImportError("songNotObject", { songIndex });
   }
 
   const name = readString(value, "name", songIndex);
@@ -51,7 +78,7 @@ function validateSong(value: unknown, songIndex: number): Song {
   const songNotes = value.songNotes;
 
   if (!Array.isArray(songNotes)) {
-    throw new Error(`Song "${name}" must have a songNotes array.`);
+    throw new ScoreFileImportError("songNotesInvalid", { songName: name });
   }
 
   return {
@@ -68,18 +95,18 @@ function validateSong(value: unknown, songIndex: number): Song {
 
 function validateNote(value: unknown, songName: string, noteIndex: number): Note {
   if (!isRecord(value)) {
-    throw new Error(`Note ${noteIndex} in song "${songName}" must be an object.`);
+    throw new ScoreFileImportError("noteNotObject", { noteIndex, songName });
   }
 
   const time = value.time;
   const key = value.key;
 
   if (typeof time !== "number" || !Number.isFinite(time)) {
-    throw new Error(`Note ${noteIndex} in song "${songName}" must have a numeric time.`);
+    throw new ScoreFileImportError("noteTimeInvalid", { noteIndex, songName });
   }
 
   if (typeof key !== "string") {
-    throw new Error(`Note ${noteIndex} in song "${songName}" must have a string key.`);
+    throw new ScoreFileImportError("noteKeyInvalid", { noteIndex, songName });
   }
 
   return { time, key };
@@ -93,7 +120,11 @@ function readString(
   const fieldValue = value[fieldName];
 
   if (typeof fieldValue !== "string") {
-    throw new Error(`Song at index ${songIndex} must have a string ${fieldName}.`);
+    throw new ScoreFileImportError("songFieldInvalid", {
+      expectedType: "string",
+      fieldName,
+      songIndex,
+    });
   }
 
   return fieldValue;
@@ -107,7 +138,11 @@ function readNumber(
   const fieldValue = value[fieldName];
 
   if (typeof fieldValue !== "number" || !Number.isFinite(fieldValue)) {
-    throw new Error(`Song at index ${songIndex} must have a numeric ${fieldName}.`);
+    throw new ScoreFileImportError("songFieldInvalid", {
+      expectedType: "number",
+      fieldName,
+      songIndex,
+    });
   }
 
   return fieldValue;
@@ -121,7 +156,11 @@ function readBoolean(
   const fieldValue = value[fieldName];
 
   if (typeof fieldValue !== "boolean") {
-    throw new Error(`Song at index ${songIndex} must have a boolean ${fieldName}.`);
+    throw new ScoreFileImportError("songFieldInvalid", {
+      expectedType: "boolean",
+      fieldName,
+      songIndex,
+    });
   }
 
   return fieldValue;
