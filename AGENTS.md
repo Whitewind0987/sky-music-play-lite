@@ -39,6 +39,9 @@ direction.
 - Do not commit or push unless the human user explicitly allows it.
 - Suggest Git commands for the human user to run instead of doing commits or
   pushes automatically.
+- After finishing the current phase, include the suggested Git commands for the
+  human user to commit, push, merge back to `main`, push `main`, and check final
+  status, so the human user does not need to ask separately.
 - At the end of each task, check whether `src-tauri/Cargo.toml` only has
   line-ending noise. If so, restore it before reporting the final status so it
   is not accidentally committed.
