@@ -3,16 +3,23 @@ import {
   type LanguageCode,
   type UiText,
 } from "../i18n/uiText";
+import { skyKeyNames, type KeyMapping, type SkyKeyName } from "../types/keyMapping";
 import { PanelHeader } from "./PanelHeader";
 
 type SettingsPlaceholderProps = {
+  keyMapping: KeyMapping;
   language: LanguageCode;
+  listeningSkyKey: SkyKeyName | null;
+  onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onLanguageChange: (language: LanguageCode) => void;
   text: UiText["settings"];
 };
 
 export function SettingsPlaceholder({
+  keyMapping,
   language,
+  listeningSkyKey,
+  onKeyMappingListenStart,
   onLanguageChange,
   text,
 }: SettingsPlaceholderProps) {
@@ -73,6 +80,42 @@ export function SettingsPlaceholder({
             <span>{text.manual}</span>
             <span className="fake-link">{text.openLater}</span>
           </div>
+        </div>
+      </article>
+
+      <article className="panel settings-panel key-mapping-panel">
+        <PanelHeader
+          id="settings-key-mapping-title"
+          title={text.keyMappingTitle}
+          description={text.keyMappingDescription}
+        />
+        <div className="key-mapping-list">
+          {skyKeyNames.map((skyKey) => {
+            const isListening = listeningSkyKey === skyKey;
+
+            return (
+              <div className="key-mapping-row" key={skyKey}>
+                <span>{skyKey}</span>
+                <button
+                  className={`key-capture-button${
+                    isListening ? " is-listening" : ""
+                  }`}
+                  type="button"
+                  aria-pressed={isListening}
+                  onClick={() => onKeyMappingListenStart(skyKey)}
+                >
+                  <span className="key-capture-value">
+                    {isListening ? text.keyMappingListening : keyMapping[skyKey]}
+                  </span>
+                  <span className="key-capture-hint">
+                    {isListening
+                      ? text.keyMappingCancelHint
+                      : text.keyMappingClickHint}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
         </div>
       </article>
     </section>

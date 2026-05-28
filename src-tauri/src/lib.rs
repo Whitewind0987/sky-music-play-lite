@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -10,6 +12,7 @@ struct Note {
 struct DryRunNoteSummary {
     time: f64,
     key: String,
+    mapped_key: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -26,27 +29,56 @@ fn test_rust_command() -> String {
 }
 
 #[tauri::command]
-fn dry_run_playback(notes: Vec<Note>) -> Result<DryRunResult, String> {
+fn dry_run_playback(
+    notes: Vec<Note>,
+    key_mapping: HashMap<String, String>,
+) -> Result<DryRunResult, String> {
     if notes.is_empty() {
         return Err("Dry run needs at least one note.".to_string());
     }
 
-    let first_note = notes.first().map(note_to_summary);
-    let last_note = notes.last().map(note_to_summary);
+    let first_note = notes
+        .first()
+        .map(|note| note_to_summary(note, &key_mapping));
+    let last_note = notes.last().map(|note| note_to_summary(note, &key_mapping));
 
     Ok(DryRunResult {
         note_count: notes.len(),
         first_note,
         last_note,
-        status: "Rust dry run received notes without sending keys.".to_string(),
+        status: "received_notes_without_sending_keys".to_string(),
     })
 }
 
-fn note_to_summary(note: &Note) -> DryRunNoteSummary {
+fn note_to_summary(note: &Note, key_mapping: &HashMap<String, String>) -> DryRunNoteSummary {
+    let preview_key = get_preview_key_name(&note.key);
+    let mapped_key = key_mapping
+        .get(&preview_key)
+        .cloned()
+        .unwrap_or_else(|| "".to_string());
+
     DryRunNoteSummary {
         time: note.time,
         key: note.key.clone(),
+        mapped_key,
     }
+}
+
+fn get_preview_key_name(score_key: &str) -> String {
+    if let Some(index) = score_key.rfind("Key") {
+        let preview_key = &score_key[index..];
+        let key_number = &preview_key[3..];
+
+        if !key_number.is_empty()
+            && key_number
+                .chars()
+                .all(|character| character.is_ascii_digit())
+        {
+            return preview_key.to_string();
+        }
+    }
+
+    score_key.to_string()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -1,39 +1,21 @@
 import type { UiText } from "../i18n/uiText";
+import {
+  getPreviewKeyName,
+  skyKeyNames,
+  type KeyMapping,
+} from "../types/keyMapping";
 import type { PlaybackState } from "../types/playback";
 import { PanelHeader } from "./PanelHeader";
 
-export type PreviewKey = {
-  skyKey: string;
-  keyboardKey: string;
-};
-
-export const defaultKeyboardPreviewKeys: PreviewKey[] = [
-  { skyKey: "Key0", keyboardKey: "Y" },
-  { skyKey: "Key1", keyboardKey: "U" },
-  { skyKey: "Key2", keyboardKey: "I" },
-  { skyKey: "Key3", keyboardKey: "O" },
-  { skyKey: "Key4", keyboardKey: "P" },
-  { skyKey: "Key5", keyboardKey: "H" },
-  { skyKey: "Key6", keyboardKey: "J" },
-  { skyKey: "Key7", keyboardKey: "K" },
-  { skyKey: "Key8", keyboardKey: "L" },
-  { skyKey: "Key9", keyboardKey: ";" },
-  { skyKey: "Key10", keyboardKey: "N" },
-  { skyKey: "Key11", keyboardKey: "M" },
-  { skyKey: "Key12", keyboardKey: "," },
-  { skyKey: "Key13", keyboardKey: "." },
-  { skyKey: "Key14", keyboardKey: "/" },
-];
-
 type KeyboardPreviewProps = {
   activeKeys: string[];
-  keys: PreviewKey[];
+  keyMapping: KeyMapping;
   text: UiText["keyboard"];
 };
 
 export function KeyboardPreview({
   activeKeys,
-  keys,
+  keyMapping,
   text,
 }: KeyboardPreviewProps) {
   const activePreviewKeys = activeKeys.map((activeKey) =>
@@ -51,26 +33,22 @@ export function KeyboardPreview({
         description={text.panelDescription}
       />
       <div className="keyboard-grid" aria-label={text.previewAria}>
-        {keys.map((key) => (
+        {skyKeyNames.map((skyKey) => (
           <button
             className={`key-button${
-              activePreviewKeys.includes(key.skyKey) ? " is-active" : ""
+              activePreviewKeys.includes(skyKey) ? " is-active" : ""
             }`}
             type="button"
             disabled
-            key={key.skyKey}
+            key={skyKey}
           >
-            <span className="sky-key-label">{key.skyKey}</span>
-            <span className="keyboard-key-label">{key.keyboardKey}</span>
+            <span className="sky-key-label">{skyKey}</span>
+            <span className="keyboard-key-label">{keyMapping[skyKey]}</span>
           </button>
         ))}
       </div>
     </section>
   );
-}
-
-export function getPreviewKeyName(scoreKey: string) {
-  return scoreKey.match(/Key\d+$/)?.[0] ?? scoreKey;
 }
 
 type PlaybackControlsProps = {

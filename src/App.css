@@ -306,6 +306,57 @@ button {
   gap: 14px;
 }
 
+.key-mapping-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.key-mapping-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(48px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #52616f;
+}
+
+.key-mapping-row span {
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.key-capture-button {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.key-capture-button:hover,
+.key-capture-button.is-listening {
+  border-color: #2f80ed;
+  background: #d8ebff;
+}
+
+.key-capture-value {
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.key-capture-hint {
+  color: #52616f;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .setting-row {
   min-width: 0;
   display: grid;
@@ -761,6 +812,10 @@ button {
 
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .key-mapping-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .imported-score-card {

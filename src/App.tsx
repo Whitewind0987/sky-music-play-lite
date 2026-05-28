@@ -7,7 +7,6 @@ import {
 } from "./components/AppShell";
 import { PlaybackLog } from "./components/LogPanel";
 import {
-  defaultKeyboardPreviewKeys,
   KeyboardPreview,
   PlaybackControls,
 } from "./components/PlaybackPanel";
@@ -29,10 +28,16 @@ import {
   ScoreFileImportError,
 } from "./lib/scoreFileImport";
 import { dryRunPlayback, testRustCommand } from "./lib/tauriApi";
+import {
+  defaultKeyMapping,
+  type SkyKeyName,
+} from "./types/keyMapping";
 import type { PlaybackState } from "./types/playback";
 import type { Song } from "./types/score";
 import "../font/iconfont.css";
 import "./App.css";
+
+const ignoredKeyMappingKeys = new Set(["Alt", "Control", "Meta", "Shift"]);
 
 function formatText(
   template: string,
@@ -54,6 +59,8 @@ function formatImportError(error: unknown, text: UiText) {
 
 function App() {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
+  const [keyMapping, setKeyMapping] = useState(defaultKeyMapping);
+  const [listeningSkyKey, setListeningSkyKey] = useState<SkyKeyName | null>(null);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [importedSongs, setImportedSongs] = useState<Song[]>([]);
   const [importError, setImportError] = useState("");
@@ -74,6 +81,44 @@ function App() {
       playbackControllerRef.current?.stop();
     };
   }, []);
+
+  useEffect(() => {
+    if (listeningSkyKey === null) {
+      return;
+    }
+
+    const skyKeyBeingMapped = listeningSkyKey;
+
+    function handleKeyMappingKeyDown(event: KeyboardEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.key === "Escape") {
+        setListeningSkyKey(null);
+        return;
+      }
+
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+
+      if (ignoredKeyMappingKeys.has(event.key)) {
+        return;
+      }
+
+      setKeyMapping((currentMapping) => ({
+        ...currentMapping,
+        [skyKeyBeingMapped]: event.key,
+      }));
+      setListeningSkyKey(null);
+    }
+
+    window.addEventListener("keydown", handleKeyMappingKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyMappingKeyDown);
+    };
+  }, [listeningSkyKey]);
 
   function appendLog(entry: string) {
     setLogEntries((currentEntries) => [...currentEntries, entry]);
@@ -117,6 +162,10 @@ function App() {
   function handleSelectImportedSong(songIndex: number | null) {
     stopCurrentPreview();
     setSelectedSongIndex(songIndex);
+  }
+
+  function handleStartKeyMappingListen(skyKey: SkyKeyName) {
+    setListeningSkyKey(skyKey);
   }
 
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
@@ -226,18 +275,20 @@ function App() {
         }),
       );
 
-      const result = await dryRunPlayback(currentSelectedSong.songNotes);
+      const result = await dryRunPlayback(currentSelectedSong.songNotes, keyMapping);
       const firstNote = result.first_note;
       const lastNote = result.last_note;
 
       appendLog(
         formatText(text.logs.dryRunFinished, {
           firstKey: firstNote?.key ?? text.logs.noNoteSummary,
+          firstMappedKey: firstNote?.mapped_key ?? text.logs.noNoteSummary,
           firstTime: firstNote?.time ?? text.logs.noNoteSummary,
           lastKey: lastNote?.key ?? text.logs.noNoteSummary,
+          lastMappedKey: lastNote?.mapped_key ?? text.logs.noNoteSummary,
           lastTime: lastNote?.time ?? text.logs.noNoteSummary,
           noteCount: result.note_count,
-          status: result.status,
+          status: text.logs.dryRunStatus[result.status] ?? result.status,
         }),
       );
     } catch (error) {
@@ -268,7 +319,7 @@ function App() {
         <>
           <KeyboardPreview
             activeKeys={activeKeys}
-            keys={defaultKeyboardPreviewKeys}
+            keyMapping={keyMapping}
             text={text.keyboard}
           />
           <PlaybackControls
@@ -293,11 +344,14 @@ function App() {
 
     if (activeSection === "Settings") {
       return (
-        <SettingsPlaceholder
-          language={language}
-          onLanguageChange={setLanguage}
-          text={text.settings}
-        />
+          <SettingsPlaceholder
+            keyMapping={keyMapping}
+            language={language}
+            listeningSkyKey={listeningSkyKey}
+            onKeyMappingListenStart={handleStartKeyMappingListen}
+            onLanguageChange={setLanguage}
+            text={text.settings}
+          />
       );
     }
 

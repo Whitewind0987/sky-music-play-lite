@@ -122,8 +122,11 @@ export const uiText = {
       appReady: "应用布局已准备好。",
       dryRunFailed: "Rust dry-run 失败：{error}",
       dryRunFinished:
-        "Rust dry-run 完成：共 {noteCount} 个音符；第一条 {firstTime} / {firstKey}；最后一条 {lastTime} / {lastKey}；状态：{status}",
+        "Rust dry-run 完成：共 {noteCount} 个音符；第一条 {firstTime} / {firstKey} -> {firstMappedKey}；最后一条 {lastTime} / {lastKey} -> {lastMappedKey}；状态：{status}",
       dryRunStarted: "开始 Rust dry-run：{songName}。",
+      dryRunStatus: {
+        received_notes_without_sending_keys: "已接收音符，未发送真实按键",
+      },
       noPlaybackYet: "还没有真实播放功能。",
       noNoteSummary: "无",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
@@ -148,6 +151,11 @@ export const uiText = {
       systemTheme: "跟随系统",
       defaultPage: "默认页面",
       home: "首页",
+      keyMappingCancelHint: "按 Escape 取消",
+      keyMappingClickHint: "点击后按键盘",
+      keyMappingDescription: "这些映射只用于预览和 dry-run，本阶段不会发送真实按键。",
+      keyMappingListening: "等待按键...",
+      keyMappingTitle: "键位映射",
       previewTitle: "预览选项",
       previewDescription: "这些控件目前只是占位，不会保存。",
       detailedLogs: "详细日志",
@@ -273,8 +281,12 @@ export const uiText = {
       appReady: "App layout is ready.",
       dryRunFailed: "Rust dry-run failed: {error}",
       dryRunFinished:
-        "Rust dry-run finished: {noteCount} note(s); first {firstTime} / {firstKey}; last {lastTime} / {lastKey}; status: {status}",
+        "Rust dry-run finished: {noteCount} note(s); first {firstTime} / {firstKey} -> {firstMappedKey}; last {lastTime} / {lastKey} -> {lastMappedKey}; status: {status}",
       dryRunStarted: "Started Rust dry-run: {songName}.",
+      dryRunStatus: {
+        received_notes_without_sending_keys:
+          "received notes without sending real keys",
+      },
       noPlaybackYet: "No playback features yet.",
       noNoteSummary: "none",
       importedScores: "Imported {count} score(s) from {fileName}.",
@@ -299,6 +311,12 @@ export const uiText = {
       systemTheme: "System",
       defaultPage: "Default page",
       home: "Home",
+      keyMappingCancelHint: "Press Escape to cancel",
+      keyMappingClickHint: "Click, then press a key",
+      keyMappingDescription:
+        "These mappings are only used for preview and dry-run in this phase.",
+      keyMappingListening: "Waiting for key...",
+      keyMappingTitle: "Key mapping",
       previewTitle: "Preview options",
       previewDescription: "These controls are placeholders and do not save yet.",
       detailedLogs: "Detailed logs",
