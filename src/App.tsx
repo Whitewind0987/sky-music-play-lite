@@ -75,8 +75,23 @@ function getBindableKey(event: KeyboardEvent) {
   return event.key;
 }
 
+function getSongDurationMs(song: Song | null) {
+  if (song === null) {
+    return 0;
+  }
+
+  return song.songNotes.reduce(
+    (durationMs, note) => Math.max(durationMs, note.time),
+    0,
+  );
+}
+
 function App() {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
+  const progressAnimationFrameRef = useRef<number | null>(null);
+  const progressStartedAtMsRef = useRef(0);
+  const progressStartOffsetMsRef = useRef(0);
+  const currentProgressMsRef = useRef(0);
   const [keyMapping, setKeyMapping] = useState(defaultKeyMapping);
   const [listeningSkyKey, setListeningSkyKey] = useState<SkyKeyName | null>(null);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
@@ -85,6 +100,7 @@ function App() {
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(null);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
+  const [playbackProgressMs, setPlaybackProgressMs] = useState(0);
   const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
   const [logEntries, setLogEntries] = useState<string[]>(() => [
     uiText[defaultLanguage].logs.appReady,
@@ -93,10 +109,12 @@ function App() {
   const text = uiText[language];
   const currentSelectedSong =
     selectedSongIndex === null ? null : importedSongs[selectedSongIndex] ?? null;
+  const playbackDurationMs = getSongDurationMs(currentSelectedSong);
 
   useEffect(() => {
     return () => {
       playbackControllerRef.current?.stop();
+      cancelProgressAnimation();
     };
   }, []);
 
@@ -138,6 +156,73 @@ function App() {
 
   function appendLog(entry: string) {
     setLogEntries((currentEntries) => [...currentEntries, entry]);
+  }
+
+  function cancelProgressAnimation() {
+    if (progressAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(progressAnimationFrameRef.current);
+      progressAnimationFrameRef.current = null;
+    }
+  }
+
+  function resetPlaybackProgress() {
+    currentProgressMsRef.current = 0;
+    setPlaybackProgressMs(0);
+  }
+
+  function setClampedPlaybackProgress(progressMs: number, durationMs: number) {
+    const clampedProgressMs = Math.min(
+      Math.max(progressMs, 0),
+      Math.max(durationMs, 0),
+    );
+
+    currentProgressMsRef.current = clampedProgressMs;
+    setPlaybackProgressMs(clampedProgressMs);
+  }
+
+  function startProgressAnimation(durationMs: number, startOffsetMs = 0) {
+    cancelProgressAnimation();
+
+    if (durationMs <= 0) {
+      resetPlaybackProgress();
+      return;
+    }
+
+    progressStartOffsetMsRef.current = Math.min(
+      Math.max(startOffsetMs, 0),
+      durationMs,
+    );
+    progressStartedAtMsRef.current = performance.now();
+
+    function updateProgress(nowMs: number) {
+      const elapsedMs = nowMs - progressStartedAtMsRef.current;
+      const nextProgressMs = progressStartOffsetMsRef.current + elapsedMs;
+
+      setClampedPlaybackProgress(nextProgressMs, durationMs);
+
+      if (nextProgressMs < durationMs) {
+        progressAnimationFrameRef.current =
+          window.requestAnimationFrame(updateProgress);
+      } else {
+        progressAnimationFrameRef.current = null;
+      }
+    }
+
+    progressAnimationFrameRef.current =
+      window.requestAnimationFrame(updateProgress);
+  }
+
+  function pauseProgressAnimation(durationMs: number) {
+    if (progressAnimationFrameRef.current === null) {
+      return;
+    }
+
+    const elapsedMs = performance.now() - progressStartedAtMsRef.current;
+    setClampedPlaybackProgress(
+      progressStartOffsetMsRef.current + elapsedMs,
+      durationMs,
+    );
+    cancelProgressAnimation();
   }
 
   async function handleImportScoreFile(file: File) {
@@ -187,8 +272,10 @@ function App() {
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
     playbackControllerRef.current?.stop();
     playbackControllerRef.current = null;
+    cancelProgressAnimation();
     setActiveKeys([]);
     setPlaybackState(nextState);
+    resetPlaybackProgress();
   }
 
   function handlePlayPreview() {
@@ -201,8 +288,11 @@ function App() {
       }
 
       const notes = currentSelectedSong.songNotes;
+      const durationMs = getSongDurationMs(currentSelectedSong);
 
       setPlaybackState("playing");
+      resetPlaybackProgress();
+      startProgressAnimation(durationMs, 0);
       appendLog(
         formatText(text.logs.previewStartedFromSong, {
           songName: currentSelectedSong.name,
@@ -220,6 +310,8 @@ function App() {
           );
         },
         () => {
+          cancelProgressAnimation();
+          setClampedPlaybackProgress(durationMs, durationMs);
           setActiveKeys([]);
           setPlaybackState("finished");
           playbackControllerRef.current = null;
@@ -242,6 +334,7 @@ function App() {
     }
 
     playbackControllerRef.current?.pause();
+    pauseProgressAnimation(playbackDurationMs);
     setActiveKeys([]);
     setPlaybackState("paused");
     appendLog(text.logs.previewPaused);
@@ -253,6 +346,7 @@ function App() {
     }
 
     playbackControllerRef.current?.resume();
+    startProgressAnimation(playbackDurationMs, currentProgressMsRef.current);
     setPlaybackState("playing");
     appendLog(text.logs.previewResumed);
   }
@@ -412,6 +506,8 @@ function App() {
         onResume={handleResumePreview}
         onStop={handleStopPreview}
         playbackState={playbackState}
+        durationMs={playbackDurationMs}
+        progressMs={playbackProgressMs}
         text={text.bottomPlayer}
       />
     </main>

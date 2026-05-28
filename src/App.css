@@ -900,10 +900,10 @@ button {
 }
 
 .bottom-player-progress-value {
-  width: 18%;
   height: 100%;
   display: block;
   background: #2f80ed;
+  transition: width 120ms linear;
 }
 
 .bottom-player-score {
@@ -934,6 +934,10 @@ button {
   gap: 8px 12px;
   color: #52616f;
   font-size: 12px;
+}
+
+.bottom-player-time {
+  font-variant-numeric: tabular-nums;
 }
 
 .bottom-player-center,

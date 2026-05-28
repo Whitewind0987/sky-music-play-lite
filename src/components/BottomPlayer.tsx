@@ -12,21 +12,33 @@ import {
 
 type BottomPlayerProps = {
   currentSong: Song | null;
+  durationMs: number;
   onPause: () => void;
   onPlay: () => void;
   onResume: () => void;
   onStop: () => void;
   playbackState: PlaybackState;
+  progressMs: number;
   text: UiText["bottomPlayer"];
 };
 
+function formatPlaybackTime(timeMs: number) {
+  const totalSeconds = Math.floor(Math.max(timeMs, 0) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export function BottomPlayer({
   currentSong,
+  durationMs,
   onPause,
   onPlay,
   onResume,
   onStop,
   playbackState,
+  progressMs,
   text,
 }: BottomPlayerProps) {
   const hasSong = currentSong !== null;
@@ -49,11 +61,27 @@ export function BottomPlayer({
           label: playbackState === "paused" ? text.resume : text.play,
           onClick: playbackState === "paused" ? onResume : onPlay,
         };
+  const progressPercent =
+    durationMs > 0
+      ? Math.min(Math.max((progressMs / durationMs) * 100, 0), 100)
+      : hasSong && playbackState === "finished"
+        ? 100
+        : 0;
 
   return (
     <footer className="bottom-player" aria-label={text.aria}>
-      <div className="bottom-player-progress-track" aria-label={text.progress}>
-        <span className="bottom-player-progress-value" />
+      <div
+        className="bottom-player-progress-track"
+        aria-label={text.progress}
+        aria-valuemax={durationMs}
+        aria-valuemin={0}
+        aria-valuenow={Math.min(progressMs, durationMs)}
+        role="progressbar"
+      >
+        <span
+          className="bottom-player-progress-value"
+          style={{ width: `${progressPercent}%` }}
+        />
       </div>
 
       <div className="bottom-player-score">
@@ -70,6 +98,9 @@ export function BottomPlayer({
           </span>
           <span>
             {text.state}: {text.states[playbackState]}
+          </span>
+          <span className="bottom-player-time">
+            {formatPlaybackTime(progressMs)} / {formatPlaybackTime(durationMs)}
           </span>
         </div>
       </div>
