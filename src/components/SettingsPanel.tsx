@@ -89,31 +89,30 @@ export function SettingsPlaceholder({
           title={text.keyMappingTitle}
           description={text.keyMappingDescription}
         />
-        <div className="key-mapping-list">
+        <div className="key-mapping-grid">
           {skyKeyNames.map((skyKey) => {
             const isListening = listeningSkyKey === skyKey;
 
             return (
-              <div className="key-mapping-row" key={skyKey}>
-                <span>{skyKey}</span>
-                <button
-                  className={`key-capture-button${
-                    isListening ? " is-listening" : ""
-                  }`}
-                  type="button"
-                  aria-pressed={isListening}
-                  onClick={() => onKeyMappingListenStart(skyKey)}
-                >
-                  <span className="key-capture-value">
-                    {isListening ? text.keyMappingListening : keyMapping[skyKey]}
-                  </span>
-                  <span className="key-capture-hint">
-                    {isListening
-                      ? text.keyMappingCancelHint
-                      : text.keyMappingClickHint}
-                  </span>
-                </button>
-              </div>
+              <button
+                className={`key-binding-card${
+                  isListening ? " is-listening" : ""
+                }`}
+                key={skyKey}
+                type="button"
+                aria-pressed={isListening}
+                onClick={() => onKeyMappingListenStart(skyKey)}
+              >
+                <span className="key-binding-name">{skyKey}</span>
+                <span className="key-binding-value">
+                  {isListening ? text.keyMappingListening : keyMapping[skyKey]}
+                </span>
+                <span className="key-binding-helper">
+                  {isListening
+                    ? text.keyMappingCancelHint
+                    : text.keyMappingClickHint}
+                </span>
+              </button>
             );
           })}
         </div>

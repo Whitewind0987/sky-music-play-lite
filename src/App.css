@@ -306,55 +306,67 @@ button {
   gap: 14px;
 }
 
-.key-mapping-list {
+.key-mapping-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(3px, 1vw, 10px);
 }
 
-.key-mapping-row {
+.key-binding-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(48px, auto) minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  color: #52616f;
-}
-
-.key-mapping-row span {
-  color: #1f2933;
-  font-weight: 700;
-}
-
-.key-capture-button {
-  min-width: 0;
-  min-height: 42px;
-  display: grid;
-  gap: 2px;
-  padding: 6px 8px;
+  gap: clamp(2px, 0.8vw, 8px);
+  min-height: clamp(58px, 11vw, 112px);
+  padding: clamp(3px, 0.9vw, 12px);
   border: 1px solid #c7d0dc;
   border-radius: 6px;
   color: #1f2933;
-  background: #ffffff;
+  background: #fbfcfd;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
 }
 
-.key-capture-button:hover,
-.key-capture-button.is-listening {
+.key-binding-card:hover,
+.key-binding-card.is-listening {
   border-color: #2f80ed;
   background: #d8ebff;
 }
 
-.key-capture-value {
+.key-binding-name {
   color: #1f2933;
+  font-size: clamp(8px, 1.2vw, 13px);
   font-weight: 700;
+  line-height: 1.2;
 }
 
-.key-capture-hint {
+.key-binding-value {
+  min-width: clamp(22px, 4.2vw, 44px);
+  min-height: clamp(22px, 3.6vw, 34px);
+  display: inline-grid;
+  align-items: center;
+  justify-self: center;
+  padding: 0 clamp(3px, 0.8vw, 10px);
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
+  font-size: clamp(10px, 2vw, 20px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.key-binding-card.is-listening .key-binding-value {
+  border-color: #2f80ed;
+  color: #0b3d75;
+}
+
+.key-binding-helper {
   color: #52616f;
-  font-size: 12px;
+  overflow: hidden;
+  font-size: clamp(0px, 1.05vw, 12px);
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .setting-row {
@@ -812,10 +824,6 @@ button {
 
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .key-mapping-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .imported-score-card {
