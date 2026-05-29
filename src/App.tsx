@@ -85,8 +85,25 @@ function getBindableKey(event: KeyboardEvent) {
   return event.key;
 }
 
+function getRandomNextSongIndex(currentIndex: number, songCount: number) {
+  if (songCount <= 1) {
+    return currentIndex;
+  }
+
+  let nextIndex = currentIndex;
+
+  while (nextIndex === currentIndex) {
+    nextIndex = Math.floor(Math.random() * songCount);
+  }
+
+  return nextIndex;
+}
+
 function App() {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
+  const importedSongsRef = useRef<Song[]>([]);
+  const isShuffleEnabledRef = useRef(false);
+  const playbackModeRef = useRef<PlaybackMode>(defaultPlaybackMode);
   const [keyMapping, setKeyMapping] = useState(defaultKeyMapping);
   const [listeningSkyKey, setListeningSkyKey] = useState<SkyKeyName | null>(null);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
@@ -103,6 +120,7 @@ function App() {
     });
   const [playbackMode, setPlaybackMode] =
     useState<PlaybackMode>(defaultPlaybackMode);
+  const [isShuffleEnabled, setIsShuffleEnabled] = useState(false);
   const [noteIntervalDelayMs, setNoteIntervalDelayMs] =
     useState<NoteIntervalDelayMs>(defaultNoteIntervalDelayMs);
   const [playbackSpeed, setPlaybackSpeed] =
@@ -138,6 +156,18 @@ function App() {
       playbackControllerRef.current?.stop();
     };
   }, []);
+
+  useEffect(() => {
+    importedSongsRef.current = importedSongs;
+  }, [importedSongs]);
+
+  useEffect(() => {
+    isShuffleEnabledRef.current = isShuffleEnabled;
+  }, [isShuffleEnabled]);
+
+  useEffect(() => {
+    playbackModeRef.current = playbackMode;
+  }, [playbackMode]);
 
   useEffect(() => {
     if (listeningSkyKey === null) {
@@ -231,6 +261,24 @@ function App() {
     setListeningSkyKey(skyKey);
   }
 
+  function handleShuffleToggle() {
+    setIsShuffleEnabled((currentValue) => !currentValue);
+  }
+
+  function handleRepeatModeCycle() {
+    setPlaybackMode((currentMode) => {
+      if (currentMode === "sequence") {
+        return "repeat-all";
+      }
+
+      if (currentMode === "repeat-all") {
+        return "repeat-one";
+      }
+
+      return "sequence";
+    });
+  }
+
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
     playbackControllerRef.current?.stop();
     playbackControllerRef.current = null;
@@ -281,8 +329,10 @@ function App() {
         () => {
           setActiveKeys([]);
           playbackControllerRef.current = null;
+          const currentPlaybackMode = playbackModeRef.current;
+          const currentImportedSongs = importedSongsRef.current;
 
-          if (playbackMode === "repeat-one") {
+          if (currentPlaybackMode === "repeat-one") {
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
@@ -290,12 +340,28 @@ function App() {
             return;
           }
 
-          if (playbackMode === "repeat-all") {
+          if (isShuffleEnabledRef.current && currentImportedSongs.length > 1) {
+            const nextSongIndex = getRandomNextSongIndex(
+              songIndex,
+              currentImportedSongs.length,
+            );
+            const nextSong = currentImportedSongs[nextSongIndex] ?? song;
+
+            appendLog(
+              formatText(text.logs.repeatAllTriggered, {
+                songName: nextSong.name,
+              }),
+            );
+            startPreviewForSong(nextSongIndex);
+            return;
+          }
+
+          if (currentPlaybackMode === "repeat-all") {
             const nextSongIndex =
-              importedSongs.length === 0
+              currentImportedSongs.length === 0
                 ? songIndex
-                : (songIndex + 1) % importedSongs.length;
-            const nextSong = importedSongs[nextSongIndex] ?? song;
+                : (songIndex + 1) % currentImportedSongs.length;
+            const nextSong = currentImportedSongs[nextSongIndex] ?? song;
 
             appendLog(
               formatText(text.logs.repeatAllTriggered, {
@@ -506,13 +572,15 @@ function App() {
 
       <BottomPlayer
         currentSong={currentSelectedSong}
+        isShuffleEnabled={isShuffleEnabled}
         noteIntervalDelayMs={noteIntervalDelayMs}
         onNoteIntervalDelayChange={setNoteIntervalDelayMs}
         onPause={handlePausePreview}
         onPlay={handlePlayPreview}
-        onPlaybackModeChange={setPlaybackMode}
         onPlaybackSpeedChange={setPlaybackSpeed}
+        onRepeatModeCycle={handleRepeatModeCycle}
         onResume={handleResumePreview}
+        onShuffleToggle={handleShuffleToggle}
         onStop={handleStopPreview}
         playbackMode={playbackMode}
         playbackState={playbackState}

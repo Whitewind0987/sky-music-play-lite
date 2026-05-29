@@ -76,6 +76,29 @@ export function RepeatIcon(props: PlayerIconProps) {
   );
 }
 
+export function RepeatOneIcon(props: PlayerIconProps) {
+  return (
+    <PlayerIconBase
+      {...props}
+      className={`player-icon-repeat${props.className ? ` ${props.className}` : ""}`}
+    >
+      <path
+        d="M7 7h8.5a3.5 3.5 0 0 1 0 7H14m1.5-7L13 4.5M15.5 7 13 9.5M17 17H8.5a3.5 3.5 0 0 1 0-7H10m-1.5 7L11 19.5M8.5 17 11 14.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M12 8.8v6.4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </PlayerIconBase>
+  );
+}
+
 export function ShuffleIcon(props: PlayerIconProps) {
   return (
     <PlayerIconBase {...props}>

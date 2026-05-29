@@ -88,14 +88,18 @@ export function schedulePreviewPlayback(
     }
   }
 
+  function getClockMs() {
+    return performance.now();
+  }
+
   function updateProgressFromClock() {
-    emitProgress(progressStartOffsetMs + Date.now() - progressStartedAtMs);
+    emitProgress(progressStartOffsetMs + getClockMs() - progressStartedAtMs);
   }
 
   function startProgressTimer() {
     clearProgressTimer();
     progressStartOffsetMs = currentProgressMs;
-    progressStartedAtMs = Date.now();
+    progressStartedAtMs = getClockMs();
     progressIntervalId = window.setInterval(
       updateProgressFromClock,
       PROGRESS_TICK_MS,
@@ -120,7 +124,7 @@ export function schedulePreviewPlayback(
     scheduledTask = task;
     scheduledDelayMs = Math.max(0, delayMs);
     remainingDelayMs = scheduledDelayMs;
-    scheduledAtMs = Date.now();
+    scheduledAtMs = getClockMs();
 
     timeoutId = window.setTimeout(() => {
       timeoutId = null;
@@ -148,7 +152,6 @@ export function schedulePreviewPlayback(
       return;
     }
 
-    emitProgress(currentGroup.playbackTime);
     onNoteGroup(currentGroup.notes);
     currentGroupIndex += 1;
 
@@ -172,7 +175,7 @@ export function schedulePreviewPlayback(
         return;
       }
 
-      const elapsedMs = Date.now() - scheduledAtMs;
+      const elapsedMs = getClockMs() - scheduledAtMs;
       remainingDelayMs = Math.max(0, scheduledDelayMs - elapsedMs);
       isPaused = true;
       clearCurrentTimeout();

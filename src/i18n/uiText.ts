@@ -159,7 +159,14 @@ export const uiText = {
         "repeat-all": "列表循环",
       },
       repeat: "循环",
+      repeatAria: {
+        sequence: "循环已关闭，点击切换为列表循环",
+        "repeat-one": "当前为单曲循环，点击关闭循环",
+        "repeat-all": "当前为列表循环，点击切换为单曲循环",
+      },
       shuffle: "随机播放",
+      shuffleDisabled: "随机播放已关闭，点击开启",
+      shuffleEnabled: "随机播放已开启，点击关闭",
     },
     logs: {
       panelTitle: "日志区",
@@ -369,7 +376,14 @@ export const uiText = {
         "repeat-all": "Repeat all",
       },
       repeat: "Repeat",
+      repeatAria: {
+        sequence: "Repeat is off. Click to enable repeat all.",
+        "repeat-one": "Repeat one is on. Click to turn repeat off.",
+        "repeat-all": "Repeat all is on. Click to switch to repeat one.",
+      },
       shuffle: "Shuffle",
+      shuffleDisabled: "Shuffle is off. Click to turn it on.",
+      shuffleEnabled: "Shuffle is on. Click to turn it off.",
     },
     logs: {
       panelTitle: "Log area",

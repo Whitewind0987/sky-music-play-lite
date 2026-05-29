@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
@@ -6,7 +6,6 @@ import {
   normalizeNoteIntervalDelay,
   normalizePlaybackSpeed,
   noteIntervalDelayLimits,
-  playbackModes,
   playbackSpeedLimits,
   type NoteIntervalDelayMs,
   type PlaybackMode,
@@ -18,19 +17,22 @@ import {
   PlayIcon,
   QueueIcon,
   RepeatIcon,
+  RepeatOneIcon,
   ShuffleIcon,
   StopIcon,
 } from "./PlayerIcons";
 
 type BottomPlayerProps = {
   currentSong: Song | null;
+  isShuffleEnabled: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
   onPlay: () => void;
-  onPlaybackModeChange: (playbackMode: PlaybackMode) => void;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
+  onRepeatModeCycle: () => void;
   onResume: () => void;
+  onShuffleToggle: () => void;
   onStop: () => void;
   playbackMode: PlaybackMode;
   playbackState: PlaybackState;
@@ -152,13 +154,15 @@ function PlayerStepper({
 
 export function BottomPlayer({
   currentSong,
+  isShuffleEnabled,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onPause,
   onPlay,
-  onPlaybackModeChange,
   onPlaybackSpeedChange,
+  onRepeatModeCycle,
   onResume,
+  onShuffleToggle,
   onStop,
   playbackMode,
   playbackState,
@@ -166,8 +170,6 @@ export function BottomPlayer({
   progress,
   text,
 }: BottomPlayerProps) {
-  const modeDropdownRef = useRef<HTMLDivElement | null>(null);
-  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
   const hasSong = currentSong !== null;
   const canPlay =
     hasSong && (playbackState === "idle" || playbackState === "finished");
@@ -189,35 +191,9 @@ export function BottomPlayer({
           onClick: playbackState === "paused" ? onResume : onPlay,
         };
   const progressPercent = Math.min(Math.max(progress.percent, 0), 100);
-
-  useEffect(() => {
-    if (!isModeDropdownOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (
-        modeDropdownRef.current &&
-        !modeDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsModeDropdownOpen(false);
-      }
-    }
-
-    function handleEscapeKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsModeDropdownOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleEscapeKey);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscapeKey);
-    };
-  }, [isModeDropdownOpen]);
+  const isRepeatActive = playbackMode !== "sequence";
+  const RepeatModeIcon =
+    playbackMode === "repeat-one" ? RepeatOneIcon : RepeatIcon;
 
   return (
     <footer className="bottom-player" aria-label={text.aria}>
@@ -260,10 +236,15 @@ export function BottomPlayer({
 
         <div className="bottom-player-center" aria-label={text.controlsAria}>
           <button
-            className="player-icon-button player-icon-button-secondary"
+            className={`player-icon-button player-icon-button-secondary player-icon-button-toggle${
+              isShuffleEnabled ? " is-active" : ""
+            }`}
             type="button"
-            aria-label={text.shuffle}
-            disabled
+            aria-label={
+              isShuffleEnabled ? text.shuffleEnabled : text.shuffleDisabled
+            }
+            aria-pressed={isShuffleEnabled}
+            onClick={onShuffleToggle}
           >
             <ShuffleIcon />
             <span className="visually-hidden">{text.shuffle}</span>
@@ -287,58 +268,21 @@ export function BottomPlayer({
             {primaryAction.icon}
           </button>
           <button
-            className="player-icon-button player-icon-button-secondary"
+            className={`player-icon-button player-icon-button-secondary player-icon-button-toggle${
+              isRepeatActive ? " is-active" : ""
+            }`}
             type="button"
-            aria-label={text.repeat}
-            disabled
+            aria-label={text.repeatAria[playbackMode]}
+            aria-pressed={isRepeatActive}
+            onClick={onRepeatModeCycle}
           >
-            <RepeatIcon />
+            <RepeatModeIcon />
             <span className="visually-hidden">{text.repeat}</span>
           </button>
         </div>
 
         <div className="bottom-player-actions">
           <div className="bottom-player-options" aria-label={text.optionsAria}>
-            <div className="player-option">
-              <span className="player-option-label">{text.mode}</span>
-              <div className="player-mode-dropdown" ref={modeDropdownRef}>
-                <button
-                  className="player-mode-trigger"
-                  type="button"
-                  aria-expanded={isModeDropdownOpen}
-                  aria-haspopup="listbox"
-                  onClick={() =>
-                    setIsModeDropdownOpen((isCurrentlyOpen) => !isCurrentlyOpen)
-                  }
-                >
-                  <span>{text.playbackModes[playbackMode]}</span>
-                  <span aria-hidden="true">^</span>
-                </button>
-
-                {isModeDropdownOpen ? (
-                  <div className="player-mode-menu" role="listbox">
-                    {playbackModes.map((mode) => (
-                      <button
-                        className={`player-mode-option${
-                          mode === playbackMode ? " is-selected" : ""
-                        }`}
-                        type="button"
-                        aria-selected={mode === playbackMode}
-                        key={mode}
-                        role="option"
-                        onClick={() => {
-                          onPlaybackModeChange(mode);
-                          setIsModeDropdownOpen(false);
-                        }}
-                      >
-                        {text.playbackModes[mode]}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
             <div className="player-option">
               <span className="player-option-label">{text.delay}</span>
               <PlayerStepper
