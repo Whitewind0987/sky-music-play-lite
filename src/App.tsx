@@ -103,7 +103,9 @@ function App() {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
   const importedSongsRef = useRef<Song[]>([]);
   const isShuffleEnabledRef = useRef(false);
+  const noteIntervalDelayMsRef = useRef(defaultNoteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(defaultPlaybackMode);
+  const playbackSpeedRef = useRef(defaultPlaybackSpeed);
   const [keyMapping, setKeyMapping] = useState(defaultKeyMapping);
   const [listeningSkyKey, setListeningSkyKey] = useState<SkyKeyName | null>(null);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
@@ -166,8 +168,16 @@ function App() {
   }, [isShuffleEnabled]);
 
   useEffect(() => {
+    noteIntervalDelayMsRef.current = noteIntervalDelayMs;
+  }, [noteIntervalDelayMs]);
+
+  useEffect(() => {
     playbackModeRef.current = playbackMode;
   }, [playbackMode]);
+
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
 
   useEffect(() => {
     if (listeningSkyKey === null) {
@@ -279,6 +289,30 @@ function App() {
     });
   }
 
+  function handleNoteIntervalDelayChange(
+    nextNoteIntervalDelayMs: NoteIntervalDelayMs,
+  ) {
+    const nextOptions = {
+      noteIntervalDelayMs: nextNoteIntervalDelayMs,
+      playbackSpeed: playbackSpeedRef.current,
+    };
+
+    noteIntervalDelayMsRef.current = nextNoteIntervalDelayMs;
+    setNoteIntervalDelayMs(nextNoteIntervalDelayMs);
+    playbackControllerRef.current?.updateOptions(nextOptions);
+  }
+
+  function handlePlaybackSpeedChange(nextPlaybackSpeed: PlaybackSpeed) {
+    const nextOptions = {
+      noteIntervalDelayMs: noteIntervalDelayMsRef.current,
+      playbackSpeed: nextPlaybackSpeed,
+    };
+
+    playbackSpeedRef.current = nextPlaybackSpeed;
+    setPlaybackSpeed(nextPlaybackSpeed);
+    playbackControllerRef.current?.updateOptions(nextOptions);
+  }
+
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
     playbackControllerRef.current?.stop();
     playbackControllerRef.current = null;
@@ -297,6 +331,10 @@ function App() {
       }
 
       const notes = song.songNotes;
+      const currentTimingOptions = {
+        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
+        playbackSpeed: playbackSpeedRef.current,
+      };
 
       setSelectedSongIndex(songIndex);
 
@@ -310,9 +348,9 @@ function App() {
       resetPlaybackProgress();
       appendLog(
         formatText(text.logs.previewStartedWithOptions, {
-          delayMs: noteIntervalDelayMs,
+          delayMs: currentTimingOptions.noteIntervalDelayMs,
           songName: song.name,
-          speed: playbackSpeed,
+          speed: currentTimingOptions.playbackSpeed,
         }),
       );
 
@@ -376,9 +414,9 @@ function App() {
           appendLog(text.logs.previewFinished);
         },
         {
-          noteIntervalDelayMs,
+          noteIntervalDelayMs: currentTimingOptions.noteIntervalDelayMs,
           onProgress: setPlaybackProgress,
-          playbackSpeed,
+          playbackSpeed: currentTimingOptions.playbackSpeed,
         },
       );
     } catch (error) {
@@ -574,10 +612,10 @@ function App() {
         currentSong={currentSelectedSong}
         isShuffleEnabled={isShuffleEnabled}
         noteIntervalDelayMs={noteIntervalDelayMs}
-        onNoteIntervalDelayChange={setNoteIntervalDelayMs}
+        onNoteIntervalDelayChange={handleNoteIntervalDelayChange}
         onPause={handlePausePreview}
         onPlay={handlePlayPreview}
-        onPlaybackSpeedChange={setPlaybackSpeed}
+        onPlaybackSpeedChange={handlePlaybackSpeedChange}
         onRepeatModeCycle={handleRepeatModeCycle}
         onResume={handleResumePreview}
         onShuffleToggle={handleShuffleToggle}

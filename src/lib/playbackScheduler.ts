@@ -14,7 +14,6 @@ const PROGRESS_TICK_MS = 50;
 
 type PreviewNoteGroup = {
   notes: Note[];
-  playbackTime: number;
   time: number;
 };
 
@@ -30,6 +29,12 @@ export type PreviewPlaybackController = {
   pause: () => void;
   resume: () => void;
   stop: () => void;
+  updateOptions: (
+    nextOptions: Pick<
+      PreviewPlaybackOptions,
+      "noteIntervalDelayMs" | "playbackSpeed"
+    >,
+  ) => void;
 };
 
 export type PreviewPlaybackOptions = {
@@ -48,15 +53,16 @@ export function schedulePreviewPlayback(
   },
 ): PreviewPlaybackController {
   const sortedNotes = [...notes].sort((left, right) => left.time - right.time);
-  const noteGroups = buildPreviewNoteGroups(sortedNotes, options);
-  const totalMs = getAdjustedPreviewDurationMs(sortedNotes, options);
+  const noteGroups = groupNotesByTime(sortedNotes);
+  let liveOptions = { ...options };
+  let totalMs = getAdjustedPreviewDurationMs(sortedNotes, liveOptions);
   let currentGroupIndex = 0;
   let timeoutId: number | null = null;
   let progressIntervalId: number | null = null;
   let scheduledTask: ScheduledTask =
     noteGroups.length > 0 ? "note" : "finish";
   let scheduledDelayMs =
-    noteGroups.length > 0 ? noteGroups[0].playbackTime : 0;
+    noteGroups.length > 0 ? getDelayToGroup(0, liveOptions) : 0;
   let scheduledAtMs = 0;
   let remainingDelayMs = scheduledDelayMs;
   let progressStartedAtMs = 0;
@@ -67,7 +73,7 @@ export function schedulePreviewPlayback(
 
   function emitProgress(progressMs: number) {
     currentProgressMs = Math.min(Math.max(progressMs, 0), totalMs);
-    options.onProgress?.({
+    liveOptions.onProgress?.({
       currentMs: currentProgressMs,
       percent: totalMs > 0 ? (currentProgressMs / totalMs) * 100 : 0,
       totalMs,
@@ -158,11 +164,125 @@ export function schedulePreviewPlayback(
     const nextGroup = noteGroups[currentGroupIndex];
 
     if (!nextGroup) {
-      scheduleTask("finish", getScaledDelayMs(NOTE_HIGHLIGHT_MS, options));
+      updateTotalFromRemaining(0);
+      scheduleTask("finish", getScaledDelayMs(NOTE_HIGHLIGHT_MS, liveOptions));
       return;
     }
 
-    scheduleTask("note", nextGroup.playbackTime - currentGroup.playbackTime);
+    scheduleTask("note", getDelayToGroup(currentGroupIndex, liveOptions));
+  }
+
+  function getDelayToGroup(
+    groupIndex: number,
+    timingOptions: Pick<
+      PreviewPlaybackOptions,
+      "noteIntervalDelayMs" | "playbackSpeed"
+    >,
+  ) {
+    const nextGroup = noteGroups[groupIndex];
+
+    if (!nextGroup) {
+      return 0;
+    }
+
+    if (groupIndex === 0) {
+      return getScaledDelayMs(Math.max(0, nextGroup.time), timingOptions);
+    }
+
+    const previousGroup = noteGroups[groupIndex - 1];
+    const originalGapMs = nextGroup.time - previousGroup.time;
+
+    return Math.max(
+      0,
+      getScaledDelayMs(originalGapMs, timingOptions) +
+        timingOptions.noteIntervalDelayMs,
+    );
+  }
+
+  function getRemainingDurationFromGroup(
+    groupIndex: number,
+    firstDelayMs: number,
+    timingOptions: Pick<
+      PreviewPlaybackOptions,
+      "noteIntervalDelayMs" | "playbackSpeed"
+    >,
+  ) {
+    if (groupIndex >= noteGroups.length) {
+      return 0;
+    }
+
+    let remainingDurationMs = Math.max(0, firstDelayMs);
+
+    for (let index = groupIndex + 1; index < noteGroups.length; index += 1) {
+      remainingDurationMs += getDelayToGroup(index, timingOptions);
+    }
+
+    return remainingDurationMs;
+  }
+
+  function updateTotalFromRemaining(remainingDurationMs: number) {
+    totalMs = Math.max(
+      currentProgressMs,
+      currentProgressMs + remainingDurationMs,
+    );
+    emitProgress(currentProgressMs);
+  }
+
+  function getElapsedRatio() {
+    const elapsedMs = getClockMs() - scheduledAtMs;
+
+    if (scheduledDelayMs <= 0) {
+      return 1;
+    }
+
+    return Math.min(Math.max(elapsedMs / scheduledDelayMs, 0), 1);
+  }
+
+  function getPausedElapsedRatio() {
+    if (scheduledDelayMs <= 0) {
+      return 1;
+    }
+
+    return Math.min(Math.max(1 - remainingDelayMs / scheduledDelayMs, 0), 1);
+  }
+
+  function reschedulePendingTaskAfterOptionsChange() {
+    if (scheduledTask === "finish") {
+      const nextRemainingDelayMs = isPaused
+        ? remainingDelayMs
+        : Math.max(0, scheduledDelayMs * (1 - getElapsedRatio()));
+
+      remainingDelayMs = nextRemainingDelayMs;
+      updateTotalFromRemaining(0);
+
+      if (!isPaused && timeoutId !== null) {
+        clearCurrentTimeout();
+        scheduleTask("finish", nextRemainingDelayMs);
+      }
+
+      return;
+    }
+
+    const elapsedRatio = isPaused ? getPausedElapsedRatio() : getElapsedRatio();
+    const nextFullDelayMs = getDelayToGroup(currentGroupIndex, liveOptions);
+    const nextRemainingDelayMs = Math.max(
+      0,
+      nextFullDelayMs * (1 - Math.min(Math.max(elapsedRatio, 0), 1)),
+    );
+
+    remainingDelayMs = nextRemainingDelayMs;
+    updateTotalFromRemaining(
+      getRemainingDurationFromGroup(
+        currentGroupIndex,
+        nextRemainingDelayMs,
+        liveOptions,
+      ),
+    );
+
+    if (!isPaused && timeoutId !== null) {
+      clearCurrentTimeout();
+      scheduleTask("note", nextRemainingDelayMs);
+    }
   }
 
   emitProgress(0);
@@ -195,6 +315,22 @@ export function schedulePreviewPlayback(
       clearCurrentTimeout();
       clearProgressTimer();
     },
+    updateOptions(nextOptions) {
+      if (isStopped) {
+        return;
+      }
+
+      if (!isPaused && progressIntervalId !== null) {
+        updateProgressFromClock();
+      }
+
+      liveOptions = {
+        ...liveOptions,
+        ...nextOptions,
+      };
+
+      reschedulePendingTaskAfterOptionsChange();
+    },
   };
 }
 
@@ -208,45 +344,25 @@ export function getAdjustedPreviewDurationMs(
     playbackSpeed: defaultPlaybackSpeed,
   },
 ) {
-  const noteGroups = buildPreviewNoteGroups(notes, options);
-  const lastGroup = noteGroups[noteGroups.length - 1];
+  const sortedNotes = [...notes].sort((left, right) => left.time - right.time);
+  const groupedNotes = groupNotesByTime(sortedNotes);
 
-  return lastGroup?.playbackTime ?? 0;
-}
-
-function buildPreviewNoteGroups(
-  notes: Note[],
-  options: Pick<PreviewPlaybackOptions, "noteIntervalDelayMs" | "playbackSpeed">,
-) {
-  const groupedNotes = groupNotesByTime(notes);
-  let previousOriginalTime = 0;
-  let previousPlaybackTime = 0;
-
-  return groupedNotes.map((group, index) => {
+  return groupedNotes.reduce((durationMs, group, index) => {
     if (index === 0) {
-      previousOriginalTime = group.time;
-      previousPlaybackTime = getScaledDelayMs(Math.max(0, group.time), options);
-
-      return {
-        ...group,
-        playbackTime: previousPlaybackTime,
-      };
+      return durationMs + getScaledDelayMs(Math.max(0, group.time), options);
     }
 
-    const originalGapMs = group.time - previousOriginalTime;
-    const adjustedGapMs = Math.max(
-      0,
-      getScaledDelayMs(originalGapMs, options) + options.noteIntervalDelayMs,
+    const previousGroup = groupedNotes[index - 1];
+    const originalGapMs = group.time - previousGroup.time;
+
+    return (
+      durationMs +
+      Math.max(
+        0,
+        getScaledDelayMs(originalGapMs, options) + options.noteIntervalDelayMs,
+      )
     );
-
-    previousOriginalTime = group.time;
-    previousPlaybackTime += adjustedGapMs;
-
-    return {
-      ...group,
-      playbackTime: previousPlaybackTime,
-    };
-  });
+  }, 0);
 }
 
 function getScaledDelayMs(
@@ -257,7 +373,7 @@ function getScaledDelayMs(
 }
 
 function groupNotesByTime(notes: Note[]) {
-  const noteGroups: Array<Omit<PreviewNoteGroup, "playbackTime">> = [];
+  const noteGroups: PreviewNoteGroup[] = [];
 
   notes.forEach((note) => {
     const lastGroup = noteGroups[noteGroups.length - 1];
