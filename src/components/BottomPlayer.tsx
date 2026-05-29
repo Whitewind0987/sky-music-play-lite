@@ -114,27 +114,30 @@ function PlayerStepper({
       >
         -
       </button>
-      <input
-        className="player-stepper-input"
-        type="number"
-        aria-label={label}
-        max={max}
-        min={min}
-        step={step}
-        value={draftValue}
-        onBlur={commitDraftValue}
-        onChange={(event) => setDraftValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            commitDraftValue();
-            event.currentTarget.blur();
-          }
+      <div className="player-stepper-value">
+        <input
+          className="player-stepper-input"
+          type="number"
+          aria-label={label}
+          max={max}
+          min={min}
+          step={step}
+          value={draftValue}
+          onBlur={commitDraftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              commitDraftValue();
+              event.currentTarget.blur();
+            }
 
-          if (event.key === "Escape") {
-            setDraftValue(formatNumberInputValue(value));
-          }
-        }}
-      />
+            if (event.key === "Escape") {
+              setDraftValue(formatNumberInputValue(value));
+            }
+          }}
+        />
+        <span className="player-stepper-unit">{unit}</span>
+      </div>
       <button
         className="player-stepper-button"
         type="button"
@@ -143,7 +146,6 @@ function PlayerStepper({
       >
         +
       </button>
-      <span className="player-stepper-unit">{unit}</span>
     </div>
   );
 }
