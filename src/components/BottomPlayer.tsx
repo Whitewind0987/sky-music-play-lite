@@ -1,5 +1,13 @@
 import type { UiText } from "../i18n/uiText";
 import type { PlaybackState } from "../types/playback";
+import {
+  noteIntervalDelayOptions,
+  playbackModes,
+  playbackSpeedOptions,
+  type NoteIntervalDelayMs,
+  type PlaybackMode,
+  type PlaybackSpeed,
+} from "../types/playbackOptions";
 import type { Song } from "../types/score";
 import {
   PauseIcon,
@@ -13,11 +21,17 @@ import {
 type BottomPlayerProps = {
   currentSong: Song | null;
   durationMs: number;
+  noteIntervalDelayMs: NoteIntervalDelayMs;
+  onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
   onPlay: () => void;
+  onPlaybackModeChange: (playbackMode: PlaybackMode) => void;
+  onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onResume: () => void;
   onStop: () => void;
+  playbackMode: PlaybackMode;
   playbackState: PlaybackState;
+  playbackSpeed: PlaybackSpeed;
   progressMs: number;
   text: UiText["bottomPlayer"];
 };
@@ -33,11 +47,17 @@ function formatPlaybackTime(timeMs: number) {
 export function BottomPlayer({
   currentSong,
   durationMs,
+  noteIntervalDelayMs,
+  onNoteIntervalDelayChange,
   onPause,
   onPlay,
+  onPlaybackModeChange,
+  onPlaybackSpeedChange,
   onResume,
   onStop,
+  playbackMode,
   playbackState,
+  playbackSpeed,
   progressMs,
   text,
 }: BottomPlayerProps) {
@@ -145,6 +165,58 @@ export function BottomPlayer({
       </div>
 
       <div className="bottom-player-actions">
+        <div className="bottom-player-options" aria-label={text.optionsAria}>
+          <label className="bottom-player-option">
+            <span>{text.mode}</span>
+            <select
+              value={playbackMode}
+              onChange={(event) =>
+                onPlaybackModeChange(event.target.value as PlaybackMode)
+              }
+            >
+              {playbackModes.map((mode) => (
+                <option value={mode} key={mode}>
+                  {text.playbackModes[mode]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="bottom-player-option">
+            <span>{text.delay}</span>
+            <select
+              value={noteIntervalDelayMs}
+              onChange={(event) =>
+                onNoteIntervalDelayChange(
+                  Number(event.target.value) as NoteIntervalDelayMs,
+                )
+              }
+            >
+              {noteIntervalDelayOptions.map((delayMs) => (
+                <option value={delayMs} key={delayMs}>
+                  {delayMs > 0 ? `+${delayMs}` : delayMs} ms
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="bottom-player-option">
+            <span>{text.speed}</span>
+            <select
+              value={playbackSpeed}
+              onChange={(event) =>
+                onPlaybackSpeedChange(Number(event.target.value) as PlaybackSpeed)
+              }
+            >
+              {playbackSpeedOptions.map((speed) => (
+                <option value={speed} key={speed}>
+                  {speed}x
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <button
           className="player-icon-button player-icon-button-secondary"
           type="button"

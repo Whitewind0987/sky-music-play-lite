@@ -1,4 +1,10 @@
 import type { Note } from "../types/score";
+import {
+  defaultNoteIntervalDelayMs,
+  defaultPlaybackSpeed,
+  type NoteIntervalDelayMs,
+  type PlaybackSpeed,
+} from "../types/playbackOptions";
 
 type PreviewNoteGroupHandler = (notes: Note[]) => void;
 type PreviewFinishHandler = () => void;
@@ -18,10 +24,19 @@ export type PreviewPlaybackController = {
   stop: () => void;
 };
 
+export type PreviewPlaybackOptions = {
+  noteIntervalDelayMs: NoteIntervalDelayMs;
+  playbackSpeed: PlaybackSpeed;
+};
+
 export function schedulePreviewPlayback(
   notes: Note[],
   onNoteGroup: PreviewNoteGroupHandler,
   onFinish: PreviewFinishHandler,
+  options: PreviewPlaybackOptions = {
+    noteIntervalDelayMs: defaultNoteIntervalDelayMs,
+    playbackSpeed: defaultPlaybackSpeed,
+  },
 ): PreviewPlaybackController {
   const sortedNotes = [...notes].sort((left, right) => left.time - right.time);
   const noteGroups = groupNotesByTime(sortedNotes);
@@ -30,7 +45,9 @@ export function schedulePreviewPlayback(
   let scheduledTask: ScheduledTask =
     noteGroups.length > 0 ? "note" : "finish";
   let scheduledDelayMs =
-    noteGroups.length > 0 ? Math.max(0, noteGroups[0].time) : 0;
+    noteGroups.length > 0
+      ? getScaledDelayMs(Math.max(0, noteGroups[0].time), options)
+      : 0;
   let scheduledAtMs = 0;
   let remainingDelayMs = scheduledDelayMs;
   let isPaused = false;
@@ -83,11 +100,20 @@ export function schedulePreviewPlayback(
     const nextGroup = noteGroups[currentGroupIndex];
 
     if (!nextGroup) {
-      scheduleTask("finish", NOTE_HIGHLIGHT_MS);
+      scheduleTask("finish", getScaledDelayMs(NOTE_HIGHLIGHT_MS, options));
       return;
     }
 
-    scheduleTask("note", nextGroup.time - currentGroup.time);
+    scheduleTask(
+      "note",
+      getScaledDelayMs(
+        Math.max(
+          0,
+          nextGroup.time - currentGroup.time + options.noteIntervalDelayMs,
+        ),
+        options,
+      ),
+    );
   }
 
   scheduleTask(scheduledTask, scheduledDelayMs);
@@ -116,6 +142,10 @@ export function schedulePreviewPlayback(
       clearCurrentTimeout();
     },
   };
+}
+
+function getScaledDelayMs(delayMs: number, options: PreviewPlaybackOptions) {
+  return Math.max(0, delayMs) / options.playbackSpeed;
 }
 
 function groupNotesByTime(notes: Note[]) {

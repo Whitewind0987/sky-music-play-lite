@@ -961,6 +961,35 @@ button {
   justify-content: flex-end;
 }
 
+.bottom-player-options {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.bottom-player-option {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  color: #52616f;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.bottom-player-option select {
+  min-width: 74px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
+  font: inherit;
+}
+
 .player-icon-button {
   width: 34px;
   height: 34px;
@@ -1155,6 +1184,14 @@ button {
 
   .bottom-player-meta {
     gap: 4px 8px;
+  }
+
+  .bottom-player-options {
+    gap: 4px;
+  }
+
+  .bottom-player-option select {
+    min-width: 62px;
   }
 
   .player-icon-button {

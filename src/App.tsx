@@ -34,6 +34,14 @@ import {
   type SkyKeyName,
 } from "./types/keyMapping";
 import type { PlaybackState } from "./types/playback";
+import {
+  defaultNoteIntervalDelayMs,
+  defaultPlaybackMode,
+  defaultPlaybackSpeed,
+  type NoteIntervalDelayMs,
+  type PlaybackMode,
+  type PlaybackSpeed,
+} from "./types/playbackOptions";
 import type { Song } from "./types/score";
 import "../font/iconfont.css";
 import "./App.css";
@@ -86,11 +94,48 @@ function getSongDurationMs(song: Song | null) {
   );
 }
 
+function getUniqueSortedNoteTimes(song: Song) {
+  return [...new Set(song.songNotes.map((note) => note.time))].sort(
+    (left, right) => left - right,
+  );
+}
+
+function getAdjustedPlaybackDurationMs(
+  song: Song | null,
+  playbackSpeed: PlaybackSpeed,
+  noteIntervalDelayMs: NoteIntervalDelayMs,
+) {
+  if (song === null) {
+    return 0;
+  }
+
+  const noteTimes = getUniqueSortedNoteTimes(song);
+
+  if (noteTimes.length === 0) {
+    return 0;
+  }
+
+  const firstDelayMs = Math.max(0, noteTimes[0]) / playbackSpeed;
+
+  return noteTimes.slice(1).reduce((totalMs, noteTime, index) => {
+    const previousTime = noteTimes[index];
+    const adjustedGapMs = Math.max(
+      0,
+      noteTime - previousTime + noteIntervalDelayMs,
+    );
+
+    return totalMs + adjustedGapMs / playbackSpeed;
+  }, firstDelayMs);
+}
+
 function App() {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
   const progressAnimationFrameRef = useRef<number | null>(null);
   const progressStartedAtMsRef = useRef(0);
   const progressStartOffsetMsRef = useRef(0);
+  const progressRealStartOffsetMsRef = useRef(0);
+  const progressDisplayDurationMsRef = useRef(0);
+  const progressRealDurationMsRef = useRef(0);
   const currentProgressMsRef = useRef(0);
   const [keyMapping, setKeyMapping] = useState(defaultKeyMapping);
   const [listeningSkyKey, setListeningSkyKey] = useState<SkyKeyName | null>(null);
@@ -101,6 +146,12 @@ function App() {
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
   const [playbackProgressMs, setPlaybackProgressMs] = useState(0);
+  const [playbackMode, setPlaybackMode] =
+    useState<PlaybackMode>(defaultPlaybackMode);
+  const [noteIntervalDelayMs, setNoteIntervalDelayMs] =
+    useState<NoteIntervalDelayMs>(defaultNoteIntervalDelayMs);
+  const [playbackSpeed, setPlaybackSpeed] =
+    useState<PlaybackSpeed>(defaultPlaybackSpeed);
   const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
   const [logEntries, setLogEntries] = useState<string[]>(() => [
     uiText[defaultLanguage].logs.appReady,
@@ -167,6 +218,10 @@ function App() {
 
   function resetPlaybackProgress() {
     currentProgressMsRef.current = 0;
+    progressStartOffsetMsRef.current = 0;
+    progressRealStartOffsetMsRef.current = 0;
+    progressDisplayDurationMsRef.current = 0;
+    progressRealDurationMsRef.current = 0;
     setPlaybackProgressMs(0);
   }
 
@@ -180,27 +235,38 @@ function App() {
     setPlaybackProgressMs(clampedProgressMs);
   }
 
-  function startProgressAnimation(durationMs: number, startOffsetMs = 0) {
+  function startProgressAnimation(
+    displayDurationMs: number,
+    realDurationMs = displayDurationMs,
+    startOffsetMs = 0,
+  ) {
     cancelProgressAnimation();
 
-    if (durationMs <= 0) {
+    if (displayDurationMs <= 0 || realDurationMs <= 0) {
       resetPlaybackProgress();
       return;
     }
 
+    progressDisplayDurationMsRef.current = displayDurationMs;
+    progressRealDurationMsRef.current = realDurationMs;
     progressStartOffsetMsRef.current = Math.min(
       Math.max(startOffsetMs, 0),
-      durationMs,
+      displayDurationMs,
     );
+    progressRealStartOffsetMsRef.current =
+      (progressStartOffsetMsRef.current / displayDurationMs) * realDurationMs;
     progressStartedAtMsRef.current = performance.now();
 
     function updateProgress(nowMs: number) {
       const elapsedMs = nowMs - progressStartedAtMsRef.current;
-      const nextProgressMs = progressStartOffsetMsRef.current + elapsedMs;
+      const nextRealProgressMs =
+        progressRealStartOffsetMsRef.current + elapsedMs;
+      const nextProgressMs =
+        (nextRealProgressMs / realDurationMs) * displayDurationMs;
 
-      setClampedPlaybackProgress(nextProgressMs, durationMs);
+      setClampedPlaybackProgress(nextProgressMs, displayDurationMs);
 
-      if (nextProgressMs < durationMs) {
+      if (nextRealProgressMs < realDurationMs) {
         progressAnimationFrameRef.current =
           window.requestAnimationFrame(updateProgress);
       } else {
@@ -212,16 +278,23 @@ function App() {
       window.requestAnimationFrame(updateProgress);
   }
 
-  function pauseProgressAnimation(durationMs: number) {
+  function pauseProgressAnimation() {
     if (progressAnimationFrameRef.current === null) {
       return;
     }
 
     const elapsedMs = performance.now() - progressStartedAtMsRef.current;
-    setClampedPlaybackProgress(
-      progressStartOffsetMsRef.current + elapsedMs,
-      durationMs,
-    );
+    const realProgressMs = progressRealStartOffsetMsRef.current + elapsedMs;
+    const displayDurationMs = progressDisplayDurationMsRef.current;
+    const realDurationMs = progressRealDurationMsRef.current;
+
+    if (displayDurationMs > 0 && realDurationMs > 0) {
+      setClampedPlaybackProgress(
+        (realProgressMs / realDurationMs) * displayDurationMs,
+        displayDurationMs,
+      );
+    }
+
     cancelProgressAnimation();
   }
 
@@ -278,24 +351,39 @@ function App() {
     resetPlaybackProgress();
   }
 
-  function handlePlayPreview() {
-    stopCurrentPreview();
-
+  function startPreviewForSong(songIndex: number) {
     try {
-      if (!currentSelectedSong) {
+      const song = importedSongs[songIndex];
+
+      if (!song) {
         appendLog(text.logs.noSelectedScore);
         return;
       }
 
-      const notes = currentSelectedSong.songNotes;
-      const durationMs = getSongDurationMs(currentSelectedSong);
+      const notes = song.songNotes;
+      const durationMs = getSongDurationMs(song);
+      const adjustedDurationMs = getAdjustedPlaybackDurationMs(
+        song,
+        playbackSpeed,
+        noteIntervalDelayMs,
+      );
+
+      setSelectedSongIndex(songIndex);
+
+      if (notes.length === 0) {
+        stopCurrentPreview("finished");
+        appendLog(text.logs.previewFinished);
+        return;
+      }
 
       setPlaybackState("playing");
       resetPlaybackProgress();
-      startProgressAnimation(durationMs, 0);
+      startProgressAnimation(durationMs, adjustedDurationMs, 0);
       appendLog(
-        formatText(text.logs.previewStartedFromSong, {
-          songName: currentSelectedSong.name,
+        formatText(text.logs.previewStartedWithOptions, {
+          delayMs: noteIntervalDelayMs,
+          songName: song.name,
+          speed: playbackSpeed,
         }),
       );
 
@@ -313,9 +401,38 @@ function App() {
           cancelProgressAnimation();
           setClampedPlaybackProgress(durationMs, durationMs);
           setActiveKeys([]);
-          setPlaybackState("finished");
           playbackControllerRef.current = null;
+
+          if (playbackMode === "repeat-one") {
+            appendLog(
+              formatText(text.logs.repeatOneTriggered, { songName: song.name }),
+            );
+            startPreviewForSong(songIndex);
+            return;
+          }
+
+          if (playbackMode === "repeat-all") {
+            const nextSongIndex =
+              importedSongs.length === 0
+                ? songIndex
+                : (songIndex + 1) % importedSongs.length;
+            const nextSong = importedSongs[nextSongIndex] ?? song;
+
+            appendLog(
+              formatText(text.logs.repeatAllTriggered, {
+                songName: nextSong.name,
+              }),
+            );
+            startPreviewForSong(nextSongIndex);
+            return;
+          }
+
+          setPlaybackState("finished");
           appendLog(text.logs.previewFinished);
+        },
+        {
+          noteIntervalDelayMs,
+          playbackSpeed,
         },
       );
     } catch (error) {
@@ -328,13 +445,23 @@ function App() {
     }
   }
 
+  function handlePlayPreview() {
+    if (selectedSongIndex === null) {
+      appendLog(text.logs.noSelectedScore);
+      return;
+    }
+
+    stopCurrentPreview();
+    startPreviewForSong(selectedSongIndex);
+  }
+
   function handlePausePreview() {
     if (playbackState !== "playing") {
       return;
     }
 
     playbackControllerRef.current?.pause();
-    pauseProgressAnimation(playbackDurationMs);
+    pauseProgressAnimation();
     setActiveKeys([]);
     setPlaybackState("paused");
     appendLog(text.logs.previewPaused);
@@ -346,7 +473,11 @@ function App() {
     }
 
     playbackControllerRef.current?.resume();
-    startProgressAnimation(playbackDurationMs, currentProgressMsRef.current);
+    startProgressAnimation(
+      progressDisplayDurationMsRef.current || playbackDurationMs,
+      progressRealDurationMsRef.current || playbackDurationMs,
+      currentProgressMsRef.current,
+    );
     setPlaybackState("playing");
     appendLog(text.logs.previewResumed);
   }
@@ -501,11 +632,17 @@ function App() {
 
       <BottomPlayer
         currentSong={currentSelectedSong}
+        noteIntervalDelayMs={noteIntervalDelayMs}
+        onNoteIntervalDelayChange={setNoteIntervalDelayMs}
         onPause={handlePausePreview}
         onPlay={handlePlayPreview}
+        onPlaybackModeChange={setPlaybackMode}
+        onPlaybackSpeedChange={setPlaybackSpeed}
         onResume={handleResumePreview}
         onStop={handleStopPreview}
+        playbackMode={playbackMode}
         playbackState={playbackState}
+        playbackSpeed={playbackSpeed}
         durationMs={playbackDurationMs}
         progressMs={playbackProgressMs}
         text={text.bottomPlayer}
