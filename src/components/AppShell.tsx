@@ -1,11 +1,12 @@
 import type { UiText } from "../i18n/uiText";
 
+export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
+
 const sidebarItems = [
   {
     iconClass: "icon-Homehomepagemenu",
-    section: "Workspace",
+    section: "Library",
   },
-  { iconClass: "icon-shuru", section: "Score" },
   { iconClass: "icon-yulan", section: "Playback" },
   { iconClass: "icon-rizhi", section: "Logs" },
   { iconClass: "icon-shezhi", section: "Settings" },
@@ -15,15 +16,36 @@ export type AppSection = (typeof sidebarItems)[number]["section"];
 
 type AppSidebarProps = {
   activeSection: AppSection;
+  localImportCount: number;
+  onLibraryCategoryChange: (category: LibraryCategoryId) => void;
   onSectionChange: (section: AppSection) => void;
+  selectedLibraryCategory: LibraryCategoryId;
   text: UiText;
 };
 
 export function AppSidebar({
   activeSection,
+  localImportCount,
+  onLibraryCategoryChange,
   onSectionChange,
+  selectedLibraryCategory,
   text,
 }: AppSidebarProps) {
+  const libraryCategories: Array<{
+    count?: number;
+    id: LibraryCategoryId;
+    label: string;
+  }> = [
+    { id: "built-in", label: text.library.categoryBuiltIn },
+    {
+      count: localImportCount,
+      id: "local-imports",
+      label: text.library.categoryLocalImports,
+    },
+    { id: "playlists", label: text.library.categoryPlaylists },
+    { id: "liked", label: text.library.categoryLiked },
+  ];
+
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
       <div className="sidebar-brand">
@@ -52,6 +74,30 @@ export function AppSidebar({
           </button>
         ))}
       </nav>
+
+      <div className="sidebar-library" aria-label={text.library.categoriesTitle}>
+        <p className="sidebar-subnav-heading">{text.library.categoriesTitle}</p>
+        <div className="sidebar-subnav">
+          {libraryCategories.map((category) => (
+            <button
+              className={`sidebar-subnav-link${
+                selectedLibraryCategory === category.id ? " is-active" : ""
+              }`}
+              key={category.id}
+              type="button"
+              onClick={() => {
+                onLibraryCategoryChange(category.id);
+                onSectionChange("Library");
+              }}
+            >
+              <span>{category.label}</span>
+              {typeof category.count === "number" ? (
+                <span className="sidebar-subnav-count">{category.count}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </div>
     </aside>
   );
 }

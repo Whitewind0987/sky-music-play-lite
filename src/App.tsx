@@ -3,15 +3,15 @@ import {
   AppSidebar,
   WorkspaceHeader,
   type AppSection,
+  type LibraryCategoryId,
 } from "./components/AppShell";
 import { BottomPlayer } from "./components/BottomPlayer";
-import { HomePanel } from "./components/HomePanel";
+import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import {
   KeyboardPreview,
   PlaybackControls,
 } from "./components/PlaybackPanel";
-import { ScoreInput } from "./components/ScorePanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import {
   defaultLanguage,
@@ -135,7 +135,9 @@ function App() {
     useState<NoteIntervalDelayMs>(defaultNoteIntervalDelayMs);
   const [playbackSpeed, setPlaybackSpeed] =
     useState<PlaybackSpeed>(defaultPlaybackSpeed);
-  const [activeSection, setActiveSection] = useState<AppSection>("Workspace");
+  const [activeSection, setActiveSection] = useState<AppSection>("Library");
+  const [selectedLibraryCategory, setSelectedLibraryCategory] =
+    useState<LibraryCategoryId>("local-imports");
   const [logEntries, setLogEntries] = useState<string[]>(() => [
     uiText[defaultLanguage].logs.appReady,
     uiText[defaultLanguage].logs.noPlaybackYet,
@@ -306,6 +308,15 @@ function App() {
   function handleSelectImportedSong(songIndex: number | null) {
     stopCurrentPreview();
     setSelectedSongIndex(songIndex);
+  }
+
+  function handleLibraryCategoryChange(category: LibraryCategoryId) {
+    setSelectedLibraryCategory(category);
+  }
+
+  function handlePlayImportedSong(songIndex: number) {
+    stopCurrentPreview();
+    startPreviewForSong(songIndex);
   }
 
   function handleStartKeyMappingListen(skyKey: SkyKeyName) {
@@ -553,15 +564,17 @@ function App() {
   }
 
   function renderActiveSection() {
-    if (activeSection === "Score") {
+    if (activeSection === "Library") {
       return (
-        <ScoreInput
-          importedSongs={importedSongs}
+        <LibraryPanel
           importError={importError}
           onImportFiles={handleImportScoreFiles}
-          onSelectImportedSong={handleSelectImportedSong}
+          onPlaySong={handlePlayImportedSong}
+          onSelectSong={handleSelectImportedSong}
+          selectedCategory={selectedLibraryCategory}
           selectedSongIndex={selectedSongIndex}
-          text={text.score}
+          songs={importedSongs}
+          text={text.library}
         />
       );
     }
@@ -607,22 +620,17 @@ function App() {
       );
     }
 
-    return (
-      <HomePanel
-        onGoToScore={() => setActiveSection("Score")}
-        onSelectSong={handleSelectImportedSong}
-        selectedSongIndex={selectedSongIndex}
-        songs={importedSongs}
-        text={text.home}
-      />
-    );
+    return null;
   }
 
   return (
     <main className="app-shell">
       <AppSidebar
         activeSection={activeSection}
+        localImportCount={importedSongs.length}
+        onLibraryCategoryChange={handleLibraryCategoryChange}
         onSectionChange={setActiveSection}
+        selectedLibraryCategory={selectedLibraryCategory}
         text={text}
       />
 

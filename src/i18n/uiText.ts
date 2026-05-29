@@ -23,20 +23,15 @@ export const uiText = {
       name: "SkyMusicPlay Lite",
     },
     navigation: {
-      Workspace: "首页",
-      Score: "曲谱",
+      Library: "曲库",
       Playback: "播放",
       Logs: "日志",
       Settings: "设置",
     },
     sections: {
-      Workspace: {
-        title: "曲谱预览工作区",
-        status: "应用正在运行",
-      },
-      Score: {
-        title: "曲谱输入",
-        status: "文本解析预览",
+      Library: {
+        title: "曲库",
+        status: "本次运行的曲谱",
       },
       Playback: {
         title: "播放预览",
@@ -81,6 +76,58 @@ export const uiText = {
       notes: "音符",
       selected: "当前选中",
       select: "点击选择",
+    },
+    library: {
+      aria: "曲库页面",
+      importEyebrow: "本地曲谱",
+      importTitle: "导入曲谱",
+      importDescription: "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件，本次运行内可直接播放预览。",
+      importLabel: "导入 .json / .txt",
+      categoriesTitle: "分类",
+      categoryBuiltIn: "系统自带",
+      categoryLocalImports: "本地导入",
+      categoryPlaylists: "收藏歌单",
+      categoryLiked: "我喜欢",
+      categoryEmptyStates: {
+        "built-in": {
+          title: "系统自带",
+          description: "后续将加入内置曲谱。",
+        },
+        "local-imports": {
+          title: "本地导入",
+          description: "使用导入按钮添加本地曲谱。",
+        },
+        playlists: {
+          title: "收藏歌单",
+          description: "后续将支持创建和收藏歌单。",
+        },
+        liked: {
+          title: "我喜欢",
+          description: "后续将支持收藏喜欢的曲谱。",
+        },
+      },
+      tableEyebrow: "当前会话",
+      tableTitle: "本地导入",
+      tableDescription: "曲谱只保存在本次运行中，重启后不会保留。",
+      emptyEyebrow: "暂无曲谱",
+      emptyTitle: "还没有导入曲谱",
+      emptyDescription: "使用上方导入按钮选择 JSON 或 TXT 曲谱文件。",
+      placeholderEyebrow: "占位分类",
+      columns: {
+        index: "#",
+        title: "标题",
+        source: "来源",
+        liked: "喜欢",
+        duration: "时长",
+        actions: "操作",
+      },
+      localImport: "本地导入",
+      likedPlaceholder: "占位",
+      actionsPlaceholder: "...",
+      playNextAction: "下一首播放",
+      addToPlaylistAction: "收藏到歌单",
+      selected: "当前",
+      playAction: "播放",
     },
     score: {
       panelTitle: "曲谱导入区",
@@ -208,7 +255,7 @@ export const uiText = {
       theme: "主题",
       systemTheme: "跟随系统",
       defaultPage: "默认页面",
-      home: "首页",
+      home: "曲库",
       keyMappingCancelHint: "按 Escape 取消",
       keyMappingClickHint: "点击后按键盘",
       keyMappingDescription: "这些映射只用于预览和 dry-run，本阶段不会发送真实按键。",
@@ -234,20 +281,15 @@ export const uiText = {
       name: "SkyMusicPlay Lite",
     },
     navigation: {
-      Workspace: "Home",
-      Score: "Score",
+      Library: "Library",
       Playback: "Playback",
       Logs: "Logs",
       Settings: "Settings",
     },
     sections: {
-      Workspace: {
-        title: "Music preview workspace",
-        status: "App is running",
-      },
-      Score: {
-        title: "Score input",
-        status: "Text parsing preview",
+      Library: {
+        title: "Library",
+        status: "Current session scores",
       },
       Playback: {
         title: "Playback preview",
@@ -293,6 +335,60 @@ export const uiText = {
       notes: "Notes",
       selected: "Selected",
       select: "Click to select",
+    },
+    library: {
+      aria: "Library page",
+      importEyebrow: "Local scores",
+      importTitle: "Import scores",
+      importDescription:
+        "Import one or more SkyStudio-style JSON / TXT score files for this session.",
+      importLabel: "Import .json / .txt",
+      categoriesTitle: "Categories",
+      categoryBuiltIn: "Built-in",
+      categoryLocalImports: "Local Imports",
+      categoryPlaylists: "Playlists",
+      categoryLiked: "Liked",
+      categoryEmptyStates: {
+        "built-in": {
+          title: "Built-in",
+          description: "Built-in scores will be added later.",
+        },
+        "local-imports": {
+          title: "Local Imports",
+          description: "Use the import button to add local scores.",
+        },
+        playlists: {
+          title: "Playlists",
+          description: "Creating and saving playlists will be supported later.",
+        },
+        liked: {
+          title: "Liked",
+          description: "Liking favorite scores will be supported later.",
+        },
+      },
+      tableEyebrow: "Current session",
+      tableTitle: "Local Imports",
+      tableDescription:
+        "Scores are kept only in memory and will be cleared after restart.",
+      emptyEyebrow: "No scores",
+      emptyTitle: "No scores imported yet",
+      emptyDescription: "Use the import button above to choose JSON or TXT score files.",
+      placeholderEyebrow: "Placeholder category",
+      columns: {
+        index: "#",
+        title: "Title",
+        source: "Source",
+        liked: "Liked",
+        duration: "Duration",
+        actions: "Actions",
+      },
+      localImport: "Local Import",
+      likedPlaceholder: "Placeholder",
+      actionsPlaceholder: "...",
+      playNextAction: "Play Next",
+      addToPlaylistAction: "Add to Playlist",
+      selected: "Selected",
+      playAction: "Play",
     },
     score: {
       panelTitle: "Score import area",
@@ -428,7 +524,7 @@ export const uiText = {
       theme: "Theme",
       systemTheme: "System",
       defaultPage: "Default page",
-      home: "Home",
+      home: "Library",
       keyMappingCancelHint: "Press Escape to cancel",
       keyMappingClickHint: "Click, then press a key",
       keyMappingDescription:
