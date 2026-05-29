@@ -419,27 +419,19 @@ function App() {
             return;
           }
 
-          if (isShuffleEnabledRef.current && currentImportedSongs.length > 1) {
-            const nextSongIndex = getRandomNextSongIndex(
-              songIndex,
-              currentImportedSongs.length,
-            );
-            const nextSong = currentImportedSongs[nextSongIndex] ?? song;
-
-            appendLog(
-              formatText(text.logs.repeatAllTriggered, {
-                songName: nextSong.name,
-              }),
-            );
-            startPreviewForSong(nextSongIndex);
-            return;
-          }
-
           if (currentPlaybackMode === "repeat-all") {
-            const nextSongIndex =
+            let nextSongIndex =
               currentImportedSongs.length === 0
                 ? songIndex
                 : (songIndex + 1) % currentImportedSongs.length;
+
+            if (isShuffleEnabledRef.current && currentImportedSongs.length > 1) {
+              nextSongIndex = getRandomNextSongIndex(
+                songIndex,
+                currentImportedSongs.length,
+              );
+            }
+
             const nextSong = currentImportedSongs[nextSongIndex] ?? song;
 
             appendLog(
