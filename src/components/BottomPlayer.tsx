@@ -1,10 +1,13 @@
+import { useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
 import {
-  noteIntervalDelayOptions,
+  normalizeNoteIntervalDelay,
+  normalizePlaybackSpeed,
+  noteIntervalDelayLimits,
   playbackModes,
-  playbackSpeedOptions,
+  playbackSpeedLimits,
   type NoteIntervalDelayMs,
   type PlaybackMode,
   type PlaybackSpeed,
@@ -44,6 +47,107 @@ function formatPlaybackTime(timeMs: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function formatNumberInputValue(value: number) {
+  return Number(value.toFixed(2)).toString();
+}
+
+type PlayerStepperProps = {
+  label: string;
+  max: number;
+  min: number;
+  normalizeValue: (value: number) => number;
+  onChange: (value: number) => void;
+  step: number;
+  unit: string;
+  value: number;
+};
+
+function PlayerStepper({
+  label,
+  max,
+  min,
+  normalizeValue,
+  onChange,
+  step,
+  unit,
+  value,
+}: PlayerStepperProps) {
+  const [draftValue, setDraftValue] = useState(formatNumberInputValue(value));
+
+  useEffect(() => {
+    setDraftValue(formatNumberInputValue(value));
+  }, [value]);
+
+  function commitDraftValue() {
+    if (draftValue.trim() === "") {
+      setDraftValue(formatNumberInputValue(value));
+      return;
+    }
+
+    const parsedValue = Number(draftValue);
+
+    if (!Number.isFinite(parsedValue)) {
+      setDraftValue(formatNumberInputValue(value));
+      return;
+    }
+
+    const nextValue = normalizeValue(parsedValue);
+
+    onChange(nextValue);
+    setDraftValue(formatNumberInputValue(nextValue));
+  }
+
+  function handleStepClick(direction: -1 | 1) {
+    const nextValue = normalizeValue(value + step * direction);
+
+    onChange(nextValue);
+    setDraftValue(formatNumberInputValue(nextValue));
+  }
+
+  return (
+    <div className="player-stepper">
+      <button
+        className="player-stepper-button"
+        type="button"
+        aria-label={`${label} -`}
+        onClick={() => handleStepClick(-1)}
+      >
+        -
+      </button>
+      <input
+        className="player-stepper-input"
+        type="number"
+        aria-label={label}
+        max={max}
+        min={min}
+        step={step}
+        value={draftValue}
+        onBlur={commitDraftValue}
+        onChange={(event) => setDraftValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            commitDraftValue();
+            event.currentTarget.blur();
+          }
+
+          if (event.key === "Escape") {
+            setDraftValue(formatNumberInputValue(value));
+          }
+        }}
+      />
+      <button
+        className="player-stepper-button"
+        type="button"
+        aria-label={`${label} +`}
+        onClick={() => handleStepClick(1)}
+      >
+        +
+      </button>
+      <span className="player-stepper-unit">{unit}</span>
+    </div>
+  );
+}
+
 export function BottomPlayer({
   currentSong,
   noteIntervalDelayMs,
@@ -60,6 +164,8 @@ export function BottomPlayer({
   progress,
   text,
 }: BottomPlayerProps) {
+  const modeDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
   const hasSong = currentSong !== null;
   const canPlay =
     hasSong && (playbackState === "idle" || playbackState === "finished");
@@ -81,6 +187,35 @@ export function BottomPlayer({
           onClick: playbackState === "paused" ? onResume : onPlay,
         };
   const progressPercent = Math.min(Math.max(progress.percent, 0), 100);
+
+  useEffect(() => {
+    if (!isModeDropdownOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        modeDropdownRef.current &&
+        !modeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsModeDropdownOpen(false);
+      }
+    }
+
+    function handleEscapeKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsModeDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscapeKey);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscapeKey);
+    };
+  }, [isModeDropdownOpen]);
 
   return (
     <footer className="bottom-player" aria-label={text.aria}>
@@ -162,58 +297,75 @@ export function BottomPlayer({
 
         <div className="bottom-player-actions">
           <div className="bottom-player-options" aria-label={text.optionsAria}>
-          <label className="player-option">
-            <span className="player-option-label">{text.mode}</span>
-            <select
-              className="player-option-select"
-              value={playbackMode}
-              onChange={(event) =>
-                onPlaybackModeChange(event.target.value as PlaybackMode)
-              }
-            >
-              {playbackModes.map((mode) => (
-                <option value={mode} key={mode}>
-                  {text.playbackModes[mode]}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="player-option">
+              <span className="player-option-label">{text.mode}</span>
+              <div className="player-mode-dropdown" ref={modeDropdownRef}>
+                <button
+                  className="player-mode-trigger"
+                  type="button"
+                  aria-expanded={isModeDropdownOpen}
+                  aria-haspopup="listbox"
+                  onClick={() =>
+                    setIsModeDropdownOpen((isCurrentlyOpen) => !isCurrentlyOpen)
+                  }
+                >
+                  <span>{text.playbackModes[playbackMode]}</span>
+                  <span aria-hidden="true">^</span>
+                </button>
 
-          <label className="player-option">
-            <span className="player-option-label">{text.delay}</span>
-            <select
-              className="player-option-select"
-              value={noteIntervalDelayMs}
-              onChange={(event) =>
-                onNoteIntervalDelayChange(
-                  Number(event.target.value) as NoteIntervalDelayMs,
-                )
-              }
-            >
-              {noteIntervalDelayOptions.map((delayMs) => (
-                <option value={delayMs} key={delayMs}>
-                  {delayMs > 0 ? `+${delayMs}` : delayMs} ms
-                </option>
-              ))}
-            </select>
-          </label>
+                {isModeDropdownOpen ? (
+                  <div className="player-mode-menu" role="listbox">
+                    {playbackModes.map((mode) => (
+                      <button
+                        className={`player-mode-option${
+                          mode === playbackMode ? " is-selected" : ""
+                        }`}
+                        type="button"
+                        aria-selected={mode === playbackMode}
+                        key={mode}
+                        role="option"
+                        onClick={() => {
+                          onPlaybackModeChange(mode);
+                          setIsModeDropdownOpen(false);
+                        }}
+                      >
+                        {text.playbackModes[mode]}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
 
-          <label className="player-option">
-            <span className="player-option-label">{text.speed}</span>
-            <select
-              className="player-option-select"
-              value={playbackSpeed}
-              onChange={(event) =>
-                onPlaybackSpeedChange(Number(event.target.value) as PlaybackSpeed)
-              }
-            >
-              {playbackSpeedOptions.map((speed) => (
-                <option value={speed} key={speed}>
-                  {speed}x
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="player-option">
+              <span className="player-option-label">{text.delay}</span>
+              <PlayerStepper
+                label={text.delay}
+                max={noteIntervalDelayLimits.max}
+                min={noteIntervalDelayLimits.min}
+                normalizeValue={normalizeNoteIntervalDelay}
+                onChange={(value) =>
+                  onNoteIntervalDelayChange(value as NoteIntervalDelayMs)
+                }
+                step={noteIntervalDelayLimits.step}
+                unit="ms"
+                value={noteIntervalDelayMs}
+              />
+            </div>
+
+            <div className="player-option">
+              <span className="player-option-label">{text.speed}</span>
+              <PlayerStepper
+                label={text.speed}
+                max={playbackSpeedLimits.max}
+                min={playbackSpeedLimits.min}
+                normalizeValue={normalizePlaybackSpeed}
+                onChange={(value) => onPlaybackSpeedChange(value as PlaybackSpeed)}
+                step={playbackSpeedLimits.step}
+                unit="x"
+                value={playbackSpeed}
+              />
+            </div>
           </div>
 
           <button

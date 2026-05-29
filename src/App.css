@@ -895,6 +895,26 @@ button {
   background: #f5f5f5;
 }
 
+.bottom-player,
+.bottom-player-body,
+.bottom-player-actions,
+.bottom-player-options,
+.player-option,
+.player-mode-dropdown {
+  overflow: visible;
+}
+
+.bottom-player button:focus,
+.bottom-player input:focus {
+  outline: none;
+}
+
+.bottom-player button:focus-visible,
+.bottom-player input:focus-visible {
+  outline: 2px solid rgba(47, 128, 237, 0.5);
+  outline-offset: 2px;
+}
+
 .bottom-player-progress-track {
   position: absolute;
   top: 0;
@@ -1017,15 +1037,118 @@ button {
   font-size: 10px;
 }
 
-.player-option-select {
-  min-width: 58px;
-  height: 26px;
+.player-mode-dropdown {
+  position: relative;
+}
+
+.player-mode-trigger {
+  min-width: 74px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   padding: 0 8px;
   border: 1px solid #d5dce5;
   border-radius: 999px;
   color: #1f2933;
   background: #ffffff;
   font: inherit;
+  cursor: pointer;
+}
+
+.player-mode-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  min-width: 112px;
+  max-height: 180px;
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  overflow: auto;
+}
+
+.player-mode-option {
+  width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  color: #1f2933;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-mode-option:hover,
+.player-mode-option.is-selected {
+  color: #0b3d75;
+  background: #d8ebff;
+}
+
+.player-stepper {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d5dce5;
+  border-radius: 999px;
+  color: #1f2933;
+  background: #ffffff;
+}
+
+.player-stepper-button {
+  width: 26px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  color: #52616f;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.player-stepper-button:hover {
+  color: #0b3d75;
+  background: #edf5ff;
+}
+
+.player-stepper-input {
+  width: 48px;
+  height: 100%;
+  padding: 0 2px;
+  border: 0;
+  color: #1f2933;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  appearance: textfield;
+}
+
+.player-stepper-input::-webkit-outer-spin-button,
+.player-stepper-input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.player-stepper-unit {
+  min-width: 18px;
+  padding-right: 8px;
+  color: #7a8794;
+  font-size: 10px;
+  line-height: 1;
 }
 
 .player-icon-button {
@@ -1231,8 +1354,16 @@ button {
     gap: 4px;
   }
 
-  .player-option-select {
-    min-width: 62px;
+  .player-mode-trigger {
+    min-width: 68px;
+  }
+
+  .player-stepper-button {
+    width: 24px;
+  }
+
+  .player-stepper-input {
+    width: 42px;
   }
 
   .player-icon-button {
