@@ -69,6 +69,14 @@ function formatImportError(error: unknown, text: UiText) {
   return String(error instanceof Error ? error.message : error);
 }
 
+function formatImportFailureSummary(
+  failedImports: Array<{ error: string; fileName: string }>,
+) {
+  return failedImports
+    .map(({ error, fileName }) => `${fileName}: ${error}`)
+    .join("; ");
+}
+
 function getBindableKey(event: KeyboardEvent) {
   if (event.altKey || event.ctrlKey || event.metaKey) {
     return null;
@@ -227,38 +235,71 @@ function App() {
     });
   }
 
-  async function handleImportScoreFile(file: File) {
+  async function handleImportScoreFiles(files: File[]) {
+    if (files.length === 0) {
+      return;
+    }
+
     stopCurrentPreview();
 
-    try {
-      if (!isSupportedScoreFileName(file.name)) {
-        throw new Error(text.score.unsupportedFile);
+    const failedImports: Array<{ error: string; fileName: string }> = [];
+    const importedSongsFromFiles: Song[] = [];
+    let successfulFileCount = 0;
+
+    for (const file of files) {
+      try {
+        if (!isSupportedScoreFileName(file.name)) {
+          throw new Error(text.score.unsupportedFile);
+        }
+
+        const content = await file.text();
+        const songs = parseScoreFileContent(content);
+
+        importedSongsFromFiles.push(...songs);
+        successfulFileCount += 1;
+      } catch (error) {
+        failedImports.push({
+          error: formatImportError(error, text),
+          fileName: file.name,
+        });
+      }
+    }
+
+    if (importedSongsFromFiles.length > 0) {
+      const firstNewSongIndex = importedSongsRef.current.length;
+      const shouldSelectFirstImportedSong = selectedSongIndex === null;
+
+      setImportedSongs((currentSongs) => {
+        const nextSongs = [...currentSongs, ...importedSongsFromFiles];
+
+        importedSongsRef.current = nextSongs;
+        return nextSongs;
+      });
+
+      if (shouldSelectFirstImportedSong) {
+        setSelectedSongIndex(firstNewSongIndex);
       }
 
-      const content = await file.text();
-      const songs = parseScoreFileContent(content);
-
-      setImportedSongs(songs);
-      setSelectedSongIndex(0);
       setImportError("");
       appendLog(
-        formatText(text.logs.importedScores, {
-          count: songs.length,
-          fileName: file.name,
+        formatText(text.logs.importedScoresFromFiles, {
+          count: importedSongsFromFiles.length,
+          fileCount: successfulFileCount,
         }),
       );
-    } catch (error) {
-      const importErrorMessage = formatImportError(error, text);
+    }
 
-      setImportedSongs([]);
-      setSelectedSongIndex(null);
-      setImportError(importErrorMessage);
-      appendLog(
-        formatText(text.logs.importFailed, {
-          error: importErrorMessage,
-          fileName: file.name,
-        }),
-      );
+    if (failedImports.length > 0) {
+      setImportError(formatImportFailureSummary(failedImports));
+
+      failedImports.forEach(({ error, fileName }) => {
+        appendLog(
+          formatText(text.logs.importFailed, {
+            error,
+            fileName,
+          }),
+        );
+      });
     }
   }
 
@@ -525,7 +566,7 @@ function App() {
         <ScoreInput
           importedSongs={importedSongs}
           importError={importError}
-          onImportFile={handleImportScoreFile}
+          onImportFiles={handleImportScoreFiles}
           onSelectImportedSong={handleSelectImportedSong}
           selectedSongIndex={selectedSongIndex}
           text={text.score}

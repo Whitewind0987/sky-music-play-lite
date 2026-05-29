@@ -85,7 +85,7 @@ export const uiText = {
     score: {
       panelTitle: "曲谱导入区",
       panelDescription: "导入 SkyStudio-style JSON / TXT 曲谱文件作为预览来源。",
-      importLabel: "导入 .json 或 .txt 曲谱文件",
+      importLabel: "导入一个或多个 .json / .txt 曲谱文件",
       importedScoresAria: "已导入曲谱文件",
       importedScoresTitle: "已导入曲谱",
       emptyState: "导入曲谱文件开始。",
@@ -183,6 +183,7 @@ export const uiText = {
       noPlaybackYet: "还没有真实播放功能。",
       noNoteSummary: "无",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
+      importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
       importFailed: "导入 {fileName} 失败：{error}",
       noSelectedScore: "请先导入并选择一首曲谱。",
       previewStopped: "预览已停止。",
@@ -297,7 +298,7 @@ export const uiText = {
       panelTitle: "Score import area",
       panelDescription:
         "Import a SkyStudio-style JSON / TXT score file as the preview source.",
-      importLabel: "Import .json or .txt score file",
+      importLabel: "Import one or more .json / .txt score files",
       importedScoresAria: "Imported score files",
       importedScoresTitle: "Imported scores",
       emptyState: "Import a score file to start.",
@@ -401,6 +402,8 @@ export const uiText = {
       noPlaybackYet: "No playback features yet.",
       noNoteSummary: "none",
       importedScores: "Imported {count} score(s) from {fileName}.",
+      importedScoresFromFiles:
+        "Imported {count} score(s) from {fileCount} file(s).",
       importFailed: "Failed to import {fileName}: {error}",
       noSelectedScore: "Import and select a score first.",
       previewStopped: "Preview stopped.",

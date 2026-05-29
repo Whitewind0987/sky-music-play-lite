@@ -5,7 +5,7 @@ import { PanelHeader } from "./PanelHeader";
 type ScoreInputProps = {
   importedSongs: Song[];
   importError: string;
-  onImportFile: (file: File) => void;
+  onImportFiles: (files: File[]) => void;
   onSelectImportedSong: (songIndex: number | null) => void;
   selectedSongIndex: number | null;
   text: UiText["score"];
@@ -63,7 +63,7 @@ function ImportedScores({
 export function ScoreInput({
   importedSongs,
   importError,
-  onImportFile,
+  onImportFiles,
   onSelectImportedSong,
   selectedSongIndex,
   text,
@@ -79,12 +79,13 @@ export function ScoreInput({
         <span>{text.importLabel}</span>
         <input
           accept=".json,.txt"
+          multiple
           type="file"
           onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
+            const files = Array.from(event.currentTarget.files ?? []);
 
-            if (file) {
-              onImportFile(file);
+            if (files.length > 0) {
+              onImportFiles(files);
             }
 
             event.currentTarget.value = "";
