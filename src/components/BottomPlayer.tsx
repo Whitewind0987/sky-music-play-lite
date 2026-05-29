@@ -1,4 +1,5 @@
 import type { UiText } from "../i18n/uiText";
+import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
 import {
   noteIntervalDelayOptions,
@@ -20,7 +21,6 @@ import {
 
 type BottomPlayerProps = {
   currentSong: Song | null;
-  durationMs: number;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
@@ -32,7 +32,7 @@ type BottomPlayerProps = {
   playbackMode: PlaybackMode;
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
-  progressMs: number;
+  progress: PreviewPlaybackProgress;
   text: UiText["bottomPlayer"];
 };
 
@@ -46,7 +46,6 @@ function formatPlaybackTime(timeMs: number) {
 
 export function BottomPlayer({
   currentSong,
-  durationMs,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onPause,
@@ -58,7 +57,7 @@ export function BottomPlayer({
   playbackMode,
   playbackState,
   playbackSpeed,
-  progressMs,
+  progress,
   text,
 }: BottomPlayerProps) {
   const hasSong = currentSong !== null;
@@ -81,21 +80,16 @@ export function BottomPlayer({
           label: playbackState === "paused" ? text.resume : text.play,
           onClick: playbackState === "paused" ? onResume : onPlay,
         };
-  const progressPercent =
-    durationMs > 0
-      ? Math.min(Math.max((progressMs / durationMs) * 100, 0), 100)
-      : hasSong && playbackState === "finished"
-        ? 100
-        : 0;
+  const progressPercent = Math.min(Math.max(progress.percent, 0), 100);
 
   return (
     <footer className="bottom-player" aria-label={text.aria}>
       <div
         className="bottom-player-progress-track"
         aria-label={text.progress}
-        aria-valuemax={durationMs}
+        aria-valuemax={progress.totalMs}
         aria-valuemin={0}
-        aria-valuenow={Math.min(progressMs, durationMs)}
+        aria-valuenow={Math.min(progress.currentMs, progress.totalMs)}
         role="progressbar"
       >
         <span
@@ -104,71 +98,74 @@ export function BottomPlayer({
         />
       </div>
 
-      <div className="bottom-player-score">
-        <span className="bottom-player-label">{text.currentScore}</span>
-        <strong className="bottom-player-title">
-          {currentSong?.name ?? text.noScore}
-        </strong>
-        <div className="bottom-player-meta">
-          <span>
-            {text.bpm}: {currentSong?.bpm ?? "--"}
-          </span>
-          <span>
-            {text.notes}: {currentSong?.songNotes.length ?? "--"}
-          </span>
-          <span>
-            {text.state}: {text.states[playbackState]}
-          </span>
-          <span className="bottom-player-time">
-            {formatPlaybackTime(progressMs)} / {formatPlaybackTime(durationMs)}
-          </span>
+      <div className="bottom-player-body">
+        <div className="bottom-player-score">
+          <span className="bottom-player-label">{text.currentScore}</span>
+          <strong className="bottom-player-title">
+            {currentSong?.name ?? text.noScore}
+          </strong>
+          <div className="bottom-player-meta-line">
+            <span className="bottom-player-meta-item">
+              {text.bpm}: {currentSong?.bpm ?? "--"}
+            </span>
+            <span className="bottom-player-meta-item">
+              {text.notes}: {currentSong?.songNotes.length ?? "--"}
+            </span>
+            <span className="bottom-player-meta-item">
+              {text.state}: {text.states[playbackState]}
+            </span>
+            <span className="bottom-player-meta-item bottom-player-time">
+              {formatPlaybackTime(progress.currentMs)} /{" "}
+              {formatPlaybackTime(progress.totalMs)}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="bottom-player-center" aria-label={text.controlsAria}>
-        <button
-          className="player-icon-button player-icon-button-secondary"
-          type="button"
-          aria-label={text.shuffle}
-          disabled
-        >
-          <ShuffleIcon />
-          <span className="visually-hidden">{text.shuffle}</span>
-        </button>
-        <button
-          className="player-icon-button player-icon-button-secondary"
-          type="button"
-          aria-label={text.stop}
-          disabled={!canStop}
-          onClick={onStop}
-        >
-          <StopIcon />
-        </button>
-        <button
-          className="player-icon-button player-icon-button-primary"
-          type="button"
-          aria-label={primaryAction.label}
-          disabled={primaryAction.disabled}
-          onClick={primaryAction.onClick}
-        >
-          {primaryAction.icon}
-        </button>
-        <button
-          className="player-icon-button player-icon-button-secondary"
-          type="button"
-          aria-label={text.repeat}
-          disabled
-        >
-          <RepeatIcon />
-          <span className="visually-hidden">{text.repeat}</span>
-        </button>
-      </div>
+        <div className="bottom-player-center" aria-label={text.controlsAria}>
+          <button
+            className="player-icon-button player-icon-button-secondary"
+            type="button"
+            aria-label={text.shuffle}
+            disabled
+          >
+            <ShuffleIcon />
+            <span className="visually-hidden">{text.shuffle}</span>
+          </button>
+          <button
+            className="player-icon-button player-icon-button-secondary"
+            type="button"
+            aria-label={text.stop}
+            disabled={!canStop}
+            onClick={onStop}
+          >
+            <StopIcon />
+          </button>
+          <button
+            className="player-icon-button player-icon-button-primary"
+            type="button"
+            aria-label={primaryAction.label}
+            disabled={primaryAction.disabled}
+            onClick={primaryAction.onClick}
+          >
+            {primaryAction.icon}
+          </button>
+          <button
+            className="player-icon-button player-icon-button-secondary"
+            type="button"
+            aria-label={text.repeat}
+            disabled
+          >
+            <RepeatIcon />
+            <span className="visually-hidden">{text.repeat}</span>
+          </button>
+        </div>
 
-      <div className="bottom-player-actions">
-        <div className="bottom-player-options" aria-label={text.optionsAria}>
-          <label className="bottom-player-option">
-            <span>{text.mode}</span>
+        <div className="bottom-player-actions">
+          <div className="bottom-player-options" aria-label={text.optionsAria}>
+          <label className="player-option">
+            <span className="player-option-label">{text.mode}</span>
             <select
+              className="player-option-select"
               value={playbackMode}
               onChange={(event) =>
                 onPlaybackModeChange(event.target.value as PlaybackMode)
@@ -182,9 +179,10 @@ export function BottomPlayer({
             </select>
           </label>
 
-          <label className="bottom-player-option">
-            <span>{text.delay}</span>
+          <label className="player-option">
+            <span className="player-option-label">{text.delay}</span>
             <select
+              className="player-option-select"
               value={noteIntervalDelayMs}
               onChange={(event) =>
                 onNoteIntervalDelayChange(
@@ -200,9 +198,10 @@ export function BottomPlayer({
             </select>
           </label>
 
-          <label className="bottom-player-option">
-            <span>{text.speed}</span>
+          <label className="player-option">
+            <span className="player-option-label">{text.speed}</span>
             <select
+              className="player-option-select"
               value={playbackSpeed}
               onChange={(event) =>
                 onPlaybackSpeedChange(Number(event.target.value) as PlaybackSpeed)
@@ -215,17 +214,18 @@ export function BottomPlayer({
               ))}
             </select>
           </label>
-        </div>
+          </div>
 
-        <button
-          className="player-icon-button player-icon-button-secondary"
-          type="button"
-          aria-label={text.queue}
-          disabled
-        >
-          <QueueIcon />
-          <span className="visually-hidden">{text.queue}</span>
-        </button>
+          <button
+            className="player-icon-button player-icon-button-secondary"
+            type="button"
+            aria-label={text.queue}
+            disabled
+          >
+            <QueueIcon />
+            <span className="visually-hidden">{text.queue}</span>
+          </button>
+        </div>
       </div>
     </footer>
   );
