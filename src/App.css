@@ -922,6 +922,13 @@ button {
   background: #2f80ed;
 }
 
+.language-option:disabled,
+.parse-button:disabled {
+  color: #8a97a5;
+  background: #e5e7eb;
+  cursor: not-allowed;
+}
+
 .fake-segment {
   color: #ffffff;
   background: #2f80ed;
@@ -944,6 +951,104 @@ button {
 
 .fake-toggle.is-on {
   background: #2f80ed;
+}
+
+.experimental-input-panel {
+  grid-column: 1 / -1;
+}
+
+.experimental-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #f0c36a;
+  border-radius: 6px;
+  color: #704d00;
+  background: #fff7df;
+  line-height: 1.45;
+}
+
+.experimental-input-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.experimental-toggle {
+  width: 42px;
+  height: 24px;
+  justify-self: end;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #c9ced6;
+  box-shadow: inset 0 0 0 1px #b7bec8;
+  cursor: pointer;
+}
+
+.experimental-toggle.is-on {
+  background: #2f80ed;
+}
+
+.experimental-target-summary {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #52616f;
+}
+
+.experimental-target-summary strong {
+  color: #1f2933;
+}
+
+.experimental-window-list {
+  max-height: 260px;
+  display: grid;
+  gap: 6px;
+  overflow: auto;
+}
+
+.experimental-window-list p {
+  margin: 0;
+  color: #52616f;
+}
+
+.experimental-window-row {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  color: #52616f;
+  background: #fbfcfd;
+  cursor: pointer;
+  text-align: left;
+}
+
+.experimental-window-row:hover,
+.experimental-window-row.is-selected {
+  border-color: #8bbcf4;
+  background: #eef6ff;
+}
+
+.experimental-window-title,
+.experimental-window-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.experimental-window-title {
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.experimental-window-meta {
+  font-size: 13px;
 }
 
 .panel {

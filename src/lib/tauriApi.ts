@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { CandidateWindow } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
 import type { DryRunResult } from "../types/playbackDryRun";
 import type { Note } from "../types/score";
@@ -12,4 +13,19 @@ export function dryRunPlayback(
   keyMapping: KeyMapping,
 ): Promise<DryRunResult> {
   return invoke<DryRunResult>("dry_run_playback", { keyMapping, notes });
+}
+
+export function listCandidateWindows(): Promise<CandidateWindow[]> {
+  return invoke<CandidateWindow[]>("list_candidate_windows");
+}
+
+export function findSkyWindow(): Promise<CandidateWindow | null> {
+  return invoke<CandidateWindow | null>("find_sky_window");
+}
+
+export function sendTestKeyToWindow(
+  hwnd: string,
+  key: string,
+): Promise<string> {
+  return invoke<string>("send_test_key_to_window", { hwnd, key });
 }

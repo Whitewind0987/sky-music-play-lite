@@ -12,6 +12,7 @@ import {
   PlaybackControls,
 } from "./components/PlaybackPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
+import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
@@ -49,6 +50,11 @@ function App() {
     importedSongsRef: scoreLibrary.importedSongsRef,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    text,
+  });
+  const experimentalInput = useExperimentalInput({
+    appendLog,
+    keyMapping,
     text,
   });
 
@@ -156,6 +162,25 @@ function App() {
     if (activeSection === "Settings") {
       return (
         <SettingsPlaceholder
+          experimentalInput={{
+            canSendTestKey: experimentalInput.canSendTestKey,
+            candidateWindows: experimentalInput.candidateWindows,
+            experimentalInputEnabled:
+              experimentalInput.experimentalInputEnabled,
+            isDetectingSkyWindow: experimentalInput.isDetectingSkyWindow,
+            isRefreshingWindows: experimentalInput.isRefreshingWindows,
+            isSendingTestKey: experimentalInput.isSendingTestKey,
+            lastError: experimentalInput.lastError,
+            onDetectSkyWindow: experimentalInput.handleDetectSkyWindow,
+            onExperimentalInputEnabledChange:
+              experimentalInput.setExperimentalInputEnabled,
+            onRefreshWindows: experimentalInput.handleRefreshWindows,
+            onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
+            onSendTestKey: experimentalInput.handleSendTestKey,
+            selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+            testMappedKey: experimentalInput.testMappedKey,
+            testSkyKey: experimentalInput.testSkyKey,
+          }}
           keyMapping={keyMapping}
           language={language}
           listeningSkyKey={listeningSkyKey}

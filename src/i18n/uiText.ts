@@ -244,6 +244,15 @@ export const uiText = {
       repeatOneTriggered: "单曲循环：重新播放 {songName}。",
       repeatAllTriggered: "列表循环：播放下一首 {songName}。",
       rustCommandFailed: "Rust 命令失败：{error}",
+      experimentalWindowListRefreshed: "已刷新候选窗口：{count} 个。",
+      experimentalWindowListFailed: "刷新窗口列表失败：{error}",
+      experimentalSkyWindowDetected: "已检测到光遇窗口：{title}",
+      experimentalSkyWindowNotFound: "未检测到光遇窗口，可手动选择候选窗口。",
+      experimentalSkyWindowFailed: "检测光遇窗口失败：{error}",
+      experimentalTestKeyStarted:
+        "开始实验性单键测试：{skyKey} -> {key}。",
+      experimentalTestKeySucceeded: "实验性单键测试完成：{result}",
+      experimentalTestKeyFailed: "实验性单键测试失败：{error}",
     },
     settings: {
       aria: "设置占位页",
@@ -265,6 +274,22 @@ export const uiText = {
       realKeyboardMode: "真实键盘模式",
       manual: "使用手册",
       openLater: "稍后打开",
+      experimentalInputTitle: "实验性输入",
+      experimentalInputDescription: "检测目标窗口并发送一次测试按键。",
+      experimentalInputWarning:
+        "实验性功能，仅用于学习和个人测试。请自行确认是否符合游戏规则。",
+      experimentalInputRefreshWindows: "刷新窗口列表",
+      experimentalInputRefreshing: "正在刷新...",
+      experimentalInputDetectSkyWindow: "检测光遇窗口",
+      experimentalInputDetecting: "正在检测...",
+      experimentalInputEnable: "启用实验性输入",
+      experimentalInputTestSingleKey: "测试单键",
+      experimentalInputTesting: "正在测试...",
+      experimentalInputNoWindows: "暂无候选窗口。",
+      experimentalInputUntitledWindow: "无标题窗口",
+      experimentalInputUnknownProcess: "未知进程",
+      experimentalInputUnknownClass: "未知类名",
+      experimentalInputTestKeyLabel: "测试键",
     },
   },
   "en-US": {
@@ -511,6 +536,18 @@ export const uiText = {
       repeatOneTriggered: "Repeat one: replaying {songName}.",
       repeatAllTriggered: "Repeat all: playing next score {songName}.",
       rustCommandFailed: "Rust command failed: {error}",
+      experimentalWindowListRefreshed:
+        "Refreshed candidate windows: {count}.",
+      experimentalWindowListFailed: "Failed to refresh windows: {error}",
+      experimentalSkyWindowDetected: "Detected Sky window: {title}",
+      experimentalSkyWindowNotFound:
+        "Sky window was not detected. You can select a candidate manually.",
+      experimentalSkyWindowFailed: "Failed to detect Sky window: {error}",
+      experimentalTestKeyStarted:
+        "Started experimental single-key test: {skyKey} -> {key}.",
+      experimentalTestKeySucceeded:
+        "Experimental single-key test finished: {result}",
+      experimentalTestKeyFailed: "Experimental single-key test failed: {error}",
     },
     settings: {
       aria: "Settings placeholder",
@@ -533,6 +570,23 @@ export const uiText = {
       realKeyboardMode: "Real keyboard mode",
       manual: "Manual",
       openLater: "Open later",
+      experimentalInputTitle: "Experimental input",
+      experimentalInputDescription:
+        "Detect a target window and send one test key.",
+      experimentalInputWarning:
+        "Experimental feature for learning and personal testing. Please make sure your usage follows game rules.",
+      experimentalInputRefreshWindows: "Refresh Windows",
+      experimentalInputRefreshing: "Refreshing...",
+      experimentalInputDetectSkyWindow: "Detect Sky Window",
+      experimentalInputDetecting: "Detecting...",
+      experimentalInputEnable: "Enable Experimental Input",
+      experimentalInputTestSingleKey: "Test Single Key",
+      experimentalInputTesting: "Testing...",
+      experimentalInputNoWindows: "No candidate windows yet.",
+      experimentalInputUntitledWindow: "Untitled window",
+      experimentalInputUnknownProcess: "Unknown process",
+      experimentalInputUnknownClass: "Unknown class",
+      experimentalInputTestKeyLabel: "Test key",
     },
   },
 } as const;
