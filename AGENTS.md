@@ -20,6 +20,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 
 - Build the project in small, phase-by-phase steps.
 - Do one small thing, make it runnable or clearly verifiable, explain it, then stop.
+- Before executing any plan, whether large or small, switch to a temporary working branch first.
 - Do not redesign the master phase plan.
 - Do not implement future phase features early.
 - Do not perform large refactors unless the human user explicitly asks for one.
@@ -115,6 +116,7 @@ After refactoring, explain:
 
 ## Git Safety
 
+- Do not implement planned work directly on `main`; create or switch to a temporary branch first.
 - Do not run destructive Git commands.
 - Do not run `git reset --hard`.
 - Do not run `git clean -fd`.

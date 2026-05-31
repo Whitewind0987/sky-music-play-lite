@@ -150,6 +150,15 @@ export function useExperimentalInput({
     }
   }
 
+  function handleExperimentalInputEnabledChange(enabled: boolean) {
+    setExperimentalInputEnabled(enabled);
+    appendLog(
+      enabled
+        ? text.logs.experimentalInputEnabled
+        : text.logs.experimentalInputDisabled,
+    );
+  }
+
   return {
     canSendTestKey,
     candidateWindows,
@@ -163,7 +172,7 @@ export function useExperimentalInput({
     lastError,
     selectedWindow,
     selectedWindowHwnd,
-    setExperimentalInputEnabled,
+    setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
     setSelectedWindowHwnd,
     testMappedKey,
     testSkyKey,

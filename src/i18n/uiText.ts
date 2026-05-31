@@ -251,7 +251,9 @@ export const uiText = {
       experimentalSkyWindowFailed: "检测光遇窗口失败：{error}",
       experimentalTestKeyStarted:
         "开始实验性单键测试：{skyKey} -> {key}。",
-      experimentalTestKeySucceeded: "实验性单键测试完成：{result}",
+      experimentalInputEnabled: "实验性输入已启用。",
+      experimentalInputDisabled: "实验性输入已关闭。",
+      experimentalTestKeySucceeded: "按键消息已发送到目标窗口：{result}",
       experimentalTestKeyFailed: "实验性单键测试失败：{error}",
     },
     settings: {
@@ -265,7 +267,8 @@ export const uiText = {
       home: "曲库",
       keyMappingCancelHint: "按 Escape 取消",
       keyMappingClickHint: "点击后按键盘",
-      keyMappingDescription: "这些映射只用于预览和 dry-run，本阶段不会发送真实按键。",
+      keyMappingDescription:
+        "这些映射用于预览、dry-run 和手动触发的实验性单键测试。",
       keyMappingListening: "等待按键...",
       keyMappingTitle: "键位映射",
       previewTitle: "预览选项",
@@ -545,8 +548,10 @@ export const uiText = {
       experimentalSkyWindowFailed: "Failed to detect Sky window: {error}",
       experimentalTestKeyStarted:
         "Started experimental single-key test: {skyKey} -> {key}.",
+      experimentalInputEnabled: "Experimental input enabled.",
+      experimentalInputDisabled: "Experimental input disabled.",
       experimentalTestKeySucceeded:
-        "Experimental single-key test finished: {result}",
+        "Key message posted to the target window: {result}",
       experimentalTestKeyFailed: "Experimental single-key test failed: {error}",
     },
     settings: {
@@ -561,7 +566,7 @@ export const uiText = {
       keyMappingCancelHint: "Press Escape to cancel",
       keyMappingClickHint: "Click, then press a key",
       keyMappingDescription:
-        "These mappings are only used for preview and dry-run in this phase.",
+        "These mappings are used for preview, dry-run, and manually triggered experimental single-key tests.",
       keyMappingListening: "Waiting for key...",
       keyMappingTitle: "Key mapping",
       previewTitle: "Preview options",
