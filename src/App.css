@@ -147,8 +147,12 @@ button {
 .sidebar-library {
   display: grid;
   gap: 8px;
-  margin-top: 4px;
-  padding-top: 14px;
+  margin-top: 2px;
+  padding: 0 0 4px;
+}
+
+.sidebar-nav-divider {
+  margin: 6px 8px;
   border-top: 1px solid #d7d7d7;
 }
 
@@ -167,7 +171,7 @@ button {
 
 .sidebar-subnav-link {
   min-width: 0;
-  min-height: 32px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -178,7 +182,7 @@ button {
   color: #52616f;
   background: transparent;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
 }
 
@@ -471,7 +475,7 @@ button {
 .library-song-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: 54px minmax(0, 2fr) minmax(0, 0.95fr) 58px 68px 76px;
+  grid-template-columns: 54px minmax(0, 2.4fr) minmax(0, 0.9fr) 58px 72px;
   align-items: center;
   gap: 10px;
 }
@@ -502,13 +506,18 @@ button {
 .library-song-row:hover,
 .library-song-row:focus-visible {
   border-color: transparent;
-  background: #f7f9fb;
+  background: #f1f5f9;
   outline: none;
 }
 
 .library-song-row.is-selected {
   border-color: transparent;
-  background: #eef6ff;
+  background: transparent;
+}
+
+.library-song-row.is-selected:hover,
+.library-song-row.is-selected:focus-visible {
+  background: #f1f5f9;
 }
 
 .library-song-index {
@@ -524,7 +533,7 @@ button {
 .library-row-play {
   position: absolute;
   inset: 5px;
-  display: none;
+  display: grid;
   place-items: center;
   padding: 0;
   border: 0;
@@ -532,6 +541,9 @@ button {
   color: #2f80ed;
   background: transparent;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 
 .library-row-play:hover,
@@ -541,9 +553,20 @@ button {
   outline: none;
 }
 
+.library-song-number {
+  opacity: 1;
+  transition: opacity 120ms ease;
+}
+
+.library-song-row:hover .library-song-number,
+.library-song-row:focus-within .library-song-number {
+  opacity: 0;
+}
+
 .library-song-row:hover .library-row-play,
-.library-row-play:focus-visible {
-  display: grid;
+.library-song-row:focus-within .library-row-play {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .library-row-play-icon {
@@ -561,7 +584,7 @@ button {
   font-weight: 700;
 }
 
-.library-song-title span:first-child,
+.library-song-title-text,
 .library-song-source,
 .library-song-muted,
 .library-song-duration {
@@ -569,6 +592,47 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.library-row-title-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.library-song-row:hover .library-row-title-actions,
+.library-song-row:focus-within .library-row-title-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.library-title-icon-button {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #7a8794;
+  background: transparent;
+  cursor: default;
+}
+
+.library-title-icon-button:hover,
+.library-title-icon-button:focus-visible {
+  color: #1f2933;
+  background: #e5e7eb;
+  outline: none;
+}
+
+.library-title-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .library-selected-badge {
@@ -588,44 +652,6 @@ button {
 
 .library-song-muted {
   color: #9aa6b2;
-}
-
-.library-song-actions {
-  min-width: 0;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.library-song-action-buttons {
-  display: none;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.library-song-action-buttons button {
-  min-height: 26px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 999px;
-  color: #7a8794;
-  background: transparent;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.library-song-action-buttons button:disabled {
-  cursor: not-allowed;
-}
-
-.library-song-row:hover .library-song-actions-placeholder,
-.library-song-row:focus-visible .library-song-actions-placeholder {
-  display: none;
-}
-
-.library-song-row:hover .library-song-action-buttons,
-.library-song-row:focus-visible .library-song-action-buttons {
-  display: inline-flex;
 }
 
 .library-empty {
@@ -1661,7 +1687,7 @@ button {
 
   .library-table-header,
   .library-song-row {
-    grid-template-columns: 44px minmax(0, 2fr) minmax(0, 1fr) 56px 62px;
+    grid-template-columns: 44px minmax(0, 2fr) minmax(0, 1fr) 62px;
   }
 
   .library-table-header span:nth-child(4),

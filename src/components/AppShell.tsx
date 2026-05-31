@@ -2,17 +2,20 @@ import type { UiText } from "../i18n/uiText";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
-const sidebarItems = [
-  {
-    iconClass: "icon-Homehomepagemenu",
-    section: "Library",
-  },
+const librarySidebarItem = {
+  iconClass: "icon-Homehomepagemenu",
+  section: "Library",
+} as const;
+
+const secondarySidebarItems = [
   { iconClass: "icon-yulan", section: "Playback" },
   { iconClass: "icon-rizhi", section: "Logs" },
   { iconClass: "icon-shezhi", section: "Settings" },
 ] as const;
 
-export type AppSection = (typeof sidebarItems)[number]["section"];
+export type AppSection =
+  | typeof librarySidebarItem.section
+  | (typeof secondarySidebarItems)[number]["section"];
 
 type AppSidebarProps = {
   activeSection: AppSection;
@@ -45,6 +48,25 @@ export function AppSidebar({
     { id: "playlists", label: text.library.categoryPlaylists },
     { id: "liked", label: text.library.categoryLiked },
   ];
+  const renderSidebarItem = (item: {
+    iconClass: string;
+    section: AppSection;
+  }) => (
+    <button
+      className={`sidebar-link${
+        activeSection === item.section ? " is-active" : ""
+      }`}
+      key={item.section}
+      type="button"
+      onClick={() => onSectionChange(item.section)}
+    >
+      <span
+        className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()} iconfont ${item.iconClass}`}
+        aria-hidden="true"
+      />
+      <span>{text.navigation[item.section]}</span>
+    </button>
+  );
 
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
@@ -57,47 +79,36 @@ export function AppSidebar({
       </div>
 
       <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
-        {sidebarItems.map((item) => (
-          <button
-            className={`sidebar-link${
-              activeSection === item.section ? " is-active" : ""
-            }`}
-            key={item.section}
-            type="button"
-            onClick={() => onSectionChange(item.section)}
-          >
-            <span
-              className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()} iconfont ${item.iconClass}`}
-              aria-hidden="true"
-            />
-            <span>{text.navigation[item.section]}</span>
-          </button>
-        ))}
-      </nav>
+        {renderSidebarItem(librarySidebarItem)}
 
-      <div className="sidebar-library" aria-label={text.library.categoriesTitle}>
-        <p className="sidebar-subnav-heading">{text.library.categoriesTitle}</p>
-        <div className="sidebar-subnav">
-          {libraryCategories.map((category) => (
-            <button
-              className={`sidebar-subnav-link${
-                selectedLibraryCategory === category.id ? " is-active" : ""
-              }`}
-              key={category.id}
-              type="button"
-              onClick={() => {
-                onLibraryCategoryChange(category.id);
-                onSectionChange("Library");
-              }}
-            >
-              <span>{category.label}</span>
-              {typeof category.count === "number" ? (
-                <span className="sidebar-subnav-count">{category.count}</span>
-              ) : null}
-            </button>
-          ))}
+        <div className="sidebar-library" aria-label={text.library.categoriesTitle}>
+          <p className="sidebar-subnav-heading">{text.library.categoriesTitle}</p>
+          <div className="sidebar-subnav">
+            {libraryCategories.map((category) => (
+              <button
+                className={`sidebar-subnav-link${
+                  selectedLibraryCategory === category.id ? " is-active" : ""
+                }`}
+                key={category.id}
+                type="button"
+                onClick={() => {
+                  onLibraryCategoryChange(category.id);
+                  onSectionChange("Library");
+                }}
+              >
+                <span>{category.label}</span>
+                {typeof category.count === "number" ? (
+                  <span className="sidebar-subnav-count">{category.count}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+
+        <div className="sidebar-nav-divider" />
+
+        {secondarySidebarItems.map(renderSidebarItem)}
+      </nav>
     </aside>
   );
 }

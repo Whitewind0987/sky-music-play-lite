@@ -39,6 +39,38 @@ function LibraryRowPlayIcon() {
   );
 }
 
+function LibraryPlayNextIcon() {
+  return (
+    <svg
+      className="library-title-icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 3.8v8.4l5.8-4.2L3 3.8Zm7 0h1.4v8.4H10V3.8Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function LibraryAddToPlaylistIcon() {
+  return (
+    <svg
+      className="library-title-icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M2.5 4h6.8v1.2H2.5V4Zm0 3.2h6.8v1.2H2.5V7.2Zm0 3.2h4.8v1.2H2.5v-1.2Zm9.2-2.9h1.2v2h2v1.2h-2v2h-1.2v-2h-2V9.5h2v-2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 function LibraryImportArea({
   importError,
   onImportFiles,
@@ -98,7 +130,6 @@ function LibrarySongTable({
         <span>{text.columns.source}</span>
         <span>{text.columns.liked}</span>
         <span>{text.columns.duration}</span>
-        <span>{text.columns.actions}</span>
       </div>
       <div className="library-table-body">
         {songs.map((song, index) => {
@@ -137,7 +168,27 @@ function LibrarySongTable({
                 </button>
               </span>
               <span className="library-song-title">
-                <span>{song.name}</span>
+                <span className="library-song-title-text">{song.name}</span>
+                <span className="library-row-title-actions">
+                  <button
+                    className="library-title-icon-button"
+                    type="button"
+                    aria-disabled="true"
+                    aria-label={text.playNextAction}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <LibraryPlayNextIcon />
+                  </button>
+                  <button
+                    className="library-title-icon-button"
+                    type="button"
+                    aria-disabled="true"
+                    aria-label={text.addToPlaylistAction}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <LibraryAddToPlaylistIcon />
+                  </button>
+                </span>
                 {isSelected ? (
                   <span className="library-selected-badge">{text.selected}</span>
                 ) : null}
@@ -145,19 +196,6 @@ function LibrarySongTable({
               <span className="library-song-source">{text.localImport}</span>
               <span className="library-song-muted">{text.likedPlaceholder}</span>
               <span className="library-song-duration">{duration}</span>
-              <span className="library-song-actions">
-                <span className="library-song-actions-placeholder">
-                  {text.actionsPlaceholder}
-                </span>
-                <span className="library-song-action-buttons">
-                  <button type="button" disabled>
-                    {text.playNextAction}
-                  </button>
-                  <button type="button" disabled>
-                    {text.addToPlaylistAction}
-                  </button>
-                </span>
-              </span>
             </div>
           );
         })}
