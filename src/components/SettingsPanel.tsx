@@ -19,7 +19,6 @@ import { PanelHeader } from "./PanelHeader";
 type ExperimentalInputPanelState = {
   canStartForegroundPlayback: boolean;
   canStartExperimentalPlayback: boolean;
-  canSendTestKey: boolean;
   canStopForegroundPlayback: boolean;
   canStopExperimentalPlayback: boolean;
   candidateWindows: CandidateWindow[];
@@ -31,22 +30,17 @@ type ExperimentalInputPanelState = {
   isDetectingSkyWindow: boolean;
   isExperimentalPlaybackRunning: boolean;
   isRefreshingWindows: boolean;
-  isSendingTestKey: boolean;
   lastError: string | null;
   onDetectSkyWindow: () => void;
   onExperimentalInputEnabledChange: (enabled: boolean) => void;
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
-  onSendForegroundTestKeyScancode: () => void;
-  onSendTestKey: () => void;
   onStartForegroundPlayback: () => void;
   onStartExperimentalPlayback: () => void;
   onStopForegroundPlayback: () => void;
   onStopExperimentalPlayback: () => void;
   selectedWindowHwnd: string | null;
-  testMappedKey: string;
-  testSkyKey: string;
 };
 
 type SettingsPlaceholderProps = {
@@ -218,12 +212,6 @@ export function SettingsPlaceholder({
             </span>
           </button>
         </div>
-        <div className="experimental-target-summary">
-          <span>{text.experimentalInputTestKeyLabel}</span>
-          <strong>
-            {experimentalInput.testSkyKey} - {experimentalInput.testMappedKey}
-          </strong>
-        </div>
         <div className="experimental-window-list">
           {experimentalInput.candidateWindows.length === 0 ? (
             <p>{text.experimentalInputNoWindows}</p>
@@ -261,29 +249,6 @@ export function SettingsPlaceholder({
         {experimentalInput.lastError !== null ? (
           <p className="parse-error">{experimentalInput.lastError}</p>
         ) : null}
-        <button
-          className="parse-button"
-          type="button"
-          disabled={!experimentalInput.canSendTestKey}
-          onClick={experimentalInput.onSendTestKey}
-        >
-          {experimentalInput.isSendingTestKey
-            ? text.experimentalInputTesting
-            : text.experimentalInputTestSingleKey}
-        </button>
-        <button
-          className="language-option"
-          type="button"
-          disabled={
-            !experimentalInput.canSendTestKey ||
-            experimentalInput.experimentalInputMode !== "foreground"
-          }
-          onClick={experimentalInput.onSendForegroundTestKeyScancode}
-        >
-          {experimentalInput.isSendingTestKey
-            ? text.experimentalInputTesting
-            : text.experimentalInputTestSingleKeyScancode}
-        </button>
         <div className="experimental-playback-controls">
           <div className="experimental-target-summary">
             <span>{text.experimentalPlaybackStatusLabel}</span>

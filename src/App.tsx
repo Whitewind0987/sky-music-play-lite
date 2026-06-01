@@ -167,7 +167,6 @@ function App() {
       return (
         <SettingsPlaceholder
           experimentalInput={{
-            canSendTestKey: experimentalInput.canSendTestKey,
             candidateWindows: experimentalInput.candidateWindows,
             experimentalInputEnabled:
               experimentalInput.experimentalInputEnabled,
@@ -177,7 +176,6 @@ function App() {
             isExperimentalPlaybackRunning:
               experimentalInput.isExperimentalPlaybackRunning,
             isRefreshingWindows: experimentalInput.isRefreshingWindows,
-            isSendingTestKey: experimentalInput.isSendingTestKey,
             lastError: experimentalInput.lastError,
             canStartExperimentalPlayback:
               experimentalInput.canStartExperimentalPlayback,
@@ -198,16 +196,11 @@ function App() {
               experimentalInput.handleStartExperimentalPlayback,
             onRefreshWindows: experimentalInput.handleRefreshWindows,
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
-            onSendForegroundTestKeyScancode:
-              experimentalInput.handleSendForegroundTestKeyScancode,
-            onSendTestKey: experimentalInput.handleSendTestKey,
             onStopExperimentalPlayback:
               experimentalInput.handleStopExperimentalPlayback,
             onStopForegroundPlayback:
               experimentalInput.handleStopForegroundPlayback,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
-            testMappedKey: experimentalInput.testMappedKey,
-            testSkyKey: experimentalInput.testSkyKey,
             experimentalInputMode: experimentalInput.experimentalInputMode,
             foregroundCountdown: experimentalInput.foregroundCountdown,
             foregroundPlaybackState: experimentalInput.foregroundPlaybackState,

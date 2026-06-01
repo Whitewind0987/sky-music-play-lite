@@ -10,10 +10,7 @@ import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
 import {
   findSkyWindow,
   listCandidateWindows,
-  sendForegroundTestKey,
-  sendForegroundTestKeyScancode,
   sendMappedKeyToWindow,
-  sendTestKeyToWindow,
 } from "../lib/tauriApi";
 import type {
   CandidateWindow,
@@ -37,14 +34,6 @@ type UseExperimentalInputOptions = {
   text: UiText;
 };
 
-const FOREGROUND_SINGLE_KEY_TEST_COUNTDOWN_MS = 3000;
-const FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAMES = {
-  scancode: "send_foreground_test_key_scancode",
-  virtualKey: "send_foreground_test_key",
-} as const;
-
-type ForegroundSingleKeyTestMode = keyof typeof FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAMES;
-
 export function useExperimentalInput({
   appendLog,
   currentSong,
@@ -57,8 +46,6 @@ export function useExperimentalInput({
   const experimentalPlaybackControllerRef =
     useRef<PreviewPlaybackController | null>(null);
   const experimentalPlaybackRunIdRef = useRef(0);
-  const foregroundSingleKeyTestTimerRef = useRef<number | null>(null);
-  const foregroundSingleKeyTestRunIdRef = useRef(0);
   const [candidateWindows, setCandidateWindows] = useState<CandidateWindow[]>(
     [],
   );
@@ -71,7 +58,6 @@ export function useExperimentalInput({
     useState<ExperimentalInputMode>("target-window-message");
   const [isRefreshingWindows, setIsRefreshingWindows] = useState(false);
   const [isDetectingSkyWindow, setIsDetectingSkyWindow] = useState(false);
-  const [isSendingTestKey, setIsSendingTestKey] = useState(false);
   const [isExperimentalPlaybackRunning, setIsExperimentalPlaybackRunning] =
     useState(false);
   const [experimentalPlaybackProgress, setExperimentalPlaybackProgress] =
@@ -88,15 +74,6 @@ export function useExperimentalInput({
       null,
     [candidateWindows, selectedWindowHwnd],
   );
-  const testSkyKey = keyMapping.Key5 ? "Key5" : "Key7";
-  const testMappedKey = keyMapping[testSkyKey];
-  const hasTestMappedKey = testMappedKey.trim() !== "";
-  const canSendTestKey =
-    experimentalInputEnabled &&
-    hasTestMappedKey &&
-    !isSendingTestKey &&
-    !isExperimentalPlaybackRunning &&
-    (experimentalInputMode === "foreground" || selectedWindowHwnd !== null);
   const canStartExperimentalPlayback =
     experimentalInputEnabled &&
     experimentalInputMode === "target-window-message" &&
@@ -121,7 +98,6 @@ export function useExperimentalInput({
 
   useEffect(() => {
     return () => {
-      cancelForegroundSingleKeyTest();
       stopExperimentalPlayback({ logStopped: false });
     };
   }, []);
@@ -195,141 +171,8 @@ export function useExperimentalInput({
     }
   }
 
-  async function handleSendTestKey() {
-    if (!canSendTestKey) {
-      return;
-    }
-
-    if (experimentalInputMode === "foreground") {
-      await handleSendForegroundTestKey("virtualKey");
-      return;
-    }
-
-    if (selectedWindowHwnd === null) {
-      return;
-    }
-
-    setIsSendingTestKey(true);
-    setLastError(null);
-    appendLog(
-      formatText(text.logs.experimentalTestKeyStarted, {
-        key: testMappedKey,
-        skyKey: testSkyKey,
-      }),
-    );
-
-    try {
-      const result = await sendTestKeyToWindow(selectedWindowHwnd, testMappedKey);
-      appendLog(
-        formatText(text.logs.experimentalTestKeySucceeded, {
-          result,
-        }),
-      );
-    } catch (error) {
-      const errorMessage = String(error);
-      setLastError(errorMessage);
-      appendLog(
-        formatText(text.logs.experimentalTestKeyFailed, {
-          error: errorMessage,
-        }),
-      );
-    } finally {
-      setIsSendingTestKey(false);
-    }
-  }
-
-  async function handleSendForegroundTestKey(mode: ForegroundSingleKeyTestMode) {
-    const runId = foregroundSingleKeyTestRunIdRef.current + 1;
-    const commandName = FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAMES[mode];
-    const modeLabel = mode === "scancode" ? "scan-code" : "virtual-key";
-
-    foregroundSingleKeyTestRunIdRef.current = runId;
-    setIsSendingTestKey(true);
-    setLastError(null);
-    appendLog(
-      formatText(text.logs.foregroundSingleKeyTestStarted, {
-        key: testMappedKey,
-        mode: modeLabel,
-        skyKey: testSkyKey,
-      }),
-    );
-    appendLog(
-      formatText(text.logs.foregroundSingleKeyTestCommand, {
-        commandName,
-      }),
-    );
-
-    await waitForForegroundSingleKeyCountdown();
-
-    if (foregroundSingleKeyTestRunIdRef.current !== runId) {
-      return;
-    }
-
-    try {
-      const result =
-        mode === "scancode"
-          ? await sendForegroundTestKeyScancode(testMappedKey)
-          : await sendForegroundTestKey(testMappedKey);
-      appendLog(
-        formatText(text.logs.foregroundSingleKeyTestSucceeded, {
-          result,
-        }),
-      );
-    } catch (error) {
-      const errorMessage = String(error);
-      setLastError(errorMessage);
-      appendLog(
-        formatText(text.logs.foregroundSingleKeyTestFailed, {
-          error: errorMessage,
-        }),
-      );
-    } finally {
-      if (foregroundSingleKeyTestRunIdRef.current === runId) {
-        setIsSendingTestKey(false);
-      }
-    }
-  }
-
-  async function handleSendForegroundTestKeyScancode() {
-    if (
-      !experimentalInputEnabled ||
-      experimentalInputMode !== "foreground" ||
-      !hasTestMappedKey ||
-      isSendingTestKey ||
-      isExperimentalPlaybackRunning
-    ) {
-      return;
-    }
-
-    await handleSendForegroundTestKey("scancode");
-  }
-
-  function waitForForegroundSingleKeyCountdown() {
-    return new Promise<void>((resolve) => {
-      clearForegroundSingleKeyTestTimer();
-      foregroundSingleKeyTestTimerRef.current = window.setTimeout(() => {
-        foregroundSingleKeyTestTimerRef.current = null;
-        resolve();
-      }, FOREGROUND_SINGLE_KEY_TEST_COUNTDOWN_MS);
-    });
-  }
-
-  function clearForegroundSingleKeyTestTimer() {
-    if (foregroundSingleKeyTestTimerRef.current !== null) {
-      window.clearTimeout(foregroundSingleKeyTestTimerRef.current);
-      foregroundSingleKeyTestTimerRef.current = null;
-    }
-  }
-
-  function cancelForegroundSingleKeyTest() {
-    foregroundSingleKeyTestRunIdRef.current += 1;
-    clearForegroundSingleKeyTestTimer();
-    setIsSendingTestKey(false);
-  }
-
   function handleExperimentalInputEnabledChange(enabled: boolean) {
     if (!enabled) {
-      cancelForegroundSingleKeyTest();
       stopExperimentalPlayback({ logStopped: false });
       foregroundPlayback.handleStopForegroundPlayback();
     }
@@ -348,7 +191,6 @@ export function useExperimentalInput({
     }
 
     stopExperimentalPlayback({ logStopped: false });
-    cancelForegroundSingleKeyTest();
     foregroundPlayback.handleStopForegroundPlayback();
     setExperimentalInputMode(mode);
     appendLog(
@@ -487,7 +329,6 @@ export function useExperimentalInput({
   }
 
   return {
-    canSendTestKey,
     canStartExperimentalPlayback,
     canStopExperimentalPlayback,
     candidateWindows,
@@ -502,22 +343,17 @@ export function useExperimentalInput({
     handleStartExperimentalPlayback,
     handleStartForegroundPlayback:
       foregroundPlayback.handleStartForegroundPlayback,
-    handleSendForegroundTestKeyScancode,
-    handleSendTestKey,
     handleStopForegroundPlayback:
       foregroundPlayback.handleStopForegroundPlayback,
     handleStopExperimentalPlayback,
     isDetectingSkyWindow,
     isExperimentalPlaybackRunning,
     isRefreshingWindows,
-    isSendingTestKey,
     lastError,
     selectedWindow,
     selectedWindowHwnd,
     setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
     setSelectedWindowHwnd,
-    testMappedKey,
-    testSkyKey,
     canStartForegroundPlayback:
       experimentalInputMode === "foreground" &&
       foregroundPlayback.canStartForegroundPlayback,

@@ -249,12 +249,8 @@ export const uiText = {
       experimentalSkyWindowDetected: "已检测到光遇窗口：{title}",
       experimentalSkyWindowNotFound: "未检测到光遇窗口，可手动选择候选窗口。",
       experimentalSkyWindowFailed: "检测光遇窗口失败：{error}",
-      experimentalTestKeyStarted:
-        "开始实验性单键测试：{skyKey} -> {key}。",
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
-      experimentalTestKeySucceeded: "按键消息已发送到目标窗口：{result}",
-      experimentalTestKeyFailed: "实验性单键测试失败：{error}",
       experimentalPlaybackStarted:
         "实验性播放已开始：{songName} -> {target}。",
       experimentalPlaybackStopped: "实验性播放已停止。",
@@ -273,11 +269,6 @@ export const uiText = {
       foregroundPlaybackStopped: "实验性前台播放已停止。",
       foregroundPlaybackFinished: "实验性前台播放已完成。",
       foregroundPlaybackKeySendFailed: "实验性前台按键发送失败：{error}",
-      foregroundSingleKeyTestStarted:
-        "前台单键测试已开始（{mode}）：{skyKey} -> {key}。请在倒计时结束前切换到记事本。",
-      foregroundSingleKeyTestCommand: "前台单键测试命令：{commandName}",
-      foregroundSingleKeyTestSucceeded: "前台单键测试成功：{result}",
-      foregroundSingleKeyTestFailed: "前台单键测试失败：{error}",
     },
     settings: {
       aria: "设置占位页",
@@ -291,7 +282,7 @@ export const uiText = {
       keyMappingCancelHint: "按 Escape 取消",
       keyMappingClickHint: "点击后按键盘",
       keyMappingDescription:
-        "这些映射用于预览、dry-run 和手动触发的实验性单键测试。",
+        "这些映射用于预览、dry-run 和实验性播放。",
       keyMappingListening: "等待按键...",
       keyMappingTitle: "键位映射",
       previewTitle: "预览选项",
@@ -301,7 +292,7 @@ export const uiText = {
       manual: "使用手册",
       openLater: "稍后打开",
       experimentalInputTitle: "实验性输入",
-      experimentalInputDescription: "检测目标窗口并发送一次测试按键。",
+      experimentalInputDescription: "检测目标窗口并提供实验性播放控制。",
       experimentalInputWarning:
         "实验性功能，仅用于学习和个人测试。请自行确认是否符合游戏规则。",
       experimentalInputRefreshWindows: "刷新窗口列表",
@@ -309,14 +300,10 @@ export const uiText = {
       experimentalInputDetectSkyWindow: "检测光遇窗口",
       experimentalInputDetecting: "正在检测...",
       experimentalInputEnable: "启用实验性输入",
-      experimentalInputTestSingleKey: "测试单键",
-      experimentalInputTestSingleKeyScancode: "测试前台单键（扫描码）",
-      experimentalInputTesting: "正在测试...",
       experimentalInputNoWindows: "暂无候选窗口。",
       experimentalInputUntitledWindow: "无标题窗口",
       experimentalInputUnknownProcess: "未知进程",
       experimentalInputUnknownClass: "未知类名",
-      experimentalInputTestKeyLabel: "测试键",
       experimentalPlaybackStart: "实验性播放到目标窗口",
       experimentalPlaybackStop: "停止实验播放",
       experimentalPlaybackStatusLabel: "实验性播放",
@@ -594,13 +581,8 @@ export const uiText = {
       experimentalSkyWindowNotFound:
         "Sky window was not detected. You can select a candidate manually.",
       experimentalSkyWindowFailed: "Failed to detect Sky window: {error}",
-      experimentalTestKeyStarted:
-        "Started experimental single-key test: {skyKey} -> {key}.",
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
-      experimentalTestKeySucceeded:
-        "Key message posted to the target window: {result}",
-      experimentalTestKeyFailed: "Experimental single-key test failed: {error}",
       experimentalPlaybackStarted:
         "Experimental playback started: {songName} -> {target}.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
@@ -623,14 +605,6 @@ export const uiText = {
       foregroundPlaybackFinished: "Experimental foreground playback finished.",
       foregroundPlaybackKeySendFailed:
         "Experimental foreground key send failed: {error}",
-      foregroundSingleKeyTestStarted:
-        "Foreground single-key test started ({mode}): {skyKey} -> {key}. Switch to Notepad before the countdown ends.",
-      foregroundSingleKeyTestCommand:
-        "Foreground single-key test command: {commandName}",
-      foregroundSingleKeyTestSucceeded:
-        "Foreground single-key test succeeded: {result}",
-      foregroundSingleKeyTestFailed:
-        "Foreground single-key test failed: {error}",
     },
     settings: {
       aria: "Settings placeholder",
@@ -644,7 +618,7 @@ export const uiText = {
       keyMappingCancelHint: "Press Escape to cancel",
       keyMappingClickHint: "Click, then press a key",
       keyMappingDescription:
-        "These mappings are used for preview, dry-run, and manually triggered experimental single-key tests.",
+        "These mappings are used for preview, dry-run, and experimental playback.",
       keyMappingListening: "Waiting for key...",
       keyMappingTitle: "Key mapping",
       previewTitle: "Preview options",
@@ -655,7 +629,7 @@ export const uiText = {
       openLater: "Open later",
       experimentalInputTitle: "Experimental input",
       experimentalInputDescription:
-        "Detect a target window and send one test key.",
+        "Detect a target window and provide experimental playback controls.",
       experimentalInputWarning:
         "Experimental feature for learning and personal testing. Please make sure your usage follows game rules.",
       experimentalInputRefreshWindows: "Refresh Windows",
@@ -663,15 +637,10 @@ export const uiText = {
       experimentalInputDetectSkyWindow: "Detect Sky Window",
       experimentalInputDetecting: "Detecting...",
       experimentalInputEnable: "Enable Experimental Input",
-      experimentalInputTestSingleKey: "Test Single Key",
-      experimentalInputTestSingleKeyScancode:
-        "Test Foreground Single Key (Scan Code)",
-      experimentalInputTesting: "Testing...",
       experimentalInputNoWindows: "No candidate windows yet.",
       experimentalInputUntitledWindow: "Untitled window",
       experimentalInputUnknownProcess: "Unknown process",
       experimentalInputUnknownClass: "Unknown class",
-      experimentalInputTestKeyLabel: "Test key",
       experimentalPlaybackStart: "Experimental Play to Target Window",
       experimentalPlaybackStop: "Stop Experimental Playback",
       experimentalPlaybackStatusLabel: "Experimental playback",
