@@ -23,8 +23,10 @@ import {
 } from "./PlayerIcons";
 
 type BottomPlayerProps = {
+  canPlay: boolean;
   currentSong: Song | null;
   isShuffleEnabled: boolean;
+  isRealInputOutput: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
@@ -34,6 +36,7 @@ type BottomPlayerProps = {
   onResume: () => void;
   onShuffleToggle: () => void;
   onStop: () => void;
+  outputModeLabel: string;
   playbackMode: PlaybackMode;
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
@@ -153,8 +156,10 @@ function PlayerStepper({
 }
 
 export function BottomPlayer({
+  canPlay,
   currentSong,
   isShuffleEnabled,
+  isRealInputOutput,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onPause,
@@ -164,15 +169,13 @@ export function BottomPlayer({
   onResume,
   onShuffleToggle,
   onStop,
+  outputModeLabel,
   playbackMode,
   playbackState,
   playbackSpeed,
   progress,
   text,
 }: BottomPlayerProps) {
-  const hasSong = currentSong !== null;
-  const canPlay =
-    hasSong && (playbackState === "idle" || playbackState === "finished");
   const canPause = playbackState === "playing";
   const canResume = playbackState === "paused";
   const canStop = playbackState === "playing" || playbackState === "paused";
@@ -227,10 +230,18 @@ export function BottomPlayer({
             <span className="bottom-player-meta-item">
               {text.state}: {text.states[playbackState]}
             </span>
+            <span className="bottom-player-meta-item">
+              {text.output}: {outputModeLabel}
+            </span>
             <span className="bottom-player-meta-item bottom-player-time">
               {formatPlaybackTime(progress.currentMs)} /{" "}
               {formatPlaybackTime(progress.totalMs)}
             </span>
+            {isRealInputOutput ? (
+              <span className="bottom-player-meta-item bottom-player-real-input">
+                {text.realInputWarning}
+              </span>
+            ) : null}
           </div>
         </div>
 

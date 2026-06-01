@@ -11,6 +11,7 @@ export type ForegroundPlaybackState =
   | "idle"
   | "countdown"
   | "playing"
+  | "paused"
   | "stopped"
   | "finished"
   | "error";

@@ -15,6 +15,7 @@ import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
+import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
 import {
@@ -55,16 +56,27 @@ function App() {
   const experimentalInput = useExperimentalInput({
     appendLog,
     currentSong: scoreLibrary.currentSelectedSong,
+    importedSongs: scoreLibrary.importedSongs,
+    importedSongsRef: scoreLibrary.importedSongsRef,
+    isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
+    playbackMode: previewPlayback.playbackMode,
     playbackSpeed: previewPlayback.playbackSpeed,
+    selectedSongIndex: scoreLibrary.selectedSongIndex,
+    setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
   });
+  const playbackOutput = usePlaybackOutput({
+    experimentalInput,
+    previewPlayback,
+    text: text.bottomPlayer,
+  });
 
   useEffect(() => {
-    stopPreviewRef.current = previewPlayback.stopCurrentPreview;
-  }, [previewPlayback.stopCurrentPreview]);
+    stopPreviewRef.current = playbackOutput.onStop;
+  }, [playbackOutput.onStop]);
 
   async function handleTestRust() {
     try {
@@ -177,29 +189,13 @@ function App() {
               experimentalInput.isExperimentalPlaybackRunning,
             isRefreshingWindows: experimentalInput.isRefreshingWindows,
             lastError: experimentalInput.lastError,
-            canStartExperimentalPlayback:
-              experimentalInput.canStartExperimentalPlayback,
-            canStartForegroundPlayback:
-              experimentalInput.canStartForegroundPlayback,
-            canStopExperimentalPlayback:
-              experimentalInput.canStopExperimentalPlayback,
-            canStopForegroundPlayback:
-              experimentalInput.canStopForegroundPlayback,
             onDetectSkyWindow: experimentalInput.handleDetectSkyWindow,
             onExperimentalInputEnabledChange:
               experimentalInput.setExperimentalInputEnabled,
             onExperimentalInputModeChange:
               experimentalInput.handleExperimentalInputModeChange,
-            onStartForegroundPlayback:
-              experimentalInput.handleStartForegroundPlayback,
-            onStartExperimentalPlayback:
-              experimentalInput.handleStartExperimentalPlayback,
             onRefreshWindows: experimentalInput.handleRefreshWindows,
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
-            onStopExperimentalPlayback:
-              experimentalInput.handleStopExperimentalPlayback,
-            onStopForegroundPlayback:
-              experimentalInput.handleStopForegroundPlayback,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
             experimentalInputMode: experimentalInput.experimentalInputMode,
             foregroundCountdown: experimentalInput.foregroundCountdown,
@@ -244,23 +240,24 @@ function App() {
       </section>
 
       <BottomPlayer
+        canPlay={playbackOutput.canPlay}
         currentSong={scoreLibrary.currentSelectedSong}
-        isShuffleEnabled={previewPlayback.isShuffleEnabled}
-        noteIntervalDelayMs={previewPlayback.noteIntervalDelayMs}
-        onNoteIntervalDelayChange={
-          previewPlayback.handleNoteIntervalDelayChange
-        }
-        onPause={previewPlayback.handlePausePreview}
-        onPlay={previewPlayback.handlePlayPreview}
-        onPlaybackSpeedChange={previewPlayback.handlePlaybackSpeedChange}
-        onRepeatModeCycle={previewPlayback.handleRepeatModeCycle}
-        onResume={previewPlayback.handleResumePreview}
-        onShuffleToggle={previewPlayback.handleShuffleToggle}
-        onStop={previewPlayback.handleStopPreview}
-        playbackMode={previewPlayback.playbackMode}
-        playbackState={previewPlayback.playbackState}
-        playbackSpeed={previewPlayback.playbackSpeed}
-        progress={previewPlayback.bottomPlayerProgress}
+        isRealInputOutput={playbackOutput.isRealInputOutput}
+        isShuffleEnabled={playbackOutput.isShuffleEnabled}
+        noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+        onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
+        onPause={playbackOutput.onPause}
+        onPlay={playbackOutput.onPlay}
+        onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
+        onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
+        onResume={playbackOutput.onResume}
+        onShuffleToggle={playbackOutput.onShuffleToggle}
+        onStop={playbackOutput.onStop}
+        outputModeLabel={playbackOutput.outputModeLabel}
+        playbackMode={playbackOutput.playbackMode}
+        playbackState={playbackOutput.playbackState}
+        playbackSpeed={playbackOutput.playbackSpeed}
+        progress={playbackOutput.progress}
         text={text.bottomPlayer}
       />
     </main>

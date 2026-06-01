@@ -17,10 +17,6 @@ import {
 import { PanelHeader } from "./PanelHeader";
 
 type ExperimentalInputPanelState = {
-  canStartForegroundPlayback: boolean;
-  canStartExperimentalPlayback: boolean;
-  canStopForegroundPlayback: boolean;
-  canStopExperimentalPlayback: boolean;
   candidateWindows: CandidateWindow[];
   experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
@@ -36,10 +32,6 @@ type ExperimentalInputPanelState = {
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
-  onStartForegroundPlayback: () => void;
-  onStartExperimentalPlayback: () => void;
-  onStopForegroundPlayback: () => void;
-  onStopExperimentalPlayback: () => void;
   selectedWindowHwnd: string | null;
 };
 
@@ -273,40 +265,6 @@ export function SettingsPlaceholder({
                     experimentalInput.foregroundPlaybackState
                   ]}
             </strong>
-          </div>
-          <div className="experimental-input-actions">
-            <button
-              className="parse-button"
-              type="button"
-              disabled={!experimentalInput.canStartExperimentalPlayback}
-              onClick={experimentalInput.onStartExperimentalPlayback}
-            >
-              {text.experimentalPlaybackStart}
-            </button>
-            <button
-              className="language-option"
-              type="button"
-              disabled={!experimentalInput.canStopExperimentalPlayback}
-              onClick={experimentalInput.onStopExperimentalPlayback}
-            >
-              {text.experimentalPlaybackStop}
-            </button>
-            <button
-              className="parse-button"
-              type="button"
-              disabled={!experimentalInput.canStartForegroundPlayback}
-              onClick={experimentalInput.onStartForegroundPlayback}
-            >
-              {text.experimentalForegroundPlay}
-            </button>
-            <button
-              className="language-option"
-              type="button"
-              disabled={!experimentalInput.canStopForegroundPlayback}
-              onClick={experimentalInput.onStopForegroundPlayback}
-            >
-              {text.experimentalForegroundStop}
-            </button>
           </div>
         </div>
       </article>

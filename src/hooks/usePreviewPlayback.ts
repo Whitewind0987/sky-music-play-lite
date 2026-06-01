@@ -75,6 +75,9 @@ export function usePreviewPlayback({
           percent: 0,
           totalMs: previewDurationMs,
         };
+  const canPlayPreview =
+    currentSelectedSong !== null &&
+    (playbackState === "idle" || playbackState === "finished");
 
   useEffect(() => {
     return () => {
@@ -299,6 +302,7 @@ export function usePreviewPlayback({
   return {
     activeKeys,
     bottomPlayerProgress,
+    canPlayPreview,
     handleNoteIntervalDelayChange,
     handlePausePreview,
     handlePlaybackSpeedChange,
