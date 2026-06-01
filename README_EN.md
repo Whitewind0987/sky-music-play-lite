@@ -10,11 +10,11 @@ Lightweight · Windows · Tauri · React · Rust
 
 ## 丨About
 
-SkyMusicPlay Lite is a lightweight Windows desktop tool for Sky-style score playback.
+SkyMusicPlay Lite is a lightweight Windows desktop music-playing tool for Sky: Children of the Light.
 
-The project is built with **Tauri v2 + React + TypeScript + Rust**. Its goal is to provide a smaller, clearer, and more maintainable desktop implementation.
+The project is built with **Tauri v2 + React + TypeScript + Rust**, aiming to provide a lighter, clearer, and more maintainable desktop implementation.
 
-This project is still under development, and features will be improved over time.
+The project is still under development, and features will be improved over time.
 
 ## 丨Features
 
@@ -36,7 +36,7 @@ This project is still under development, and features will be improved over time
 SkyMusicPlay Lite includes experimental input features.
 
 Experimental features are disabled by default and must be enabled manually in Settings.  
-Please understand and follow the rules of the game or software you use before enabling them.
+Please understand and follow the rules of the related game or software before using them.
 
 Current experimental input modes include:
 
@@ -113,6 +113,6 @@ See [LICENSE](./LICENSE) for details.
 
 ## 丨Credits
 
-SkyMusicPlay Lite is inspired by SkyMusicPlay-for-Windows and related Sky-style music playback tools.
+SkyMusicPlay Lite is inspired by SkyMusicPlay-for-Windows and related Sky: Children of the Light music-playing tools.
 
-This project is a separate lightweight implementation. 
+This project is a separate lightweight implementation.
