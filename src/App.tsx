@@ -198,6 +198,8 @@ function App() {
               experimentalInput.handleStartExperimentalPlayback,
             onRefreshWindows: experimentalInput.handleRefreshWindows,
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
+            onSendForegroundTestKeyScancode:
+              experimentalInput.handleSendForegroundTestKeyScancode,
             onSendTestKey: experimentalInput.handleSendTestKey,
             onStopExperimentalPlayback:
               experimentalInput.handleStopExperimentalPlayback,

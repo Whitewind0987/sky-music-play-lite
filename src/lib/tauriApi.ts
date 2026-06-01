@@ -44,3 +44,7 @@ export function sendForegroundKeyGroup(keys: string[]): Promise<string> {
 export function sendForegroundTestKey(key: string): Promise<string> {
   return invoke<string>("send_foreground_test_key", { key });
 }
+
+export function sendForegroundTestKeyScancode(key: string): Promise<string> {
+  return invoke<string>("send_foreground_test_key_scancode", { key });
+}

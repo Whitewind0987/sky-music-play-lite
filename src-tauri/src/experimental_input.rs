@@ -25,9 +25,10 @@ mod windows_input {
     };
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-        MAPVK_VK_TO_VSC, VK_BACK, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_ESCAPE,
-        VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_COMMA, VK_OEM_MINUS,
-        VK_OEM_PERIOD, VK_OEM_PLUS, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SPACE, VK_TAB, VK_UP,
+        KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC, VK_BACK, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN,
+        VK_END, VK_ESCAPE, VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_COMMA,
+        VK_OEM_MINUS, VK_OEM_PERIOD, VK_OEM_PLUS, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SPACE, VK_TAB,
+        VK_UP,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, FindWindowW, GetClassNameW, GetWindowTextLengthW, GetWindowTextW,
@@ -138,6 +139,37 @@ mod windows_input {
 
         Ok(format!(
             "Foreground SendInput posted one key down/up pair. mapped key: {key}; virtual key: {virtual_key}; sent count: {sent_count}; expected count: {expected_count}"
+        ))
+    }
+
+    pub fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
+        let virtual_key = mapped_key_to_virtual_key(&key)
+            .ok_or_else(|| format!("Unsupported mapped key for foreground input: {key}"))?;
+        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+
+        if scan_code == 0 {
+            return Err(format!(
+                "Foreground scan-code SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; scan code could not be resolved."
+            ));
+        }
+
+        let key_down_input = build_keyboard_input(0, scan_code as u16, KEYEVENTF_SCANCODE);
+        let key_up_input =
+            build_keyboard_input(0, scan_code as u16, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
+        let inputs = [key_down_input, key_up_input];
+        let expected_count = inputs.len() as u32;
+        let sent_count =
+            unsafe { SendInput(expected_count, inputs.as_ptr(), size_of::<INPUT>() as i32) };
+
+        if sent_count != expected_count {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Foreground scan-code SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; sent count: {sent_count}; expected count: {expected_count}; last OS error: {error}"
+            ));
+        }
+
+        Ok(format!(
+            "Foreground scan-code SendInput posted one key down/up pair. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; sent count: {sent_count}; expected count: {expected_count}"
         ))
     }
 
@@ -376,6 +408,10 @@ mod windows_input {
     pub fn send_foreground_test_key(_key: String) -> Result<String, String> {
         Err("Experimental foreground input is only available on Windows.".to_string())
     }
+
+    pub fn send_foreground_test_key_scancode(_key: String) -> Result<String, String> {
+        Err("Experimental foreground input is only available on Windows.".to_string())
+    }
 }
 
 pub fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
@@ -396,4 +432,8 @@ pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
 
 pub fn send_foreground_test_key(key: String) -> Result<String, String> {
     windows_input::send_foreground_test_key(key)
+}
+
+pub fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
+    windows_input::send_foreground_test_key_scancode(key)
 }

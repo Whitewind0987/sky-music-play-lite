@@ -274,7 +274,7 @@ export const uiText = {
       foregroundPlaybackFinished: "实验性前台播放已完成。",
       foregroundPlaybackKeySendFailed: "实验性前台按键发送失败：{error}",
       foregroundSingleKeyTestStarted:
-        "前台单键测试已开始：{skyKey} -> {key}。请在倒计时结束前切换到记事本。",
+        "前台单键测试已开始（{mode}）：{skyKey} -> {key}。请在倒计时结束前切换到记事本。",
       foregroundSingleKeyTestCommand: "前台单键测试命令：{commandName}",
       foregroundSingleKeyTestSucceeded: "前台单键测试成功：{result}",
       foregroundSingleKeyTestFailed: "前台单键测试失败：{error}",
@@ -310,6 +310,7 @@ export const uiText = {
       experimentalInputDetecting: "正在检测...",
       experimentalInputEnable: "启用实验性输入",
       experimentalInputTestSingleKey: "测试单键",
+      experimentalInputTestSingleKeyScancode: "测试前台单键（扫描码）",
       experimentalInputTesting: "正在测试...",
       experimentalInputNoWindows: "暂无候选窗口。",
       experimentalInputUntitledWindow: "无标题窗口",
@@ -623,7 +624,7 @@ export const uiText = {
       foregroundPlaybackKeySendFailed:
         "Experimental foreground key send failed: {error}",
       foregroundSingleKeyTestStarted:
-        "Foreground single-key test started: {skyKey} -> {key}. Switch to Notepad before the countdown ends.",
+        "Foreground single-key test started ({mode}): {skyKey} -> {key}. Switch to Notepad before the countdown ends.",
       foregroundSingleKeyTestCommand:
         "Foreground single-key test command: {commandName}",
       foregroundSingleKeyTestSucceeded:
@@ -663,6 +664,8 @@ export const uiText = {
       experimentalInputDetecting: "Detecting...",
       experimentalInputEnable: "Enable Experimental Input",
       experimentalInputTestSingleKey: "Test Single Key",
+      experimentalInputTestSingleKeyScancode:
+        "Test Foreground Single Key (Scan Code)",
       experimentalInputTesting: "Testing...",
       experimentalInputNoWindows: "No candidate windows yet.",
       experimentalInputUntitledWindow: "Untitled window",

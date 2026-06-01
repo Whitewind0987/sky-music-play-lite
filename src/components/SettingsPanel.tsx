@@ -38,6 +38,7 @@ type ExperimentalInputPanelState = {
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
+  onSendForegroundTestKeyScancode: () => void;
   onSendTestKey: () => void;
   onStartForegroundPlayback: () => void;
   onStartExperimentalPlayback: () => void;
@@ -269,6 +270,19 @@ export function SettingsPlaceholder({
           {experimentalInput.isSendingTestKey
             ? text.experimentalInputTesting
             : text.experimentalInputTestSingleKey}
+        </button>
+        <button
+          className="language-option"
+          type="button"
+          disabled={
+            !experimentalInput.canSendTestKey ||
+            experimentalInput.experimentalInputMode !== "foreground"
+          }
+          onClick={experimentalInput.onSendForegroundTestKeyScancode}
+        >
+          {experimentalInput.isSendingTestKey
+            ? text.experimentalInputTesting
+            : text.experimentalInputTestSingleKeyScancode}
         </button>
         <div className="experimental-playback-controls">
           <div className="experimental-target-summary">

@@ -11,6 +11,7 @@ import {
   findSkyWindow,
   listCandidateWindows,
   sendForegroundTestKey,
+  sendForegroundTestKeyScancode,
   sendMappedKeyToWindow,
   sendTestKeyToWindow,
 } from "../lib/tauriApi";
@@ -37,7 +38,12 @@ type UseExperimentalInputOptions = {
 };
 
 const FOREGROUND_SINGLE_KEY_TEST_COUNTDOWN_MS = 3000;
-const FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAME = "send_foreground_test_key";
+const FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAMES = {
+  scancode: "send_foreground_test_key_scancode",
+  virtualKey: "send_foreground_test_key",
+} as const;
+
+type ForegroundSingleKeyTestMode = keyof typeof FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAMES;
 
 export function useExperimentalInput({
   appendLog,
@@ -195,7 +201,7 @@ export function useExperimentalInput({
     }
 
     if (experimentalInputMode === "foreground") {
-      await handleSendForegroundTestKey();
+      await handleSendForegroundTestKey("virtualKey");
       return;
     }
 
@@ -232,8 +238,10 @@ export function useExperimentalInput({
     }
   }
 
-  async function handleSendForegroundTestKey() {
+  async function handleSendForegroundTestKey(mode: ForegroundSingleKeyTestMode) {
     const runId = foregroundSingleKeyTestRunIdRef.current + 1;
+    const commandName = FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAMES[mode];
+    const modeLabel = mode === "scancode" ? "scan-code" : "virtual-key";
 
     foregroundSingleKeyTestRunIdRef.current = runId;
     setIsSendingTestKey(true);
@@ -241,12 +249,13 @@ export function useExperimentalInput({
     appendLog(
       formatText(text.logs.foregroundSingleKeyTestStarted, {
         key: testMappedKey,
+        mode: modeLabel,
         skyKey: testSkyKey,
       }),
     );
     appendLog(
       formatText(text.logs.foregroundSingleKeyTestCommand, {
-        commandName: FOREGROUND_SINGLE_KEY_TEST_COMMAND_NAME,
+        commandName,
       }),
     );
 
@@ -257,7 +266,10 @@ export function useExperimentalInput({
     }
 
     try {
-      const result = await sendForegroundTestKey(testMappedKey);
+      const result =
+        mode === "scancode"
+          ? await sendForegroundTestKeyScancode(testMappedKey)
+          : await sendForegroundTestKey(testMappedKey);
       appendLog(
         formatText(text.logs.foregroundSingleKeyTestSucceeded, {
           result,
@@ -276,6 +288,20 @@ export function useExperimentalInput({
         setIsSendingTestKey(false);
       }
     }
+  }
+
+  async function handleSendForegroundTestKeyScancode() {
+    if (
+      !experimentalInputEnabled ||
+      experimentalInputMode !== "foreground" ||
+      !hasTestMappedKey ||
+      isSendingTestKey ||
+      isExperimentalPlaybackRunning
+    ) {
+      return;
+    }
+
+    await handleSendForegroundTestKey("scancode");
   }
 
   function waitForForegroundSingleKeyCountdown() {
@@ -476,6 +502,7 @@ export function useExperimentalInput({
     handleStartExperimentalPlayback,
     handleStartForegroundPlayback:
       foregroundPlayback.handleStartForegroundPlayback,
+    handleSendForegroundTestKeyScancode,
     handleSendTestKey,
     handleStopForegroundPlayback:
       foregroundPlayback.handleStopForegroundPlayback,
