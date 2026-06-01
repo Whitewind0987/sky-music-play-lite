@@ -978,6 +978,13 @@ button {
   line-height: 1.45;
 }
 
+.experimental-setting-description {
+  margin: 0;
+  color: #52616f;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .experimental-input-actions {
   display: flex;
   flex-wrap: wrap;

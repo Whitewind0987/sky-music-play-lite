@@ -230,6 +230,13 @@ export function SettingsPlaceholder({
                 ))}
               </div>
             </div>
+            <p className="experimental-setting-description">
+              {
+                text.experimentalTargetWindowMessageMethodDescriptions[
+                  experimentalInput.targetWindowMessageMethod
+                ]
+              }
+            </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowCompatibilityProfile}</span>
               <div className="language-options">
@@ -266,6 +273,16 @@ export function SettingsPlaceholder({
                 ))}
               </div>
             </div>
+            <p className="experimental-setting-description">
+              {
+                text.experimentalTargetWindowCompatibilityProfileDescriptions[
+                  experimentalInput.targetWindowCompatibilityProfile
+                ]
+              }
+            </p>
+            <p className="experimental-setting-description">
+              {text.experimentalTargetWindowRecommendation}
+            </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowKeyHoldMs}</span>
               <input

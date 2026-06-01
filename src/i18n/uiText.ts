@@ -268,7 +268,7 @@ export const uiText = {
       experimentalPlaybackGroupedYes: "是",
       experimentalPlaybackGroupedNo: "否",
       experimentalPlaybackLegacyActivationEnabled:
-        "旧版激活窗口消息已启用。",
+        "激活窗口消息已启用。",
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
       experimentalPlaybackCommandFailed:
@@ -332,20 +332,40 @@ export const uiText = {
         "目标窗口消息模式会向选中的窗口句柄发送按键消息，可尝试在游戏失焦时继续播放。兼容性取决于目标窗口是否接受这些消息。",
       experimentalTargetWindowMessageMethod: "消息投递方式",
       experimentalTargetWindowMessageMethods: {
-        "post-message": "PostMessage",
-        "send-message": "SendMessage",
+        "post-message": "队列投递",
+        "send-message": "同步发送",
+      },
+      experimentalTargetWindowMessageMethodDescriptions: {
+        "post-message":
+          "将消息放入目标窗口消息队列，发送方不会等待目标窗口处理完成。通常更轻量，但结果取决于目标程序。",
+        "send-message":
+          "直接发送消息并等待目标窗口处理返回。可能更稳定，但目标窗口无响应时可能造成短暂停顿。",
       },
       experimentalTargetWindowCompatibilityProfile: "兼容配置",
       experimentalTargetWindowCompatibilityProfiles: {
-        standard: "标准模式",
-        "legacy-vkscan-zero-lparam": "旧版 VkKeyScan 简单参数",
-        "legacy-vkscan-scan-lparam": "旧版 VkKeyScan 扫描码参数",
-        "grouped-legacy": "旧版组合按键模式",
-        "legacy-activate-scan-lparam": "旧版激活窗口扫描码模式",
+        standard: "基础消息模式",
+        "legacy-vkscan-zero-lparam": "简化键码模式",
+        "legacy-vkscan-scan-lparam": "扫描码兼容模式",
+        "grouped-legacy": "组合按键兼容模式",
+        "legacy-activate-scan-lparam": "激活消息兼容模式",
       },
+      experimentalTargetWindowCompatibilityProfileDescriptions: {
+        standard:
+          "使用常规窗口按键消息。适合作为基础测试；部分程序可能需要目标窗口在前台。",
+        "legacy-vkscan-zero-lparam":
+          "使用 VkKeyScan 转换按键，但不附带完整扫描码参数。兼容性较低，主要用于对照测试。",
+        "legacy-vkscan-scan-lparam":
+          "使用 VkKeyScan 与扫描码参数发送按键消息。兼容性较好，推荐优先测试。",
+        "grouped-legacy":
+          "面向同时音符优化：同一组按键会先全部按下，再一起释放。适合和弦或多键音符。",
+        "legacy-activate-scan-lparam":
+          "在扫描码按键消息前发送窗口激活消息。兼容性更强，但目标程序可能会表现为被激活。",
+      },
+      experimentalTargetWindowRecommendation:
+        "推荐从“扫描码兼容模式 + 队列投递”开始测试。若同时音符表现不稳定，尝试“组合按键兼容模式”。若目标程序不响应，再尝试“激活消息兼容模式”。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalTargetWindowCompatibilityWarning:
-        "兼容配置仅用于目标窗口消息模式。旧版激活窗口模式会向目标窗口发送 WM_ACTIVATE 消息，但不保证真正后台可用。",
+        "这些配置仅用于目标窗口消息模式。不同程序、权限状态和窗口状态下结果可能不同；请遵守目标程序规则。",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
         "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
@@ -633,7 +653,7 @@ export const uiText = {
       experimentalPlaybackGroupedYes: "yes",
       experimentalPlaybackGroupedNo: "no",
       experimentalPlaybackLegacyActivationEnabled:
-        "Legacy activation messages enabled.",
+        "Activation messages enabled.",
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
@@ -701,21 +721,41 @@ export const uiText = {
         "Target-window message mode sends key messages to the selected window handle and can attempt playback while the game is not focused. Compatibility depends on whether the target window accepts these messages.",
       experimentalTargetWindowMessageMethod: "Message delivery method",
       experimentalTargetWindowMessageMethods: {
-        "post-message": "PostMessage",
-        "send-message": "SendMessage",
+        "post-message": "Queued Delivery",
+        "send-message": "Synchronous Send",
+      },
+      experimentalTargetWindowMessageMethodDescriptions: {
+        "post-message":
+          "Posts the message to the target window queue without waiting for it to finish processing. Usually lighter, but behavior depends on the target application.",
+        "send-message":
+          "Sends the message directly and waits for the target window to process it. It may be more consistent, but can briefly block if the target window is unresponsive.",
       },
       experimentalTargetWindowCompatibilityProfile:
         "Compatibility profile",
       experimentalTargetWindowCompatibilityProfiles: {
-        standard: "Standard",
-        "legacy-vkscan-zero-lparam": "Legacy VkKeyScan Simple",
-        "legacy-vkscan-scan-lparam": "Legacy VkKeyScan Scan Code",
-        "grouped-legacy": "Legacy Grouped Keys",
-        "legacy-activate-scan-lparam": "Legacy Activate + Scan Code",
+        standard: "Basic Message Mode",
+        "legacy-vkscan-zero-lparam": "Simplified Key Code Mode",
+        "legacy-vkscan-scan-lparam": "Scan Code Compatibility Mode",
+        "grouped-legacy": "Grouped Key Compatibility Mode",
+        "legacy-activate-scan-lparam": "Activation Message Compatibility Mode",
       },
+      experimentalTargetWindowCompatibilityProfileDescriptions: {
+        standard:
+          "Sends regular window key messages. Useful as a baseline test; some applications may require the target window to be foreground.",
+        "legacy-vkscan-zero-lparam":
+          "Uses VkKeyScan for key conversion without full scan-code parameters. Lower compatibility; mainly useful for comparison testing.",
+        "legacy-vkscan-scan-lparam":
+          "Uses VkKeyScan with scan-code key message parameters. Better compatibility and recommended for initial testing.",
+        "grouped-legacy":
+          "Optimized for simultaneous notes: keys in the same group are pressed first, then released together. Suitable for chords and multi-key notes.",
+        "legacy-activate-scan-lparam":
+          "Sends a window activation message before scan-code key messages. Higher compatibility, but the target application may behave as if activated.",
+      },
+      experimentalTargetWindowRecommendation:
+        "Recommended starting point: Scan Code Compatibility Mode + Queued Delivery. If simultaneous notes behave inconsistently, try Grouped Key Compatibility Mode. If the target application does not respond, try Activation Message Compatibility Mode.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalTargetWindowCompatibilityWarning:
-        "Compatibility profiles only apply to Target Window Message Mode. The legacy activate profile sends WM_ACTIVATE to the target window, but true background playback is not guaranteed.",
+        "These options only apply to Target Window Message Mode. Results may vary depending on the application, permission level, and window state. Please follow the target application's rules.",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
         "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
