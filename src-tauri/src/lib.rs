@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+mod app_data;
 mod experimental_input;
 use experimental_input::CandidateWindow;
 
@@ -148,7 +149,9 @@ pub fn run() {
             activate_target_window_message,
             dry_run_playback,
             find_sky_window,
+            app_data::load_app_data,
             list_candidate_windows,
+            app_data::save_app_data,
             send_foreground_key_group,
             send_foreground_test_key,
             send_foreground_test_key_scancode,

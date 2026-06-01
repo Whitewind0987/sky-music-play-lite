@@ -319,8 +319,36 @@ export function usePreviewPlayback({
     playbackControllerRef.current?.updateOptions(nextOptions);
   }
 
+  function applyPlaybackSettings({
+    isShuffleEnabled: nextIsShuffleEnabled,
+    noteIntervalDelayMs: nextNoteIntervalDelayMs,
+    playbackMode: nextPlaybackMode,
+    playbackSpeed: nextPlaybackSpeed,
+  }: {
+    isShuffleEnabled: boolean;
+    noteIntervalDelayMs: NoteIntervalDelayMs;
+    playbackMode: PlaybackMode;
+    playbackSpeed: PlaybackSpeed;
+  }) {
+    const nextOptions = {
+      noteIntervalDelayMs: nextNoteIntervalDelayMs,
+      playbackSpeed: nextPlaybackSpeed,
+    };
+
+    isShuffleEnabledRef.current = nextIsShuffleEnabled;
+    noteIntervalDelayMsRef.current = nextNoteIntervalDelayMs;
+    playbackModeRef.current = nextPlaybackMode;
+    playbackSpeedRef.current = nextPlaybackSpeed;
+    setIsShuffleEnabled(nextIsShuffleEnabled);
+    setNoteIntervalDelayMs(nextNoteIntervalDelayMs);
+    setPlaybackMode(nextPlaybackMode);
+    setPlaybackSpeed(nextPlaybackSpeed);
+    playbackControllerRef.current?.updateOptions(nextOptions);
+  }
+
   return {
     activeKeys,
+    applyPlaybackSettings,
     bottomPlayerProgress,
     canPlayPreview,
     handleNoteIntervalDelayChange,

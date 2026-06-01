@@ -12,6 +12,7 @@ import {
   PlaybackControls,
 } from "./components/PlaybackPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
+import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
@@ -38,8 +39,12 @@ function App() {
     uiText[defaultLanguage].logs.appReady,
     uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
-  const { handleStartKeyMappingListen, keyMapping, listeningSkyKey } =
-    useKeyMapping();
+  const {
+    applyKeyMapping,
+    handleStartKeyMappingListen,
+    keyMapping,
+    listeningSkyKey,
+  } = useKeyMapping();
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
@@ -75,6 +80,30 @@ function App() {
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
+  });
+  useAppPersistence({
+    appendLog,
+    applyExperimentalInputPreferences:
+      experimentalInput.applyExperimentalInputPreferences,
+    applyKeyMapping,
+    applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
+    applyScoreLibrary: scoreLibrary.applyScoreLibrary,
+    experimentalInputMode: experimentalInput.experimentalInputMode,
+    importedSongs: scoreLibrary.importedSongs,
+    isShuffleEnabled: previewPlayback.isShuffleEnabled,
+    keyMapping,
+    language,
+    noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
+    playbackMode: previewPlayback.playbackMode,
+    playbackSpeed: previewPlayback.playbackSpeed,
+    selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
+    selectedSongIndex: scoreLibrary.selectedSongIndex,
+    setLanguage,
+    targetWindowCompatibilityProfile:
+      experimentalInput.targetWindowCompatibilityProfile,
+    targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
+    targetWindowMessageMethod: experimentalInput.targetWindowMessageMethod,
+    text: text.logs,
   });
   const playbackOutput = usePlaybackOutput({
     experimentalInput,
