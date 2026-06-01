@@ -9,6 +9,7 @@ import {
 } from "../lib/playbackScheduler";
 import { formatText } from "../lib/formatText";
 import type { PlaybackState } from "../types/playback";
+import type { PlaybackQueueItem } from "../types/playbackQueue";
 import {
   defaultNoteIntervalDelayMs,
   defaultPlaybackMode,
@@ -21,6 +22,7 @@ import type { Song } from "../types/score";
 
 type UsePreviewPlaybackOptions = {
   appendLog: (entry: string) => void;
+  consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
   currentSelectedSong: Song | null;
   importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
@@ -31,6 +33,7 @@ type UsePreviewPlaybackOptions = {
 
 export function usePreviewPlayback({
   appendLog,
+  consumeNextQueueItem,
   currentSelectedSong,
   importedSongs,
   importedSongsRef,
@@ -165,10 +168,15 @@ export function usePreviewPlayback({
           playbackControllerRef.current = null;
 
           const currentImportedSongs = importedSongsRef.current;
+          const queuedItem =
+            playbackModeRef.current === "repeat-one"
+              ? null
+              : consumeNextQueueItem(currentImportedSongs.length);
           const finishDecision = decidePlaybackFinish({
             currentSongIndex: songIndex,
             isShuffleEnabled: isShuffleEnabledRef.current,
             playbackMode: playbackModeRef.current,
+            queuedSongIndex: queuedItem?.songIndex ?? null,
             songCount: currentImportedSongs.length,
           });
 
@@ -183,9 +191,13 @@ export function usePreviewPlayback({
           if (finishDecision.type === "play-next") {
             const nextSong =
               currentImportedSongs[finishDecision.nextSongIndex] ?? song;
+            const logTemplate =
+              queuedItem === null
+                ? text.logs.repeatAllTriggered
+                : text.logs.queueNextTriggered;
 
             appendLog(
-              formatText(text.logs.repeatAllTriggered, {
+              formatText(logTemplate, {
                 songName: nextSong.name,
               }),
             );
