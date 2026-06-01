@@ -259,7 +259,7 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。",
+        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。{activationNotice}",
       experimentalPlaybackPaused: "实验性播放已暂停。",
       experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
@@ -267,10 +267,12 @@ export const uiText = {
       experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
       experimentalPlaybackGroupedYes: "是",
       experimentalPlaybackGroupedNo: "否",
+      experimentalPlaybackLegacyActivationEnabled:
+        "旧版激活窗口消息已启用。",
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
       experimentalPlaybackCommandFailed:
-        "目标窗口消息发送失败。目标窗口可能拒绝消息或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
+        "目标窗口消息发送失败。目标窗口可能拒绝 WM_ACTIVATE 或按键消息，或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
       experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
       experimentalTargetWindowMethodSelected:
         "目标窗口消息投递方式已切换：{method}",
@@ -339,10 +341,11 @@ export const uiText = {
         "legacy-vkscan-zero-lparam": "旧版 VkKeyScan 简单参数",
         "legacy-vkscan-scan-lparam": "旧版 VkKeyScan 扫描码参数",
         "grouped-legacy": "旧版组合按键模式",
+        "legacy-activate-scan-lparam": "旧版激活窗口扫描码模式",
       },
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalTargetWindowCompatibilityWarning:
-        "兼容配置只影响目标窗口消息模式。不同窗口、权限和游戏环境的结果可能不同；如果目标窗口忽略后台窗口消息，本阶段不会添加更强或隐藏的方法。",
+        "兼容配置仅用于目标窗口消息模式。旧版激活窗口模式会向目标窗口发送 WM_ACTIVATE 消息，但不保证真正后台可用。",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
         "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
@@ -621,7 +624,7 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}.",
+        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}. {activationNotice}",
       experimentalPlaybackPaused: "Experimental playback paused.",
       experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
@@ -629,10 +632,12 @@ export const uiText = {
       experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
       experimentalPlaybackGroupedYes: "yes",
       experimentalPlaybackGroupedNo: "no",
+      experimentalPlaybackLegacyActivationEnabled:
+        "Legacy activation messages enabled.",
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
-        "Target window message failed. The target window may reject messages or require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
+        "Target window message failed. The target window may reject WM_ACTIVATE or key messages, or may require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
       experimentalInputModeSelected: "Experimental input mode selected: {mode}",
       experimentalTargetWindowMethodSelected:
         "Target-window message method selected: {method}",
@@ -706,10 +711,11 @@ export const uiText = {
         "legacy-vkscan-zero-lparam": "Legacy VkKeyScan Simple",
         "legacy-vkscan-scan-lparam": "Legacy VkKeyScan Scan Code",
         "grouped-legacy": "Legacy Grouped Keys",
+        "legacy-activate-scan-lparam": "Legacy Activate + Scan Code",
       },
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalTargetWindowCompatibilityWarning:
-        "Compatibility profiles only apply to Target Window Message Mode. Results may vary by target window, permissions, and game environment. If the target ignores background window messages, this phase will not add a stronger or hidden method.",
+        "Compatibility profiles only apply to Target Window Message Mode. The legacy activate profile sends WM_ACTIVATE to the target window, but true background playback is not guaranteed.",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
         "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",

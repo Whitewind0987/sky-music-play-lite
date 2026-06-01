@@ -239,6 +239,7 @@ export function SettingsPlaceholder({
                     "legacy-vkscan-zero-lparam",
                     "legacy-vkscan-scan-lparam",
                     "grouped-legacy",
+                    "legacy-activate-scan-lparam",
                   ] as TargetWindowCompatibilityProfile[]
                 ).map((profile) => (
                   <button

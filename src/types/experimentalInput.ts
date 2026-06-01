@@ -13,7 +13,8 @@ export type TargetWindowCompatibilityProfile =
   | "standard"
   | "legacy-vkscan-zero-lparam"
   | "legacy-vkscan-scan-lparam"
-  | "grouped-legacy";
+  | "grouped-legacy"
+  | "legacy-activate-scan-lparam";
 
 export type ForegroundPlaybackState =
   | "idle"

@@ -45,15 +45,19 @@ mod windows_input {
     const TARGET_PROFILE_LEGACY_ZERO_LPARAM: &str = "legacy-vkscan-zero-lparam";
     const TARGET_PROFILE_LEGACY_SCAN_LPARAM: &str = "legacy-vkscan-scan-lparam";
     const TARGET_PROFILE_GROUPED_LEGACY: &str = "grouped-legacy";
+    const TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM: &str = "legacy-activate-scan-lparam";
     const TARGET_KEY_HOLD_MIN_MS: u64 = 10;
     const TARGET_KEY_HOLD_MAX_MS: u64 = 200;
     const US_KEYBOARD_LAYOUT_ID: &str = "00000409";
+    const WM_ACTIVATE: u32 = 0x0006;
+    const WA_ACTIVE: usize = 1;
 
     struct WindowMessageKeyInput {
         hwnd: HWND,
         hwnd_text: String,
         key: String,
         method: String,
+        compatibility_profile: String,
         scan_code: u32,
         virtual_key: u16,
     }
@@ -181,12 +185,13 @@ mod windows_input {
             .into_iter()
             .map(|key| build_profile_window_message_key_input(&target, key))
             .collect::<Result<Vec<_>, _>>()?;
-        let grouped = target.compatibility_profile == TARGET_PROFILE_GROUPED_LEGACY;
+        let grouped = is_grouped_target_compatibility_profile(&target.compatibility_profile);
         let mut send_results = Vec::<TargetWindowKeyMessageResult>::new();
 
         if grouped {
             for input in inputs.iter() {
                 let key_down_lparam = build_profile_key_down_lparam(input);
+                activate_target_window_for_profile(input, "before key down")?;
                 let down_result =
                     send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
                 send_results.push(TargetWindowKeyMessageResult {
@@ -199,6 +204,7 @@ mod windows_input {
 
             for (index, input) in inputs.iter().enumerate() {
                 let key_up_lparam = build_profile_key_up_lparam(input);
+                activate_target_window_for_profile(input, "before key up")?;
                 let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
 
                 if let Some(result) = send_results.get_mut(index) {
@@ -208,10 +214,12 @@ mod windows_input {
         } else {
             for input in inputs.iter() {
                 let key_down_lparam = build_profile_key_down_lparam(input);
+                activate_target_window_for_profile(input, "before key down")?;
                 let down_result =
                     send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
                 thread::sleep(Duration::from_millis(key_hold_ms));
                 let key_up_lparam = build_profile_key_up_lparam(input);
+                activate_target_window_for_profile(input, "before key up")?;
                 let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
 
                 send_results.push(TargetWindowKeyMessageResult {
@@ -222,13 +230,14 @@ mod windows_input {
         }
 
         Ok(format!(
-            "Target-window key group messages sent. hwnd: {}; key count: {}; method: {}; profile: {}; hold: {}ms; grouped: {}; send-message results: {}",
+            "Target-window key group messages sent. hwnd: {}; key count: {}; method: {}; profile: {}; hold: {}ms; grouped: {}; activation: {}; send-message results: {}",
             target.hwnd_text,
             inputs.len(),
             target.method,
             target.compatibility_profile,
             key_hold_ms,
             grouped,
+            target.compatibility_profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM,
             format_send_message_results(&send_results)
         ))
     }
@@ -519,6 +528,7 @@ mod windows_input {
             hwnd_text,
             key,
             method,
+            compatibility_profile: TARGET_PROFILE_STANDARD.to_string(),
             scan_code,
             virtual_key,
         })
@@ -541,7 +551,7 @@ mod windows_input {
 
         if !is_supported_target_compatibility_profile(&compatibility_profile) {
             return Err(format!(
-                "Unsupported target-window compatibility profile: {compatibility_profile}. Supported profiles: {TARGET_PROFILE_STANDARD}, {TARGET_PROFILE_LEGACY_ZERO_LPARAM}, {TARGET_PROFILE_LEGACY_SCAN_LPARAM}, {TARGET_PROFILE_GROUPED_LEGACY}."
+                "Unsupported target-window compatibility profile: {compatibility_profile}. Supported profiles: {TARGET_PROFILE_STANDARD}, {TARGET_PROFILE_LEGACY_ZERO_LPARAM}, {TARGET_PROFILE_LEGACY_SCAN_LPARAM}, {TARGET_PROFILE_GROUPED_LEGACY}, {TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM}."
             ));
         }
 
@@ -575,7 +585,10 @@ mod windows_input {
             })?,
             TARGET_PROFILE_LEGACY_ZERO_LPARAM
             | TARGET_PROFILE_LEGACY_SCAN_LPARAM
-            | TARGET_PROFILE_GROUPED_LEGACY => legacy_vkscan_to_virtual_key(&key, target)?,
+            | TARGET_PROFILE_GROUPED_LEGACY
+            | TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM => {
+                legacy_vkscan_to_virtual_key(&key, target)?
+            }
             _ => {
                 return Err(format!(
                     "Unsupported target-window compatibility profile: {}.",
@@ -605,6 +618,7 @@ mod windows_input {
             hwnd_text: target.hwnd_text.clone(),
             key,
             method: target.method.clone(),
+            compatibility_profile: target.compatibility_profile.clone(),
             scan_code,
             virtual_key,
         })
@@ -663,6 +677,14 @@ mod windows_input {
                 | TARGET_PROFILE_LEGACY_ZERO_LPARAM
                 | TARGET_PROFILE_LEGACY_SCAN_LPARAM
                 | TARGET_PROFILE_GROUPED_LEGACY
+                | TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM
+        )
+    }
+
+    fn is_grouped_target_compatibility_profile(profile: &str) -> bool {
+        matches!(
+            profile,
+            TARGET_PROFILE_GROUPED_LEGACY | TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM
         )
     }
 
@@ -677,6 +699,8 @@ mod windows_input {
     fn build_profile_key_up_lparam(input: &WindowMessageKeyInput) -> LPARAM {
         if input.scan_code == 0 {
             0
+        } else if input.compatibility_profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM {
+            ((input.scan_code as isize) << 16) | 0xC0000001u32 as isize
         } else {
             build_key_up_lparam(input.scan_code)
         }
@@ -701,12 +725,64 @@ mod windows_input {
         if sent == 0 {
             let error = std::io::Error::last_os_error();
             return Err(format!(
-                "Failed to post target-window key {key_state} message. hwnd: {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; last OS error: {error}",
-                input.hwnd_text, input.key, input.virtual_key, input.scan_code, input.method
+                "Failed to post target-window key {key_state} message. hwnd: {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; profile: {}; last OS error: {error}",
+                input.hwnd_text,
+                input.key,
+                input.virtual_key,
+                input.scan_code,
+                input.method,
+                input.compatibility_profile
             ));
         }
 
         Ok(())
+    }
+
+    fn activate_target_window_for_profile(
+        input: &WindowMessageKeyInput,
+        activation_stage: &str,
+    ) -> Result<Option<isize>, String> {
+        if input.compatibility_profile != TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM {
+            return Ok(None);
+        }
+
+        send_target_window_activate(input, activation_stage)
+    }
+
+    fn send_target_window_activate(
+        input: &WindowMessageKeyInput,
+        activation_stage: &str,
+    ) -> Result<Option<isize>, String> {
+        match input.method.as_str() {
+            TARGET_MESSAGE_METHOD_POST => {
+                let sent = unsafe { PostMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+
+                if sent == 0 {
+                    let error = std::io::Error::last_os_error();
+                    return Err(format!(
+                        "Failed to post WM_ACTIVATE to target window. hwnd: {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; profile: {}; stage: {}; last OS error: {error}",
+                        input.hwnd_text,
+                        input.key,
+                        input.virtual_key,
+                        input.scan_code,
+                        input.method,
+                        input.compatibility_profile,
+                        activation_stage
+                    ));
+                }
+
+                Ok(None)
+            }
+            TARGET_MESSAGE_METHOD_SEND => {
+                let result = unsafe { SendMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+
+                Ok(Some(result))
+            }
+            _ => Err(format!(
+                "Unsupported target window message method: {}. Supported methods: {}, {}.",
+                input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
+            )),
+        }
     }
 
     fn send_target_window_message(
