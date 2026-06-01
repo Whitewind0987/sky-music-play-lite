@@ -258,19 +258,27 @@ export function usePreviewPlayback({
   }
 
   function handleShuffleToggle() {
-    setIsShuffleEnabled((currentValue) => !currentValue);
+    setIsShuffleEnabled((currentValue) => {
+      const nextValue = !currentValue;
+
+      isShuffleEnabledRef.current = nextValue;
+      return nextValue;
+    });
   }
 
   function handleRepeatModeCycle() {
     setPlaybackMode((currentMode) => {
       if (currentMode === "sequence") {
+        playbackModeRef.current = "repeat-all";
         return "repeat-all";
       }
 
       if (currentMode === "repeat-all") {
+        playbackModeRef.current = "repeat-one";
         return "repeat-one";
       }
 
+      playbackModeRef.current = "sequence";
       return "sequence";
     });
   }

@@ -189,9 +189,9 @@ export const uiText = {
         finished: "已完成",
       },
       outputModes: {
-        preview: "预览播放",
-        experimentalForeground: "实验性前台播放",
-        experimentalTargetWindow: "实验性目标窗口播放",
+        preview: "预览",
+        experimentalForeground: "前台输入",
+        experimentalTargetWindow: "目标窗口",
       },
       realInputWarning: "将发送真实输入",
       controlsAria: "底部播放控制",
@@ -325,7 +325,7 @@ export const uiText = {
       experimentalForegroundModeDescription:
         "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
       experimentalForegroundWarning:
-        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。",
+        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。前台输入模式下，播放中点击本应用会让游戏失去前台。请优先在开始前调整倍速和间隔；播放中无焦点调整后续可通过全局快捷键支持。",
       experimentalForegroundStatusLabel: "前台播放",
       experimentalForegroundStates: {
         idle: "空闲",
@@ -525,9 +525,9 @@ export const uiText = {
         finished: "Finished",
       },
       outputModes: {
-        preview: "Preview Playback",
-        experimentalForeground: "Experimental Foreground Playback",
-        experimentalTargetWindow: "Experimental Target-Window Playback",
+        preview: "Preview",
+        experimentalForeground: "Foreground",
+        experimentalTargetWindow: "Target",
       },
       realInputWarning: "Real input will be sent",
       controlsAria: "Bottom playback controls",
@@ -670,7 +670,7 @@ export const uiText = {
       experimentalForegroundModeDescription:
         "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
       experimentalForegroundWarning:
-        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
+        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends. In foreground input mode, clicking this app during playback will move focus away from the game. Adjust speed and delay before starting; no-focus controls may be added later with global hotkeys.",
       experimentalForegroundStatusLabel: "Foreground playback",
       experimentalForegroundStates: {
         idle: "Idle",

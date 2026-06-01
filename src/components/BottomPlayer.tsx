@@ -217,9 +217,19 @@ export function BottomPlayer({
       <div className="bottom-player-body">
         <div className="bottom-player-score">
           <span className="bottom-player-label">{text.currentScore}</span>
-          <strong className="bottom-player-title">
-            {currentSong?.name ?? text.noScore}
-          </strong>
+          <div className="bottom-player-title-row">
+            <strong className="bottom-player-title">
+              {currentSong?.name ?? text.noScore}
+            </strong>
+            <span className="bottom-player-output-badge">
+              {outputModeLabel}
+            </span>
+            {isRealInputOutput ? (
+              <span className="bottom-player-real-input-badge">
+                {text.realInputWarning}
+              </span>
+            ) : null}
+          </div>
           <div className="bottom-player-meta-line">
             <span className="bottom-player-meta-item">
               {text.bpm}: {currentSong?.bpm ?? "--"}
@@ -230,18 +240,10 @@ export function BottomPlayer({
             <span className="bottom-player-meta-item">
               {text.state}: {text.states[playbackState]}
             </span>
-            <span className="bottom-player-meta-item">
-              {text.output}: {outputModeLabel}
-            </span>
             <span className="bottom-player-meta-item bottom-player-time">
               {formatPlaybackTime(progress.currentMs)} /{" "}
               {formatPlaybackTime(progress.totalMs)}
             </span>
-            {isRealInputOutput ? (
-              <span className="bottom-player-meta-item bottom-player-real-input">
-                {text.realInputWarning}
-              </span>
-            ) : null}
           </div>
         </div>
 

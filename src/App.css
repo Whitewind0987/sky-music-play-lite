@@ -1466,12 +1466,46 @@ button {
 }
 
 .bottom-player-title {
+  min-width: 0;
   overflow: hidden;
   color: #111827;
   font-size: 16px;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bottom-player-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bottom-player-output-badge,
+.bottom-player-real-input-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bottom-player-output-badge {
+  border: 1px solid #b8d4fb;
+  color: #1f5ea8;
+  background: #eef6ff;
+}
+
+.bottom-player-real-input-badge {
+  border: 1px solid #ffd08a;
+  color: #8a4d00;
+  background: #fff7e6;
 }
 
 .bottom-player-meta-line {
