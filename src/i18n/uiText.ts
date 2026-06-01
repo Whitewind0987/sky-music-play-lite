@@ -265,11 +265,11 @@ export const uiText = {
       experimentalPlaybackCommandFailed: "实验性播放发送失败：{error}",
       experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
       foregroundPlaybackCountdownStarted:
-        "前台播放倒计时已开始，请手动切换到目标窗口。",
+        "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
       foregroundPlaybackFocusReminder:
-        "请在倒计时结束前手动切换到游戏窗口或测试窗口。",
-      foregroundPlaybackStarted: "实验性前台播放已开始：{songName}。",
+        "实验性输入只会发送到当前前台窗口。请在倒计时结束前手动切换到游戏窗口。",
+      foregroundPlaybackStarted: "实验性前台播放已开始：{songName}。请保持游戏窗口处于前台。",
       foregroundPlaybackStopped: "实验性前台播放已停止。",
       foregroundPlaybackFinished: "实验性前台播放已完成。",
       foregroundPlaybackKeySendFailed: "实验性前台按键发送失败：{error}",
@@ -324,12 +324,12 @@ export const uiText = {
       experimentalPlaybackRunning: "发送中",
       experimentalTargetWindowMode: "目标窗口消息模式",
       experimentalTargetWindowModeDescription:
-        "目标窗口消息模式兼容性有限，部分游戏窗口可能会拒绝访问。",
+        "目标窗口消息模式兼容性有限。部分游戏窗口可能拒绝访问，且即使可用也可能仍需要游戏窗口处于前台。",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
-        "向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
+        "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
       experimentalForegroundWarning:
-        "实验性前台输入会向当前前台窗口发送模拟键盘输入。请在倒计时结束前手动切换到游戏窗口。请自行确认是否符合游戏规则。",
+        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。",
       experimentalForegroundPlay: "实验性前台播放",
       experimentalForegroundStop: "停止前台播放",
       experimentalForegroundStatusLabel: "前台播放",
@@ -612,13 +612,13 @@ export const uiText = {
         "Experimental playback command failed: {error}",
       experimentalInputModeSelected: "Experimental input mode selected: {mode}",
       foregroundPlaybackCountdownStarted:
-        "Foreground playback countdown started. Manually switch to the target window.",
+        "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
         "Foreground playback countdown cancelled.",
       foregroundPlaybackFocusReminder:
-        "Manually switch to the game or test window before the countdown ends.",
+        "Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
       foregroundPlaybackStarted:
-        "Experimental foreground playback started: {songName}.",
+        "Experimental foreground playback started: {songName}. Keep the game window foreground.",
       foregroundPlaybackStopped: "Experimental foreground playback stopped.",
       foregroundPlaybackFinished: "Experimental foreground playback finished.",
       foregroundPlaybackKeySendFailed:
@@ -679,12 +679,12 @@ export const uiText = {
       experimentalPlaybackRunning: "Sending",
       experimentalTargetWindowMode: "Target Window Message Mode",
       experimentalTargetWindowModeDescription:
-        "Target-window message mode has limited compatibility. Some game windows may deny access.",
+        "Target-window message mode has limited compatibility. Some game windows may deny access, and even when it works, the game window may still need to be foreground.",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
-        "Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
+        "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
       experimentalForegroundWarning:
-        "Experimental foreground input sends simulated keyboard input to the current foreground window. Manually switch to the game window before the countdown ends. Please make sure your usage follows game rules.",
+        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
       experimentalForegroundPlay: "Experimental Foreground Play",
       experimentalForegroundStop: "Stop Foreground Playback",
       experimentalForegroundStatusLabel: "Foreground playback",
