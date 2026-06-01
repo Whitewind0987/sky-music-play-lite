@@ -26,15 +26,21 @@ export function decidePlaybackFinish({
   currentSongIndex,
   isShuffleEnabled,
   playbackMode,
+  queuedSongIndex = null,
   songCount,
 }: {
   currentSongIndex: number;
   isShuffleEnabled: boolean;
   playbackMode: PlaybackMode;
+  queuedSongIndex?: number | null;
   songCount: number;
 }): PlaybackFinishDecision {
   if (playbackMode === "repeat-one") {
     return { type: "repeat-current" };
+  }
+
+  if (queuedSongIndex !== null) {
+    return { nextSongIndex: queuedSongIndex, type: "play-next" };
   }
 
   if (playbackMode !== "repeat-all") {

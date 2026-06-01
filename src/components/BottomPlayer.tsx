@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
+import type { PlaybackQueueItem } from "../types/playbackQueue";
 import {
   normalizeNoteIntervalDelay,
   normalizePlaybackSpeed,
@@ -12,6 +13,7 @@ import {
   type PlaybackSpeed,
 } from "../types/playbackOptions";
 import type { Song } from "../types/score";
+import { QueuePanel } from "./QueuePanel";
 import {
   PauseIcon,
   PlayIcon,
@@ -32,6 +34,9 @@ type BottomPlayerProps = {
   onPause: () => void;
   onPlay: () => void;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
+  onQueueClear: () => void;
+  onQueueItemRemove: (queueItemId: string) => void;
+  onQueueToggle: () => void;
   onRepeatModeCycle: () => void;
   onResume: () => void;
   onShuffleToggle: () => void;
@@ -41,6 +46,9 @@ type BottomPlayerProps = {
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
   progress: PreviewPlaybackProgress;
+  queueItems: PlaybackQueueItem[];
+  queueOpen: boolean;
+  songs: Song[];
   text: UiText["bottomPlayer"];
 };
 
@@ -165,6 +173,9 @@ export function BottomPlayer({
   onPause,
   onPlay,
   onPlaybackSpeedChange,
+  onQueueClear,
+  onQueueItemRemove,
+  onQueueToggle,
   onRepeatModeCycle,
   onResume,
   onShuffleToggle,
@@ -174,6 +185,9 @@ export function BottomPlayer({
   playbackState,
   playbackSpeed,
   progress,
+  queueItems,
+  queueOpen,
+  songs,
   text,
 }: BottomPlayerProps) {
   const canPause = playbackState === "playing";
@@ -200,6 +214,16 @@ export function BottomPlayer({
 
   return (
     <footer className="bottom-player" aria-label={text.aria}>
+      {queueOpen ? (
+        <QueuePanel
+          onClearQueue={onQueueClear}
+          onRemoveQueueItem={onQueueItemRemove}
+          queueItems={queueItems}
+          songs={songs}
+          text={text}
+        />
+      ) : null}
+
       <div
         className="bottom-player-progress-track"
         aria-label={text.progress}
@@ -328,12 +352,20 @@ export function BottomPlayer({
           </div>
 
           <button
-            className="player-icon-button player-icon-button-secondary"
+            className={`player-icon-button player-icon-button-secondary bottom-player-queue-button${
+              queueOpen ? " is-active" : ""
+            }`}
             type="button"
             aria-label={text.queue}
-            disabled
+            aria-pressed={queueOpen}
+            onClick={onQueueToggle}
           >
             <QueueIcon />
+            {queueItems.length > 0 ? (
+              <span className="bottom-player-queue-count">
+                {queueItems.length}
+              </span>
+            ) : null}
             <span className="visually-hidden">{text.queue}</span>
           </button>
         </div>

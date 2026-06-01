@@ -13,6 +13,7 @@ import { sendForegroundKeyGroup } from "../lib/tauriApi";
 import type { ForegroundPlaybackState } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
 import type { PlaybackState } from "../types/playback";
+import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type {
   NoteIntervalDelayMs,
   PlaybackMode,
@@ -22,6 +23,7 @@ import type { Note, Song } from "../types/score";
 
 type UseForegroundPlaybackOptions = {
   appendLog: (message: string) => void;
+  consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
   currentSong: Song | null;
   experimentalInputEnabled: boolean;
   importedSongs: Song[];
@@ -42,6 +44,7 @@ const COUNTDOWN_TICK_MS = 1000;
 
 export function useForegroundPlayback({
   appendLog,
+  consumeNextQueueItem,
   currentSong,
   experimentalInputEnabled,
   importedSongs,
@@ -314,10 +317,15 @@ export function useForegroundPlayback({
     controllerRef.current = null;
 
     const currentImportedSongs = importedSongsRef.current;
+    const queuedItem =
+      playbackModeRef.current === "repeat-one"
+        ? null
+        : consumeNextQueueItem(currentImportedSongs.length);
     const finishDecision = decidePlaybackFinish({
       currentSongIndex: songIndex,
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
+      queuedSongIndex: queuedItem?.songIndex ?? null,
       songCount: currentImportedSongs.length,
     });
 
@@ -331,9 +339,13 @@ export function useForegroundPlayback({
 
     if (finishDecision.type === "play-next") {
       const nextSong = currentImportedSongs[finishDecision.nextSongIndex] ?? song;
+      const logTemplate =
+        queuedItem === null
+          ? text.logs.repeatAllTriggered
+          : text.logs.queueNextTriggered;
 
       appendLog(
-        formatText(text.logs.repeatAllTriggered, {
+        formatText(logTemplate, {
           songName: nextSong.name,
         }),
       );

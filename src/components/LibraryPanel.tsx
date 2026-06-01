@@ -5,8 +5,10 @@ import type { Song } from "../types/score";
 
 type LibraryPanelProps = {
   importError: string;
+  onAddToQueue: (songIndex: number) => void;
   onImportFiles: (files: File[]) => void;
   onPlaySong: (songIndex: number) => void;
+  onPlaySongNext: (songIndex: number) => void;
   onSelectSong: (songIndex: number) => void;
   selectedCategory: LibraryCategoryId;
   selectedSongIndex: number | null;
@@ -106,7 +108,9 @@ function LibraryImportArea({
 }
 
 function LibrarySongTable({
+  onAddToQueue,
   onPlaySong,
+  onPlaySongNext,
   onSelectSong,
   selectedSongIndex,
   songs,
@@ -173,18 +177,22 @@ function LibrarySongTable({
                   <button
                     className="library-title-icon-button"
                     type="button"
-                    aria-disabled="true"
                     aria-label={text.playNextAction}
-                    onClick={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onPlaySongNext(index);
+                    }}
                   >
                     <LibraryPlayNextIcon />
                   </button>
                   <button
                     className="library-title-icon-button"
                     type="button"
-                    aria-disabled="true"
-                    aria-label={text.addToPlaylistAction}
-                    onClick={(event) => event.stopPropagation()}
+                    aria-label={text.addToQueueAction}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onAddToQueue(index);
+                    }}
                   >
                     <LibraryAddToPlaylistIcon />
                   </button>
@@ -206,8 +214,10 @@ function LibrarySongTable({
 
 export function LibraryPanel({
   importError,
+  onAddToQueue,
   onImportFiles,
   onPlaySong,
+  onPlaySongNext,
   onSelectSong,
   selectedCategory,
   selectedSongIndex,
@@ -234,7 +244,9 @@ export function LibraryPanel({
         </div>
         {isLocalImports ? (
           <LibrarySongTable
+            onAddToQueue={onAddToQueue}
             onPlaySong={onPlaySong}
+            onPlaySongNext={onPlaySongNext}
             onSelectSong={onSelectSong}
             selectedSongIndex={selectedSongIndex}
             songs={songs}

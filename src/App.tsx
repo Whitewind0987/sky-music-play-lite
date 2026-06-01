@@ -16,6 +16,7 @@ import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
 import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
+import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
 import {
@@ -44,8 +45,14 @@ function App() {
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
     text,
   });
+  const playbackQueue = usePlaybackQueue({
+    appendLog,
+    importedSongsRef: scoreLibrary.importedSongsRef,
+    text: text.logs,
+  });
   const previewPlayback = usePreviewPlayback({
     appendLog,
+    consumeNextQueueItem: playbackQueue.consumeNextQueueItem,
     currentSelectedSong: scoreLibrary.currentSelectedSong,
     importedSongs: scoreLibrary.importedSongs,
     importedSongsRef: scoreLibrary.importedSongsRef,
@@ -55,6 +62,7 @@ function App() {
   });
   const experimentalInput = useExperimentalInput({
     appendLog,
+    consumeNextQueueItem: playbackQueue.consumeNextQueueItem,
     currentSong: scoreLibrary.currentSelectedSong,
     importedSongs: scoreLibrary.importedSongs,
     importedSongsRef: scoreLibrary.importedSongsRef,
@@ -73,6 +81,7 @@ function App() {
     previewPlayback,
     text: text.bottomPlayer,
   });
+  const [queueOpen, setQueueOpen] = useState(false);
 
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
@@ -136,8 +145,10 @@ function App() {
       return (
         <LibraryPanel
           importError={scoreLibrary.importError}
+          onAddToQueue={playbackQueue.addToQueue}
           onImportFiles={scoreLibrary.handleImportScoreFiles}
           onPlaySong={previewPlayback.handlePlayImportedSong}
+          onPlaySongNext={playbackQueue.playNext}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
           selectedSongIndex={scoreLibrary.selectedSongIndex}
@@ -260,6 +271,9 @@ function App() {
         onPause={playbackOutput.onPause}
         onPlay={playbackOutput.onPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
+        onQueueClear={playbackQueue.clearQueue}
+        onQueueItemRemove={playbackQueue.removeQueueItem}
+        onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
         onResume={playbackOutput.onResume}
         onShuffleToggle={playbackOutput.onShuffleToggle}
@@ -269,6 +283,9 @@ function App() {
         playbackState={playbackOutput.playbackState}
         playbackSpeed={playbackOutput.playbackSpeed}
         progress={playbackOutput.progress}
+        queueItems={playbackQueue.queueItems}
+        queueOpen={queueOpen}
+        songs={scoreLibrary.importedSongs}
         text={text.bottomPlayer}
       />
     </main>
