@@ -116,7 +116,24 @@ export function useScoreLibrary({
     setSelectedLibraryCategory(category);
   }
 
+  function applyScoreLibrary({
+    importedSongs: nextImportedSongs,
+    selectedLibraryCategory: nextSelectedLibraryCategory,
+    selectedSongIndex: nextSelectedSongIndex,
+  }: {
+    importedSongs: Song[];
+    selectedLibraryCategory: LibraryCategoryId;
+    selectedSongIndex: number | null;
+  }) {
+    importedSongsRef.current = nextImportedSongs;
+    setImportedSongs(nextImportedSongs);
+    setSelectedLibraryCategory(nextSelectedLibraryCategory);
+    setSelectedSongIndex(nextSelectedSongIndex);
+    setImportError("");
+  }
+
   return {
+    applyScoreLibrary,
     currentSelectedSong,
     handleImportScoreFiles,
     handleLibraryCategoryChange,

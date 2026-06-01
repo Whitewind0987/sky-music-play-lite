@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { PersistedAppData } from "../types/appData";
 import type {
   CandidateWindow,
   TargetWindowCompatibilityProfile,
@@ -17,6 +18,14 @@ export function dryRunPlayback(
   keyMapping: KeyMapping,
 ): Promise<DryRunResult> {
   return invoke<DryRunResult>("dry_run_playback", { keyMapping, notes });
+}
+
+export function loadAppData(): Promise<unknown | null> {
+  return invoke<unknown | null>("load_app_data");
+}
+
+export function saveAppData(appData: PersistedAppData): Promise<string> {
+  return invoke<string>("save_app_data", { appData });
 }
 
 export function listCandidateWindows(): Promise<CandidateWindow[]> {

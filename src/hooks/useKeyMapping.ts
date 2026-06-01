@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   defaultKeyMapping,
+  type KeyMapping,
   type SkyKeyName,
 } from "../types/keyMapping";
 
@@ -68,7 +69,13 @@ export function useKeyMapping() {
     setListeningSkyKey(skyKey);
   }
 
+  function applyKeyMapping(nextKeyMapping: KeyMapping) {
+    setKeyMapping(nextKeyMapping);
+    setListeningSkyKey(null);
+  }
+
   return {
+    applyKeyMapping,
     handleStartKeyMappingListen,
     keyMapping,
     listeningSkyKey,

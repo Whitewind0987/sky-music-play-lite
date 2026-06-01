@@ -362,6 +362,41 @@ export function useExperimentalInput({
     setTargetWindowKeyHoldMs(clampedKeyHoldMs);
   }
 
+  function applyExperimentalInputPreferences(
+    preferences:
+      | {
+          experimentalInputMode: ExperimentalInputMode;
+          targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
+          targetWindowKeyHoldMs: number;
+          targetWindowMessageMethod: TargetWindowMessageMethod;
+        }
+      | undefined,
+  ) {
+    if (!preferences) {
+      setExperimentalInputEnabled(false);
+      setSelectedWindowHwnd(null);
+      return;
+    }
+
+    const clampedKeyHoldMs = clampTargetWindowKeyHoldMs(
+      preferences.targetWindowKeyHoldMs,
+    );
+
+    targetWindowMessageMethodRef.current =
+      preferences.targetWindowMessageMethod;
+    targetWindowCompatibilityProfileRef.current =
+      preferences.targetWindowCompatibilityProfile;
+    targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
+    setExperimentalInputEnabled(false);
+    setSelectedWindowHwnd(null);
+    setExperimentalInputMode(preferences.experimentalInputMode);
+    setTargetWindowMessageMethod(preferences.targetWindowMessageMethod);
+    setTargetWindowCompatibilityProfile(
+      preferences.targetWindowCompatibilityProfile,
+    );
+    setTargetWindowKeyHoldMs(clampedKeyHoldMs);
+  }
+
   function handlePauseExperimentalPlayback() {
     if (experimentalPlaybackState !== "playing") {
       return;
@@ -689,6 +724,7 @@ export function useExperimentalInput({
   }
 
   return {
+    applyExperimentalInputPreferences,
     canStartExperimentalPlayback,
     canStopExperimentalPlayback,
     candidateWindows,
