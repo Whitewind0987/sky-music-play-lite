@@ -5,3 +5,13 @@ export type CandidateWindow = {
   process_name: string | null;
 };
 
+export type ExperimentalInputMode = "target-window-message" | "foreground";
+
+export type ForegroundPlaybackState =
+  | "idle"
+  | "countdown"
+  | "playing"
+  | "stopped"
+  | "finished"
+  | "error";
+

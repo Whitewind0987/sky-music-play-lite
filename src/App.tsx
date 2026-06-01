@@ -54,7 +54,11 @@ function App() {
   });
   const experimentalInput = useExperimentalInput({
     appendLog,
+    currentSong: scoreLibrary.currentSelectedSong,
     keyMapping,
+    noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
+    playbackSpeed: previewPlayback.playbackSpeed,
+    stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
   });
 
@@ -167,19 +171,44 @@ function App() {
             candidateWindows: experimentalInput.candidateWindows,
             experimentalInputEnabled:
               experimentalInput.experimentalInputEnabled,
+            experimentalPlaybackProgress:
+              experimentalInput.experimentalPlaybackProgress,
             isDetectingSkyWindow: experimentalInput.isDetectingSkyWindow,
+            isExperimentalPlaybackRunning:
+              experimentalInput.isExperimentalPlaybackRunning,
             isRefreshingWindows: experimentalInput.isRefreshingWindows,
             isSendingTestKey: experimentalInput.isSendingTestKey,
             lastError: experimentalInput.lastError,
+            canStartExperimentalPlayback:
+              experimentalInput.canStartExperimentalPlayback,
+            canStartForegroundPlayback:
+              experimentalInput.canStartForegroundPlayback,
+            canStopExperimentalPlayback:
+              experimentalInput.canStopExperimentalPlayback,
+            canStopForegroundPlayback:
+              experimentalInput.canStopForegroundPlayback,
             onDetectSkyWindow: experimentalInput.handleDetectSkyWindow,
             onExperimentalInputEnabledChange:
               experimentalInput.setExperimentalInputEnabled,
+            onExperimentalInputModeChange:
+              experimentalInput.handleExperimentalInputModeChange,
+            onStartForegroundPlayback:
+              experimentalInput.handleStartForegroundPlayback,
+            onStartExperimentalPlayback:
+              experimentalInput.handleStartExperimentalPlayback,
             onRefreshWindows: experimentalInput.handleRefreshWindows,
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
             onSendTestKey: experimentalInput.handleSendTestKey,
+            onStopExperimentalPlayback:
+              experimentalInput.handleStopExperimentalPlayback,
+            onStopForegroundPlayback:
+              experimentalInput.handleStopForegroundPlayback,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
             testMappedKey: experimentalInput.testMappedKey,
             testSkyKey: experimentalInput.testSkyKey,
+            experimentalInputMode: experimentalInput.experimentalInputMode,
+            foregroundCountdown: experimentalInput.foregroundCountdown,
+            foregroundPlaybackState: experimentalInput.foregroundPlaybackState,
           }}
           keyMapping={keyMapping}
           language={language}

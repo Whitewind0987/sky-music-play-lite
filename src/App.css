@@ -973,6 +973,40 @@ button {
   gap: 8px;
 }
 
+.experimental-mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.experimental-mode-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  color: #52616f;
+  background: #fbfcfd;
+  cursor: pointer;
+  text-align: left;
+}
+
+.experimental-mode-card strong {
+  color: #1f2933;
+}
+
+.experimental-mode-card span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.experimental-mode-card:hover,
+.experimental-mode-card.is-selected {
+  border-color: #8bbcf4;
+  background: #eef6ff;
+}
+
 .experimental-toggle {
   width: 42px;
   height: 24px;
@@ -1001,6 +1035,11 @@ button {
 
 .experimental-target-summary strong {
   color: #1f2933;
+}
+
+.experimental-playback-controls {
+  display: grid;
+  gap: 10px;
 }
 
 .experimental-window-list {
