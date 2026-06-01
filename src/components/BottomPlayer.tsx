@@ -23,8 +23,10 @@ import {
 } from "./PlayerIcons";
 
 type BottomPlayerProps = {
+  canPlay: boolean;
   currentSong: Song | null;
   isShuffleEnabled: boolean;
+  isRealInputOutput: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
@@ -34,6 +36,7 @@ type BottomPlayerProps = {
   onResume: () => void;
   onShuffleToggle: () => void;
   onStop: () => void;
+  outputModeLabel: string;
   playbackMode: PlaybackMode;
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
@@ -153,8 +156,10 @@ function PlayerStepper({
 }
 
 export function BottomPlayer({
+  canPlay,
   currentSong,
   isShuffleEnabled,
+  isRealInputOutput,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onPause,
@@ -164,15 +169,13 @@ export function BottomPlayer({
   onResume,
   onShuffleToggle,
   onStop,
+  outputModeLabel,
   playbackMode,
   playbackState,
   playbackSpeed,
   progress,
   text,
 }: BottomPlayerProps) {
-  const hasSong = currentSong !== null;
-  const canPlay =
-    hasSong && (playbackState === "idle" || playbackState === "finished");
   const canPause = playbackState === "playing";
   const canResume = playbackState === "paused";
   const canStop = playbackState === "playing" || playbackState === "paused";
@@ -214,9 +217,19 @@ export function BottomPlayer({
       <div className="bottom-player-body">
         <div className="bottom-player-score">
           <span className="bottom-player-label">{text.currentScore}</span>
-          <strong className="bottom-player-title">
-            {currentSong?.name ?? text.noScore}
-          </strong>
+          <div className="bottom-player-title-row">
+            <strong className="bottom-player-title">
+              {currentSong?.name ?? text.noScore}
+            </strong>
+            <span className="bottom-player-output-badge">
+              {outputModeLabel}
+            </span>
+            {isRealInputOutput ? (
+              <span className="bottom-player-real-input-badge">
+                {text.realInputWarning}
+              </span>
+            ) : null}
+          </div>
           <div className="bottom-player-meta-line">
             <span className="bottom-player-meta-item">
               {text.bpm}: {currentSong?.bpm ?? "--"}

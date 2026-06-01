@@ -1,24 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
+import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
+  getAdjustedPreviewDurationMs,
   schedulePreviewPlayback,
   type PreviewPlaybackController,
   type PreviewPlaybackProgress,
 } from "../lib/playbackScheduler";
 import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
 import {
+  activateTargetWindowMessage,
   findSkyWindow,
   listCandidateWindows,
-  sendMappedKeyToWindow,
+  sendKeyGroupToWindowMessage,
 } from "../lib/tauriApi";
 import type {
   CandidateWindow,
   ExperimentalInputMode,
+  TargetWindowCompatibilityProfile,
+  TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
+import type { PlaybackState } from "../types/playback";
 import type {
   NoteIntervalDelayMs,
+  PlaybackMode,
   PlaybackSpeed,
 } from "../types/playbackOptions";
 import type { Note, Song } from "../types/score";
@@ -27,25 +34,54 @@ import { useForegroundPlayback } from "./useForegroundPlayback";
 type UseExperimentalInputOptions = {
   appendLog: (message: string) => void;
   currentSong: Song | null;
+  importedSongs: Song[];
+  importedSongsRef: React.MutableRefObject<Song[]>;
+  isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   noteIntervalDelayMs: NoteIntervalDelayMs;
+  playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
+  selectedSongIndex: number | null;
+  setSelectedSongIndex: (songIndex: number | null) => void;
   stopPreviewPlayback: () => void;
   text: UiText;
 };
 
+const defaultTargetWindowCompatibilityProfile: TargetWindowCompatibilityProfile =
+  "standard";
+const defaultTargetWindowKeyHoldMs = 30;
+const targetWindowKeyHoldMinMs = 10;
+const targetWindowKeyHoldMaxMs = 200;
+
 export function useExperimentalInput({
   appendLog,
   currentSong,
+  importedSongs,
+  importedSongsRef,
+  isShuffleEnabled,
   keyMapping,
   noteIntervalDelayMs,
+  playbackMode,
   playbackSpeed,
+  selectedSongIndex,
+  setSelectedSongIndex,
   stopPreviewPlayback,
   text,
 }: UseExperimentalInputOptions) {
   const experimentalPlaybackControllerRef =
     useRef<PreviewPlaybackController | null>(null);
   const experimentalPlaybackRunIdRef = useRef(0);
+  const isShuffleEnabledRef = useRef(isShuffleEnabled);
+  const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
+  const playbackModeRef = useRef<PlaybackMode>(playbackMode);
+  const playbackSpeedRef = useRef(playbackSpeed);
+  const targetWindowMessageMethodRef =
+    useRef<TargetWindowMessageMethod>("post-message");
+  const targetWindowCompatibilityProfileRef =
+    useRef<TargetWindowCompatibilityProfile>(
+      defaultTargetWindowCompatibilityProfile,
+    );
+  const targetWindowKeyHoldMsRef = useRef(defaultTargetWindowKeyHoldMs);
   const [candidateWindows, setCandidateWindows] = useState<CandidateWindow[]>(
     [],
   );
@@ -56,10 +92,25 @@ export function useExperimentalInput({
     useState(false);
   const [experimentalInputMode, setExperimentalInputMode] =
     useState<ExperimentalInputMode>("target-window-message");
+  const [targetWindowMessageMethod, setTargetWindowMessageMethod] =
+    useState<TargetWindowMessageMethod>("post-message");
+  const [
+    targetWindowCompatibilityProfile,
+    setTargetWindowCompatibilityProfile,
+  ] = useState<TargetWindowCompatibilityProfile>(
+    defaultTargetWindowCompatibilityProfile,
+  );
+  const [targetWindowKeyHoldMs, setTargetWindowKeyHoldMs] = useState(
+    defaultTargetWindowKeyHoldMs,
+  );
   const [isRefreshingWindows, setIsRefreshingWindows] = useState(false);
   const [isDetectingSkyWindow, setIsDetectingSkyWindow] = useState(false);
-  const [isExperimentalPlaybackRunning, setIsExperimentalPlaybackRunning] =
-    useState(false);
+  const [
+    isStartingExperimentalPlayback,
+    setIsStartingExperimentalPlayback,
+  ] = useState(false);
+  const [experimentalPlaybackState, setExperimentalPlaybackState] =
+    useState<PlaybackState>("idle");
   const [experimentalPlaybackProgress, setExperimentalPlaybackProgress] =
     useState<PreviewPlaybackProgress>({
       currentMs: 0,
@@ -80,19 +131,30 @@ export function useExperimentalInput({
     selectedWindowHwnd !== null &&
     currentSong !== null &&
     currentSong.songNotes.length > 0 &&
-    !isExperimentalPlaybackRunning;
-  const canStopExperimentalPlayback = isExperimentalPlaybackRunning;
+    !isStartingExperimentalPlayback &&
+    experimentalPlaybackState !== "playing" &&
+    experimentalPlaybackState !== "paused";
+  const canStopExperimentalPlayback =
+    isStartingExperimentalPlayback ||
+    experimentalPlaybackState === "playing" ||
+    experimentalPlaybackState === "paused";
   const foregroundPlayback = useForegroundPlayback({
     appendLog,
     currentSong,
     experimentalInputEnabled,
+    importedSongs,
+    importedSongsRef,
+    isShuffleEnabled,
     keyMapping,
     noteIntervalDelayMs,
     onBeforeStart: () => {
       stopPreviewPlayback();
       stopExperimentalPlayback({ logStopped: false });
     },
+    playbackMode,
     playbackSpeed,
+    selectedSongIndex,
+    setSelectedSongIndex,
     text,
   });
 
@@ -101,6 +163,30 @@ export function useExperimentalInput({
       stopExperimentalPlayback({ logStopped: false });
     };
   }, []);
+
+  useEffect(() => {
+    isShuffleEnabledRef.current = isShuffleEnabled;
+  }, [isShuffleEnabled]);
+
+  useEffect(() => {
+    playbackModeRef.current = playbackMode;
+  }, [playbackMode]);
+
+  useEffect(() => {
+    noteIntervalDelayMsRef.current = noteIntervalDelayMs;
+    experimentalPlaybackControllerRef.current?.updateOptions({
+      noteIntervalDelayMs,
+      playbackSpeed: playbackSpeedRef.current,
+    });
+  }, [noteIntervalDelayMs]);
+
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+    experimentalPlaybackControllerRef.current?.updateOptions({
+      noteIntervalDelayMs: noteIntervalDelayMsRef.current,
+      playbackSpeed,
+    });
+  }, [playbackSpeed]);
 
   async function handleRefreshWindows() {
     setIsRefreshingWindows(true);
@@ -209,9 +295,10 @@ export function useExperimentalInput({
     logStopped: boolean;
   }) {
     experimentalPlaybackRunIdRef.current += 1;
+    setIsStartingExperimentalPlayback(false);
     experimentalPlaybackControllerRef.current?.stop();
     experimentalPlaybackControllerRef.current = null;
-    setIsExperimentalPlaybackRunning(false);
+    setExperimentalPlaybackState("idle");
     setExperimentalPlaybackProgress({
       currentMs: 0,
       percent: 0,
@@ -231,11 +318,71 @@ export function useExperimentalInput({
     stopExperimentalPlayback({ logStopped: true });
   }
 
-  function handleStartExperimentalPlayback() {
+  function handleTargetWindowMessageMethodChange(
+    method: TargetWindowMessageMethod,
+  ) {
+    if (method === targetWindowMessageMethodRef.current) {
+      return;
+    }
+
+    targetWindowMessageMethodRef.current = method;
+    setTargetWindowMessageMethod(method);
+    appendLog(
+      formatText(text.logs.experimentalTargetWindowMethodSelected, {
+        method: text.settings.experimentalTargetWindowMessageMethods[method],
+      }),
+    );
+  }
+
+  function handleTargetWindowCompatibilityProfileChange(
+    profile: TargetWindowCompatibilityProfile,
+  ) {
+    if (profile === targetWindowCompatibilityProfileRef.current) {
+      return;
+    }
+
+    targetWindowCompatibilityProfileRef.current = profile;
+    setTargetWindowCompatibilityProfile(profile);
+    appendLog(
+      formatText(text.logs.experimentalTargetWindowProfileSelected, {
+        profile:
+          text.settings.experimentalTargetWindowCompatibilityProfiles[profile],
+      }),
+    );
+  }
+
+  function handleTargetWindowKeyHoldMsChange(nextKeyHoldMs: number) {
+    const clampedKeyHoldMs = clampTargetWindowKeyHoldMs(nextKeyHoldMs);
+
+    targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
+    setTargetWindowKeyHoldMs(clampedKeyHoldMs);
+  }
+
+  function handlePauseExperimentalPlayback() {
+    if (experimentalPlaybackState !== "playing") {
+      return;
+    }
+
+    experimentalPlaybackControllerRef.current?.pause();
+    setExperimentalPlaybackState("paused");
+    appendLog(text.logs.experimentalPlaybackPaused);
+  }
+
+  function handleResumeExperimentalPlayback() {
+    if (experimentalPlaybackState !== "paused") {
+      return;
+    }
+
+    experimentalPlaybackControllerRef.current?.resume();
+    setExperimentalPlaybackState("playing");
+    appendLog(text.logs.experimentalPlaybackResumed);
+  }
+
+  async function handleStartExperimentalPlayback() {
     if (
       !canStartExperimentalPlayback ||
       selectedWindowHwnd === null ||
-      currentSong === null
+      selectedSongIndex === null
     ) {
       return;
     }
@@ -246,21 +393,169 @@ export function useExperimentalInput({
 
     const runId = experimentalPlaybackRunIdRef.current + 1;
     const targetWindowHwnd = selectedWindowHwnd;
-    const targetWindowTitle =
-      selectedWindow?.title || selectedWindow?.class_name || targetWindowHwnd;
+    const method = targetWindowMessageMethodRef.current;
+    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
 
     experimentalPlaybackRunIdRef.current = runId;
-    setIsExperimentalPlaybackRunning(true);
+    setIsStartingExperimentalPlayback(true);
     setLastError(null);
+
+    const preflightSucceeded = await runTargetWindowActivationPreflight({
+      compatibilityProfile,
+      method,
+      runId,
+      targetWindowHwnd,
+    });
+
+    if (experimentalPlaybackRunIdRef.current !== runId) {
+      return;
+    }
+
+    setIsStartingExperimentalPlayback(false);
+
+    if (!preflightSucceeded) {
+      return;
+    }
+
+    startExperimentalPlaybackForSong(selectedSongIndex);
+  }
+
+  async function runTargetWindowActivationPreflight({
+    compatibilityProfile,
+    method,
+    runId,
+    targetWindowHwnd,
+  }: {
+    compatibilityProfile: TargetWindowCompatibilityProfile;
+    method: TargetWindowMessageMethod;
+    runId: number;
+    targetWindowHwnd: string;
+  }) {
+    if (!shouldRunTargetWindowActivationPreflight(compatibilityProfile)) {
+      return true;
+    }
+
+    const methodLabel = text.settings.experimentalTargetWindowMessageMethods[method];
+    const profileLabel =
+      text.settings.experimentalTargetWindowCompatibilityProfiles[
+        compatibilityProfile
+      ];
+
+    appendLog(
+      formatText(text.logs.experimentalTargetWindowActivationPreflightStarted, {
+        method: methodLabel,
+        profile: profileLabel,
+        targetHwnd: targetWindowHwnd,
+      }),
+    );
+
+    try {
+      await activateTargetWindowMessage(targetWindowHwnd, method);
+
+      if (experimentalPlaybackRunIdRef.current !== runId) {
+        return false;
+      }
+
+      appendLog(
+        formatText(
+          text.logs.experimentalTargetWindowActivationPreflightSucceeded,
+          {
+            method: methodLabel,
+            profile: profileLabel,
+            targetHwnd: targetWindowHwnd,
+          },
+        ),
+      );
+
+      return true;
+    } catch (error) {
+      if (experimentalPlaybackRunIdRef.current !== runId) {
+        return false;
+      }
+
+      const errorMessage = String(error);
+
+      setLastError(errorMessage);
+      appendLog(
+        formatText(text.logs.experimentalTargetWindowActivationPreflightFailed, {
+          error: errorMessage,
+          method: methodLabel,
+          profile: profileLabel,
+          targetHwnd: targetWindowHwnd,
+        }),
+      );
+      stopExperimentalPlayback({ logStopped: false });
+
+      return false;
+    }
+  }
+
+  function startExperimentalPlaybackForSong(songIndex: number) {
+    if (selectedWindowHwnd === null) {
+      return;
+    }
+
+    const song = importedSongsRef.current[songIndex] ?? importedSongs[songIndex];
+
+    if (!song) {
+      appendLog(text.logs.noSelectedScore);
+      return;
+    }
+
+    setSelectedSongIndex(songIndex);
+
+    if (song.songNotes.length === 0) {
+      stopExperimentalPlayback({ logStopped: false });
+      setExperimentalPlaybackState("finished");
+      appendLog(text.logs.experimentalPlaybackFinished);
+      return;
+    }
+
+    const runId = experimentalPlaybackRunIdRef.current + 1;
+    const targetWindowHwnd = selectedWindowHwnd;
+    const targetWindowTitle =
+      selectedWindow?.title || selectedWindow?.class_name || targetWindowHwnd;
+    const method = targetWindowMessageMethodRef.current;
+    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+    const keyHoldMs = targetWindowKeyHoldMsRef.current;
+    const grouped =
+      isGroupedTargetWindowProfile(compatibilityProfile)
+        ? text.logs.experimentalPlaybackGroupedYes
+        : text.logs.experimentalPlaybackGroupedNo;
+    const activationNotice =
+      compatibilityProfile === "legacy-activate-scan-lparam"
+        ? text.logs.experimentalPlaybackLegacyActivationEnabled
+        : "";
+
+    experimentalPlaybackRunIdRef.current = runId;
+    setExperimentalPlaybackState("playing");
+    setLastError(null);
+    setExperimentalPlaybackProgress({
+      currentMs: 0,
+      percent: 0,
+      totalMs: getAdjustedPreviewDurationMs(song.songNotes, {
+        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
+        playbackSpeed: playbackSpeedRef.current,
+      }),
+    });
     appendLog(
       formatText(text.logs.experimentalPlaybackStarted, {
-        songName: currentSong.name,
+        grouped,
+        holdMs: keyHoldMs,
+        activationNotice,
+        method: text.settings.experimentalTargetWindowMessageMethods[method],
+        profile:
+          text.settings.experimentalTargetWindowCompatibilityProfiles[
+            compatibilityProfile
+          ],
+        songName: song.name,
         target: targetWindowTitle,
+        targetHwnd: targetWindowHwnd,
       }),
     );
 
     experimentalPlaybackControllerRef.current = schedulePreviewPlayback(
-      currentSong.songNotes,
+      song.songNotes,
       (noteGroup) => {
         void sendExperimentalNoteGroup({
           noteGroup,
@@ -273,16 +568,49 @@ export function useExperimentalInput({
           return;
         }
 
-        experimentalPlaybackControllerRef.current = null;
-        setIsExperimentalPlaybackRunning(false);
-        appendLog(text.logs.experimentalPlaybackFinished);
+        handleExperimentalPlaybackFinished(songIndex, song);
       },
       {
-        noteIntervalDelayMs,
+        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         onProgress: setExperimentalPlaybackProgress,
-        playbackSpeed,
+        playbackSpeed: playbackSpeedRef.current,
       },
     );
+  }
+
+  function handleExperimentalPlaybackFinished(songIndex: number, song: Song) {
+    experimentalPlaybackControllerRef.current = null;
+
+    const currentImportedSongs = importedSongsRef.current;
+    const finishDecision = decidePlaybackFinish({
+      currentSongIndex: songIndex,
+      isShuffleEnabled: isShuffleEnabledRef.current,
+      playbackMode: playbackModeRef.current,
+      songCount: currentImportedSongs.length,
+    });
+
+    if (finishDecision.type === "repeat-current") {
+      appendLog(
+        formatText(text.logs.repeatOneTriggered, { songName: song.name }),
+      );
+      startExperimentalPlaybackForSong(songIndex);
+      return;
+    }
+
+    if (finishDecision.type === "play-next") {
+      const nextSong = currentImportedSongs[finishDecision.nextSongIndex] ?? song;
+
+      appendLog(
+        formatText(text.logs.repeatAllTriggered, {
+          songName: nextSong.name,
+        }),
+      );
+      startExperimentalPlaybackForSong(finishDecision.nextSongIndex);
+      return;
+    }
+
+    setExperimentalPlaybackState("finished");
+    appendLog(text.logs.experimentalPlaybackFinished);
   }
 
   async function sendExperimentalNoteGroup({
@@ -299,19 +627,17 @@ export function useExperimentalInput({
         mapScoreNoteToKeyboardKey(note, keyMapping),
       );
 
-      for (const mappedKey of mappedKeys) {
-        if (experimentalPlaybackRunIdRef.current !== runId) {
-          return;
-        }
-
-        await sendMappedKeyToWindow(targetWindowHwnd, mappedKey);
+      if (experimentalPlaybackRunIdRef.current !== runId) {
+        return;
       }
 
-      appendLog(
-        formatText(text.logs.experimentalPlaybackSentKeys, {
-          keys: mappedKeys.join(", "),
-        }),
-      );
+      await sendKeyGroupToWindowMessage({
+        compatibilityProfile: targetWindowCompatibilityProfileRef.current,
+        hwnd: targetWindowHwnd,
+        keyHoldMs: targetWindowKeyHoldMsRef.current,
+        keys: mappedKeys,
+        method: targetWindowMessageMethodRef.current,
+      });
     } catch (error) {
       if (experimentalPlaybackRunIdRef.current !== runId) {
         return;
@@ -321,9 +647,30 @@ export function useExperimentalInput({
       const logTemplate = isTargetWindowInvalidError(errorMessage)
         ? text.logs.experimentalPlaybackTargetInvalid
         : text.logs.experimentalPlaybackCommandFailed;
+      const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+      const grouped =
+        isGroupedTargetWindowProfile(compatibilityProfile)
+          ? text.logs.experimentalPlaybackGroupedYes
+          : text.logs.experimentalPlaybackGroupedNo;
 
       setLastError(errorMessage);
-      appendLog(formatText(logTemplate, { error: errorMessage }));
+      appendLog(
+        formatText(logTemplate, {
+          error: errorMessage,
+          grouped,
+          holdMs: targetWindowKeyHoldMsRef.current,
+          inputMode: text.settings.experimentalTargetWindowMode,
+          method:
+            text.settings.experimentalTargetWindowMessageMethods[
+              targetWindowMessageMethodRef.current
+            ],
+          profile:
+            text.settings.experimentalTargetWindowCompatibilityProfiles[
+              compatibilityProfile
+            ],
+          targetHwnd: targetWindowHwnd,
+        }),
+      );
       stopExperimentalPlayback({ logStopped: false });
     }
   }
@@ -335,11 +682,20 @@ export function useExperimentalInput({
     experimentalInputEnabled,
     experimentalInputMode,
     experimentalPlaybackProgress,
+    experimentalPlaybackState,
+    foregroundBottomPlaybackState: foregroundPlayback.bottomPlaybackState,
     foregroundCountdown: foregroundPlayback.foregroundCountdown,
+    foregroundPlaybackProgress: foregroundPlayback.foregroundPlaybackProgress,
     foregroundPlaybackState: foregroundPlayback.foregroundPlaybackState,
     handleDetectSkyWindow,
     handleExperimentalInputModeChange,
+    handlePauseExperimentalPlayback,
+    handlePauseForegroundPlayback:
+      foregroundPlayback.handlePauseForegroundPlayback,
     handleRefreshWindows,
+    handleResumeExperimentalPlayback,
+    handleResumeForegroundPlayback:
+      foregroundPlayback.handleResumeForegroundPlayback,
     handleStartExperimentalPlayback,
     handleStartForegroundPlayback:
       foregroundPlayback.handleStartForegroundPlayback,
@@ -347,18 +703,58 @@ export function useExperimentalInput({
       foregroundPlayback.handleStopForegroundPlayback,
     handleStopExperimentalPlayback,
     isDetectingSkyWindow,
-    isExperimentalPlaybackRunning,
+    isExperimentalPlaybackRunning:
+      isStartingExperimentalPlayback ||
+      experimentalPlaybackState === "playing" ||
+      experimentalPlaybackState === "paused",
     isRefreshingWindows,
     lastError,
     selectedWindow,
     selectedWindowHwnd,
     setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
     setSelectedWindowHwnd,
+    setTargetWindowCompatibilityProfile:
+      handleTargetWindowCompatibilityProfileChange,
+    setTargetWindowKeyHoldMs: handleTargetWindowKeyHoldMsChange,
+    setTargetWindowMessageMethod: handleTargetWindowMessageMethodChange,
+    targetWindowCompatibilityProfile,
+    targetWindowKeyHoldMs,
+    targetWindowMessageMethod,
     canStartForegroundPlayback:
       experimentalInputMode === "foreground" &&
       foregroundPlayback.canStartForegroundPlayback,
     canStopForegroundPlayback: foregroundPlayback.canStopForegroundPlayback,
   };
+}
+
+function clampTargetWindowKeyHoldMs(keyHoldMs: number) {
+  if (!Number.isFinite(keyHoldMs)) {
+    return defaultTargetWindowKeyHoldMs;
+  }
+
+  return Math.min(
+    targetWindowKeyHoldMaxMs,
+    Math.max(targetWindowKeyHoldMinMs, Math.round(keyHoldMs)),
+  );
+}
+
+function isGroupedTargetWindowProfile(
+  profile: TargetWindowCompatibilityProfile,
+) {
+  return (
+    profile === "grouped-legacy" ||
+    profile === "legacy-activate-scan-lparam"
+  );
+}
+
+function shouldRunTargetWindowActivationPreflight(
+  profile: TargetWindowCompatibilityProfile,
+) {
+  return (
+    profile === "legacy-vkscan-scan-lparam" ||
+    profile === "grouped-legacy" ||
+    profile === "legacy-activate-scan-lparam"
+  );
 }
 
 function isTargetWindowInvalidError(errorMessage: string) {

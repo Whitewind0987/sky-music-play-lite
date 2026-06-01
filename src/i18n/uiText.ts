@@ -181,12 +181,19 @@ export const uiText = {
       bpm: "BPM",
       notes: "音符",
       state: "状态",
+      output: "输出",
       states: {
         idle: "空闲",
         playing: "播放中",
         paused: "已暂停",
         finished: "已完成",
       },
+      outputModes: {
+        preview: "预览",
+        experimentalForeground: "前台输入",
+        experimentalTargetWindow: "目标窗口",
+      },
+      realInputWarning: "将发送真实输入",
       controlsAria: "底部播放控制",
       play: "播放",
       pause: "暂停",
@@ -252,20 +259,39 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "实验性播放已开始：{songName} -> {target}。",
+        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。{activationNotice}",
+      experimentalPlaybackPaused: "实验性播放已暂停。",
+      experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
       experimentalPlaybackFinished: "实验性播放已完成。",
       experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
+      experimentalPlaybackGroupedYes: "是",
+      experimentalPlaybackGroupedNo: "否",
+      experimentalPlaybackLegacyActivationEnabled:
+        "激活窗口消息已启用。",
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
-      experimentalPlaybackCommandFailed: "实验性播放发送失败：{error}",
+      experimentalPlaybackCommandFailed:
+        "目标窗口消息发送失败。目标窗口可能拒绝 WM_ACTIVATE 或按键消息，或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
       experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
+      experimentalTargetWindowMethodSelected:
+        "目标窗口消息投递方式已切换：{method}",
+      experimentalTargetWindowProfileSelected:
+        "目标窗口兼容配置已切换：{profile}",
+      experimentalTargetWindowActivationPreflightStarted:
+        "目标窗口激活预处理开始：HWND={targetHwnd}；方式={method}；兼容={profile}",
+      experimentalTargetWindowActivationPreflightSucceeded:
+        "目标窗口激活预处理完成：HWND={targetHwnd}；方式={method}；兼容={profile}",
+      experimentalTargetWindowActivationPreflightFailed:
+        "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
       foregroundPlaybackCountdownStarted:
         "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
       foregroundPlaybackFocusReminder:
         "实验性输入只会发送到当前前台窗口。请在倒计时结束前手动切换到游戏窗口。",
       foregroundPlaybackStarted: "实验性前台播放已开始：{songName}。请保持游戏窗口处于前台。",
+      foregroundPlaybackPaused: "实验性前台播放已暂停。",
+      foregroundPlaybackResumed: "实验性前台播放已继续。",
       foregroundPlaybackStopped: "实验性前台播放已停止。",
       foregroundPlaybackFinished: "实验性前台播放已完成。",
       foregroundPlaybackKeySendFailed: "实验性前台按键发送失败：{error}",
@@ -304,26 +330,59 @@ export const uiText = {
       experimentalInputUntitledWindow: "无标题窗口",
       experimentalInputUnknownProcess: "未知进程",
       experimentalInputUnknownClass: "未知类名",
-      experimentalPlaybackStart: "实验性播放到目标窗口",
-      experimentalPlaybackStop: "停止实验播放",
       experimentalPlaybackStatusLabel: "实验性播放",
       experimentalPlaybackIdle: "空闲",
       experimentalPlaybackRunning: "发送中",
       experimentalTargetWindowMode: "目标窗口消息模式",
       experimentalTargetWindowModeDescription:
-        "目标窗口消息模式兼容性有限。部分游戏窗口可能拒绝访问，且即使可用也可能仍需要游戏窗口处于前台。",
+        "目标窗口消息模式会向选中的窗口句柄发送按键消息，可尝试在游戏失焦时继续播放。兼容性取决于目标窗口是否接受这些消息。",
+      experimentalTargetWindowMessageMethod: "消息投递方式",
+      experimentalTargetWindowMessageMethods: {
+        "post-message": "队列投递",
+        "send-message": "同步发送",
+      },
+      experimentalTargetWindowMessageMethodDescriptions: {
+        "post-message":
+          "将消息放入目标窗口消息队列，发送方不会等待目标窗口处理完成。通常更轻量，但结果取决于目标程序。",
+        "send-message":
+          "直接发送消息并等待目标窗口处理返回。可能更稳定，但目标窗口无响应时可能造成短暂停顿。",
+      },
+      experimentalTargetWindowCompatibilityProfile: "兼容配置",
+      experimentalTargetWindowCompatibilityProfiles: {
+        standard: "基础消息模式",
+        "legacy-vkscan-zero-lparam": "简化键码模式",
+        "legacy-vkscan-scan-lparam": "扫描码兼容模式",
+        "grouped-legacy": "组合按键兼容模式",
+        "legacy-activate-scan-lparam": "激活消息兼容模式",
+      },
+      experimentalTargetWindowCompatibilityProfileDescriptions: {
+        standard:
+          "使用常规窗口按键消息。适合作为基础测试；部分程序可能需要目标窗口在前台。",
+        "legacy-vkscan-zero-lparam":
+          "使用 VkKeyScan 转换按键，但不附带完整扫描码参数。兼容性较低，主要用于对照测试。",
+        "legacy-vkscan-scan-lparam":
+          "使用 VkKeyScan 与扫描码参数发送按键消息。播放开始前会进行一次目标窗口激活预处理，推荐优先测试。",
+        "grouped-legacy":
+          "面向同时音符优化：同一组按键会先全部按下，再一起释放。播放开始前会进行一次目标窗口激活预处理，适合和弦或多键音符。",
+        "legacy-activate-scan-lparam":
+          "在扫描码按键消息前发送窗口激活消息。播放开始前也会进行一次激活预处理，兼容性更强，但目标程序可能会表现为被激活。",
+      },
+      experimentalTargetWindowRecommendation:
+        "推荐从“扫描码兼容模式 + 队列投递”开始测试。若同时音符表现不稳定，尝试“组合按键兼容模式”。若目标程序仍不响应，再尝试“激活消息兼容模式”。",
+      experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
+      experimentalTargetWindowCompatibilityWarning:
+        "这些配置仅用于目标窗口消息模式。不同程序、权限状态和窗口状态下结果可能不同；请遵守目标程序规则。",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
         "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
       experimentalForegroundWarning:
-        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。",
-      experimentalForegroundPlay: "实验性前台播放",
-      experimentalForegroundStop: "停止前台播放",
+        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。前台输入模式下，播放中点击本应用会让游戏失去前台。请优先在开始前调整倍速和间隔；播放中无焦点调整后续可通过全局快捷键支持。",
       experimentalForegroundStatusLabel: "前台播放",
       experimentalForegroundStates: {
         idle: "空闲",
         countdown: "倒计时",
         playing: "播放中",
+        paused: "已暂停",
         stopped: "已停止",
         finished: "已完成",
         error: "出错",
@@ -509,12 +568,19 @@ export const uiText = {
       bpm: "BPM",
       notes: "Notes",
       state: "State",
+      output: "Output",
       states: {
         idle: "Idle",
         playing: "Playing",
         paused: "Paused",
         finished: "Finished",
       },
+      outputModes: {
+        preview: "Preview",
+        experimentalForeground: "Foreground",
+        experimentalTargetWindow: "Target",
+      },
+      realInputWarning: "Real input will be sent",
       controlsAria: "Bottom playback controls",
       play: "Play",
       pause: "Pause",
@@ -584,15 +650,31 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Experimental playback started: {songName} -> {target}.",
+        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}. {activationNotice}",
+      experimentalPlaybackPaused: "Experimental playback paused.",
+      experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
       experimentalPlaybackFinished: "Experimental playback finished.",
       experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
+      experimentalPlaybackGroupedYes: "yes",
+      experimentalPlaybackGroupedNo: "no",
+      experimentalPlaybackLegacyActivationEnabled:
+        "Activation messages enabled.",
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
-        "Experimental playback command failed: {error}",
+        "Target window message failed. The target window may reject WM_ACTIVATE or key messages, or may require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
       experimentalInputModeSelected: "Experimental input mode selected: {mode}",
+      experimentalTargetWindowMethodSelected:
+        "Target-window message method selected: {method}",
+      experimentalTargetWindowProfileSelected:
+        "Target-window compatibility profile selected: {profile}",
+      experimentalTargetWindowActivationPreflightStarted:
+        "Target window activation preflight started: hwnd={targetHwnd}; method={method}; profile={profile}",
+      experimentalTargetWindowActivationPreflightSucceeded:
+        "Target window activation preflight completed: hwnd={targetHwnd}; method={method}; profile={profile}",
+      experimentalTargetWindowActivationPreflightFailed:
+        "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
       foregroundPlaybackCountdownStarted:
         "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
@@ -601,6 +683,8 @@ export const uiText = {
         "Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
       foregroundPlaybackStarted:
         "Experimental foreground playback started: {songName}. Keep the game window foreground.",
+      foregroundPlaybackPaused: "Experimental foreground playback paused.",
+      foregroundPlaybackResumed: "Experimental foreground playback resumed.",
       foregroundPlaybackStopped: "Experimental foreground playback stopped.",
       foregroundPlaybackFinished: "Experimental foreground playback finished.",
       foregroundPlaybackKeySendFailed:
@@ -641,26 +725,60 @@ export const uiText = {
       experimentalInputUntitledWindow: "Untitled window",
       experimentalInputUnknownProcess: "Unknown process",
       experimentalInputUnknownClass: "Unknown class",
-      experimentalPlaybackStart: "Experimental Play to Target Window",
-      experimentalPlaybackStop: "Stop Experimental Playback",
       experimentalPlaybackStatusLabel: "Experimental playback",
       experimentalPlaybackIdle: "Idle",
       experimentalPlaybackRunning: "Sending",
       experimentalTargetWindowMode: "Target Window Message Mode",
       experimentalTargetWindowModeDescription:
-        "Target-window message mode has limited compatibility. Some game windows may deny access, and even when it works, the game window may still need to be foreground.",
+        "Target-window message mode sends key messages to the selected window handle and can attempt playback while the game is not focused. Compatibility depends on whether the target window accepts these messages.",
+      experimentalTargetWindowMessageMethod: "Message delivery method",
+      experimentalTargetWindowMessageMethods: {
+        "post-message": "Queued Delivery",
+        "send-message": "Synchronous Send",
+      },
+      experimentalTargetWindowMessageMethodDescriptions: {
+        "post-message":
+          "Posts the message to the target window queue without waiting for it to finish processing. Usually lighter, but behavior depends on the target application.",
+        "send-message":
+          "Sends the message directly and waits for the target window to process it. It may be more consistent, but can briefly block if the target window is unresponsive.",
+      },
+      experimentalTargetWindowCompatibilityProfile:
+        "Compatibility profile",
+      experimentalTargetWindowCompatibilityProfiles: {
+        standard: "Basic Message Mode",
+        "legacy-vkscan-zero-lparam": "Simplified Key Code Mode",
+        "legacy-vkscan-scan-lparam": "Scan Code Compatibility Mode",
+        "grouped-legacy": "Grouped Key Compatibility Mode",
+        "legacy-activate-scan-lparam": "Activation Message Compatibility Mode",
+      },
+      experimentalTargetWindowCompatibilityProfileDescriptions: {
+        standard:
+          "Sends regular window key messages. Useful as a baseline test; some applications may require the target window to be foreground.",
+        "legacy-vkscan-zero-lparam":
+          "Uses VkKeyScan for key conversion without full scan-code parameters. Lower compatibility; mainly useful for comparison testing.",
+        "legacy-vkscan-scan-lparam":
+          "Uses VkKeyScan with scan-code key message parameters. Runs one target-window activation preflight before playback starts and is recommended for initial testing.",
+        "grouped-legacy":
+          "Optimized for simultaneous notes: keys in the same group are pressed first, then released together. Runs one target-window activation preflight before playback starts and is suitable for chords and multi-key notes.",
+        "legacy-activate-scan-lparam":
+          "Sends a window activation message before scan-code key messages. Also runs one activation preflight before playback starts. Higher compatibility, but the target application may behave as if activated.",
+      },
+      experimentalTargetWindowRecommendation:
+        "Recommended starting point: Scan Code Compatibility Mode + Queued Delivery. If simultaneous notes behave inconsistently, try Grouped Key Compatibility Mode. If the target application still does not respond, try Activation Message Compatibility Mode.",
+      experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
+      experimentalTargetWindowCompatibilityWarning:
+        "These options only apply to Target Window Message Mode. Results may vary depending on the application, permission level, and window state. Please follow the target application's rules.",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
         "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
       experimentalForegroundWarning:
-        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
-      experimentalForegroundPlay: "Experimental Foreground Play",
-      experimentalForegroundStop: "Stop Foreground Playback",
+        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends. In foreground input mode, clicking this app during playback will move focus away from the game. Adjust speed and delay before starting; no-focus controls may be added later with global hotkeys.",
       experimentalForegroundStatusLabel: "Foreground playback",
       experimentalForegroundStates: {
         idle: "Idle",
         countdown: "Countdown",
         playing: "Playing",
+        paused: "Paused",
         stopped: "Stopped",
         finished: "Finished",
         error: "Error",

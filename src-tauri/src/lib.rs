@@ -95,8 +95,35 @@ fn find_sky_window() -> Result<Option<CandidateWindow>, String> {
 }
 
 #[tauri::command]
+fn activate_target_window_message(hwnd: String, method: String) -> Result<String, String> {
+    experimental_input::activate_target_window_message(hwnd, method)
+}
+
+#[tauri::command]
 fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
     experimental_input::send_test_key_to_window(hwnd, key)
+}
+
+#[tauri::command]
+fn send_key_to_window_message(hwnd: String, key: String, method: String) -> Result<String, String> {
+    experimental_input::send_key_to_window_message(hwnd, key, method)
+}
+
+#[tauri::command]
+fn send_key_group_to_window_message(
+    hwnd: String,
+    keys: Vec<String>,
+    method: String,
+    compatibility_profile: String,
+    key_hold_ms: u64,
+) -> Result<String, String> {
+    experimental_input::send_key_group_to_window_message(
+        hwnd,
+        keys,
+        method,
+        compatibility_profile,
+        key_hold_ms,
+    )
 }
 
 #[tauri::command]
@@ -118,12 +145,15 @@ fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            activate_target_window_message,
             dry_run_playback,
             find_sky_window,
             list_candidate_windows,
             send_foreground_key_group,
             send_foreground_test_key,
             send_foreground_test_key_scancode,
+            send_key_group_to_window_message,
+            send_key_to_window_message,
             send_test_key_to_window,
             test_rust_command
         ])

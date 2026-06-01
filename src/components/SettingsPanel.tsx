@@ -8,6 +8,8 @@ import type {
   CandidateWindow,
   ExperimentalInputMode,
   ForegroundPlaybackState,
+  TargetWindowCompatibilityProfile,
+  TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import {
   skyKeyNames,
@@ -17,10 +19,6 @@ import {
 import { PanelHeader } from "./PanelHeader";
 
 type ExperimentalInputPanelState = {
-  canStartForegroundPlayback: boolean;
-  canStartExperimentalPlayback: boolean;
-  canStopForegroundPlayback: boolean;
-  canStopExperimentalPlayback: boolean;
   candidateWindows: CandidateWindow[];
   experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
@@ -36,11 +34,17 @@ type ExperimentalInputPanelState = {
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
-  onStartForegroundPlayback: () => void;
-  onStartExperimentalPlayback: () => void;
-  onStopForegroundPlayback: () => void;
-  onStopExperimentalPlayback: () => void;
+  onTargetWindowCompatibilityProfileChange: (
+    profile: TargetWindowCompatibilityProfile,
+  ) => void;
+  onTargetWindowKeyHoldMsChange: (keyHoldMs: number) => void;
+  onTargetWindowMessageMethodChange: (
+    method: TargetWindowMessageMethod,
+  ) => void;
   selectedWindowHwnd: string | null;
+  targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
+  targetWindowKeyHoldMs: number;
+  targetWindowMessageMethod: TargetWindowMessageMethod;
 };
 
 type SettingsPlaceholderProps = {
@@ -193,6 +197,112 @@ export function SettingsPlaceholder({
               : text.experimentalInputDetectSkyWindow}
           </button>
         </div>
+        {experimentalInput.experimentalInputMode === "target-window-message" ? (
+          <>
+            <div className="setting-row">
+              <span>{text.experimentalTargetWindowMessageMethod}</span>
+              <div className="language-options">
+                {(
+                  [
+                    "post-message",
+                    "send-message",
+                  ] as TargetWindowMessageMethod[]
+                ).map((method) => (
+                  <button
+                    className={`language-option${
+                      experimentalInput.targetWindowMessageMethod === method
+                        ? " is-selected"
+                        : ""
+                    }`}
+                    key={method}
+                    type="button"
+                    aria-pressed={
+                      experimentalInput.targetWindowMessageMethod === method
+                    }
+                    onClick={() =>
+                      experimentalInput.onTargetWindowMessageMethodChange(
+                        method,
+                      )
+                    }
+                  >
+                    {text.experimentalTargetWindowMessageMethods[method]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="experimental-setting-description">
+              {
+                text.experimentalTargetWindowMessageMethodDescriptions[
+                  experimentalInput.targetWindowMessageMethod
+                ]
+              }
+            </p>
+            <div className="setting-row">
+              <span>{text.experimentalTargetWindowCompatibilityProfile}</span>
+              <div className="language-options">
+                {(
+                  [
+                    "standard",
+                    "legacy-vkscan-zero-lparam",
+                    "legacy-vkscan-scan-lparam",
+                    "grouped-legacy",
+                    "legacy-activate-scan-lparam",
+                  ] as TargetWindowCompatibilityProfile[]
+                ).map((profile) => (
+                  <button
+                    className={`language-option${
+                      experimentalInput.targetWindowCompatibilityProfile ===
+                      profile
+                        ? " is-selected"
+                        : ""
+                    }`}
+                    key={profile}
+                    type="button"
+                    aria-pressed={
+                      experimentalInput.targetWindowCompatibilityProfile ===
+                      profile
+                    }
+                    onClick={() =>
+                      experimentalInput.onTargetWindowCompatibilityProfileChange(
+                        profile,
+                      )
+                    }
+                  >
+                    {text.experimentalTargetWindowCompatibilityProfiles[profile]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="experimental-setting-description">
+              {
+                text.experimentalTargetWindowCompatibilityProfileDescriptions[
+                  experimentalInput.targetWindowCompatibilityProfile
+                ]
+              }
+            </p>
+            <p className="experimental-setting-description">
+              {text.experimentalTargetWindowRecommendation}
+            </p>
+            <div className="setting-row">
+              <span>{text.experimentalTargetWindowKeyHoldMs}</span>
+              <input
+                className="experimental-number-input"
+                type="number"
+                min={10}
+                max={200}
+                value={experimentalInput.targetWindowKeyHoldMs}
+                onChange={(event) =>
+                  experimentalInput.onTargetWindowKeyHoldMsChange(
+                    Number(event.target.value),
+                  )
+                }
+              />
+            </div>
+            <p className="experimental-warning">
+              {text.experimentalTargetWindowCompatibilityWarning}
+            </p>
+          </>
+        ) : null}
         <div className="setting-row">
           <span>{text.experimentalInputEnable}</span>
           <button
@@ -273,40 +383,6 @@ export function SettingsPlaceholder({
                     experimentalInput.foregroundPlaybackState
                   ]}
             </strong>
-          </div>
-          <div className="experimental-input-actions">
-            <button
-              className="parse-button"
-              type="button"
-              disabled={!experimentalInput.canStartExperimentalPlayback}
-              onClick={experimentalInput.onStartExperimentalPlayback}
-            >
-              {text.experimentalPlaybackStart}
-            </button>
-            <button
-              className="language-option"
-              type="button"
-              disabled={!experimentalInput.canStopExperimentalPlayback}
-              onClick={experimentalInput.onStopExperimentalPlayback}
-            >
-              {text.experimentalPlaybackStop}
-            </button>
-            <button
-              className="parse-button"
-              type="button"
-              disabled={!experimentalInput.canStartForegroundPlayback}
-              onClick={experimentalInput.onStartForegroundPlayback}
-            >
-              {text.experimentalForegroundPlay}
-            </button>
-            <button
-              className="language-option"
-              type="button"
-              disabled={!experimentalInput.canStopForegroundPlayback}
-              onClick={experimentalInput.onStopForegroundPlayback}
-            >
-              {text.experimentalForegroundStop}
-            </button>
           </div>
         </div>
       </article>
