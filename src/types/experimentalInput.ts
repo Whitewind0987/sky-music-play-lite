@@ -7,6 +7,8 @@ export type CandidateWindow = {
 
 export type ExperimentalInputMode = "target-window-message" | "foreground";
 
+export type TargetWindowMessageMethod = "post-message" | "send-message";
+
 export type ForegroundPlaybackState =
   | "idle"
   | "countdown"

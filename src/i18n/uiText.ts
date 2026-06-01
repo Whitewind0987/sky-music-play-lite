@@ -269,6 +269,8 @@ export const uiText = {
         "实验性播放已停止，目标窗口不可用：{error}",
       experimentalPlaybackCommandFailed: "实验性播放发送失败：{error}",
       experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
+      experimentalTargetWindowMethodSelected:
+        "目标窗口消息投递方式已切换：{method}",
       foregroundPlaybackCountdownStarted:
         "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
@@ -320,7 +322,12 @@ export const uiText = {
       experimentalPlaybackRunning: "发送中",
       experimentalTargetWindowMode: "目标窗口消息模式",
       experimentalTargetWindowModeDescription:
-        "目标窗口消息模式兼容性有限。部分游戏窗口可能拒绝访问，且即使可用也可能仍需要游戏窗口处于前台。",
+        "目标窗口消息模式会向选中的窗口句柄发送按键消息，可尝试在游戏失焦时继续播放。兼容性取决于目标窗口是否接受这些消息。",
+      experimentalTargetWindowMessageMethod: "消息投递方式",
+      experimentalTargetWindowMessageMethods: {
+        "post-message": "PostMessage",
+        "send-message": "SendMessage",
+      },
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
         "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
@@ -610,6 +617,8 @@ export const uiText = {
       experimentalPlaybackCommandFailed:
         "Experimental playback command failed: {error}",
       experimentalInputModeSelected: "Experimental input mode selected: {mode}",
+      experimentalTargetWindowMethodSelected:
+        "Target-window message method selected: {method}",
       foregroundPlaybackCountdownStarted:
         "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
@@ -665,7 +674,12 @@ export const uiText = {
       experimentalPlaybackRunning: "Sending",
       experimentalTargetWindowMode: "Target Window Message Mode",
       experimentalTargetWindowModeDescription:
-        "Target-window message mode has limited compatibility. Some game windows may deny access, and even when it works, the game window may still need to be foreground.",
+        "Target-window message mode sends key messages to the selected window handle and can attempt playback while the game is not focused. Compatibility depends on whether the target window accepts these messages.",
+      experimentalTargetWindowMessageMethod: "Message delivery method",
+      experimentalTargetWindowMessageMethods: {
+        "post-message": "PostMessage",
+        "send-message": "SendMessage",
+      },
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
         "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",

@@ -32,12 +32,24 @@ mod windows_input {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, FindWindowW, GetClassNameW, GetWindowTextLengthW, GetWindowTextW,
-        GetWindowThreadProcessId, IsWindow, IsWindowVisible, PostMessageW, WM_KEYDOWN, WM_KEYUP,
+        GetWindowThreadProcessId, IsWindow, IsWindowVisible, PostMessageW, SendMessageW,
+        WM_KEYDOWN, WM_KEYUP,
     };
 
     const SKY_WINDOW_CLASS_NAME: &str = "TgcMainWindow";
     const MAX_CLASS_NAME_LENGTH: usize = 256;
     const MAX_PROCESS_PATH_LENGTH: usize = 1024;
+    const TARGET_MESSAGE_METHOD_POST: &str = "post-message";
+    const TARGET_MESSAGE_METHOD_SEND: &str = "send-message";
+
+    struct WindowMessageKeyInput {
+        hwnd: HWND,
+        hwnd_text: String,
+        key: String,
+        method: String,
+        scan_code: u32,
+        virtual_key: u16,
+    }
 
     pub fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
         let mut windows = Vec::<CandidateWindow>::new();
@@ -64,44 +76,66 @@ mod windows_input {
     }
 
     pub fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
-        let target_hwnd = hwnd.clone();
-        let hwnd = parse_hwnd(&target_hwnd)?;
+        send_key_to_window_message(hwnd, key, TARGET_MESSAGE_METHOD_POST.to_string())
+    }
 
-        if unsafe { IsWindow(hwnd) } == 0 {
-            return Err("Selected target window is no longer available.".to_string());
+    pub fn send_key_to_window_message(
+        hwnd: String,
+        key: String,
+        method: String,
+    ) -> Result<String, String> {
+        let input = build_window_message_key_input(hwnd, key, method)?;
+        let key_down_lparam = build_key_down_lparam(input.scan_code);
+        let key_up_lparam = build_key_up_lparam(input.scan_code);
+
+        match input.method.as_str() {
+            TARGET_MESSAGE_METHOD_POST => {
+                post_window_key_message(&input, WM_KEYDOWN, key_down_lparam, "down")?;
+                thread::sleep(Duration::from_millis(40));
+                post_window_key_message(&input, WM_KEYUP, key_up_lparam, "up")?;
+
+                Ok(format!(
+                    "Posted key down/up messages to hwnd {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}",
+                    input.hwnd_text, input.key, input.virtual_key, input.scan_code, input.method
+                ))
+            }
+            TARGET_MESSAGE_METHOD_SEND => {
+                let key_down_result = unsafe {
+                    SendMessageW(
+                        input.hwnd,
+                        WM_KEYDOWN,
+                        input.virtual_key as usize,
+                        key_down_lparam,
+                    )
+                };
+
+                thread::sleep(Duration::from_millis(40));
+
+                let key_up_result = unsafe {
+                    SendMessageW(
+                        input.hwnd,
+                        WM_KEYUP,
+                        input.virtual_key as usize,
+                        key_up_lparam,
+                    )
+                };
+
+                Ok(format!(
+                    "Sent key down/up messages to hwnd {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; key down result: {}; key up result: {}",
+                    input.hwnd_text,
+                    input.key,
+                    input.virtual_key,
+                    input.scan_code,
+                    input.method,
+                    key_down_result,
+                    key_up_result
+                ))
+            }
+            _ => Err(format!(
+                "Unsupported target window message method: {}. Supported methods: {}, {}.",
+                input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
+            )),
         }
-
-        let virtual_key = mapped_key_to_virtual_key(&key)
-            .ok_or_else(|| format!("Unsupported mapped key for test input: {key}"))?;
-        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
-        let key_down_lparam = 1 | ((scan_code as isize) << 16);
-        let key_up_lparam = key_down_lparam | (1 << 30) | (1 << 31);
-
-        let key_down_sent =
-            unsafe { PostMessageW(hwnd, WM_KEYDOWN, virtual_key as usize, key_down_lparam) };
-
-        if key_down_sent == 0 {
-            let error = std::io::Error::last_os_error();
-            return Err(format!(
-                "Failed to post key down message to hwnd {target_hwnd} with key {key}: {error}"
-            ));
-        }
-
-        thread::sleep(Duration::from_millis(40));
-
-        let key_up_sent =
-            unsafe { PostMessageW(hwnd, WM_KEYUP, virtual_key as usize, key_up_lparam) };
-
-        if key_up_sent == 0 {
-            let error = std::io::Error::last_os_error();
-            return Err(format!(
-                "Failed to post key up message to hwnd {target_hwnd} with key {key}: {error}"
-            ));
-        }
-
-        Ok(format!(
-            "Posted one key down/up message pair to the target window: {key}"
-        ))
     }
 
     pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
@@ -349,6 +383,79 @@ mod windows_input {
         Ok(())
     }
 
+    fn build_window_message_key_input(
+        hwnd: String,
+        key: String,
+        method: String,
+    ) -> Result<WindowMessageKeyInput, String> {
+        let method = method.trim().to_string();
+
+        if method != TARGET_MESSAGE_METHOD_POST && method != TARGET_MESSAGE_METHOD_SEND {
+            return Err(format!(
+                "Unsupported target window message method: {method}. Supported methods: {TARGET_MESSAGE_METHOD_POST}, {TARGET_MESSAGE_METHOD_SEND}."
+            ));
+        }
+
+        let hwnd_text = hwnd.clone();
+        let hwnd = parse_hwnd(&hwnd_text)?;
+
+        if unsafe { IsWindow(hwnd) } == 0 {
+            return Err(format!(
+                "Selected target window is no longer available. hwnd: {hwnd_text}; mapped key: {key}; method: {method}"
+            ));
+        }
+
+        let virtual_key = mapped_key_to_virtual_key(&key).ok_or_else(|| {
+            format!(
+                "Unsupported mapped key for target-window message input. hwnd: {hwnd_text}; mapped key: {key}; method: {method}"
+            )
+        })?;
+        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+
+        if scan_code == 0 {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to resolve scan code for target-window message input. hwnd: {hwnd_text}; mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; method: {method}; last OS error: {error}"
+            ));
+        }
+
+        Ok(WindowMessageKeyInput {
+            hwnd,
+            hwnd_text,
+            key,
+            method,
+            scan_code,
+            virtual_key,
+        })
+    }
+
+    fn build_key_down_lparam(scan_code: u32) -> LPARAM {
+        1 | ((scan_code as isize) << 16)
+    }
+
+    fn build_key_up_lparam(scan_code: u32) -> LPARAM {
+        build_key_down_lparam(scan_code) | (1 << 30) | (1 << 31)
+    }
+
+    fn post_window_key_message(
+        input: &WindowMessageKeyInput,
+        message: u32,
+        lparam: LPARAM,
+        key_state: &str,
+    ) -> Result<(), String> {
+        let sent = unsafe { PostMessageW(input.hwnd, message, input.virtual_key as usize, lparam) };
+
+        if sent == 0 {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to post target-window key {key_state} message. hwnd: {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; last OS error: {error}",
+                input.hwnd_text, input.key, input.virtual_key, input.scan_code, input.method
+            ));
+        }
+
+        Ok(())
+    }
+
     fn build_keyboard_input(virtual_key: u16, scan_code: u16, flags: u32) -> INPUT {
         INPUT {
             r#type: INPUT_KEYBOARD,
@@ -401,6 +508,14 @@ mod windows_input {
         Err("Experimental input is only available on Windows.".to_string())
     }
 
+    pub fn send_key_to_window_message(
+        _hwnd: String,
+        _key: String,
+        _method: String,
+    ) -> Result<String, String> {
+        Err("Experimental target-window input is only available on Windows.".to_string())
+    }
+
     pub fn send_foreground_key_group(_keys: Vec<String>) -> Result<String, String> {
         Err("Experimental foreground input is only available on Windows.".to_string())
     }
@@ -424,6 +539,14 @@ pub fn find_sky_window() -> Result<Option<CandidateWindow>, String> {
 
 pub fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
     windows_input::send_test_key_to_window(hwnd, key)
+}
+
+pub fn send_key_to_window_message(
+    hwnd: String,
+    key: String,
+    method: String,
+) -> Result<String, String> {
+    windows_input::send_key_to_window_message(hwnd, key, method)
 }
 
 pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {

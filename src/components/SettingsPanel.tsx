@@ -8,6 +8,7 @@ import type {
   CandidateWindow,
   ExperimentalInputMode,
   ForegroundPlaybackState,
+  TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import {
   skyKeyNames,
@@ -32,7 +33,11 @@ type ExperimentalInputPanelState = {
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
+  onTargetWindowMessageMethodChange: (
+    method: TargetWindowMessageMethod,
+  ) => void;
   selectedWindowHwnd: string | null;
+  targetWindowMessageMethod: TargetWindowMessageMethod;
 };
 
 type SettingsPlaceholderProps = {
@@ -185,6 +190,37 @@ export function SettingsPlaceholder({
               : text.experimentalInputDetectSkyWindow}
           </button>
         </div>
+        {experimentalInput.experimentalInputMode === "target-window-message" ? (
+          <div className="setting-row">
+            <span>{text.experimentalTargetWindowMessageMethod}</span>
+            <div className="language-options">
+              {(
+                [
+                  "post-message",
+                  "send-message",
+                ] as TargetWindowMessageMethod[]
+              ).map((method) => (
+                <button
+                  className={`language-option${
+                    experimentalInput.targetWindowMessageMethod === method
+                      ? " is-selected"
+                      : ""
+                  }`}
+                  key={method}
+                  type="button"
+                  aria-pressed={
+                    experimentalInput.targetWindowMessageMethod === method
+                  }
+                  onClick={() =>
+                    experimentalInput.onTargetWindowMessageMethodChange(method)
+                  }
+                >
+                  {text.experimentalTargetWindowMessageMethods[method]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="setting-row">
           <span>{text.experimentalInputEnable}</span>
           <button

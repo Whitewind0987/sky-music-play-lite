@@ -100,6 +100,15 @@ fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> 
 }
 
 #[tauri::command]
+fn send_key_to_window_message(
+    hwnd: String,
+    key: String,
+    method: String,
+) -> Result<String, String> {
+    experimental_input::send_key_to_window_message(hwnd, key, method)
+}
+
+#[tauri::command]
 fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
     experimental_input::send_foreground_key_group(keys)
 }
@@ -124,6 +133,7 @@ pub fn run() {
             send_foreground_key_group,
             send_foreground_test_key,
             send_foreground_test_key_scancode,
+            send_key_to_window_message,
             send_test_key_to_window,
             test_rust_command
         ])

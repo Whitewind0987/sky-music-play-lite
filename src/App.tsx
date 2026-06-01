@@ -196,7 +196,11 @@ function App() {
               experimentalInput.handleExperimentalInputModeChange,
             onRefreshWindows: experimentalInput.handleRefreshWindows,
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
+            onTargetWindowMessageMethodChange:
+              experimentalInput.setTargetWindowMessageMethod,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+            targetWindowMessageMethod:
+              experimentalInput.targetWindowMessageMethod,
             experimentalInputMode: experimentalInput.experimentalInputMode,
             foregroundCountdown: experimentalInput.foregroundCountdown,
             foregroundPlaybackState: experimentalInput.foregroundPlaybackState,

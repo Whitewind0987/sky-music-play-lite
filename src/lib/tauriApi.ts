@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CandidateWindow } from "../types/experimentalInput";
+import type {
+  CandidateWindow,
+  TargetWindowMessageMethod,
+} from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
 import type { DryRunResult } from "../types/playbackDryRun";
 import type { Note } from "../types/score";
@@ -28,6 +31,14 @@ export function sendTestKeyToWindow(
   key: string,
 ): Promise<string> {
   return invoke<string>("send_test_key_to_window", { hwnd, key });
+}
+
+export function sendKeyToWindowMessage(
+  hwnd: string,
+  key: string,
+  method: TargetWindowMessageMethod,
+): Promise<string> {
+  return invoke<string>("send_key_to_window_message", { hwnd, key, method });
 }
 
 export function sendMappedKeyToWindow(

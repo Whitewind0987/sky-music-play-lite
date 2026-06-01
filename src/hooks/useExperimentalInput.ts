@@ -12,11 +12,12 @@ import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
 import {
   findSkyWindow,
   listCandidateWindows,
-  sendMappedKeyToWindow,
+  sendKeyToWindowMessage,
 } from "../lib/tauriApi";
 import type {
   CandidateWindow,
   ExperimentalInputMode,
+  TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
 import type { PlaybackState } from "../types/playback";
@@ -66,6 +67,8 @@ export function useExperimentalInput({
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(playbackMode);
   const playbackSpeedRef = useRef(playbackSpeed);
+  const targetWindowMessageMethodRef =
+    useRef<TargetWindowMessageMethod>("post-message");
   const [candidateWindows, setCandidateWindows] = useState<CandidateWindow[]>(
     [],
   );
@@ -76,6 +79,8 @@ export function useExperimentalInput({
     useState(false);
   const [experimentalInputMode, setExperimentalInputMode] =
     useState<ExperimentalInputMode>("target-window-message");
+  const [targetWindowMessageMethod, setTargetWindowMessageMethod] =
+    useState<TargetWindowMessageMethod>("post-message");
   const [isRefreshingWindows, setIsRefreshingWindows] = useState(false);
   const [isDetectingSkyWindow, setIsDetectingSkyWindow] = useState(false);
   const [experimentalPlaybackState, setExperimentalPlaybackState] =
@@ -284,6 +289,22 @@ export function useExperimentalInput({
     stopExperimentalPlayback({ logStopped: true });
   }
 
+  function handleTargetWindowMessageMethodChange(
+    method: TargetWindowMessageMethod,
+  ) {
+    if (method === targetWindowMessageMethodRef.current) {
+      return;
+    }
+
+    targetWindowMessageMethodRef.current = method;
+    setTargetWindowMessageMethod(method);
+    appendLog(
+      formatText(text.logs.experimentalTargetWindowMethodSelected, {
+        method: text.settings.experimentalTargetWindowMessageMethods[method],
+      }),
+    );
+  }
+
   function handlePauseExperimentalPlayback() {
     if (experimentalPlaybackState !== "playing") {
       return;
@@ -441,7 +462,11 @@ export function useExperimentalInput({
           return;
         }
 
-        await sendMappedKeyToWindow(targetWindowHwnd, mappedKey);
+        await sendKeyToWindowMessage(
+          targetWindowHwnd,
+          mappedKey,
+          targetWindowMessageMethodRef.current,
+        );
       }
 
       appendLog(
@@ -502,6 +527,8 @@ export function useExperimentalInput({
     selectedWindowHwnd,
     setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
     setSelectedWindowHwnd,
+    setTargetWindowMessageMethod: handleTargetWindowMessageMethodChange,
+    targetWindowMessageMethod,
     canStartForegroundPlayback:
       experimentalInputMode === "foreground" &&
       foregroundPlayback.canStartForegroundPlayback,
