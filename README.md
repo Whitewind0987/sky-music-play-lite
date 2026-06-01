@@ -10,7 +10,7 @@
 
 ## 丨项目简介
 
-SkyMusicPlay Lite 是一个面向 Windows 的轻量级 Sky 光遇弹琴自动软件。
+SkyMusicPlay Lite 是一个面向 Windows 的轻量级 Sky 光遇自动弹琴软件。
 
 项目使用 **Tauri v2 + React + TypeScript + Rust** 构建，目标是做一个更轻、更清晰、更容易维护的桌面端实现。
 

@@ -113,6 +113,6 @@ See [LICENSE](./LICENSE) for details.
 
 ## 丨Credits
 
-SkyMusicPlay Lite is inspired by SkyMusicPlay-for-Windows and related Sky: Children of the Light automatic music-playing tools.
+SkyMusicPlay Lite is inspired by SkyMusicPlay-for-Windows and other automatic music-playing tools for Sky: Children of the Light.
 
 This project is a separate lightweight implementation.
