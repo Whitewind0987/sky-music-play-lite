@@ -12,6 +12,7 @@ pub struct CandidateWindow {
 mod windows_input {
     use super::CandidateWindow;
     use std::ffi::c_void;
+    use std::mem::size_of;
     use std::path::Path;
     use std::ptr::null;
     use std::thread;
@@ -23,7 +24,8 @@ mod windows_input {
         OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        MapVirtualKeyW, MAPVK_VK_TO_VSC, VK_BACK, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN,
+        MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
+        KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC, VK_BACK, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN,
         VK_END, VK_ESCAPE, VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_COMMA,
         VK_OEM_MINUS, VK_OEM_PERIOD, VK_OEM_PLUS, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SPACE, VK_TAB,
         VK_UP,
@@ -62,7 +64,8 @@ mod windows_input {
     }
 
     pub fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
-        let hwnd = parse_hwnd(&hwnd)?;
+        let target_hwnd = hwnd.clone();
+        let hwnd = parse_hwnd(&target_hwnd)?;
 
         if unsafe { IsWindow(hwnd) } == 0 {
             return Err("Selected target window is no longer available.".to_string());
@@ -78,7 +81,10 @@ mod windows_input {
             unsafe { PostMessageW(hwnd, WM_KEYDOWN, virtual_key as usize, key_down_lparam) };
 
         if key_down_sent == 0 {
-            return Err("Failed to send key down message.".to_string());
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to post key down message to hwnd {target_hwnd} with key {key}: {error}"
+            ));
         }
 
         thread::sleep(Duration::from_millis(40));
@@ -87,11 +93,83 @@ mod windows_input {
             unsafe { PostMessageW(hwnd, WM_KEYUP, virtual_key as usize, key_up_lparam) };
 
         if key_up_sent == 0 {
-            return Err("Failed to send key up message.".to_string());
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to post key up message to hwnd {target_hwnd} with key {key}: {error}"
+            ));
         }
 
         Ok(format!(
             "Posted one key down/up message pair to the target window: {key}"
+        ))
+    }
+
+    pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
+        if keys.is_empty() {
+            return Err("Foreground input needs at least one key.".to_string());
+        }
+
+        for key in keys.iter() {
+            send_foreground_key(key)?;
+        }
+
+        Ok(format!(
+            "Sent {} key(s) to the current foreground window.",
+            keys.len()
+        ))
+    }
+
+    pub fn send_foreground_test_key(key: String) -> Result<String, String> {
+        let virtual_key = mapped_key_to_virtual_key(&key)
+            .ok_or_else(|| format!("Unsupported mapped key for foreground input: {key}"))?;
+        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+        let key_down_input = build_keyboard_input(virtual_key, scan_code as u16, 0);
+        let key_up_input = build_keyboard_input(virtual_key, scan_code as u16, KEYEVENTF_KEYUP);
+        let inputs = [key_down_input, key_up_input];
+        let expected_count = inputs.len() as u32;
+        let sent_count =
+            unsafe { SendInput(expected_count, inputs.as_ptr(), size_of::<INPUT>() as i32) };
+
+        if sent_count != expected_count {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Foreground SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; SendInput returned count: {sent_count}; expected count: {expected_count}; last OS error: {error}"
+            ));
+        }
+
+        Ok(format!(
+            "Foreground SendInput posted one key down/up pair. mapped key: {key}; virtual key: {virtual_key}; sent count: {sent_count}; expected count: {expected_count}"
+        ))
+    }
+
+    pub fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
+        let virtual_key = mapped_key_to_virtual_key(&key)
+            .ok_or_else(|| format!("Unsupported mapped key for foreground input: {key}"))?;
+        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+
+        if scan_code == 0 {
+            return Err(format!(
+                "Foreground scan-code SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; scan code could not be resolved."
+            ));
+        }
+
+        let key_down_input = build_keyboard_input(0, scan_code as u16, KEYEVENTF_SCANCODE);
+        let key_up_input =
+            build_keyboard_input(0, scan_code as u16, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
+        let inputs = [key_down_input, key_up_input];
+        let expected_count = inputs.len() as u32;
+        let sent_count =
+            unsafe { SendInput(expected_count, inputs.as_ptr(), size_of::<INPUT>() as i32) };
+
+        if sent_count != expected_count {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Foreground scan-code SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; sent count: {sent_count}; expected count: {expected_count}; last OS error: {error}"
+            ));
+        }
+
+        Ok(format!(
+            "Foreground scan-code SendInput posted one key down/up pair. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; sent count: {sent_count}; expected count: {expected_count}"
         ))
     }
 
@@ -242,6 +320,50 @@ mod windows_input {
         }
     }
 
+    fn send_foreground_key(key: &str) -> Result<(), String> {
+        let virtual_key = mapped_key_to_virtual_key(key)
+            .ok_or_else(|| format!("Unsupported mapped key for foreground input: {key}"))?;
+        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+        let key_down_input = build_keyboard_input(virtual_key, scan_code as u16, 0);
+        let key_down_sent = unsafe { SendInput(1, &key_down_input, size_of::<INPUT>() as i32) };
+
+        if key_down_sent != 1 {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to send foreground key down for key {key}: {error}"
+            ));
+        }
+
+        thread::sleep(Duration::from_millis(40));
+
+        let key_up_input = build_keyboard_input(virtual_key, scan_code as u16, KEYEVENTF_KEYUP);
+        let key_up_sent = unsafe { SendInput(1, &key_up_input, size_of::<INPUT>() as i32) };
+
+        if key_up_sent != 1 {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to send foreground key up for key {key}: {error}"
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn build_keyboard_input(virtual_key: u16, scan_code: u16, flags: u32) -> INPUT {
+        INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: virtual_key,
+                    wScan: scan_code,
+                    dwFlags: flags,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        }
+    }
+
     fn parse_hwnd(hwnd: &str) -> Result<HWND, String> {
         let parsed = hwnd
             .parse::<usize>()
@@ -278,6 +400,18 @@ mod windows_input {
     pub fn send_test_key_to_window(_hwnd: String, _key: String) -> Result<String, String> {
         Err("Experimental input is only available on Windows.".to_string())
     }
+
+    pub fn send_foreground_key_group(_keys: Vec<String>) -> Result<String, String> {
+        Err("Experimental foreground input is only available on Windows.".to_string())
+    }
+
+    pub fn send_foreground_test_key(_key: String) -> Result<String, String> {
+        Err("Experimental foreground input is only available on Windows.".to_string())
+    }
+
+    pub fn send_foreground_test_key_scancode(_key: String) -> Result<String, String> {
+        Err("Experimental foreground input is only available on Windows.".to_string())
+    }
 }
 
 pub fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
@@ -290,4 +424,16 @@ pub fn find_sky_window() -> Result<Option<CandidateWindow>, String> {
 
 pub fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
     windows_input::send_test_key_to_window(hwnd, key)
+}
+
+pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
+    windows_input::send_foreground_key_group(keys)
+}
+
+pub fn send_foreground_test_key(key: String) -> Result<String, String> {
+    windows_input::send_foreground_test_key(key)
+}
+
+pub fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
+    windows_input::send_foreground_test_key_scancode(key)
 }

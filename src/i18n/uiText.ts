@@ -249,12 +249,26 @@ export const uiText = {
       experimentalSkyWindowDetected: "已检测到光遇窗口：{title}",
       experimentalSkyWindowNotFound: "未检测到光遇窗口，可手动选择候选窗口。",
       experimentalSkyWindowFailed: "检测光遇窗口失败：{error}",
-      experimentalTestKeyStarted:
-        "开始实验性单键测试：{skyKey} -> {key}。",
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
-      experimentalTestKeySucceeded: "按键消息已发送到目标窗口：{result}",
-      experimentalTestKeyFailed: "实验性单键测试失败：{error}",
+      experimentalPlaybackStarted:
+        "实验性播放已开始：{songName} -> {target}。",
+      experimentalPlaybackStopped: "实验性播放已停止。",
+      experimentalPlaybackFinished: "实验性播放已完成。",
+      experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
+      experimentalPlaybackTargetInvalid:
+        "实验性播放已停止，目标窗口不可用：{error}",
+      experimentalPlaybackCommandFailed: "实验性播放发送失败：{error}",
+      experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
+      foregroundPlaybackCountdownStarted:
+        "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
+      foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
+      foregroundPlaybackFocusReminder:
+        "实验性输入只会发送到当前前台窗口。请在倒计时结束前手动切换到游戏窗口。",
+      foregroundPlaybackStarted: "实验性前台播放已开始：{songName}。请保持游戏窗口处于前台。",
+      foregroundPlaybackStopped: "实验性前台播放已停止。",
+      foregroundPlaybackFinished: "实验性前台播放已完成。",
+      foregroundPlaybackKeySendFailed: "实验性前台按键发送失败：{error}",
     },
     settings: {
       aria: "设置占位页",
@@ -268,7 +282,7 @@ export const uiText = {
       keyMappingCancelHint: "按 Escape 取消",
       keyMappingClickHint: "点击后按键盘",
       keyMappingDescription:
-        "这些映射用于预览、dry-run 和手动触发的实验性单键测试。",
+        "这些映射用于预览、dry-run 和实验性播放。",
       keyMappingListening: "等待按键...",
       keyMappingTitle: "键位映射",
       previewTitle: "预览选项",
@@ -278,7 +292,7 @@ export const uiText = {
       manual: "使用手册",
       openLater: "稍后打开",
       experimentalInputTitle: "实验性输入",
-      experimentalInputDescription: "检测目标窗口并发送一次测试按键。",
+      experimentalInputDescription: "检测目标窗口并提供实验性播放控制。",
       experimentalInputWarning:
         "实验性功能，仅用于学习和个人测试。请自行确认是否符合游戏规则。",
       experimentalInputRefreshWindows: "刷新窗口列表",
@@ -286,13 +300,34 @@ export const uiText = {
       experimentalInputDetectSkyWindow: "检测光遇窗口",
       experimentalInputDetecting: "正在检测...",
       experimentalInputEnable: "启用实验性输入",
-      experimentalInputTestSingleKey: "测试单键",
-      experimentalInputTesting: "正在测试...",
       experimentalInputNoWindows: "暂无候选窗口。",
       experimentalInputUntitledWindow: "无标题窗口",
       experimentalInputUnknownProcess: "未知进程",
       experimentalInputUnknownClass: "未知类名",
-      experimentalInputTestKeyLabel: "测试键",
+      experimentalPlaybackStart: "实验性播放到目标窗口",
+      experimentalPlaybackStop: "停止实验播放",
+      experimentalPlaybackStatusLabel: "实验性播放",
+      experimentalPlaybackIdle: "空闲",
+      experimentalPlaybackRunning: "发送中",
+      experimentalTargetWindowMode: "目标窗口消息模式",
+      experimentalTargetWindowModeDescription:
+        "目标窗口消息模式兼容性有限。部分游戏窗口可能拒绝访问，且即使可用也可能仍需要游戏窗口处于前台。",
+      experimentalForegroundMode: "前台输入模式",
+      experimentalForegroundModeDescription:
+        "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
+      experimentalForegroundWarning:
+        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。",
+      experimentalForegroundPlay: "实验性前台播放",
+      experimentalForegroundStop: "停止前台播放",
+      experimentalForegroundStatusLabel: "前台播放",
+      experimentalForegroundStates: {
+        idle: "空闲",
+        countdown: "倒计时",
+        playing: "播放中",
+        stopped: "已停止",
+        finished: "已完成",
+        error: "出错",
+      },
     },
   },
   "en-US": {
@@ -546,13 +581,30 @@ export const uiText = {
       experimentalSkyWindowNotFound:
         "Sky window was not detected. You can select a candidate manually.",
       experimentalSkyWindowFailed: "Failed to detect Sky window: {error}",
-      experimentalTestKeyStarted:
-        "Started experimental single-key test: {skyKey} -> {key}.",
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
-      experimentalTestKeySucceeded:
-        "Key message posted to the target window: {result}",
-      experimentalTestKeyFailed: "Experimental single-key test failed: {error}",
+      experimentalPlaybackStarted:
+        "Experimental playback started: {songName} -> {target}.",
+      experimentalPlaybackStopped: "Experimental playback stopped.",
+      experimentalPlaybackFinished: "Experimental playback finished.",
+      experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
+      experimentalPlaybackTargetInvalid:
+        "Experimental playback stopped because the target window is unavailable: {error}",
+      experimentalPlaybackCommandFailed:
+        "Experimental playback command failed: {error}",
+      experimentalInputModeSelected: "Experimental input mode selected: {mode}",
+      foregroundPlaybackCountdownStarted:
+        "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
+      foregroundPlaybackCountdownCancelled:
+        "Foreground playback countdown cancelled.",
+      foregroundPlaybackFocusReminder:
+        "Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
+      foregroundPlaybackStarted:
+        "Experimental foreground playback started: {songName}. Keep the game window foreground.",
+      foregroundPlaybackStopped: "Experimental foreground playback stopped.",
+      foregroundPlaybackFinished: "Experimental foreground playback finished.",
+      foregroundPlaybackKeySendFailed:
+        "Experimental foreground key send failed: {error}",
     },
     settings: {
       aria: "Settings placeholder",
@@ -566,7 +618,7 @@ export const uiText = {
       keyMappingCancelHint: "Press Escape to cancel",
       keyMappingClickHint: "Click, then press a key",
       keyMappingDescription:
-        "These mappings are used for preview, dry-run, and manually triggered experimental single-key tests.",
+        "These mappings are used for preview, dry-run, and experimental playback.",
       keyMappingListening: "Waiting for key...",
       keyMappingTitle: "Key mapping",
       previewTitle: "Preview options",
@@ -577,7 +629,7 @@ export const uiText = {
       openLater: "Open later",
       experimentalInputTitle: "Experimental input",
       experimentalInputDescription:
-        "Detect a target window and send one test key.",
+        "Detect a target window and provide experimental playback controls.",
       experimentalInputWarning:
         "Experimental feature for learning and personal testing. Please make sure your usage follows game rules.",
       experimentalInputRefreshWindows: "Refresh Windows",
@@ -585,13 +637,34 @@ export const uiText = {
       experimentalInputDetectSkyWindow: "Detect Sky Window",
       experimentalInputDetecting: "Detecting...",
       experimentalInputEnable: "Enable Experimental Input",
-      experimentalInputTestSingleKey: "Test Single Key",
-      experimentalInputTesting: "Testing...",
       experimentalInputNoWindows: "No candidate windows yet.",
       experimentalInputUntitledWindow: "Untitled window",
       experimentalInputUnknownProcess: "Unknown process",
       experimentalInputUnknownClass: "Unknown class",
-      experimentalInputTestKeyLabel: "Test key",
+      experimentalPlaybackStart: "Experimental Play to Target Window",
+      experimentalPlaybackStop: "Stop Experimental Playback",
+      experimentalPlaybackStatusLabel: "Experimental playback",
+      experimentalPlaybackIdle: "Idle",
+      experimentalPlaybackRunning: "Sending",
+      experimentalTargetWindowMode: "Target Window Message Mode",
+      experimentalTargetWindowModeDescription:
+        "Target-window message mode has limited compatibility. Some game windows may deny access, and even when it works, the game window may still need to be foreground.",
+      experimentalForegroundMode: "Foreground Input Mode",
+      experimentalForegroundModeDescription:
+        "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
+      experimentalForegroundWarning:
+        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends.",
+      experimentalForegroundPlay: "Experimental Foreground Play",
+      experimentalForegroundStop: "Stop Foreground Playback",
+      experimentalForegroundStatusLabel: "Foreground playback",
+      experimentalForegroundStates: {
+        idle: "Idle",
+        countdown: "Countdown",
+        playing: "Playing",
+        stopped: "Stopped",
+        finished: "Finished",
+        error: "Error",
+      },
     },
   },
 } as const;

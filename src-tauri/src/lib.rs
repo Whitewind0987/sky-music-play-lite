@@ -99,6 +99,21 @@ fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> 
     experimental_input::send_test_key_to_window(hwnd, key)
 }
 
+#[tauri::command]
+fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
+    experimental_input::send_foreground_key_group(keys)
+}
+
+#[tauri::command]
+fn send_foreground_test_key(key: String) -> Result<String, String> {
+    experimental_input::send_foreground_test_key(key)
+}
+
+#[tauri::command]
+fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
+    experimental_input::send_foreground_test_key_scancode(key)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -106,6 +121,9 @@ pub fn run() {
             dry_run_playback,
             find_sky_window,
             list_candidate_windows,
+            send_foreground_key_group,
+            send_foreground_test_key,
+            send_foreground_test_key_scancode,
             send_test_key_to_window,
             test_rust_command
         ])

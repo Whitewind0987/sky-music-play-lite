@@ -29,3 +29,14 @@ export function sendTestKeyToWindow(
 ): Promise<string> {
   return invoke<string>("send_test_key_to_window", { hwnd, key });
 }
+
+export function sendMappedKeyToWindow(
+  hwnd: string,
+  key: string,
+): Promise<string> {
+  return sendTestKeyToWindow(hwnd, key);
+}
+
+export function sendForegroundKeyGroup(keys: string[]): Promise<string> {
+  return invoke<string>("send_foreground_key_group", { keys });
+}

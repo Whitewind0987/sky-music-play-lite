@@ -3,7 +3,12 @@ import {
   type LanguageCode,
   type UiText,
 } from "../i18n/uiText";
-import type { CandidateWindow } from "../types/experimentalInput";
+import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import type {
+  CandidateWindow,
+  ExperimentalInputMode,
+  ForegroundPlaybackState,
+} from "../types/experimentalInput";
 import {
   skyKeyNames,
   type KeyMapping,
@@ -12,21 +17,30 @@ import {
 import { PanelHeader } from "./PanelHeader";
 
 type ExperimentalInputPanelState = {
-  canSendTestKey: boolean;
+  canStartForegroundPlayback: boolean;
+  canStartExperimentalPlayback: boolean;
+  canStopForegroundPlayback: boolean;
+  canStopExperimentalPlayback: boolean;
   candidateWindows: CandidateWindow[];
   experimentalInputEnabled: boolean;
+  experimentalInputMode: ExperimentalInputMode;
+  experimentalPlaybackProgress: PreviewPlaybackProgress;
+  foregroundCountdown: number | null;
+  foregroundPlaybackState: ForegroundPlaybackState;
   isDetectingSkyWindow: boolean;
+  isExperimentalPlaybackRunning: boolean;
   isRefreshingWindows: boolean;
-  isSendingTestKey: boolean;
   lastError: string | null;
   onDetectSkyWindow: () => void;
   onExperimentalInputEnabledChange: (enabled: boolean) => void;
+  onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
-  onSendTestKey: () => void;
+  onStartForegroundPlayback: () => void;
+  onStartExperimentalPlayback: () => void;
+  onStopForegroundPlayback: () => void;
+  onStopExperimentalPlayback: () => void;
   selectedWindowHwnd: string | null;
-  testMappedKey: string;
-  testSkyKey: string;
 };
 
 type SettingsPlaceholderProps = {
@@ -48,6 +62,10 @@ export function SettingsPlaceholder({
   onLanguageChange,
   text,
 }: SettingsPlaceholderProps) {
+  const experimentalPlaybackPercent = Math.round(
+    experimentalInput.experimentalPlaybackProgress.percent,
+  );
+
   return (
     <section className="settings-grid" aria-label={text.aria}>
       <article className="panel settings-panel">
@@ -115,6 +133,44 @@ export function SettingsPlaceholder({
           description={text.experimentalInputDescription}
         />
         <p className="experimental-warning">{text.experimentalInputWarning}</p>
+        <div className="experimental-mode-options">
+          <button
+            className={`experimental-mode-card${
+              experimentalInput.experimentalInputMode ===
+              "target-window-message"
+                ? " is-selected"
+                : ""
+            }`}
+            type="button"
+            aria-pressed={
+              experimentalInput.experimentalInputMode ===
+              "target-window-message"
+            }
+            onClick={() =>
+              experimentalInput.onExperimentalInputModeChange(
+                "target-window-message",
+              )
+            }
+          >
+            <strong>{text.experimentalTargetWindowMode}</strong>
+            <span>{text.experimentalTargetWindowModeDescription}</span>
+          </button>
+          <button
+            className={`experimental-mode-card${
+              experimentalInput.experimentalInputMode === "foreground"
+                ? " is-selected"
+                : ""
+            }`}
+            type="button"
+            aria-pressed={experimentalInput.experimentalInputMode === "foreground"}
+            onClick={() =>
+              experimentalInput.onExperimentalInputModeChange("foreground")
+            }
+          >
+            <strong>{text.experimentalForegroundMode}</strong>
+            <span>{text.experimentalForegroundModeDescription}</span>
+          </button>
+        </div>
         <div className="experimental-input-actions">
           <button
             className="language-option"
@@ -156,12 +212,6 @@ export function SettingsPlaceholder({
             </span>
           </button>
         </div>
-        <div className="experimental-target-summary">
-          <span>{text.experimentalInputTestKeyLabel}</span>
-          <strong>
-            {experimentalInput.testSkyKey} - {experimentalInput.testMappedKey}
-          </strong>
-        </div>
         <div className="experimental-window-list">
           {experimentalInput.candidateWindows.length === 0 ? (
             <p>{text.experimentalInputNoWindows}</p>
@@ -199,16 +249,66 @@ export function SettingsPlaceholder({
         {experimentalInput.lastError !== null ? (
           <p className="parse-error">{experimentalInput.lastError}</p>
         ) : null}
-        <button
-          className="parse-button"
-          type="button"
-          disabled={!experimentalInput.canSendTestKey}
-          onClick={experimentalInput.onSendTestKey}
-        >
-          {experimentalInput.isSendingTestKey
-            ? text.experimentalInputTesting
-            : text.experimentalInputTestSingleKey}
-        </button>
+        <div className="experimental-playback-controls">
+          <div className="experimental-target-summary">
+            <span>{text.experimentalPlaybackStatusLabel}</span>
+            <strong>
+              {experimentalInput.isExperimentalPlaybackRunning
+                ? text.experimentalPlaybackRunning
+                : text.experimentalPlaybackIdle}
+              {" / "}
+              {experimentalPlaybackPercent}%
+            </strong>
+          </div>
+          <p className="experimental-warning">
+            {text.experimentalForegroundWarning}
+          </p>
+          <div className="experimental-target-summary">
+            <span>{text.experimentalForegroundStatusLabel}</span>
+            <strong>
+              {experimentalInput.foregroundPlaybackState === "countdown" &&
+              experimentalInput.foregroundCountdown !== null
+                ? experimentalInput.foregroundCountdown
+                : text.experimentalForegroundStates[
+                    experimentalInput.foregroundPlaybackState
+                  ]}
+            </strong>
+          </div>
+          <div className="experimental-input-actions">
+            <button
+              className="parse-button"
+              type="button"
+              disabled={!experimentalInput.canStartExperimentalPlayback}
+              onClick={experimentalInput.onStartExperimentalPlayback}
+            >
+              {text.experimentalPlaybackStart}
+            </button>
+            <button
+              className="language-option"
+              type="button"
+              disabled={!experimentalInput.canStopExperimentalPlayback}
+              onClick={experimentalInput.onStopExperimentalPlayback}
+            >
+              {text.experimentalPlaybackStop}
+            </button>
+            <button
+              className="parse-button"
+              type="button"
+              disabled={!experimentalInput.canStartForegroundPlayback}
+              onClick={experimentalInput.onStartForegroundPlayback}
+            >
+              {text.experimentalForegroundPlay}
+            </button>
+            <button
+              className="language-option"
+              type="button"
+              disabled={!experimentalInput.canStopForegroundPlayback}
+              onClick={experimentalInput.onStopForegroundPlayback}
+            >
+              {text.experimentalForegroundStop}
+            </button>
+          </div>
+        </div>
       </article>
 
       <article className="panel settings-panel key-mapping-panel">
