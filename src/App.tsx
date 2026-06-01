@@ -196,9 +196,16 @@ function App() {
               experimentalInput.handleExperimentalInputModeChange,
             onRefreshWindows: experimentalInput.handleRefreshWindows,
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
+            onTargetWindowCompatibilityProfileChange:
+              experimentalInput.setTargetWindowCompatibilityProfile,
+            onTargetWindowKeyHoldMsChange:
+              experimentalInput.setTargetWindowKeyHoldMs,
             onTargetWindowMessageMethodChange:
               experimentalInput.setTargetWindowMessageMethod,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+            targetWindowCompatibilityProfile:
+              experimentalInput.targetWindowCompatibilityProfile,
+            targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
             targetWindowMessageMethod:
               experimentalInput.targetWindowMessageMethod,
             experimentalInputMode: experimentalInput.experimentalInputMode,

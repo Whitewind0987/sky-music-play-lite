@@ -259,18 +259,23 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "实验性播放已开始：{songName} -> {target}。",
+        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。",
       experimentalPlaybackPaused: "实验性播放已暂停。",
       experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
       experimentalPlaybackFinished: "实验性播放已完成。",
       experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
+      experimentalPlaybackGroupedYes: "是",
+      experimentalPlaybackGroupedNo: "否",
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
-      experimentalPlaybackCommandFailed: "实验性播放发送失败：{error}",
+      experimentalPlaybackCommandFailed:
+        "目标窗口消息发送失败。目标窗口可能拒绝消息或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
       experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
       experimentalTargetWindowMethodSelected:
         "目标窗口消息投递方式已切换：{method}",
+      experimentalTargetWindowProfileSelected:
+        "目标窗口兼容配置已切换：{profile}",
       foregroundPlaybackCountdownStarted:
         "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
@@ -328,6 +333,16 @@ export const uiText = {
         "post-message": "PostMessage",
         "send-message": "SendMessage",
       },
+      experimentalTargetWindowCompatibilityProfile: "兼容配置",
+      experimentalTargetWindowCompatibilityProfiles: {
+        standard: "标准模式",
+        "legacy-vkscan-zero-lparam": "旧版 VkKeyScan 简单参数",
+        "legacy-vkscan-scan-lparam": "旧版 VkKeyScan 扫描码参数",
+        "grouped-legacy": "旧版组合按键模式",
+      },
+      experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
+      experimentalTargetWindowCompatibilityWarning:
+        "兼容配置只影响目标窗口消息模式。不同窗口、权限和游戏环境的结果可能不同；如果目标窗口忽略后台窗口消息，本阶段不会添加更强或隐藏的方法。",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
         "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
@@ -606,19 +621,23 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Experimental playback started: {songName} -> {target}.",
+        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}.",
       experimentalPlaybackPaused: "Experimental playback paused.",
       experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
       experimentalPlaybackFinished: "Experimental playback finished.",
       experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
+      experimentalPlaybackGroupedYes: "yes",
+      experimentalPlaybackGroupedNo: "no",
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
-        "Experimental playback command failed: {error}",
+        "Target window message failed. The target window may reject messages or require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
       experimentalInputModeSelected: "Experimental input mode selected: {mode}",
       experimentalTargetWindowMethodSelected:
         "Target-window message method selected: {method}",
+      experimentalTargetWindowProfileSelected:
+        "Target-window compatibility profile selected: {profile}",
       foregroundPlaybackCountdownStarted:
         "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
@@ -680,6 +699,17 @@ export const uiText = {
         "post-message": "PostMessage",
         "send-message": "SendMessage",
       },
+      experimentalTargetWindowCompatibilityProfile:
+        "Compatibility profile",
+      experimentalTargetWindowCompatibilityProfiles: {
+        standard: "Standard",
+        "legacy-vkscan-zero-lparam": "Legacy VkKeyScan Simple",
+        "legacy-vkscan-scan-lparam": "Legacy VkKeyScan Scan Code",
+        "grouped-legacy": "Legacy Grouped Keys",
+      },
+      experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
+      experimentalTargetWindowCompatibilityWarning:
+        "Compatibility profiles only apply to Target Window Message Mode. Results may vary by target window, permissions, and game environment. If the target ignores background window messages, this phase will not add a stronger or hidden method.",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
         "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",

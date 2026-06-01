@@ -8,6 +8,7 @@ import type {
   CandidateWindow,
   ExperimentalInputMode,
   ForegroundPlaybackState,
+  TargetWindowCompatibilityProfile,
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import {
@@ -33,10 +34,16 @@ type ExperimentalInputPanelState = {
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
   onRefreshWindows: () => void;
   onSelectedWindowChange: (hwnd: string) => void;
+  onTargetWindowCompatibilityProfileChange: (
+    profile: TargetWindowCompatibilityProfile,
+  ) => void;
+  onTargetWindowKeyHoldMsChange: (keyHoldMs: number) => void;
   onTargetWindowMessageMethodChange: (
     method: TargetWindowMessageMethod,
   ) => void;
   selectedWindowHwnd: string | null;
+  targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
+  targetWindowKeyHoldMs: number;
   targetWindowMessageMethod: TargetWindowMessageMethod;
 };
 
@@ -191,35 +198,92 @@ export function SettingsPlaceholder({
           </button>
         </div>
         {experimentalInput.experimentalInputMode === "target-window-message" ? (
-          <div className="setting-row">
-            <span>{text.experimentalTargetWindowMessageMethod}</span>
-            <div className="language-options">
-              {(
-                [
-                  "post-message",
-                  "send-message",
-                ] as TargetWindowMessageMethod[]
-              ).map((method) => (
-                <button
-                  className={`language-option${
-                    experimentalInput.targetWindowMessageMethod === method
-                      ? " is-selected"
-                      : ""
-                  }`}
-                  key={method}
-                  type="button"
-                  aria-pressed={
-                    experimentalInput.targetWindowMessageMethod === method
-                  }
-                  onClick={() =>
-                    experimentalInput.onTargetWindowMessageMethodChange(method)
-                  }
-                >
-                  {text.experimentalTargetWindowMessageMethods[method]}
-                </button>
-              ))}
+          <>
+            <div className="setting-row">
+              <span>{text.experimentalTargetWindowMessageMethod}</span>
+              <div className="language-options">
+                {(
+                  [
+                    "post-message",
+                    "send-message",
+                  ] as TargetWindowMessageMethod[]
+                ).map((method) => (
+                  <button
+                    className={`language-option${
+                      experimentalInput.targetWindowMessageMethod === method
+                        ? " is-selected"
+                        : ""
+                    }`}
+                    key={method}
+                    type="button"
+                    aria-pressed={
+                      experimentalInput.targetWindowMessageMethod === method
+                    }
+                    onClick={() =>
+                      experimentalInput.onTargetWindowMessageMethodChange(
+                        method,
+                      )
+                    }
+                  >
+                    {text.experimentalTargetWindowMessageMethods[method]}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+            <div className="setting-row">
+              <span>{text.experimentalTargetWindowCompatibilityProfile}</span>
+              <div className="language-options">
+                {(
+                  [
+                    "standard",
+                    "legacy-vkscan-zero-lparam",
+                    "legacy-vkscan-scan-lparam",
+                    "grouped-legacy",
+                  ] as TargetWindowCompatibilityProfile[]
+                ).map((profile) => (
+                  <button
+                    className={`language-option${
+                      experimentalInput.targetWindowCompatibilityProfile ===
+                      profile
+                        ? " is-selected"
+                        : ""
+                    }`}
+                    key={profile}
+                    type="button"
+                    aria-pressed={
+                      experimentalInput.targetWindowCompatibilityProfile ===
+                      profile
+                    }
+                    onClick={() =>
+                      experimentalInput.onTargetWindowCompatibilityProfileChange(
+                        profile,
+                      )
+                    }
+                  >
+                    {text.experimentalTargetWindowCompatibilityProfiles[profile]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="setting-row">
+              <span>{text.experimentalTargetWindowKeyHoldMs}</span>
+              <input
+                className="experimental-number-input"
+                type="number"
+                min={10}
+                max={200}
+                value={experimentalInput.targetWindowKeyHoldMs}
+                onChange={(event) =>
+                  experimentalInput.onTargetWindowKeyHoldMsChange(
+                    Number(event.target.value),
+                  )
+                }
+              />
+            </div>
+            <p className="experimental-warning">
+              {text.experimentalTargetWindowCompatibilityWarning}
+            </p>
+          </>
         ) : null}
         <div className="setting-row">
           <span>{text.experimentalInputEnable}</span>

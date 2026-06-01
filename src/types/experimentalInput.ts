@@ -9,6 +9,12 @@ export type ExperimentalInputMode = "target-window-message" | "foreground";
 
 export type TargetWindowMessageMethod = "post-message" | "send-message";
 
+export type TargetWindowCompatibilityProfile =
+  | "standard"
+  | "legacy-vkscan-zero-lparam"
+  | "legacy-vkscan-scan-lparam"
+  | "grouped-legacy";
+
 export type ForegroundPlaybackState =
   | "idle"
   | "countdown"

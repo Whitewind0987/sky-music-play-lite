@@ -12,11 +12,12 @@ import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
 import {
   findSkyWindow,
   listCandidateWindows,
-  sendKeyToWindowMessage,
+  sendKeyGroupToWindowMessage,
 } from "../lib/tauriApi";
 import type {
   CandidateWindow,
   ExperimentalInputMode,
+  TargetWindowCompatibilityProfile,
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
@@ -45,6 +46,12 @@ type UseExperimentalInputOptions = {
   text: UiText;
 };
 
+const defaultTargetWindowCompatibilityProfile: TargetWindowCompatibilityProfile =
+  "standard";
+const defaultTargetWindowKeyHoldMs = 30;
+const targetWindowKeyHoldMinMs = 10;
+const targetWindowKeyHoldMaxMs = 200;
+
 export function useExperimentalInput({
   appendLog,
   currentSong,
@@ -69,6 +76,11 @@ export function useExperimentalInput({
   const playbackSpeedRef = useRef(playbackSpeed);
   const targetWindowMessageMethodRef =
     useRef<TargetWindowMessageMethod>("post-message");
+  const targetWindowCompatibilityProfileRef =
+    useRef<TargetWindowCompatibilityProfile>(
+      defaultTargetWindowCompatibilityProfile,
+    );
+  const targetWindowKeyHoldMsRef = useRef(defaultTargetWindowKeyHoldMs);
   const [candidateWindows, setCandidateWindows] = useState<CandidateWindow[]>(
     [],
   );
@@ -81,6 +93,15 @@ export function useExperimentalInput({
     useState<ExperimentalInputMode>("target-window-message");
   const [targetWindowMessageMethod, setTargetWindowMessageMethod] =
     useState<TargetWindowMessageMethod>("post-message");
+  const [
+    targetWindowCompatibilityProfile,
+    setTargetWindowCompatibilityProfile,
+  ] = useState<TargetWindowCompatibilityProfile>(
+    defaultTargetWindowCompatibilityProfile,
+  );
+  const [targetWindowKeyHoldMs, setTargetWindowKeyHoldMs] = useState(
+    defaultTargetWindowKeyHoldMs,
+  );
   const [isRefreshingWindows, setIsRefreshingWindows] = useState(false);
   const [isDetectingSkyWindow, setIsDetectingSkyWindow] = useState(false);
   const [experimentalPlaybackState, setExperimentalPlaybackState] =
@@ -305,6 +326,30 @@ export function useExperimentalInput({
     );
   }
 
+  function handleTargetWindowCompatibilityProfileChange(
+    profile: TargetWindowCompatibilityProfile,
+  ) {
+    if (profile === targetWindowCompatibilityProfileRef.current) {
+      return;
+    }
+
+    targetWindowCompatibilityProfileRef.current = profile;
+    setTargetWindowCompatibilityProfile(profile);
+    appendLog(
+      formatText(text.logs.experimentalTargetWindowProfileSelected, {
+        profile:
+          text.settings.experimentalTargetWindowCompatibilityProfiles[profile],
+      }),
+    );
+  }
+
+  function handleTargetWindowKeyHoldMsChange(nextKeyHoldMs: number) {
+    const clampedKeyHoldMs = clampTargetWindowKeyHoldMs(nextKeyHoldMs);
+
+    targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
+    setTargetWindowKeyHoldMs(clampedKeyHoldMs);
+  }
+
   function handlePauseExperimentalPlayback() {
     if (experimentalPlaybackState !== "playing") {
       return;
@@ -365,6 +410,13 @@ export function useExperimentalInput({
     const targetWindowHwnd = selectedWindowHwnd;
     const targetWindowTitle =
       selectedWindow?.title || selectedWindow?.class_name || targetWindowHwnd;
+    const method = targetWindowMessageMethodRef.current;
+    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+    const keyHoldMs = targetWindowKeyHoldMsRef.current;
+    const grouped =
+      compatibilityProfile === "grouped-legacy"
+        ? text.logs.experimentalPlaybackGroupedYes
+        : text.logs.experimentalPlaybackGroupedNo;
 
     experimentalPlaybackRunIdRef.current = runId;
     setExperimentalPlaybackState("playing");
@@ -379,8 +431,16 @@ export function useExperimentalInput({
     });
     appendLog(
       formatText(text.logs.experimentalPlaybackStarted, {
+        grouped,
+        holdMs: keyHoldMs,
+        method: text.settings.experimentalTargetWindowMessageMethods[method],
+        profile:
+          text.settings.experimentalTargetWindowCompatibilityProfiles[
+            compatibilityProfile
+          ],
         songName: song.name,
         target: targetWindowTitle,
+        targetHwnd: targetWindowHwnd,
       }),
     );
 
@@ -457,23 +517,17 @@ export function useExperimentalInput({
         mapScoreNoteToKeyboardKey(note, keyMapping),
       );
 
-      for (const mappedKey of mappedKeys) {
-        if (experimentalPlaybackRunIdRef.current !== runId) {
-          return;
-        }
-
-        await sendKeyToWindowMessage(
-          targetWindowHwnd,
-          mappedKey,
-          targetWindowMessageMethodRef.current,
-        );
+      if (experimentalPlaybackRunIdRef.current !== runId) {
+        return;
       }
 
-      appendLog(
-        formatText(text.logs.experimentalPlaybackSentKeys, {
-          keys: mappedKeys.join(", "),
-        }),
-      );
+      await sendKeyGroupToWindowMessage({
+        compatibilityProfile: targetWindowCompatibilityProfileRef.current,
+        hwnd: targetWindowHwnd,
+        keyHoldMs: targetWindowKeyHoldMsRef.current,
+        keys: mappedKeys,
+        method: targetWindowMessageMethodRef.current,
+      });
     } catch (error) {
       if (experimentalPlaybackRunIdRef.current !== runId) {
         return;
@@ -483,9 +537,30 @@ export function useExperimentalInput({
       const logTemplate = isTargetWindowInvalidError(errorMessage)
         ? text.logs.experimentalPlaybackTargetInvalid
         : text.logs.experimentalPlaybackCommandFailed;
+      const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+      const grouped =
+        compatibilityProfile === "grouped-legacy"
+          ? text.logs.experimentalPlaybackGroupedYes
+          : text.logs.experimentalPlaybackGroupedNo;
 
       setLastError(errorMessage);
-      appendLog(formatText(logTemplate, { error: errorMessage }));
+      appendLog(
+        formatText(logTemplate, {
+          error: errorMessage,
+          grouped,
+          holdMs: targetWindowKeyHoldMsRef.current,
+          inputMode: text.settings.experimentalTargetWindowMode,
+          method:
+            text.settings.experimentalTargetWindowMessageMethods[
+              targetWindowMessageMethodRef.current
+            ],
+          profile:
+            text.settings.experimentalTargetWindowCompatibilityProfiles[
+              compatibilityProfile
+            ],
+          targetHwnd: targetWindowHwnd,
+        }),
+      );
       stopExperimentalPlayback({ logStopped: false });
     }
   }
@@ -527,13 +602,29 @@ export function useExperimentalInput({
     selectedWindowHwnd,
     setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
     setSelectedWindowHwnd,
+    setTargetWindowCompatibilityProfile:
+      handleTargetWindowCompatibilityProfileChange,
+    setTargetWindowKeyHoldMs: handleTargetWindowKeyHoldMsChange,
     setTargetWindowMessageMethod: handleTargetWindowMessageMethodChange,
+    targetWindowCompatibilityProfile,
+    targetWindowKeyHoldMs,
     targetWindowMessageMethod,
     canStartForegroundPlayback:
       experimentalInputMode === "foreground" &&
       foregroundPlayback.canStartForegroundPlayback,
     canStopForegroundPlayback: foregroundPlayback.canStopForegroundPlayback,
   };
+}
+
+function clampTargetWindowKeyHoldMs(keyHoldMs: number) {
+  if (!Number.isFinite(keyHoldMs)) {
+    return defaultTargetWindowKeyHoldMs;
+  }
+
+  return Math.min(
+    targetWindowKeyHoldMaxMs,
+    Math.max(targetWindowKeyHoldMinMs, Math.round(keyHoldMs)),
+  );
 }
 
 function isTargetWindowInvalidError(errorMessage: string) {

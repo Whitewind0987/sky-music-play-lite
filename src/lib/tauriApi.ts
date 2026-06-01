@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   CandidateWindow,
+  TargetWindowCompatibilityProfile,
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
@@ -39,6 +40,28 @@ export function sendKeyToWindowMessage(
   method: TargetWindowMessageMethod,
 ): Promise<string> {
   return invoke<string>("send_key_to_window_message", { hwnd, key, method });
+}
+
+export function sendKeyGroupToWindowMessage({
+  compatibilityProfile,
+  hwnd,
+  keyHoldMs,
+  keys,
+  method,
+}: {
+  compatibilityProfile: TargetWindowCompatibilityProfile;
+  hwnd: string;
+  keyHoldMs: number;
+  keys: string[];
+  method: TargetWindowMessageMethod;
+}): Promise<string> {
+  return invoke<string>("send_key_group_to_window_message", {
+    compatibilityProfile,
+    hwnd,
+    keyHoldMs,
+    keys,
+    method,
+  });
 }
 
 export function sendMappedKeyToWindow(

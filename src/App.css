@@ -929,6 +929,17 @@ button {
   cursor: not-allowed;
 }
 
+.experimental-number-input {
+  width: 96px;
+  min-height: 34px;
+  justify-self: end;
+  padding: 0 10px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
+}
+
 .fake-segment {
   color: #ffffff;
   background: #2f80ed;

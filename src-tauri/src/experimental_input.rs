@@ -24,11 +24,11 @@ mod windows_input {
         OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-        KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC, VK_BACK, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN,
-        VK_END, VK_ESCAPE, VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_COMMA,
-        VK_OEM_MINUS, VK_OEM_PERIOD, VK_OEM_PLUS, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SPACE, VK_TAB,
-        VK_UP,
+        LoadKeyboardLayoutW, MapVirtualKeyW, SendInput, VkKeyScanW, INPUT, INPUT_0, INPUT_KEYBOARD,
+        KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KLF_ACTIVATE, MAPVK_VK_TO_VSC, VK_BACK,
+        VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_INSERT, VK_LEFT,
+        VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD, VK_OEM_PLUS,
+        VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SPACE, VK_TAB, VK_UP,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, FindWindowW, GetClassNameW, GetWindowTextLengthW, GetWindowTextW,
@@ -41,6 +41,13 @@ mod windows_input {
     const MAX_PROCESS_PATH_LENGTH: usize = 1024;
     const TARGET_MESSAGE_METHOD_POST: &str = "post-message";
     const TARGET_MESSAGE_METHOD_SEND: &str = "send-message";
+    const TARGET_PROFILE_STANDARD: &str = "standard";
+    const TARGET_PROFILE_LEGACY_ZERO_LPARAM: &str = "legacy-vkscan-zero-lparam";
+    const TARGET_PROFILE_LEGACY_SCAN_LPARAM: &str = "legacy-vkscan-scan-lparam";
+    const TARGET_PROFILE_GROUPED_LEGACY: &str = "grouped-legacy";
+    const TARGET_KEY_HOLD_MIN_MS: u64 = 10;
+    const TARGET_KEY_HOLD_MAX_MS: u64 = 200;
+    const US_KEYBOARD_LAYOUT_ID: &str = "00000409";
 
     struct WindowMessageKeyInput {
         hwnd: HWND,
@@ -49,6 +56,18 @@ mod windows_input {
         method: String,
         scan_code: u32,
         virtual_key: u16,
+    }
+
+    struct WindowMessageTarget {
+        hwnd: HWND,
+        hwnd_text: String,
+        method: String,
+        compatibility_profile: String,
+    }
+
+    struct TargetWindowKeyMessageResult {
+        down_result: Option<isize>,
+        up_result: Option<isize>,
     }
 
     pub fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
@@ -136,6 +155,82 @@ mod windows_input {
                 input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
             )),
         }
+    }
+
+    pub fn send_key_group_to_window_message(
+        hwnd: String,
+        keys: Vec<String>,
+        method: String,
+        compatibility_profile: String,
+        key_hold_ms: u64,
+    ) -> Result<String, String> {
+        if keys.is_empty() {
+            return Err(format!(
+                "Target-window message input needs at least one key. hwnd: {hwnd}; method: {method}; profile: {compatibility_profile}; hold: {key_hold_ms}ms"
+            ));
+        }
+
+        if !(TARGET_KEY_HOLD_MIN_MS..=TARGET_KEY_HOLD_MAX_MS).contains(&key_hold_ms) {
+            return Err(format!(
+                "Target-window key hold duration is out of range. hwnd: {hwnd}; method: {method}; profile: {compatibility_profile}; hold: {key_hold_ms}ms; allowed range: {TARGET_KEY_HOLD_MIN_MS}-{TARGET_KEY_HOLD_MAX_MS}ms"
+            ));
+        }
+
+        let target = build_window_message_target(hwnd, method, compatibility_profile)?;
+        let inputs = keys
+            .into_iter()
+            .map(|key| build_profile_window_message_key_input(&target, key))
+            .collect::<Result<Vec<_>, _>>()?;
+        let grouped = target.compatibility_profile == TARGET_PROFILE_GROUPED_LEGACY;
+        let mut send_results = Vec::<TargetWindowKeyMessageResult>::new();
+
+        if grouped {
+            for input in inputs.iter() {
+                let key_down_lparam = build_profile_key_down_lparam(input);
+                let down_result =
+                    send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
+                send_results.push(TargetWindowKeyMessageResult {
+                    down_result,
+                    up_result: None,
+                });
+            }
+
+            thread::sleep(Duration::from_millis(key_hold_ms));
+
+            for (index, input) in inputs.iter().enumerate() {
+                let key_up_lparam = build_profile_key_up_lparam(input);
+                let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
+
+                if let Some(result) = send_results.get_mut(index) {
+                    result.up_result = up_result;
+                }
+            }
+        } else {
+            for input in inputs.iter() {
+                let key_down_lparam = build_profile_key_down_lparam(input);
+                let down_result =
+                    send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
+                thread::sleep(Duration::from_millis(key_hold_ms));
+                let key_up_lparam = build_profile_key_up_lparam(input);
+                let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
+
+                send_results.push(TargetWindowKeyMessageResult {
+                    down_result,
+                    up_result,
+                });
+            }
+        }
+
+        Ok(format!(
+            "Target-window key group messages sent. hwnd: {}; key count: {}; method: {}; profile: {}; hold: {}ms; grouped: {}; send-message results: {}",
+            target.hwnd_text,
+            inputs.len(),
+            target.method,
+            target.compatibility_profile,
+            key_hold_ms,
+            grouped,
+            format_send_message_results(&send_results)
+        ))
     }
 
     pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
@@ -429,6 +524,164 @@ mod windows_input {
         })
     }
 
+    fn build_window_message_target(
+        hwnd: String,
+        method: String,
+        compatibility_profile: String,
+    ) -> Result<WindowMessageTarget, String> {
+        let method = method.trim().to_string();
+
+        if method != TARGET_MESSAGE_METHOD_POST && method != TARGET_MESSAGE_METHOD_SEND {
+            return Err(format!(
+                "Unsupported target window message method: {method}. Supported methods: {TARGET_MESSAGE_METHOD_POST}, {TARGET_MESSAGE_METHOD_SEND}."
+            ));
+        }
+
+        let compatibility_profile = compatibility_profile.trim().to_string();
+
+        if !is_supported_target_compatibility_profile(&compatibility_profile) {
+            return Err(format!(
+                "Unsupported target-window compatibility profile: {compatibility_profile}. Supported profiles: {TARGET_PROFILE_STANDARD}, {TARGET_PROFILE_LEGACY_ZERO_LPARAM}, {TARGET_PROFILE_LEGACY_SCAN_LPARAM}, {TARGET_PROFILE_GROUPED_LEGACY}."
+            ));
+        }
+
+        let hwnd_text = hwnd.clone();
+        let hwnd = parse_hwnd(&hwnd_text)?;
+
+        if unsafe { IsWindow(hwnd) } == 0 {
+            return Err(format!(
+                "Selected target window is no longer available. hwnd: {hwnd_text}; method: {method}; profile: {compatibility_profile}"
+            ));
+        }
+
+        Ok(WindowMessageTarget {
+            hwnd,
+            hwnd_text,
+            method,
+            compatibility_profile,
+        })
+    }
+
+    fn build_profile_window_message_key_input(
+        target: &WindowMessageTarget,
+        key: String,
+    ) -> Result<WindowMessageKeyInput, String> {
+        let virtual_key = match target.compatibility_profile.as_str() {
+            TARGET_PROFILE_STANDARD => mapped_key_to_virtual_key(&key).ok_or_else(|| {
+                format!(
+                    "Unsupported mapped key for target-window message input. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
+                    target.hwnd_text, target.method, target.compatibility_profile
+                )
+            })?,
+            TARGET_PROFILE_LEGACY_ZERO_LPARAM
+            | TARGET_PROFILE_LEGACY_SCAN_LPARAM
+            | TARGET_PROFILE_GROUPED_LEGACY => legacy_vkscan_to_virtual_key(&key, target)?,
+            _ => {
+                return Err(format!(
+                    "Unsupported target-window compatibility profile: {}.",
+                    target.compatibility_profile
+                ))
+            }
+        };
+        let needs_scan_code = target.compatibility_profile != TARGET_PROFILE_LEGACY_ZERO_LPARAM;
+        let scan_code = if needs_scan_code {
+            let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+
+            if scan_code == 0 {
+                let error = std::io::Error::last_os_error();
+                return Err(format!(
+                    "Failed to resolve scan code for target-window message input. hwnd: {}; mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; method: {}; profile: {}; last OS error: {error}",
+                    target.hwnd_text, target.method, target.compatibility_profile
+                ));
+            }
+
+            scan_code
+        } else {
+            0
+        };
+
+        Ok(WindowMessageKeyInput {
+            hwnd: target.hwnd,
+            hwnd_text: target.hwnd_text.clone(),
+            key,
+            method: target.method.clone(),
+            scan_code,
+            virtual_key,
+        })
+    }
+
+    fn legacy_vkscan_to_virtual_key(
+        key: &str,
+        target: &WindowMessageTarget,
+    ) -> Result<u16, String> {
+        let normalized_key = key.trim();
+        let mut characters = normalized_key.chars();
+        let character = characters.next().ok_or_else(|| {
+            format!(
+                "Unsupported mapped key for legacy VkKeyScan input. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
+                target.hwnd_text, target.method, target.compatibility_profile
+            )
+        })?;
+
+        if characters.next().is_some() {
+            return mapped_key_to_virtual_key(normalized_key).ok_or_else(|| {
+                format!(
+                    "Unsupported mapped key for legacy VkKeyScan input. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
+                    target.hwnd_text, target.method, target.compatibility_profile
+                )
+            });
+        }
+
+        let keyboard_layout_id = to_wide_null(US_KEYBOARD_LAYOUT_ID);
+        let keyboard_layout =
+            unsafe { LoadKeyboardLayoutW(keyboard_layout_id.as_ptr(), KLF_ACTIVATE) };
+
+        if keyboard_layout.is_null() {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Failed to load US keyboard layout for legacy VkKeyScan input. hwnd: {}; mapped key: {key}; method: {}; profile: {}; last OS error: {error}",
+                target.hwnd_text, target.method, target.compatibility_profile
+            ));
+        }
+
+        let vk_key_scan_result = unsafe { VkKeyScanW(character as u16) };
+
+        if vk_key_scan_result == -1 {
+            return Err(format!(
+                "VkKeyScanW could not resolve mapped key for target-window message input. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
+                target.hwnd_text, target.method, target.compatibility_profile
+            ));
+        }
+
+        Ok((vk_key_scan_result as u16) & 0x00ff)
+    }
+
+    fn is_supported_target_compatibility_profile(profile: &str) -> bool {
+        matches!(
+            profile,
+            TARGET_PROFILE_STANDARD
+                | TARGET_PROFILE_LEGACY_ZERO_LPARAM
+                | TARGET_PROFILE_LEGACY_SCAN_LPARAM
+                | TARGET_PROFILE_GROUPED_LEGACY
+        )
+    }
+
+    fn build_profile_key_down_lparam(input: &WindowMessageKeyInput) -> LPARAM {
+        if input.scan_code == 0 {
+            0
+        } else {
+            build_key_down_lparam(input.scan_code)
+        }
+    }
+
+    fn build_profile_key_up_lparam(input: &WindowMessageKeyInput) -> LPARAM {
+        if input.scan_code == 0 {
+            0
+        } else {
+            build_key_up_lparam(input.scan_code)
+        }
+    }
+
     fn build_key_down_lparam(scan_code: u32) -> LPARAM {
         1 | ((scan_code as isize) << 16)
     }
@@ -454,6 +707,58 @@ mod windows_input {
         }
 
         Ok(())
+    }
+
+    fn send_target_window_message(
+        input: &WindowMessageKeyInput,
+        message: u32,
+        lparam: LPARAM,
+        key_state: &str,
+    ) -> Result<Option<isize>, String> {
+        match input.method.as_str() {
+            TARGET_MESSAGE_METHOD_POST => {
+                post_window_key_message(input, message, lparam, key_state)?;
+                Ok(None)
+            }
+            TARGET_MESSAGE_METHOD_SEND => {
+                let result = unsafe {
+                    SendMessageW(input.hwnd, message, input.virtual_key as usize, lparam)
+                };
+
+                Ok(Some(result))
+            }
+            _ => Err(format!(
+                "Unsupported target window message method: {}. Supported methods: {}, {}.",
+                input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
+            )),
+        }
+    }
+
+    fn format_send_message_results(results: &[TargetWindowKeyMessageResult]) -> String {
+        let result_text = results
+            .iter()
+            .enumerate()
+            .map(|(index, result)| {
+                format!(
+                    "#{} down={}; up={}",
+                    index + 1,
+                    format_optional_message_result(result.down_result),
+                    format_optional_message_result(result.up_result)
+                )
+            })
+            .collect::<Vec<_>>();
+
+        if result_text.is_empty() {
+            "none".to_string()
+        } else {
+            result_text.join(", ")
+        }
+    }
+
+    fn format_optional_message_result(result: Option<isize>) -> String {
+        result
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "n/a".to_string())
     }
 
     fn build_keyboard_input(virtual_key: u16, scan_code: u16, flags: u32) -> INPUT {
@@ -516,6 +821,16 @@ mod windows_input {
         Err("Experimental target-window input is only available on Windows.".to_string())
     }
 
+    pub fn send_key_group_to_window_message(
+        _hwnd: String,
+        _keys: Vec<String>,
+        _method: String,
+        _compatibility_profile: String,
+        _key_hold_ms: u64,
+    ) -> Result<String, String> {
+        Err("Experimental target-window input is only available on Windows.".to_string())
+    }
+
     pub fn send_foreground_key_group(_keys: Vec<String>) -> Result<String, String> {
         Err("Experimental foreground input is only available on Windows.".to_string())
     }
@@ -547,6 +862,22 @@ pub fn send_key_to_window_message(
     method: String,
 ) -> Result<String, String> {
     windows_input::send_key_to_window_message(hwnd, key, method)
+}
+
+pub fn send_key_group_to_window_message(
+    hwnd: String,
+    keys: Vec<String>,
+    method: String,
+    compatibility_profile: String,
+    key_hold_ms: u64,
+) -> Result<String, String> {
+    windows_input::send_key_group_to_window_message(
+        hwnd,
+        keys,
+        method,
+        compatibility_profile,
+        key_hold_ms,
+    )
 }
 
 pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
