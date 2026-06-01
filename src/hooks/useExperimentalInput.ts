@@ -10,6 +10,7 @@ import {
 } from "../lib/playbackScheduler";
 import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
 import {
+  activateTargetWindowMessage,
   findSkyWindow,
   listCandidateWindows,
   sendKeyGroupToWindowMessage,
@@ -104,6 +105,10 @@ export function useExperimentalInput({
   );
   const [isRefreshingWindows, setIsRefreshingWindows] = useState(false);
   const [isDetectingSkyWindow, setIsDetectingSkyWindow] = useState(false);
+  const [
+    isStartingExperimentalPlayback,
+    setIsStartingExperimentalPlayback,
+  ] = useState(false);
   const [experimentalPlaybackState, setExperimentalPlaybackState] =
     useState<PlaybackState>("idle");
   const [experimentalPlaybackProgress, setExperimentalPlaybackProgress] =
@@ -126,9 +131,11 @@ export function useExperimentalInput({
     selectedWindowHwnd !== null &&
     currentSong !== null &&
     currentSong.songNotes.length > 0 &&
+    !isStartingExperimentalPlayback &&
     experimentalPlaybackState !== "playing" &&
     experimentalPlaybackState !== "paused";
   const canStopExperimentalPlayback =
+    isStartingExperimentalPlayback ||
     experimentalPlaybackState === "playing" ||
     experimentalPlaybackState === "paused";
   const foregroundPlayback = useForegroundPlayback({
@@ -288,6 +295,7 @@ export function useExperimentalInput({
     logStopped: boolean;
   }) {
     experimentalPlaybackRunIdRef.current += 1;
+    setIsStartingExperimentalPlayback(false);
     experimentalPlaybackControllerRef.current?.stop();
     experimentalPlaybackControllerRef.current = null;
     setExperimentalPlaybackState("idle");
@@ -370,7 +378,7 @@ export function useExperimentalInput({
     appendLog(text.logs.experimentalPlaybackResumed);
   }
 
-  function handleStartExperimentalPlayback() {
+  async function handleStartExperimentalPlayback() {
     if (
       !canStartExperimentalPlayback ||
       selectedWindowHwnd === null ||
@@ -382,7 +390,104 @@ export function useExperimentalInput({
     stopPreviewPlayback();
     foregroundPlayback.handleStopForegroundPlayback();
     stopExperimentalPlayback({ logStopped: false });
+
+    const runId = experimentalPlaybackRunIdRef.current + 1;
+    const targetWindowHwnd = selectedWindowHwnd;
+    const method = targetWindowMessageMethodRef.current;
+    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+
+    experimentalPlaybackRunIdRef.current = runId;
+    setIsStartingExperimentalPlayback(true);
+    setLastError(null);
+
+    const preflightSucceeded = await runTargetWindowActivationPreflight({
+      compatibilityProfile,
+      method,
+      runId,
+      targetWindowHwnd,
+    });
+
+    if (experimentalPlaybackRunIdRef.current !== runId) {
+      return;
+    }
+
+    setIsStartingExperimentalPlayback(false);
+
+    if (!preflightSucceeded) {
+      return;
+    }
+
     startExperimentalPlaybackForSong(selectedSongIndex);
+  }
+
+  async function runTargetWindowActivationPreflight({
+    compatibilityProfile,
+    method,
+    runId,
+    targetWindowHwnd,
+  }: {
+    compatibilityProfile: TargetWindowCompatibilityProfile;
+    method: TargetWindowMessageMethod;
+    runId: number;
+    targetWindowHwnd: string;
+  }) {
+    if (!shouldRunTargetWindowActivationPreflight(compatibilityProfile)) {
+      return true;
+    }
+
+    const methodLabel = text.settings.experimentalTargetWindowMessageMethods[method];
+    const profileLabel =
+      text.settings.experimentalTargetWindowCompatibilityProfiles[
+        compatibilityProfile
+      ];
+
+    appendLog(
+      formatText(text.logs.experimentalTargetWindowActivationPreflightStarted, {
+        method: methodLabel,
+        profile: profileLabel,
+        targetHwnd: targetWindowHwnd,
+      }),
+    );
+
+    try {
+      await activateTargetWindowMessage(targetWindowHwnd, method);
+
+      if (experimentalPlaybackRunIdRef.current !== runId) {
+        return false;
+      }
+
+      appendLog(
+        formatText(
+          text.logs.experimentalTargetWindowActivationPreflightSucceeded,
+          {
+            method: methodLabel,
+            profile: profileLabel,
+            targetHwnd: targetWindowHwnd,
+          },
+        ),
+      );
+
+      return true;
+    } catch (error) {
+      if (experimentalPlaybackRunIdRef.current !== runId) {
+        return false;
+      }
+
+      const errorMessage = String(error);
+
+      setLastError(errorMessage);
+      appendLog(
+        formatText(text.logs.experimentalTargetWindowActivationPreflightFailed, {
+          error: errorMessage,
+          method: methodLabel,
+          profile: profileLabel,
+          targetHwnd: targetWindowHwnd,
+        }),
+      );
+      stopExperimentalPlayback({ logStopped: false });
+
+      return false;
+    }
   }
 
   function startExperimentalPlaybackForSong(songIndex: number) {
@@ -599,6 +704,7 @@ export function useExperimentalInput({
     handleStopExperimentalPlayback,
     isDetectingSkyWindow,
     isExperimentalPlaybackRunning:
+      isStartingExperimentalPlayback ||
       experimentalPlaybackState === "playing" ||
       experimentalPlaybackState === "paused",
     isRefreshingWindows,
@@ -636,6 +742,16 @@ function isGroupedTargetWindowProfile(
   profile: TargetWindowCompatibilityProfile,
 ) {
   return (
+    profile === "grouped-legacy" ||
+    profile === "legacy-activate-scan-lparam"
+  );
+}
+
+function shouldRunTargetWindowActivationPreflight(
+  profile: TargetWindowCompatibilityProfile,
+) {
+  return (
+    profile === "legacy-vkscan-scan-lparam" ||
     profile === "grouped-legacy" ||
     profile === "legacy-activate-scan-lparam"
   );

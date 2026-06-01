@@ -161,6 +161,39 @@ mod windows_input {
         }
     }
 
+    pub fn activate_target_window_message(hwnd: String, method: String) -> Result<String, String> {
+        let target = build_window_message_target(
+            hwnd.clone(),
+            method.clone(),
+            TARGET_PROFILE_STANDARD.to_string(),
+        )
+        .map_err(|error| {
+            format!(
+                "Target window activation preflight failed. hwnd: {hwnd}; method: {method}; error: {error}"
+            )
+        })?;
+        let result = send_target_window_activation_message(
+            target.hwnd,
+            &target.hwnd_text,
+            &target.method,
+            "preflight",
+            "preflight: true",
+        )
+        .map_err(|error| {
+            format!(
+                "Target window activation preflight failed. hwnd: {}; method: {}; error: {error}",
+                target.hwnd_text, target.method
+            )
+        })?;
+
+        Ok(format!(
+            "Target window activation preflight sent. hwnd: {}; method: {}; send-message result: {}",
+            target.hwnd_text,
+            target.method,
+            format_optional_message_result(result)
+        ))
+    }
+
     pub fn send_key_group_to_window_message(
         hwnd: String,
         keys: Vec<String>,
@@ -753,34 +786,48 @@ mod windows_input {
         input: &WindowMessageKeyInput,
         activation_stage: &str,
     ) -> Result<Option<isize>, String> {
-        match input.method.as_str() {
+        let detail = format!(
+            "mapped key: {}; virtual key: {}; scan code: {}; profile: {}",
+            input.key, input.virtual_key, input.scan_code, input.compatibility_profile
+        );
+
+        send_target_window_activation_message(
+            input.hwnd,
+            &input.hwnd_text,
+            &input.method,
+            activation_stage,
+            &detail,
+        )
+    }
+
+    fn send_target_window_activation_message(
+        hwnd: HWND,
+        hwnd_text: &str,
+        method: &str,
+        activation_stage: &str,
+        detail: &str,
+    ) -> Result<Option<isize>, String> {
+        match method {
             TARGET_MESSAGE_METHOD_POST => {
-                let sent = unsafe { PostMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+                let sent = unsafe { PostMessageW(hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
 
                 if sent == 0 {
                     let error = std::io::Error::last_os_error();
                     return Err(format!(
-                        "Failed to post WM_ACTIVATE to target window. hwnd: {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; profile: {}; stage: {}; last OS error: {error}",
-                        input.hwnd_text,
-                        input.key,
-                        input.virtual_key,
-                        input.scan_code,
-                        input.method,
-                        input.compatibility_profile,
-                        activation_stage
+                        "Failed to post WM_ACTIVATE to target window. hwnd: {hwnd_text}; method: {method}; stage: {activation_stage}; {detail}; last OS error: {error}"
                     ));
                 }
 
                 Ok(None)
             }
             TARGET_MESSAGE_METHOD_SEND => {
-                let result = unsafe { SendMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+                let result = unsafe { SendMessageW(hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
 
                 Ok(Some(result))
             }
             _ => Err(format!(
                 "Unsupported target window message method: {}. Supported methods: {}, {}.",
-                input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
+                method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
             )),
         }
     }
@@ -897,6 +944,13 @@ mod windows_input {
         Err("Experimental target-window input is only available on Windows.".to_string())
     }
 
+    pub fn activate_target_window_message(
+        _hwnd: String,
+        _method: String,
+    ) -> Result<String, String> {
+        Err("Experimental target-window input is only available on Windows.".to_string())
+    }
+
     pub fn send_key_group_to_window_message(
         _hwnd: String,
         _keys: Vec<String>,
@@ -938,6 +992,10 @@ pub fn send_key_to_window_message(
     method: String,
 ) -> Result<String, String> {
     windows_input::send_key_to_window_message(hwnd, key, method)
+}
+
+pub fn activate_target_window_message(hwnd: String, method: String) -> Result<String, String> {
+    windows_input::activate_target_window_message(hwnd, method)
 }
 
 pub fn send_key_group_to_window_message(

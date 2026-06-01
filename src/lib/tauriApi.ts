@@ -42,6 +42,13 @@ export function sendKeyToWindowMessage(
   return invoke<string>("send_key_to_window_message", { hwnd, key, method });
 }
 
+export function activateTargetWindowMessage(
+  hwnd: string,
+  method: TargetWindowMessageMethod,
+): Promise<string> {
+  return invoke<string>("activate_target_window_message", { hwnd, method });
+}
+
 export function sendKeyGroupToWindowMessage({
   compatibilityProfile,
   hwnd,

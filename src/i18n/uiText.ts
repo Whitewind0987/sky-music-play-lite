@@ -278,6 +278,12 @@ export const uiText = {
         "目标窗口消息投递方式已切换：{method}",
       experimentalTargetWindowProfileSelected:
         "目标窗口兼容配置已切换：{profile}",
+      experimentalTargetWindowActivationPreflightStarted:
+        "目标窗口激活预处理开始：HWND={targetHwnd}；方式={method}；兼容={profile}",
+      experimentalTargetWindowActivationPreflightSucceeded:
+        "目标窗口激活预处理完成：HWND={targetHwnd}；方式={method}；兼容={profile}",
+      experimentalTargetWindowActivationPreflightFailed:
+        "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
       foregroundPlaybackCountdownStarted:
         "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
@@ -355,14 +361,14 @@ export const uiText = {
         "legacy-vkscan-zero-lparam":
           "使用 VkKeyScan 转换按键，但不附带完整扫描码参数。兼容性较低，主要用于对照测试。",
         "legacy-vkscan-scan-lparam":
-          "使用 VkKeyScan 与扫描码参数发送按键消息。兼容性较好，推荐优先测试。",
+          "使用 VkKeyScan 与扫描码参数发送按键消息。播放开始前会进行一次目标窗口激活预处理，推荐优先测试。",
         "grouped-legacy":
-          "面向同时音符优化：同一组按键会先全部按下，再一起释放。适合和弦或多键音符。",
+          "面向同时音符优化：同一组按键会先全部按下，再一起释放。播放开始前会进行一次目标窗口激活预处理，适合和弦或多键音符。",
         "legacy-activate-scan-lparam":
-          "在扫描码按键消息前发送窗口激活消息。兼容性更强，但目标程序可能会表现为被激活。",
+          "在扫描码按键消息前发送窗口激活消息。播放开始前也会进行一次激活预处理，兼容性更强，但目标程序可能会表现为被激活。",
       },
       experimentalTargetWindowRecommendation:
-        "推荐从“扫描码兼容模式 + 队列投递”开始测试。若同时音符表现不稳定，尝试“组合按键兼容模式”。若目标程序不响应，再尝试“激活消息兼容模式”。",
+        "推荐从“扫描码兼容模式 + 队列投递”开始测试。若同时音符表现不稳定，尝试“组合按键兼容模式”。若目标程序仍不响应，再尝试“激活消息兼容模式”。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalTargetWindowCompatibilityWarning:
         "这些配置仅用于目标窗口消息模式。不同程序、权限状态和窗口状态下结果可能不同；请遵守目标程序规则。",
@@ -663,6 +669,12 @@ export const uiText = {
         "Target-window message method selected: {method}",
       experimentalTargetWindowProfileSelected:
         "Target-window compatibility profile selected: {profile}",
+      experimentalTargetWindowActivationPreflightStarted:
+        "Target window activation preflight started: hwnd={targetHwnd}; method={method}; profile={profile}",
+      experimentalTargetWindowActivationPreflightSucceeded:
+        "Target window activation preflight completed: hwnd={targetHwnd}; method={method}; profile={profile}",
+      experimentalTargetWindowActivationPreflightFailed:
+        "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
       foregroundPlaybackCountdownStarted:
         "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
@@ -745,14 +757,14 @@ export const uiText = {
         "legacy-vkscan-zero-lparam":
           "Uses VkKeyScan for key conversion without full scan-code parameters. Lower compatibility; mainly useful for comparison testing.",
         "legacy-vkscan-scan-lparam":
-          "Uses VkKeyScan with scan-code key message parameters. Better compatibility and recommended for initial testing.",
+          "Uses VkKeyScan with scan-code key message parameters. Runs one target-window activation preflight before playback starts and is recommended for initial testing.",
         "grouped-legacy":
-          "Optimized for simultaneous notes: keys in the same group are pressed first, then released together. Suitable for chords and multi-key notes.",
+          "Optimized for simultaneous notes: keys in the same group are pressed first, then released together. Runs one target-window activation preflight before playback starts and is suitable for chords and multi-key notes.",
         "legacy-activate-scan-lparam":
-          "Sends a window activation message before scan-code key messages. Higher compatibility, but the target application may behave as if activated.",
+          "Sends a window activation message before scan-code key messages. Also runs one activation preflight before playback starts. Higher compatibility, but the target application may behave as if activated.",
       },
       experimentalTargetWindowRecommendation:
-        "Recommended starting point: Scan Code Compatibility Mode + Queued Delivery. If simultaneous notes behave inconsistently, try Grouped Key Compatibility Mode. If the target application does not respond, try Activation Message Compatibility Mode.",
+        "Recommended starting point: Scan Code Compatibility Mode + Queued Delivery. If simultaneous notes behave inconsistently, try Grouped Key Compatibility Mode. If the target application still does not respond, try Activation Message Compatibility Mode.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalTargetWindowCompatibilityWarning:
         "These options only apply to Target Window Message Mode. Results may vary depending on the application, permission level, and window state. Please follow the target application's rules.",
