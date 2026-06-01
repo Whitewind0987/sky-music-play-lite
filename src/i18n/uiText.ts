@@ -255,6 +255,29 @@ export const uiText = {
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalTestKeySucceeded: "按键消息已发送到目标窗口：{result}",
       experimentalTestKeyFailed: "实验性单键测试失败：{error}",
+      experimentalPlaybackStarted:
+        "实验性播放已开始：{songName} -> {target}。",
+      experimentalPlaybackStopped: "实验性播放已停止。",
+      experimentalPlaybackFinished: "实验性播放已完成。",
+      experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
+      experimentalPlaybackTargetInvalid:
+        "实验性播放已停止，目标窗口不可用：{error}",
+      experimentalPlaybackCommandFailed: "实验性播放发送失败：{error}",
+      experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
+      foregroundPlaybackCountdownStarted:
+        "前台播放倒计时已开始，请手动切换到目标窗口。",
+      foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
+      foregroundPlaybackFocusReminder:
+        "请在倒计时结束前手动切换到游戏窗口或测试窗口。",
+      foregroundPlaybackStarted: "实验性前台播放已开始：{songName}。",
+      foregroundPlaybackStopped: "实验性前台播放已停止。",
+      foregroundPlaybackFinished: "实验性前台播放已完成。",
+      foregroundPlaybackKeySendFailed: "实验性前台按键发送失败：{error}",
+      foregroundSingleKeyTestStarted:
+        "前台单键测试已开始：{skyKey} -> {key}。请在倒计时结束前切换到记事本。",
+      foregroundSingleKeyTestCommand: "前台单键测试命令：{commandName}",
+      foregroundSingleKeyTestSucceeded: "前台单键测试成功：{result}",
+      foregroundSingleKeyTestFailed: "前台单键测试失败：{error}",
     },
     settings: {
       aria: "设置占位页",
@@ -293,6 +316,30 @@ export const uiText = {
       experimentalInputUnknownProcess: "未知进程",
       experimentalInputUnknownClass: "未知类名",
       experimentalInputTestKeyLabel: "测试键",
+      experimentalPlaybackStart: "实验性播放到目标窗口",
+      experimentalPlaybackStop: "停止实验播放",
+      experimentalPlaybackStatusLabel: "实验性播放",
+      experimentalPlaybackIdle: "空闲",
+      experimentalPlaybackRunning: "发送中",
+      experimentalTargetWindowMode: "目标窗口消息模式",
+      experimentalTargetWindowModeDescription:
+        "目标窗口消息模式兼容性有限，部分游戏窗口可能会拒绝访问。",
+      experimentalForegroundMode: "前台输入模式",
+      experimentalForegroundModeDescription:
+        "向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
+      experimentalForegroundWarning:
+        "实验性前台输入会向当前前台窗口发送模拟键盘输入。请在倒计时结束前手动切换到游戏窗口。请自行确认是否符合游戏规则。",
+      experimentalForegroundPlay: "实验性前台播放",
+      experimentalForegroundStop: "停止前台播放",
+      experimentalForegroundStatusLabel: "前台播放",
+      experimentalForegroundStates: {
+        idle: "空闲",
+        countdown: "倒计时",
+        playing: "播放中",
+        stopped: "已停止",
+        finished: "已完成",
+        error: "出错",
+      },
     },
   },
   "en-US": {
@@ -553,6 +600,36 @@ export const uiText = {
       experimentalTestKeySucceeded:
         "Key message posted to the target window: {result}",
       experimentalTestKeyFailed: "Experimental single-key test failed: {error}",
+      experimentalPlaybackStarted:
+        "Experimental playback started: {songName} -> {target}.",
+      experimentalPlaybackStopped: "Experimental playback stopped.",
+      experimentalPlaybackFinished: "Experimental playback finished.",
+      experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
+      experimentalPlaybackTargetInvalid:
+        "Experimental playback stopped because the target window is unavailable: {error}",
+      experimentalPlaybackCommandFailed:
+        "Experimental playback command failed: {error}",
+      experimentalInputModeSelected: "Experimental input mode selected: {mode}",
+      foregroundPlaybackCountdownStarted:
+        "Foreground playback countdown started. Manually switch to the target window.",
+      foregroundPlaybackCountdownCancelled:
+        "Foreground playback countdown cancelled.",
+      foregroundPlaybackFocusReminder:
+        "Manually switch to the game or test window before the countdown ends.",
+      foregroundPlaybackStarted:
+        "Experimental foreground playback started: {songName}.",
+      foregroundPlaybackStopped: "Experimental foreground playback stopped.",
+      foregroundPlaybackFinished: "Experimental foreground playback finished.",
+      foregroundPlaybackKeySendFailed:
+        "Experimental foreground key send failed: {error}",
+      foregroundSingleKeyTestStarted:
+        "Foreground single-key test started: {skyKey} -> {key}. Switch to Notepad before the countdown ends.",
+      foregroundSingleKeyTestCommand:
+        "Foreground single-key test command: {commandName}",
+      foregroundSingleKeyTestSucceeded:
+        "Foreground single-key test succeeded: {result}",
+      foregroundSingleKeyTestFailed:
+        "Foreground single-key test failed: {error}",
     },
     settings: {
       aria: "Settings placeholder",
@@ -592,6 +669,30 @@ export const uiText = {
       experimentalInputUnknownProcess: "Unknown process",
       experimentalInputUnknownClass: "Unknown class",
       experimentalInputTestKeyLabel: "Test key",
+      experimentalPlaybackStart: "Experimental Play to Target Window",
+      experimentalPlaybackStop: "Stop Experimental Playback",
+      experimentalPlaybackStatusLabel: "Experimental playback",
+      experimentalPlaybackIdle: "Idle",
+      experimentalPlaybackRunning: "Sending",
+      experimentalTargetWindowMode: "Target Window Message Mode",
+      experimentalTargetWindowModeDescription:
+        "Target-window message mode has limited compatibility. Some game windows may deny access.",
+      experimentalForegroundMode: "Foreground Input Mode",
+      experimentalForegroundModeDescription:
+        "Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
+      experimentalForegroundWarning:
+        "Experimental foreground input sends simulated keyboard input to the current foreground window. Manually switch to the game window before the countdown ends. Please make sure your usage follows game rules.",
+      experimentalForegroundPlay: "Experimental Foreground Play",
+      experimentalForegroundStop: "Stop Foreground Playback",
+      experimentalForegroundStatusLabel: "Foreground playback",
+      experimentalForegroundStates: {
+        idle: "Idle",
+        countdown: "Countdown",
+        playing: "Playing",
+        stopped: "Stopped",
+        finished: "Finished",
+        error: "Error",
+      },
     },
   },
 } as const;
