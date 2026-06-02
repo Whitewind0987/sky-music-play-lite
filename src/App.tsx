@@ -87,14 +87,17 @@ function App() {
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
     experimentalInputMode: experimentalInput.experimentalInputMode,
-    importedSongs: scoreLibrary.importedSongs,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
     language,
+    librarySongs: scoreLibrary.librarySongs,
+    likedSongs: scoreLibrary.likedSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
     playbackSpeed: previewPlayback.playbackSpeed,
+    playlists: scoreLibrary.playlists,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
+    selectedPlaylistId: scoreLibrary.selectedPlaylistId,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
     selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
@@ -132,6 +135,10 @@ function App() {
     void scoreLibrary.handleImportScoreFiles(files);
   }
 
+  function handleDeleteLocalSong(songIndex: number) {
+    scoreLibrary.handleDeleteLocalSong(songIndex, playbackQueue.removeSongIndex);
+  }
+
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
     playbackOutput.onPlaySong(queueItem.songIndex);
   }
@@ -163,14 +170,30 @@ function App() {
         <LibraryPanel
           importError={scoreLibrary.importError}
           importDisabled={isAnyPlaybackActive}
+          hasSearchQuery={scoreLibrary.hasSearchQuery}
+          items={scoreLibrary.visibleLibraryItems}
+          onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
+          onCreatePlaylist={scoreLibrary.handleCreatePlaylist}
+          onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
+          onDeleteLocalSong={handleDeleteLocalSong}
+          onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onPlaySong={playbackOutput.onPlaySong}
           onPlaySongNext={playbackQueue.playNext}
+          onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
+          onRemoveFromLiked={scoreLibrary.handleRemoveFromLiked}
+          onRemoveSongFromPlaylist={scoreLibrary.handleRemoveSongFromPlaylist}
+          onRenamePlaylist={scoreLibrary.handleRenamePlaylist}
+          onSearchQueryChange={scoreLibrary.setSearchQuery}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
+          onToggleLiked={scoreLibrary.handleToggleLikedSong}
+          playlists={scoreLibrary.playlists}
+          searchQuery={scoreLibrary.searchQuery}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
+          selectedPlaylist={scoreLibrary.selectedPlaylist}
+          selectedPlaylistId={scoreLibrary.selectedPlaylistId}
           selectedSongIndex={scoreLibrary.selectedSongIndex}
-          songs={scoreLibrary.importedSongs}
           text={text.library}
         />
       );

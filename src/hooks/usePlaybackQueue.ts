@@ -105,6 +105,29 @@ export function usePlaybackQueue({
     appendLog(text.queueCleared);
   }
 
+  function removeSongIndex(deletedSongIndex: number) {
+    const nextItems = queueItemsRef.current.reduce<PlaybackQueueItem[]>(
+      (items, item) => {
+        if (item.songIndex === deletedSongIndex) {
+          return items;
+        }
+
+        items.push({
+          ...item,
+          songIndex:
+            item.songIndex > deletedSongIndex
+              ? item.songIndex - 1
+              : item.songIndex,
+        });
+
+        return items;
+      },
+      [],
+    );
+
+    setQueueItemsAndRef(nextItems);
+  }
+
   function consumeNextQueueItem(songCount: number) {
     const currentItems = queueItemsRef.current;
     const nextItemIndex = currentItems.findIndex(
@@ -132,6 +155,7 @@ export function usePlaybackQueue({
     consumeNextQueueItem,
     playNext,
     queueItems,
+    removeSongIndex,
     removeQueueItem,
   };
 }
