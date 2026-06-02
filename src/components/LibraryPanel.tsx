@@ -16,7 +16,11 @@ type LibraryPanelProps = {
   onAddSongToPlaylist: (playlistId: string, songIndex: number) => void;
   onAddToQueue: (songIndex: number) => void;
   onCreatePlaylist: () => void;
-  onCreatePlaylistWithSong: (songIndex: number) => void;
+  onCreatePlaylistWithSong: (
+    songIndex: number,
+    playlistName?: string,
+    isPrivate?: boolean,
+  ) => void;
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
@@ -155,6 +159,43 @@ function LibraryMoreIcon() {
   );
 }
 
+function LibraryPlusIcon() {
+  return (
+    <svg
+      className="library-title-icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M8 3v10M3 8h10"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </svg>
+  );
+}
+
+function LibraryLockIcon() {
+  return (
+    <svg
+      className="library-title-icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M5 7V5.6a3 3 0 0 1 6 0V7m-7.2 0h8.4v6H3.8V7Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
 function LibraryImportArea({
   importDisabled,
   importError,
@@ -200,10 +241,13 @@ function LibraryImportArea({
 function PlaylistManager({
   onCreatePlaylist,
   onDeletePlaylist,
+  onPlayAll,
   onPlaylistSelect,
   onRenamePlaylist,
   playlists,
+  selectedPlaylist,
   selectedPlaylistId,
+  visibleSongCount,
   text,
 }: Pick<
   LibraryPanelProps,
@@ -212,9 +256,54 @@ function PlaylistManager({
   | "onPlaylistSelect"
   | "onRenamePlaylist"
   | "playlists"
+  | "selectedPlaylist"
   | "selectedPlaylistId"
   | "text"
->) {
+> & {
+  onPlayAll: () => void;
+  visibleSongCount: number;
+}) {
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [selectedPlaylistId]);
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent | MouseEvent) {
+      const target = event.target;
+
+      if (
+        target instanceof Element &&
+        target.closest("[data-playlist-menu-root='true']")
+      ) {
+        return;
+      }
+
+      setIsMoreMenuOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsMoreMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMoreMenuOpen]);
+
   return (
     <section className="playlist-manager" aria-label={text.playlistsTitle}>
       <div className="playlist-manager-header">
@@ -226,31 +315,101 @@ function PlaylistManager({
       {playlists.length === 0 ? (
         <p className="library-empty-note">{text.noPlaylists}</p>
       ) : (
-        <div className="playlist-list">
-          {playlists.map((playlist) => (
-            <div
-              className={`playlist-list-item${
-                playlist.id === selectedPlaylistId ? " is-selected" : ""
-              }`}
-              key={playlist.id}
-            >
-              <button type="button" onClick={() => onPlaylistSelect(playlist.id)}>
-                {playlist.name}
-              </button>
-              <span>{playlist.songIds.length}</span>
-              <button type="button" onClick={() => onRenamePlaylist(playlist.id)}>
-                {text.renamePlaylist}
-              </button>
+        <>
+          <div className="playlist-list">
+            {playlists.map((playlist) => (
               <button
-                className="library-danger-button"
+                className={`playlist-list-item${
+                  playlist.id === selectedPlaylistId ? " is-selected" : ""
+                }`}
+                key={playlist.id}
                 type="button"
-                onClick={() => onDeletePlaylist(playlist.id)}
+                onClick={() => onPlaylistSelect(playlist.id)}
               >
-                {text.deletePlaylist}
+                <span className="playlist-list-name">{playlist.name}</span>
+                {playlist.isPrivate ? (
+                  <span className="playlist-private-badge">
+                    <LibraryLockIcon />
+                    {text.privatePlaylist}
+                  </span>
+                ) : null}
+                <span className="playlist-list-count">
+                  {playlist.songIds.length} {text.playlistSongCount}
+                </span>
               </button>
+            ))}
+          </div>
+          {selectedPlaylist ? (
+            <div className="playlist-detail-header">
+              <div className="playlist-cover-placeholder" aria-hidden="true">
+                <LibraryCollectIcon />
+              </div>
+              <div className="playlist-detail-main">
+                <div className="playlist-detail-title-row">
+                  <h3>{selectedPlaylist.name}</h3>
+                  {selectedPlaylist.isPrivate ? (
+                    <span className="playlist-private-badge">
+                      <LibraryLockIcon />
+                      {text.privatePlaylist}
+                    </span>
+                  ) : null}
+                </div>
+                <p>
+                  {text.playlistSongCountMeta.replace(
+                    "{count}",
+                    String(visibleSongCount),
+                  )}
+                </p>
+              </div>
+              <div className="playlist-detail-actions">
+                <button
+                  type="button"
+                  disabled={visibleSongCount === 0}
+                  onClick={onPlayAll}
+                >
+                  {text.playAll}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRenamePlaylist(selectedPlaylist.id)}
+                >
+                  {text.renamePlaylist}
+                </button>
+                <span
+                  className="playlist-more-anchor"
+                  data-playlist-menu-root="true"
+                >
+                  <button
+                    type="button"
+                    aria-label={text.playlistMore}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.currentTarget.blur();
+                      setIsMoreMenuOpen((isOpen) => !isOpen);
+                    }}
+                  >
+                    {text.playlistMore}
+                  </button>
+                  {isMoreMenuOpen ? (
+                    <div className="playlist-more-menu" role="menu">
+                      <button
+                        className="is-danger"
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          onDeletePlaylist(selectedPlaylist.id);
+                        }}
+                      >
+                        {text.deletePlaylist}
+                      </button>
+                    </div>
+                  ) : null}
+                </span>
+              </div>
             </div>
-          ))}
-        </div>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -260,15 +419,16 @@ function AddToPlaylistPopup({
   item,
   onAddSongToPlaylist,
   onClose,
-  onCreatePlaylistWithSong,
+  onCreatePlaylist,
   playlists,
   text,
 }: Pick<
   LibraryPanelProps,
-  "onAddSongToPlaylist" | "onCreatePlaylistWithSong" | "playlists" | "text"
+  "onAddSongToPlaylist" | "playlists" | "text"
 > & {
   item: LibrarySongListItem;
   onClose: () => void;
+  onCreatePlaylist: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
@@ -310,11 +470,9 @@ function AddToPlaylistPopup({
         <button
           className="library-collect-create"
           type="button"
-          onClick={() => {
-            onCreatePlaylistWithSong(item.songIndex);
-            onClose();
-          }}
+          onClick={onCreatePlaylist}
         >
+          <LibraryPlusIcon />
           {text.createPlaylistAndAdd}
         </button>
         {playlists.length === 0 ? (
@@ -327,8 +485,15 @@ function AddToPlaylistPopup({
                 key={playlist.id}
                 type="button"
                 onClick={() => {
+                  const isAlreadyInPlaylist = playlist.songIds.includes(
+                    item.librarySong.id,
+                  );
+
                   onAddSongToPlaylist(playlist.id, item.songIndex);
-                  onClose();
+
+                  if (!isAlreadyInPlaylist) {
+                    onClose();
+                  }
                 }}
               >
                 <span>{playlist.name}</span>
@@ -340,6 +505,88 @@ function AddToPlaylistPopup({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CreatePlaylistDialog({
+  item,
+  onClose,
+  onCreatePlaylistWithSong,
+  text,
+}: Pick<LibraryPanelProps, "onCreatePlaylistWithSong" | "text"> & {
+  item: LibrarySongListItem;
+  onClose: () => void;
+}) {
+  const [playlistName, setPlaylistName] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="library-dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <form
+        className="library-create-playlist-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={text.createPlaylistDialogTitle}
+        onSubmit={(event) => {
+          event.preventDefault();
+
+          onCreatePlaylistWithSong(
+            item.songIndex,
+            playlistName.trim() || text.defaultPlaylistName,
+            isPrivate,
+          );
+          onClose();
+        }}
+      >
+        <div className="library-collect-dialog-header">
+          <h3>{text.createPlaylistDialogTitle}</h3>
+          <button type="button" onClick={onClose} aria-label={text.closeDialog}>
+            ×
+          </button>
+        </div>
+        <label className="library-create-playlist-field">
+          <span>{text.playlistTitlePlaceholder}</span>
+          <input
+            type="text"
+            value={playlistName}
+            placeholder={text.defaultPlaylistName}
+            autoFocus
+            onChange={(event) => setPlaylistName(event.currentTarget.value)}
+          />
+        </label>
+        <label className="library-create-playlist-check">
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(event) => setIsPrivate(event.currentTarget.checked)}
+          />
+          <span>{text.makePrivatePlaylist}</span>
+        </label>
+        <button className="library-create-playlist-submit" type="submit">
+          {text.createPlaylistConfirm}
+        </button>
+      </form>
     </div>
   );
 }
@@ -511,7 +758,9 @@ function LibrarySongTable({
 
           return (
             <div
-              className={`library-song-row${isSelected ? " is-selected" : ""}`}
+              className={`library-song-row${isSelected ? " is-selected" : ""}${
+                openActionMenuSongId === librarySong.id ? " has-open-menu" : ""
+              }`}
               key={librarySong.id}
               role="button"
               tabIndex={0}
@@ -581,7 +830,10 @@ function LibrarySongTable({
                   >
                     <LibraryCollectIcon />
                   </button>
-                  <span className="library-action-menu-anchor">
+                  <span
+                    className="library-action-menu-anchor"
+                    data-library-menu-root="true"
+                  >
                     <button
                       className="library-title-icon-button"
                       type="button"
@@ -677,6 +929,8 @@ export function LibraryPanel({
 }: LibraryPanelProps) {
   const [collectingSongItem, setCollectingSongItem] =
     useState<LibrarySongListItem | null>(null);
+  const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
+    useState<LibrarySongListItem | null>(null);
   const [openActionMenuSongId, setOpenActionMenuSongId] =
     useState<LibrarySongId | null>(null);
   const isLocalImports = selectedCategory === "local-imports";
@@ -696,6 +950,7 @@ export function LibraryPanel({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setCollectingSongItem(null);
+        setCreatingPlaylistForItem(null);
         setOpenActionMenuSongId(null);
       }
     }
@@ -705,16 +960,35 @@ export function LibraryPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!hasOpenActionMenu) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent | MouseEvent) {
+      const target = event.target;
+
+      if (
+        target instanceof Element &&
+        target.closest("[data-library-menu-root='true']")
+      ) {
+        return;
+      }
+
+      setOpenActionMenuSongId(null);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [hasOpenActionMenu]);
+
   return (
     <section className="library-panel" aria-label={text.aria}>
-      {hasOpenActionMenu ? (
-        <button
-          className="library-menu-scrim"
-          type="button"
-          aria-label={text.closeMenu}
-          onClick={() => setOpenActionMenuSongId(null)}
-        />
-      ) : null}
       {isLocalImports ? (
         <LibraryImportArea
           importDisabled={importDisabled}
@@ -743,10 +1017,17 @@ export function LibraryPanel({
           <PlaylistManager
             onCreatePlaylist={onCreatePlaylist}
             onDeletePlaylist={onDeletePlaylist}
+            onPlayAll={() => {
+              if (items[0]) {
+                onPlaySong(items[0]);
+              }
+            }}
             onPlaylistSelect={onPlaylistSelect}
             onRenamePlaylist={onRenamePlaylist}
             playlists={playlists}
+            selectedPlaylist={selectedPlaylist}
             selectedPlaylistId={selectedPlaylistId}
+            visibleSongCount={items.length}
             text={text}
           />
         ) : null}
@@ -796,8 +1077,20 @@ export function LibraryPanel({
           item={collectingSongItem}
           onAddSongToPlaylist={onAddSongToPlaylist}
           onClose={() => setCollectingSongItem(null)}
-          onCreatePlaylistWithSong={onCreatePlaylistWithSong}
+          onCreatePlaylist={() => setCreatingPlaylistForItem(collectingSongItem)}
           playlists={playlists}
+          text={text}
+        />
+      ) : null}
+      {creatingPlaylistForItem ? (
+        <CreatePlaylistDialog
+          item={creatingPlaylistForItem}
+          onClose={() => setCreatingPlaylistForItem(null)}
+          onCreatePlaylistWithSong={(songIndex, playlistName, isPrivate) => {
+            onCreatePlaylistWithSong(songIndex, playlistName, isPrivate);
+            setCreatingPlaylistForItem(null);
+            setCollectingSongItem(null);
+          }}
           text={text}
         />
       ) : null}

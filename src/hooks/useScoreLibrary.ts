@@ -309,7 +309,11 @@ export function useScoreLibrary({
     );
   }
 
-  function handleCreatePlaylistWithSong(songIndex: number) {
+  function handleCreatePlaylistWithSong(
+    songIndex: number,
+    playlistName: string = text.library.defaultPlaylistName,
+    isPrivate = false,
+  ) {
     const librarySong = librarySongsRef.current[songIndex];
 
     if (!librarySong) {
@@ -317,7 +321,7 @@ export function useScoreLibrary({
     }
 
     const playlist = addSongToPlaylist(
-      createPlaylist(text.library.defaultPlaylistName),
+      createPlaylist(playlistName.trim() || text.library.defaultPlaylistName, isPrivate),
       librarySong.id,
     );
 

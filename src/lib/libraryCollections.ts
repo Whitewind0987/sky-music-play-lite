@@ -70,13 +70,14 @@ export function toggleLikedSong(
   return [...likedSongs, { likedAt: Date.now(), songId }];
 }
 
-export function createPlaylist(name: string): UserPlaylist {
+export function createPlaylist(name: string, isPrivate = false): UserPlaylist {
   const now = Date.now();
   generatedIdCounter += 1;
 
   return {
     createdAt: now,
     id: `playlist-${now}-${generatedIdCounter}`,
+    isPrivate,
     name,
     songIds: [],
     updatedAt: now,
