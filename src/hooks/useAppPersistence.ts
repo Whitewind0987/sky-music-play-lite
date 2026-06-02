@@ -22,7 +22,7 @@ import type {
   PlaybackMode,
   PlaybackSpeed,
 } from "../types/playbackOptions";
-import type { Song } from "../types/score";
+import type { LibrarySong, LikedSongEntry, UserPlaylist } from "../types/library";
 
 const saveDebounceMs = 500;
 
@@ -38,14 +38,17 @@ type UseAppPersistenceOptions = {
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
   experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
-  importedSongs: Song[];
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   language: LanguageCode;
+  librarySongs: LibrarySong[];
+  likedSongs: LikedSongEntry[];
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
+  playlists: UserPlaylist[];
   selectedLibraryCategory: LibraryCategoryId;
+  selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
   selectedWindowHwnd: string | null;
   selectedWindowSnapshot: ExperimentalInputPreferences["selectedWindowSnapshot"];
@@ -64,14 +67,17 @@ export function useAppPersistence({
   applyScoreLibrary,
   experimentalInputEnabled,
   experimentalInputMode,
-  importedSongs,
   isShuffleEnabled,
   keyMapping,
   language,
+  librarySongs,
+  likedSongs,
   noteIntervalDelayMs,
   playbackMode,
   playbackSpeed,
+  playlists,
   selectedLibraryCategory,
+  selectedPlaylistId,
   selectedSongIndex,
   selectedWindowHwnd,
   selectedWindowSnapshot,
@@ -155,14 +161,17 @@ export function useAppPersistence({
           targetWindowKeyHoldMs,
           targetWindowMessageMethod,
         },
-        importedSongs,
         isShuffleEnabled,
         keyMapping,
         language,
+        librarySongs,
+        likedSongs,
         noteIntervalDelayMs,
         playbackMode,
         playbackSpeed,
+        playlists,
         selectedLibraryCategory,
+        selectedPlaylistId,
         selectedSongIndex,
       });
 
@@ -184,14 +193,17 @@ export function useAppPersistence({
     experimentalInputMode,
     experimentalInputEnabled,
     hasLoadedAppData,
-    importedSongs,
     isShuffleEnabled,
     keyMapping,
     language,
+    librarySongs,
+    likedSongs,
     noteIntervalDelayMs,
     playbackMode,
     playbackSpeed,
+    playlists,
     selectedLibraryCategory,
+    selectedPlaylistId,
     selectedSongIndex,
     selectedWindowHwnd,
     selectedWindowSnapshot,

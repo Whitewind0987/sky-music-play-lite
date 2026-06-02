@@ -24,6 +24,8 @@ import {
   playbackModes,
   type PlaybackMode,
 } from "../types/playbackOptions";
+import { ensureLibrarySongs } from "./libraryCollections";
+import type { LibrarySong, LikedSongEntry, UserPlaylist } from "../types/library";
 import type { Song } from "../types/score";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
@@ -55,12 +57,27 @@ const targetWindowKeyHoldMaxMs = 200;
 export function sanitizePersistedAppData(
   rawData: unknown,
 ): PersistedAppData | null {
-  if (!isRecord(rawData) || rawData.appDataVersion !== appDataVersion) {
+  if (!isRecord(rawData)) {
     return null;
   }
 
-  const importedSongs = sanitizeSongs(
-    isRecord(rawData.library) ? rawData.library.importedSongs : null,
+  const rawVersion = rawData.appDataVersion;
+
+  if (rawVersion !== 1 && rawVersion !== appDataVersion) {
+    return null;
+  }
+
+  const rawLibrary = isRecord(rawData.library) ? rawData.library : {};
+  const librarySongs =
+    rawVersion === 1
+      ? ensureLibrarySongs(sanitizeSongs(rawLibrary.importedSongs))
+      : sanitizeLibrarySongs(rawLibrary.librarySongs);
+  const validSongIds = new Set(librarySongs.map((librarySong) => librarySong.id));
+  const likedSongs = sanitizeLikedSongs(rawLibrary.likedSongs, validSongIds);
+  const playlists = sanitizePlaylists(rawLibrary.playlists, validSongIds);
+  const selectedPlaylistId = sanitizeSelectedPlaylistId(
+    rawLibrary.selectedPlaylistId,
+    playlists,
   );
 
   return {
@@ -72,17 +89,18 @@ export function sanitizePersistedAppData(
     keyMapping: sanitizeKeyMapping(rawData.keyMapping),
     language: sanitizeEnum(rawData.language, languageCodes, "zh-CN"),
     library: {
-      importedSongs,
+      librarySongs,
+      likedSongs,
+      playlists,
       selectedLibraryCategory: sanitizeEnum(
-        isRecord(rawData.library)
-          ? rawData.library.selectedLibraryCategory
-          : null,
+        rawLibrary.selectedLibraryCategory,
         libraryCategoryIds,
         "local-imports",
       ),
+      selectedPlaylistId,
       selectedSongIndex: sanitizeSelectedSongIndex(
-        isRecord(rawData.library) ? rawData.library.selectedSongIndex : null,
-        importedSongs.length,
+        rawLibrary.selectedSongIndex,
+        librarySongs.length,
       ),
     },
     playbackSettings: sanitizePlaybackSettings(rawData.playbackSettings),
@@ -91,38 +109,56 @@ export function sanitizePersistedAppData(
 
 export function buildPersistedAppData({
   experimentalInputPreferences,
-  importedSongs,
+  librarySongs,
+  likedSongs,
   isShuffleEnabled,
   keyMapping,
   language,
   noteIntervalDelayMs,
   playbackMode,
   playbackSpeed,
+  playlists,
   selectedLibraryCategory,
+  selectedPlaylistId,
   selectedSongIndex,
 }: {
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
-  importedSongs: Song[];
+  librarySongs: LibrarySong[];
+  likedSongs: LikedSongEntry[];
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   language: LanguageCode;
   noteIntervalDelayMs: number;
   playbackMode: PlaybackMode;
   playbackSpeed: number;
+  playlists: UserPlaylist[];
   selectedLibraryCategory: LibraryCategoryId;
+  selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
 }): PersistedAppData {
+  const sanitizedLibrarySongs = sanitizeLibrarySongs(librarySongs);
+  const validSongIds = new Set(
+    sanitizedLibrarySongs.map((librarySong) => librarySong.id),
+  );
+  const sanitizedPlaylists = sanitizePlaylists(playlists, validSongIds);
+
   return {
     appDataVersion,
     experimentalInputPreferences,
     keyMapping: sanitizeKeyMapping(keyMapping),
     language,
     library: {
-      importedSongs: sanitizeSongs(importedSongs),
+      librarySongs: sanitizedLibrarySongs,
+      likedSongs: sanitizeLikedSongs(likedSongs, validSongIds),
+      playlists: sanitizedPlaylists,
       selectedLibraryCategory,
+      selectedPlaylistId: sanitizeSelectedPlaylistId(
+        selectedPlaylistId,
+        sanitizedPlaylists,
+      ),
       selectedSongIndex: sanitizeSelectedSongIndex(
         selectedSongIndex,
-        importedSongs.length,
+        sanitizedLibrarySongs.length,
       ),
     },
     playbackSettings: {
@@ -247,6 +283,124 @@ function sanitizeSongs(rawSongs: unknown): Song[] {
   }
 
   return rawSongs.filter(isSong);
+}
+
+function sanitizeLibrarySongs(rawLibrarySongs: unknown): LibrarySong[] {
+  if (!Array.isArray(rawLibrarySongs)) {
+    return [];
+  }
+
+  return rawLibrarySongs.reduce<LibrarySong[]>((nextSongs, rawLibrarySong) => {
+    if (
+      !isRecord(rawLibrarySong) ||
+      typeof rawLibrarySong.id !== "string" ||
+      !isSong(rawLibrarySong.song)
+    ) {
+      return nextSongs;
+    }
+
+    nextSongs.push({
+      id: rawLibrarySong.id,
+      importedAt:
+        typeof rawLibrarySong.importedAt === "number"
+          ? rawLibrarySong.importedAt
+          : Date.now(),
+      song: rawLibrarySong.song,
+      source: "local-import",
+    });
+
+    return nextSongs;
+  }, []);
+}
+
+function sanitizeLikedSongs(
+  rawLikedSongs: unknown,
+  validSongIds: Set<string>,
+): LikedSongEntry[] {
+  if (!Array.isArray(rawLikedSongs)) {
+    return [];
+  }
+
+  const seenSongIds = new Set<string>();
+
+  return rawLikedSongs.reduce<LikedSongEntry[]>((nextEntries, rawEntry) => {
+    if (
+      !isRecord(rawEntry) ||
+      typeof rawEntry.songId !== "string" ||
+      !validSongIds.has(rawEntry.songId) ||
+      seenSongIds.has(rawEntry.songId)
+    ) {
+      return nextEntries;
+    }
+
+    seenSongIds.add(rawEntry.songId);
+    nextEntries.push({
+      likedAt: typeof rawEntry.likedAt === "number" ? rawEntry.likedAt : Date.now(),
+      songId: rawEntry.songId,
+    });
+
+    return nextEntries;
+  }, []);
+}
+
+function sanitizePlaylists(
+  rawPlaylists: unknown,
+  validSongIds: Set<string>,
+): UserPlaylist[] {
+  if (!Array.isArray(rawPlaylists)) {
+    return [];
+  }
+
+  return rawPlaylists.reduce<UserPlaylist[]>((nextPlaylists, rawPlaylist) => {
+    if (
+      !isRecord(rawPlaylist) ||
+      typeof rawPlaylist.id !== "string" ||
+      typeof rawPlaylist.name !== "string"
+    ) {
+      return nextPlaylists;
+    }
+
+    const songIds = Array.isArray(rawPlaylist.songIds)
+      ? Array.from(
+          new Set(
+            rawPlaylist.songIds.filter(
+              (songId): songId is string =>
+                typeof songId === "string" && validSongIds.has(songId),
+            ),
+          ),
+        )
+      : [];
+
+    nextPlaylists.push({
+      createdAt:
+        typeof rawPlaylist.createdAt === "number"
+          ? rawPlaylist.createdAt
+          : Date.now(),
+      id: rawPlaylist.id,
+      name: rawPlaylist.name.trim() || "Playlist",
+      songIds,
+      updatedAt:
+        typeof rawPlaylist.updatedAt === "number"
+          ? rawPlaylist.updatedAt
+          : Date.now(),
+    });
+
+    return nextPlaylists;
+  }, []);
+}
+
+function sanitizeSelectedPlaylistId(
+  rawPlaylistId: unknown,
+  playlists: UserPlaylist[],
+) {
+  if (
+    typeof rawPlaylistId === "string" &&
+    playlists.some((playlist) => playlist.id === rawPlaylistId)
+  ) {
+    return rawPlaylistId;
+  }
+
+  return playlists[0]?.id ?? null;
 }
 
 function sanitizeSelectedSongIndex(

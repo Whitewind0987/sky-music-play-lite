@@ -41,6 +41,11 @@ type UseExperimentalInputOptions = {
   appendLog: (message: string) => void;
   consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
   currentSong: Song | null;
+  getPlaybackOrderNextSongIndex: (options: {
+    currentSongIndex: number;
+    isShuffleEnabled: boolean;
+    playbackMode: PlaybackMode;
+  }) => number | null;
   importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
@@ -64,6 +69,7 @@ export function useExperimentalInput({
   appendLog,
   consumeNextQueueItem,
   currentSong,
+  getPlaybackOrderNextSongIndex,
   importedSongs,
   importedSongsRef,
   isShuffleEnabled,
@@ -152,6 +158,7 @@ export function useExperimentalInput({
     appendLog,
     currentSong,
     experimentalInputEnabled,
+    getPlaybackOrderNextSongIndex,
     importedSongs,
     importedSongsRef,
     isShuffleEnabled,
@@ -701,11 +708,19 @@ export function useExperimentalInput({
       playbackModeRef.current === "repeat-one"
         ? null
         : consumeNextQueueItem(currentImportedSongs.length);
+    const playbackOrderNextSongIndex =
+      queuedItem === null && playbackModeRef.current !== "repeat-one"
+        ? getPlaybackOrderNextSongIndex({
+            currentSongIndex: songIndex,
+            isShuffleEnabled: isShuffleEnabledRef.current,
+            playbackMode: playbackModeRef.current,
+          })
+        : null;
     const finishDecision = decidePlaybackFinish({
       currentSongIndex: songIndex,
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
-      queuedSongIndex: queuedItem?.songIndex ?? null,
+      queuedSongIndex: queuedItem?.songIndex ?? playbackOrderNextSongIndex ?? null,
       songCount: currentImportedSongs.length,
     });
 

@@ -11,9 +11,9 @@ import type {
   PlaybackMode,
   PlaybackSpeed,
 } from "./playbackOptions";
-import type { Song } from "./score";
+import type { LibrarySong, LikedSongEntry, UserPlaylist } from "./library";
 
-export const appDataVersion = 1;
+export const appDataVersion = 2;
 
 export type ExperimentalInputPreferences = {
   experimentalInputEnabled: boolean;
@@ -36,8 +36,11 @@ export type PersistedAppData = {
   keyMapping: KeyMapping;
   language: LanguageCode;
   library: {
-    importedSongs: Song[];
+    librarySongs: LibrarySong[];
+    likedSongs: LikedSongEntry[];
+    playlists: UserPlaylist[];
     selectedLibraryCategory: LibraryCategoryId;
+    selectedPlaylistId: string | null;
     selectedSongIndex: number | null;
   };
   playbackSettings: {
