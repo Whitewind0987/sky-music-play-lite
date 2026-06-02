@@ -7,10 +7,7 @@ import {
 import { BottomPlayer } from "./components/BottomPlayer";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
-import {
-  KeyboardPreview,
-  PlaybackControls,
-} from "./components/PlaybackPanel";
+import { KeyboardPreview } from "./components/PlaybackPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
@@ -26,7 +23,7 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
-import { dryRunPlayback, testRustCommand } from "./lib/tauriApi";
+import type { PlaybackQueueItem } from "./types/playbackQueue";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -35,7 +32,7 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const text = uiText[language];
-  const { appendLog, logEntries, setLogEntries } = usePlaybackLog([
+  const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
     uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
@@ -88,6 +85,7 @@ function App() {
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
+    experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
     experimentalInputMode: experimentalInput.experimentalInputMode,
     importedSongs: scoreLibrary.importedSongs,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
@@ -98,6 +96,8 @@ function App() {
     playbackSpeed: previewPlayback.playbackSpeed,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
+    selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+    selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
     setLanguage,
     targetWindowCompatibilityProfile:
       experimentalInput.targetWindowCompatibilityProfile,
@@ -111,62 +111,50 @@ function App() {
     text: text.bottomPlayer,
   });
   const [queueOpen, setQueueOpen] = useState(false);
+  const isAnyPlaybackActive =
+    previewPlayback.playbackState === "playing" ||
+    previewPlayback.playbackState === "paused" ||
+    experimentalInput.foregroundPlaybackState === "countdown" ||
+    experimentalInput.foregroundPlaybackState === "playing" ||
+    experimentalInput.foregroundPlaybackState === "paused" ||
+    experimentalInput.isExperimentalPlaybackRunning;
 
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
 
-  async function handleTestRust() {
-    try {
-      const message = await testRustCommand();
-      appendLog(message);
-    } catch (error) {
-      setLogEntries((currentEntries) => [
-        ...currentEntries,
-        formatText(text.logs.rustCommandFailed, { error: String(error) }),
-      ]);
-    }
-  }
-
-  async function handleDryRunPlayback() {
-    if (!scoreLibrary.currentSelectedSong) {
-      appendLog(text.logs.noSelectedScore);
+  function handleImportScoreFiles(files: File[]) {
+    if (isAnyPlaybackActive) {
+      appendLog(text.logs.importBlockedDuringPlayback);
       return;
     }
 
-    try {
-      appendLog(
-        formatText(text.logs.dryRunStarted, {
-          songName: scoreLibrary.currentSelectedSong.name,
-        }),
-      );
+    void scoreLibrary.handleImportScoreFiles(files);
+  }
 
-      const result = await dryRunPlayback(
-        scoreLibrary.currentSelectedSong.songNotes,
-        keyMapping,
-      );
-      const firstNote = result.first_note;
-      const lastNote = result.last_note;
+  function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    playbackOutput.onPlaySong(queueItem.songIndex);
+  }
 
-      appendLog(
-        formatText(text.logs.dryRunFinished, {
-          firstKey: firstNote?.key ?? text.logs.noNoteSummary,
-          firstMappedKey: firstNote?.mapped_key ?? text.logs.noNoteSummary,
-          firstTime: firstNote?.time ?? text.logs.noNoteSummary,
-          lastKey: lastNote?.key ?? text.logs.noNoteSummary,
-          lastMappedKey: lastNote?.mapped_key ?? text.logs.noNoteSummary,
-          lastTime: lastNote?.time ?? text.logs.noNoteSummary,
-          noteCount: result.note_count,
-          status: text.logs.dryRunStatus[result.status] ?? result.status,
-        }),
-      );
-    } catch (error) {
-      appendLog(
-        formatText(text.logs.dryRunFailed, {
-          error: String(error),
-        }),
-      );
+  function handleNextPlayback() {
+    const songs = scoreLibrary.importedSongsRef.current;
+    const queuedItem = playbackQueue.consumeNextQueueItem(songs.length);
+    const nextSongIndex =
+      queuedItem?.songIndex ??
+      getNextLibrarySongIndex(scoreLibrary.selectedSongIndex, songs.length);
+
+    if (nextSongIndex === null) {
+      playbackOutput.onStop();
+      appendLog(text.logs.manualNextUnavailable);
+      return;
     }
+
+    appendLog(
+      formatText(text.logs.manualNextTriggered, {
+        songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
+      }),
+    );
+    playbackOutput.onPlaySong(nextSongIndex);
   }
 
   function renderActiveSection() {
@@ -174,9 +162,10 @@ function App() {
       return (
         <LibraryPanel
           importError={scoreLibrary.importError}
+          importDisabled={isAnyPlaybackActive}
           onAddToQueue={playbackQueue.addToQueue}
-          onImportFiles={scoreLibrary.handleImportScoreFiles}
-          onPlaySong={previewPlayback.handlePlayImportedSong}
+          onImportFiles={handleImportScoreFiles}
+          onPlaySong={playbackOutput.onPlaySong}
           onPlaySongNext={playbackQueue.playNext}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
@@ -189,25 +178,11 @@ function App() {
 
     if (activeSection === "Playback") {
       return (
-        <>
-          <KeyboardPreview
-            activeKeys={previewPlayback.activeKeys}
-            keyMapping={keyMapping}
-            text={text.keyboard}
-          />
-          <PlaybackControls
-            canRunDryRun={scoreLibrary.currentSelectedSong !== null}
-            canPlayPreview={scoreLibrary.currentSelectedSong !== null}
-            onDryRunPlayback={handleDryRunPlayback}
-            playbackState={previewPlayback.playbackState}
-            onPausePreview={previewPlayback.handlePausePreview}
-            onPlayPreview={previewPlayback.handlePlayPreview}
-            onResumePreview={previewPlayback.handleResumePreview}
-            onStopPreview={previewPlayback.handleStopPreview}
-            onTestRust={handleTestRust}
-            text={text.playback}
-          />
-        </>
+        <KeyboardPreview
+          activeKeys={previewPlayback.activeKeys}
+          keyMapping={keyMapping}
+          text={text.keyboard}
+        />
       );
     }
 
@@ -243,6 +218,7 @@ function App() {
             onTargetWindowMessageMethodChange:
               experimentalInput.setTargetWindowMessageMethod,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+            selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
             targetWindowCompatibilityProfile:
               experimentalInput.targetWindowCompatibilityProfile,
             targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
@@ -297,12 +273,15 @@ function App() {
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
+        onNext={handleNextPlayback}
         onPause={playbackOutput.onPause}
+        onPlayQueueItem={handlePlayQueueItem}
         onPlay={playbackOutput.onPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
         onQueueClear={playbackQueue.clearQueue}
         onQueueItemRemove={playbackQueue.removeQueueItem}
         onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
+        onQueueClose={() => setQueueOpen(false)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
         onResume={playbackOutput.onResume}
         onShuffleToggle={playbackOutput.onShuffleToggle}
@@ -319,6 +298,23 @@ function App() {
       />
     </main>
   );
+}
+
+function getNextLibrarySongIndex(
+  selectedSongIndex: number | null,
+  songCount: number,
+) {
+  if (songCount <= 0) {
+    return null;
+  }
+
+  if (selectedSongIndex === null) {
+    return 0;
+  }
+
+  const nextSongIndex = selectedSongIndex + 1;
+
+  return nextSongIndex < songCount ? nextSongIndex : null;
 }
 
 export default App;

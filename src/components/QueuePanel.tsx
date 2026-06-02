@@ -4,6 +4,7 @@ import type { Song } from "../types/score";
 
 type QueuePanelProps = {
   onClearQueue: () => void;
+  onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onRemoveQueueItem: (queueItemId: string) => void;
   queueItems: PlaybackQueueItem[];
   songs: Song[];
@@ -12,6 +13,7 @@ type QueuePanelProps = {
 
 export function QueuePanel({
   onClearQueue,
+  onPlayQueueItem,
   onRemoveQueueItem,
   queueItems,
   songs,
@@ -46,14 +48,19 @@ export function QueuePanel({
                 <span className="queue-panel-index">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="queue-panel-song">
+                <button
+                  className="queue-panel-song"
+                  type="button"
+                  disabled={!song}
+                  onClick={() => onPlayQueueItem(queueItem)}
+                >
                   <strong>{song?.name ?? text.queueMissingSong}</strong>
                   <span>
                     {song
                       ? `${text.bpm}: ${song.bpm} / ${text.notes}: ${song.songNotes.length}`
                       : text.queueMissingSongDescription}
                   </span>
-                </span>
+                </button>
                 <button
                   className="queue-panel-remove"
                   type="button"

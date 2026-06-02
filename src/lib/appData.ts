@@ -1,6 +1,10 @@
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { LanguageCode } from "../i18n/uiText";
-import { appDataVersion, type PersistedAppData } from "../types/appData";
+import {
+  appDataVersion,
+  type ExperimentalInputPreferences,
+  type PersistedAppData,
+} from "../types/appData";
 import {
   type ExperimentalInputMode,
   type TargetWindowCompatibilityProfile,
@@ -166,10 +170,21 @@ function sanitizeExperimentalInputPreferences(
   }
 
   return {
+    experimentalInputEnabled:
+      typeof rawPreferences.experimentalInputEnabled === "boolean"
+        ? rawPreferences.experimentalInputEnabled
+        : false,
     experimentalInputMode: sanitizeEnum(
       rawPreferences.experimentalInputMode,
       experimentalInputModes,
       "target-window-message",
+    ),
+    selectedWindowHwnd:
+      typeof rawPreferences.selectedWindowHwnd === "string"
+        ? rawPreferences.selectedWindowHwnd
+        : null,
+    selectedWindowSnapshot: sanitizeSelectedWindowSnapshot(
+      rawPreferences.selectedWindowSnapshot,
     ),
     targetWindowCompatibilityProfile: sanitizeEnum(
       rawPreferences.targetWindowCompatibilityProfile,
@@ -187,6 +202,25 @@ function sanitizeExperimentalInputPreferences(
       targetWindowMessageMethods,
       "post-message",
     ),
+  };
+}
+
+function sanitizeSelectedWindowSnapshot(
+  rawSnapshot: unknown,
+): ExperimentalInputPreferences["selectedWindowSnapshot"] {
+  if (!isRecord(rawSnapshot) || typeof rawSnapshot.hwnd !== "string") {
+    return undefined;
+  }
+
+  return {
+    className:
+      typeof rawSnapshot.className === "string" ? rawSnapshot.className : "",
+    hwnd: rawSnapshot.hwnd,
+    processName:
+      typeof rawSnapshot.processName === "string"
+        ? rawSnapshot.processName
+        : undefined,
+    title: typeof rawSnapshot.title === "string" ? rawSnapshot.title : "",
   };
 }
 

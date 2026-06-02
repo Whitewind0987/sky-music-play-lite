@@ -212,6 +212,15 @@ export function useForegroundPlayback({
     startForegroundPlaybackForSong(selectedSongIndex, { withCountdown: true });
   }
 
+  function handlePlayForegroundSong(songIndex: number) {
+    if (!experimentalInputEnabled) {
+      return;
+    }
+
+    onBeforeStart();
+    startForegroundPlaybackForSong(songIndex, { withCountdown: true });
+  }
+
   function startForegroundPlaybackForSong(
     songIndex: number,
     { withCountdown }: { withCountdown: boolean },
@@ -402,6 +411,7 @@ export function useForegroundPlayback({
     foregroundPlaybackProgress,
     foregroundPlaybackState,
     handlePauseForegroundPlayback,
+    handlePlayForegroundSong,
     handleResumeForegroundPlayback,
     handleStartForegroundPlayback,
     handleStopForegroundPlayback,

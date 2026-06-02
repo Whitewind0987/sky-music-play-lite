@@ -7,7 +7,10 @@ import {
 } from "../lib/appData";
 import { formatText } from "../lib/formatText";
 import { loadAppData, saveAppData } from "../lib/tauriApi";
-import type { PersistedAppData } from "../types/appData";
+import type {
+  ExperimentalInputPreferences,
+  PersistedAppData,
+} from "../types/appData";
 import type {
   ExperimentalInputMode,
   TargetWindowCompatibilityProfile,
@@ -33,6 +36,7 @@ type UseAppPersistenceOptions = {
     playbackSettings: PersistedAppData["playbackSettings"],
   ) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
+  experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
   importedSongs: Song[];
   isShuffleEnabled: boolean;
@@ -43,6 +47,8 @@ type UseAppPersistenceOptions = {
   playbackSpeed: PlaybackSpeed;
   selectedLibraryCategory: LibraryCategoryId;
   selectedSongIndex: number | null;
+  selectedWindowHwnd: string | null;
+  selectedWindowSnapshot: ExperimentalInputPreferences["selectedWindowSnapshot"];
   setLanguage: (language: LanguageCode) => void;
   targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
   targetWindowKeyHoldMs: number;
@@ -56,6 +62,7 @@ export function useAppPersistence({
   applyKeyMapping,
   applyPlaybackSettings,
   applyScoreLibrary,
+  experimentalInputEnabled,
   experimentalInputMode,
   importedSongs,
   isShuffleEnabled,
@@ -66,6 +73,8 @@ export function useAppPersistence({
   playbackSpeed,
   selectedLibraryCategory,
   selectedSongIndex,
+  selectedWindowHwnd,
+  selectedWindowSnapshot,
   setLanguage,
   targetWindowCompatibilityProfile,
   targetWindowKeyHoldMs,
@@ -138,7 +147,10 @@ export function useAppPersistence({
     saveTimerRef.current = window.setTimeout(() => {
       const appData = buildPersistedAppData({
         experimentalInputPreferences: {
+          experimentalInputEnabled,
           experimentalInputMode,
+          selectedWindowHwnd,
+          selectedWindowSnapshot,
           targetWindowCompatibilityProfile,
           targetWindowKeyHoldMs,
           targetWindowMessageMethod,
@@ -170,6 +182,7 @@ export function useAppPersistence({
     };
   }, [
     experimentalInputMode,
+    experimentalInputEnabled,
     hasLoadedAppData,
     importedSongs,
     isShuffleEnabled,
@@ -180,6 +193,8 @@ export function useAppPersistence({
     playbackSpeed,
     selectedLibraryCategory,
     selectedSongIndex,
+    selectedWindowHwnd,
+    selectedWindowSnapshot,
     targetWindowCompatibilityProfile,
     targetWindowKeyHoldMs,
     targetWindowMessageMethod,
