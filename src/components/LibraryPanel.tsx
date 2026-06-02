@@ -520,14 +520,16 @@ function LibraryActionMenu({
           {text.removeFromPlaylist}
         </button>
       ) : null}
-      <button
-        className="is-danger"
-        type="button"
-        role="menuitem"
-        onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
-      >
-        {text.deleteFromLocalImports}
-      </button>
+      {item.librarySong.source === "local-import" ? (
+        <button
+          className="is-danger"
+          type="button"
+          role="menuitem"
+          onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
+        >
+          {text.deleteFromLocalImports}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -716,7 +718,11 @@ function LibrarySongTable({
                   <span className="library-selected-badge">{text.selected}</span>
                 ) : null}
               </span>
-              <span className="library-song-source">{text.localImport}</span>
+              <span className="library-song-source">
+                {librarySong.source === "built-in"
+                  ? text.builtInSource
+                  : text.localImport}
+              </span>
               <span className="library-song-liked">
                 <button
                   className={`library-heart-button${
@@ -783,7 +789,11 @@ export function LibraryPanel({
   const isBuiltIn = selectedCategory === "built-in";
   const emptyState = text.categoryEmptyStates[selectedCategory];
   const contentTitle =
-    isPlaylists && selectedPlaylist ? selectedPlaylist.name : emptyState.title;
+    isBuiltIn && (items.length > 0 || hasSearchQuery)
+      ? text.categoryBuiltIn
+      : isPlaylists && selectedPlaylist
+        ? selectedPlaylist.name
+        : emptyState.title;
   const listEmptyState = getLibraryEmptyState({
     hasSearchQuery,
     selectedCategory,
@@ -846,7 +856,11 @@ export function LibraryPanel({
         <div className="library-content-header">
           <div>
             <h3>{isLocalImports ? text.tableTitle : contentTitle}</h3>
-            {!isLocalImports && !isPlaylists ? <p>{emptyState.description}</p> : null}
+            {!isLocalImports &&
+            !isPlaylists &&
+            (!isBuiltIn || (items.length === 0 && !hasSearchQuery)) ? (
+              <p>{emptyState.description}</p>
+            ) : null}
           </div>
           <label className="library-search">
             <span className="sr-only">{text.searchPlaceholder}</span>
@@ -873,7 +887,7 @@ export function LibraryPanel({
             text={text}
           />
         ) : null}
-        {isBuiltIn ? (
+        {isBuiltIn && items.length === 0 && !hasSearchQuery ? (
           <div className="library-empty">
             <h3>{emptyState.title}</h3>
             <p>{emptyState.description}</p>

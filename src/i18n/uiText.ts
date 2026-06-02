@@ -92,8 +92,8 @@ export const uiText = {
       categoryLiked: "我喜欢",
       categoryEmptyStates: {
         "built-in": {
-          title: "系统自带",
-          description: "后续将加入内置曲谱。",
+          title: "还没有内置曲谱",
+          description: "内置曲谱资源尚未添加。",
         },
         "local-imports": {
           title: "本地导入",
@@ -128,6 +128,7 @@ export const uiText = {
         liked: "喜欢",
         duration: "时长",
       },
+      builtInSource: "内置曲谱",
       localImport: "本地导入",
       likeAction: "喜欢",
       unlikeAction: "取消喜欢",
@@ -180,6 +181,8 @@ export const uiText = {
       unsupportedFile: "只支持 .json 和 .txt 曲谱文件。",
       importErrors: {
         emptyFile: "曲谱文件是空的。",
+        encryptedSongNotesUnsupported:
+          "曲谱“{songName}”使用了加密或编码后的数字音符格式，当前版本暂不支持。请使用未加密导出的 JSON 曲谱，或先转换为 { time, key } 音符格式。",
         invalidJson: "曲谱文件不是有效的 JSON。详细信息：{jsonError}",
         topLevelNotArray: "曲谱文件最外层必须是曲谱数组。",
         emptySongArray: "曲谱文件里没有任何曲谱。",
@@ -522,8 +525,8 @@ export const uiText = {
       categoryLiked: "Liked",
       categoryEmptyStates: {
         "built-in": {
-          title: "Built-in",
-          description: "Built-in scores will be added later.",
+          title: "No built-in scores yet",
+          description: "Built-in score resources have not been added yet.",
         },
         "local-imports": {
           title: "Local Imports",
@@ -560,6 +563,7 @@ export const uiText = {
         liked: "Liked",
         duration: "Duration",
       },
+      builtInSource: "Built-in Score",
       localImport: "Local Import",
       likeAction: "Like",
       unlikeAction: "Unlike",
@@ -613,6 +617,8 @@ export const uiText = {
       unsupportedFile: "Only .json and .txt score files are supported.",
       importErrors: {
         emptyFile: "Score file is empty.",
+        encryptedSongNotesUnsupported:
+          'Score "{songName}" uses an encrypted or encoded numeric note format, which is not supported yet. Please use an unencrypted JSON export or convert it to { time, key } note objects first.',
         invalidJson: "Score file is not valid JSON. Details: {jsonError}",
         topLevelNotArray: "Score file must contain a JSON array of songs.",
         emptySongArray: "Score file does not contain any songs.",

@@ -1,12 +1,13 @@
 import type { Song } from "./score";
 
 export type LibrarySongId = string;
+export type LibrarySongSource = "built-in" | "local-import";
 
 export type LibrarySong = {
   id: LibrarySongId;
   importedAt: number;
   song: Song;
-  source: "local-import";
+  source: LibrarySongSource;
 };
 
 export type LikedSongEntry = {

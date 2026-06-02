@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { UiText } from "../i18n/uiText";
+import { loadBuiltInLibrarySongs } from "../lib/builtinScores";
 import { formatText } from "../lib/formatText";
 import {
   formatImportError,
@@ -21,6 +22,7 @@ import {
   isSupportedScoreFileName,
   parseScoreFileContent,
 } from "../lib/scoreFileImport";
+import type { PersistedAppData } from "../types/appData";
 import type {
   LibrarySong,
   LibrarySongId,
@@ -28,7 +30,6 @@ import type {
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
-import type { PersistedAppData } from "../types/appData";
 
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
@@ -41,9 +42,11 @@ export function useScoreLibrary({
   onBeforeLibraryMutation,
   text,
 }: UseScoreLibraryOptions) {
+  const builtInLibrarySongs = useMemo(() => loadBuiltInLibrarySongs(), []);
   const importedSongsRef = useRef<Song[]>([]);
-  const librarySongsRef = useRef<LibrarySong[]>([]);
-  const [librarySongs, setLibrarySongs] = useState<LibrarySong[]>([]);
+  const librarySongsRef = useRef<LibrarySong[]>(builtInLibrarySongs);
+  const localLibrarySongsRef = useRef<LibrarySong[]>([]);
+  const [localLibrarySongs, setLocalLibrarySongs] = useState<LibrarySong[]>([]);
   const [likedSongs, setLikedSongs] = useState<LikedSongEntry[]>([]);
   const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
@@ -56,6 +59,10 @@ export function useScoreLibrary({
   );
   const [selectedLibraryCategory, setSelectedLibraryCategory] =
     useState<LibraryCategoryId>("local-imports");
+  const librarySongs = useMemo(
+    () => [...builtInLibrarySongs, ...localLibrarySongs],
+    [builtInLibrarySongs, localLibrarySongs],
+  );
   const importedSongs = useMemo(
     () => librarySongs.map((librarySong) => librarySong.song),
     [librarySongs],
@@ -76,6 +83,12 @@ export function useScoreLibrary({
     [librarySongs, likedSongs],
   );
   const categoryLibraryItems = useMemo(() => {
+    if (selectedLibraryCategory === "built-in") {
+      return allLibraryItems.filter(
+        (item) => item.librarySong.source === "built-in",
+      );
+    }
+
     if (selectedLibraryCategory === "liked") {
       return allLibraryItems.filter((item) => item.isLiked);
     }
@@ -95,7 +108,9 @@ export function useScoreLibrary({
     }
 
     if (selectedLibraryCategory === "local-imports") {
-      return allLibraryItems;
+      return allLibraryItems.filter(
+        (item) => item.librarySong.source === "local-import",
+      );
     }
 
     return [];
@@ -105,6 +120,27 @@ export function useScoreLibrary({
     [categoryLibraryItems, searchQuery],
   );
   const hasSearchQuery = searchQuery.trim().length > 0;
+  const validCollectionSongIds = useMemo(
+    () => librarySongs.map((librarySong) => librarySong.id),
+    [librarySongs],
+  );
+  const persistedSelectedSongIndex = useMemo(() => {
+    if (selectedSongIndex === null) {
+      return null;
+    }
+
+    const selectedLibrarySong = librarySongs[selectedSongIndex];
+
+    if (!selectedLibrarySong || selectedLibrarySong.source !== "local-import") {
+      return null;
+    }
+
+    const localSongIndex = localLibrarySongs.findIndex(
+      (librarySong) => librarySong.id === selectedLibrarySong.id,
+    );
+
+    return localSongIndex >= 0 ? localSongIndex : null;
+  }, [librarySongs, localLibrarySongs, selectedSongIndex]);
 
   useEffect(() => {
     importedSongsRef.current = importedSongs;
@@ -113,6 +149,10 @@ export function useScoreLibrary({
   useEffect(() => {
     librarySongsRef.current = librarySongs;
   }, [librarySongs]);
+
+  useEffect(() => {
+    localLibrarySongsRef.current = localLibrarySongs;
+  }, [localLibrarySongs]);
 
   async function handleImportScoreFiles(files: File[]) {
     if (files.length === 0) {
@@ -143,16 +183,17 @@ export function useScoreLibrary({
     }
 
     if (importedSongsFromFiles.length > 0) {
-      const firstNewSongIndex = librarySongsRef.current.length;
+      const firstNewSongIndex =
+        builtInLibrarySongs.length + localLibrarySongsRef.current.length;
       const shouldSelectFirstImportedSong = selectedSongIndex === null;
-      const nextLibrarySongs = importedSongsFromFiles.map((song) =>
+      const nextLocalLibrarySongs = importedSongsFromFiles.map((song) =>
         createLibrarySong(song),
       );
 
-      setLibrarySongs((currentSongs) => {
-        const nextSongs = [...currentSongs, ...nextLibrarySongs];
+      setLocalLibrarySongs((currentSongs) => {
+        const nextSongs = [...currentSongs, ...nextLocalLibrarySongs];
 
-        librarySongsRef.current = nextSongs;
+        localLibrarySongsRef.current = nextSongs;
         return nextSongs;
       });
 
@@ -359,7 +400,7 @@ export function useScoreLibrary({
   ) {
     const librarySong = librarySongsRef.current[songIndex];
 
-    if (!librarySong) {
+    if (!librarySong || librarySong.source !== "local-import") {
       return;
     }
 
@@ -381,34 +422,59 @@ export function useScoreLibrary({
       playlists,
       songId: librarySong.id,
     });
+    const nextCombinedSongCount = Math.max(0, librarySongsRef.current.length - 1);
 
     setLikedSongs(removedCollections.likedSongs);
     setPlaylists(removedCollections.playlists);
-    setLibrarySongs((currentSongs) => {
+    setLocalLibrarySongs((currentSongs) => {
       const nextSongs = currentSongs.filter(
-        (_, currentIndex) => currentIndex !== songIndex,
+        (currentSong) => currentSong.id !== librarySong.id,
       );
 
-      librarySongsRef.current = nextSongs;
+      localLibrarySongsRef.current = nextSongs;
       return nextSongs;
     });
     setSelectedSongIndex((currentSelectedSongIndex) =>
       getNextSelectedSongIndexAfterDelete(
         currentSelectedSongIndex,
         songIndex,
-        librarySongsRef.current.length - 1,
+        nextCombinedSongCount,
       ),
     );
   }
 
   function applyScoreLibrary(library: PersistedAppData["library"]) {
-    librarySongsRef.current = library.librarySongs;
-    setLibrarySongs(library.librarySongs);
-    setLikedSongs(library.likedSongs);
-    setPlaylists(library.playlists);
-    setSelectedPlaylistId(library.selectedPlaylistId);
+    const nextLocalLibrarySongs = library.librarySongs;
+    const nextLibrarySongs = [...builtInLibrarySongs, ...nextLocalLibrarySongs];
+    const validSongIds = new Set(
+      nextLibrarySongs.map((librarySong) => librarySong.id),
+    );
+    const nextLikedSongs = library.likedSongs.filter((entry) =>
+      validSongIds.has(entry.songId),
+    );
+    const nextPlaylists = library.playlists.map((playlist) => ({
+      ...playlist,
+      songIds: playlist.songIds.filter((songId) => validSongIds.has(songId)),
+    }));
+    const nextSelectedPlaylistId =
+      library.selectedPlaylistId !== null &&
+      nextPlaylists.some((playlist) => playlist.id === library.selectedPlaylistId)
+        ? library.selectedPlaylistId
+        : nextPlaylists[0]?.id ?? null;
+    const nextSelectedSongIndex =
+      library.selectedSongIndex !== null &&
+      nextLocalLibrarySongs[library.selectedSongIndex]
+        ? builtInLibrarySongs.length + library.selectedSongIndex
+        : null;
+
+    localLibrarySongsRef.current = nextLocalLibrarySongs;
+    librarySongsRef.current = nextLibrarySongs;
+    setLocalLibrarySongs(nextLocalLibrarySongs);
+    setLikedSongs(nextLikedSongs);
+    setPlaylists(nextPlaylists);
+    setSelectedPlaylistId(nextSelectedPlaylistId);
     setSelectedLibraryCategory(library.selectedLibraryCategory);
-    setSelectedSongIndex(library.selectedSongIndex);
+    setSelectedSongIndex(nextSelectedSongIndex);
     setImportError("");
     setSearchQuery("");
   }
@@ -429,11 +495,14 @@ export function useScoreLibrary({
     handleRenamePlaylist,
     handleSelectImportedSong,
     handleToggleLikedSong,
+    hasSearchQuery,
     importError,
     importedSongs,
     importedSongsRef,
     librarySongs,
     likedSongs,
+    localLibrarySongs,
+    persistedSelectedSongIndex,
     playlists,
     searchQuery,
     selectedLibraryCategory,
@@ -443,8 +512,8 @@ export function useScoreLibrary({
     setSearchQuery,
     setSelectedPlaylistId,
     setSelectedSongIndex,
+    validCollectionSongIds,
     visibleLibraryItems,
-    hasSearchQuery,
   };
 }
 

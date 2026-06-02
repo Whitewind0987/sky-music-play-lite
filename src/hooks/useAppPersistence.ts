@@ -57,6 +57,7 @@ type UseAppPersistenceOptions = {
   targetWindowKeyHoldMs: number;
   targetWindowMessageMethod: TargetWindowMessageMethod;
   text: UiText["logs"];
+  validCollectionSongIds?: string[];
 };
 
 export function useAppPersistence({
@@ -86,6 +87,7 @@ export function useAppPersistence({
   targetWindowKeyHoldMs,
   targetWindowMessageMethod,
   text,
+  validCollectionSongIds,
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
   const [hasLoadedAppData, setHasLoadedAppData] = useState(false);
@@ -173,6 +175,7 @@ export function useAppPersistence({
         selectedLibraryCategory,
         selectedPlaylistId,
         selectedSongIndex,
+        validCollectionSongIds,
       });
 
       void saveAppData(appData).catch((error) => {
@@ -210,6 +213,7 @@ export function useAppPersistence({
     targetWindowCompatibilityProfile,
     targetWindowKeyHoldMs,
     targetWindowMessageMethod,
+    validCollectionSongIds,
   ]);
 
   return {

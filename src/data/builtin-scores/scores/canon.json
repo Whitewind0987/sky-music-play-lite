@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Canon",
+    "bpm": 90,
+    "bitsPerPage": 16,
+    "pitchLevel": 0,
+    "songNotes": [
+      { "time": 0, "key": "Key0" },
+      { "time": 500, "key": "Key2" },
+      { "time": 1000, "key": "Key4" },
+      { "time": 1500, "key": "Key7" },
+      { "time": 2000, "key": "Key4" },
+      { "time": 2500, "key": "Key2" },
+      { "time": 3000, "key": "Key0" }
+    ]
+  }
+]

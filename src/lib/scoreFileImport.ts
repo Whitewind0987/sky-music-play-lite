@@ -4,6 +4,7 @@ const SUPPORTED_SCORE_EXTENSIONS = [".json", ".txt"];
 
 export type ScoreFileImportErrorCode =
   | "emptyFile"
+  | "encryptedSongNotesUnsupported"
   | "invalidJson"
   | "topLevelNotArray"
   | "emptySongArray"
@@ -74,11 +75,17 @@ function validateSong(value: unknown, songIndex: number): Song {
   const bpm = readNumber(value, "bpm", songIndex);
   const bitsPerPage = readNumber(value, "bitsPerPage", songIndex);
   const pitchLevel = readNumber(value, "pitchLevel", songIndex);
-  const isComposed = readBoolean(value, "isComposed", songIndex);
+  const isComposed = readOptionalBoolean(value, "isComposed", false, songIndex);
   const songNotes = value.songNotes;
 
   if (!Array.isArray(songNotes)) {
     throw new ScoreFileImportError("songNotesInvalid", { songName: name });
+  }
+
+  if (value.isEncrypted === true || isNumericSongNotes(songNotes)) {
+    throw new ScoreFileImportError("encryptedSongNotesUnsupported", {
+      songName: name,
+    });
   }
 
   return {
@@ -148,12 +155,17 @@ function readNumber(
   return fieldValue;
 }
 
-function readBoolean(
+function readOptionalBoolean(
   value: Record<string, unknown>,
   fieldName: string,
+  defaultValue: boolean,
   songIndex: number,
 ) {
   const fieldValue = value[fieldName];
+
+  if (fieldValue === undefined) {
+    return defaultValue;
+  }
 
   if (typeof fieldValue !== "boolean") {
     throw new ScoreFileImportError("songFieldInvalid", {
@@ -164,6 +176,10 @@ function readBoolean(
   }
 
   return fieldValue;
+}
+
+function isNumericSongNotes(value: unknown) {
+  return Array.isArray(value) && typeof value[0] === "number";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

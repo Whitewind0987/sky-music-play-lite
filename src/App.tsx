@@ -107,7 +107,7 @@ function App() {
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
     language,
-    librarySongs: scoreLibrary.librarySongs,
+    librarySongs: scoreLibrary.localLibrarySongs,
     likedSongs: scoreLibrary.likedSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
@@ -115,7 +115,7 @@ function App() {
     playlists: scoreLibrary.playlists,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
     selectedPlaylistId: scoreLibrary.selectedPlaylistId,
-    selectedSongIndex: scoreLibrary.selectedSongIndex,
+    selectedSongIndex: scoreLibrary.persistedSelectedSongIndex,
     selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
     selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
     setLanguage,
@@ -124,6 +124,7 @@ function App() {
     targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
     targetWindowMessageMethod: experimentalInput.targetWindowMessageMethod,
     text: text.logs,
+    validCollectionSongIds: scoreLibrary.validCollectionSongIds,
   });
   const playbackOutput = usePlaybackOutput({
     experimentalInput,
@@ -317,7 +318,7 @@ function App() {
     <main className="app-shell">
       <AppSidebar
         activeSection={activeSection}
-        localImportCount={scoreLibrary.importedSongs.length}
+        localImportCount={scoreLibrary.localLibrarySongs.length}
         onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
         onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
         onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
