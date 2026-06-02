@@ -44,8 +44,6 @@ export function useScoreLibrary({
       return;
     }
 
-    onBeforeLibraryMutation();
-
     const failedImports: ImportFailure[] = [];
     const importedSongsFromFiles: Song[] = [];
     let successfulFileCount = 0;

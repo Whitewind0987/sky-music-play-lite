@@ -27,6 +27,7 @@ import {
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
 import { dryRunPlayback, testRustCommand } from "./lib/tauriApi";
+import type { PlaybackQueueItem } from "./types/playbackQueue";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -88,6 +89,7 @@ function App() {
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
+    experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
     experimentalInputMode: experimentalInput.experimentalInputMode,
     importedSongs: scoreLibrary.importedSongs,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
@@ -98,6 +100,8 @@ function App() {
     playbackSpeed: previewPlayback.playbackSpeed,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
+    selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+    selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
     setLanguage,
     targetWindowCompatibilityProfile:
       experimentalInput.targetWindowCompatibilityProfile,
@@ -111,6 +115,13 @@ function App() {
     text: text.bottomPlayer,
   });
   const [queueOpen, setQueueOpen] = useState(false);
+  const isAnyPlaybackActive =
+    previewPlayback.playbackState === "playing" ||
+    previewPlayback.playbackState === "paused" ||
+    experimentalInput.foregroundPlaybackState === "countdown" ||
+    experimentalInput.foregroundPlaybackState === "playing" ||
+    experimentalInput.foregroundPlaybackState === "paused" ||
+    experimentalInput.isExperimentalPlaybackRunning;
 
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
@@ -169,14 +180,49 @@ function App() {
     }
   }
 
+  function handleImportScoreFiles(files: File[]) {
+    if (isAnyPlaybackActive) {
+      appendLog(text.logs.importBlockedDuringPlayback);
+      return;
+    }
+
+    void scoreLibrary.handleImportScoreFiles(files);
+  }
+
+  function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    playbackOutput.onPlaySong(queueItem.songIndex);
+  }
+
+  function handleNextPlayback() {
+    const songs = scoreLibrary.importedSongsRef.current;
+    const queuedItem = playbackQueue.consumeNextQueueItem(songs.length);
+    const nextSongIndex =
+      queuedItem?.songIndex ??
+      getNextLibrarySongIndex(scoreLibrary.selectedSongIndex, songs.length);
+
+    if (nextSongIndex === null) {
+      playbackOutput.onStop();
+      appendLog(text.logs.manualNextUnavailable);
+      return;
+    }
+
+    appendLog(
+      formatText(text.logs.manualNextTriggered, {
+        songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
+      }),
+    );
+    playbackOutput.onPlaySong(nextSongIndex);
+  }
+
   function renderActiveSection() {
     if (activeSection === "Library") {
       return (
         <LibraryPanel
           importError={scoreLibrary.importError}
+          importDisabled={isAnyPlaybackActive}
           onAddToQueue={playbackQueue.addToQueue}
-          onImportFiles={scoreLibrary.handleImportScoreFiles}
-          onPlaySong={previewPlayback.handlePlayImportedSong}
+          onImportFiles={handleImportScoreFiles}
+          onPlaySong={playbackOutput.onPlaySong}
           onPlaySongNext={playbackQueue.playNext}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
@@ -243,6 +289,7 @@ function App() {
             onTargetWindowMessageMethodChange:
               experimentalInput.setTargetWindowMessageMethod,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+            selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
             targetWindowCompatibilityProfile:
               experimentalInput.targetWindowCompatibilityProfile,
             targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
@@ -297,12 +344,15 @@ function App() {
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
+        onNext={handleNextPlayback}
         onPause={playbackOutput.onPause}
+        onPlayQueueItem={handlePlayQueueItem}
         onPlay={playbackOutput.onPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
         onQueueClear={playbackQueue.clearQueue}
         onQueueItemRemove={playbackQueue.removeQueueItem}
         onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
+        onQueueClose={() => setQueueOpen(false)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
         onResume={playbackOutput.onResume}
         onShuffleToggle={playbackOutput.onShuffleToggle}
@@ -319,6 +369,23 @@ function App() {
       />
     </main>
   );
+}
+
+function getNextLibrarySongIndex(
+  selectedSongIndex: number | null,
+  songCount: number,
+) {
+  if (songCount <= 0) {
+    return null;
+  }
+
+  if (selectedSongIndex === null) {
+    return 0;
+  }
+
+  const nextSongIndex = selectedSongIndex + 1;
+
+  return nextSongIndex < songCount ? nextSongIndex : null;
 }
 
 export default App;

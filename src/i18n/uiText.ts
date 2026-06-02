@@ -108,7 +108,6 @@ export const uiText = {
       },
       tableEyebrow: "当前会话",
       tableTitle: "本地导入",
-      tableDescription: "曲谱只保存在本次运行中，重启后不会保留。",
       emptyEyebrow: "暂无曲谱",
       emptyTitle: "还没有导入曲谱",
       emptyDescription: "使用上方导入按钮选择 JSON 或 TXT 曲谱文件。",
@@ -122,6 +121,7 @@ export const uiText = {
       },
       localImport: "本地导入",
       likedPlaceholder: "占位",
+      playThisScoreAction: "播放此曲",
       playNextAction: "下一首播放",
       addToQueueAction: "加入队列",
       selected: "当前",
@@ -159,7 +159,7 @@ export const uiText = {
     },
     playback: {
       panelTitle: "播放控制区",
-      panelDescription: "本阶段仍然只做界面预览。",
+      panelDescription: "这里显示琴键预览和播放控制。",
       stateLabel: "播放状态",
       states: {
         idle: "空闲",
@@ -199,6 +199,7 @@ export const uiText = {
       pause: "暂停",
       resume: "继续",
       stop: "停止",
+      next: "下一首",
       progress: "进度",
       queue: "队列",
       queuePanelTitle: "播放队列",
@@ -230,6 +231,12 @@ export const uiText = {
       panelTitle: "日志区",
       panelDescription: "运行消息会显示在这里。",
       emptyState: "还没有日志。",
+      groups: {
+        experimentalInput: "实验性输入",
+        imports: "导入",
+        playback: "播放",
+        system: "系统",
+      },
       appReady: "应用布局已准备好。",
       dryRunFailed: "Rust dry-run 失败：{error}",
       dryRunFinished:
@@ -262,6 +269,11 @@ export const uiText = {
       queueCleared: "队列已清空。",
       queueNextTriggered: "队列播放：{songName}。",
       queueUnknownSong: "未知曲目",
+      queueItemAlreadyExists: "队列中已存在：{songName}",
+      importBlockedDuringPlayback:
+        "播放进行中，已阻止导入曲谱。请先停止播放。",
+      manualNextTriggered: "手动切换到下一首：{songName}",
+      manualNextUnavailable: "没有可播放的下一首。",
       appDataLoaded: "已恢复本地保存的应用数据。",
       appDataMissing: "未找到本地应用数据，已使用默认设置。",
       appDataInvalid: "本地应用数据无效，已使用默认设置。",
@@ -301,6 +313,12 @@ export const uiText = {
         "目标窗口激活预处理完成：HWND={targetHwnd}；方式={method}；兼容={profile}",
       experimentalTargetWindowActivationPreflightFailed:
         "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
+      experimentalInputPreferencesRestored: "已恢复实验性输入设置。",
+      experimentalRestoredTargetWindow: "已恢复上次目标窗口：{target}",
+      experimentalRestoredTargetWindowMissing:
+        "刷新窗口列表后未找到上次目标窗口：{target}",
+      experimentalRestoredTargetWindowSendFailed:
+        "恢复的目标窗口发送失败，请重新检测或手动选择窗口：{error}",
       foregroundPlaybackCountdownStarted:
         "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
@@ -344,6 +362,8 @@ export const uiText = {
       experimentalInputDetecting: "正在检测...",
       experimentalInputEnable: "启用实验性输入",
       experimentalInputNoWindows: "暂无候选窗口。",
+      experimentalRestoredTargetWindowLabel: "已恢复的目标窗口",
+      experimentalInputHwndLabel: "HWND",
       experimentalInputUntitledWindow: "无标题窗口",
       experimentalInputUnknownProcess: "未知进程",
       experimentalInputUnknownClass: "未知类名",
@@ -385,7 +405,7 @@ export const uiText = {
           "在扫描码按键消息前发送窗口激活消息。播放开始前也会进行一次激活预处理，兼容性更强，但目标程序可能会表现为被激活。",
       },
       experimentalTargetWindowRecommendation:
-        "推荐从“扫描码兼容模式 + 队列投递”开始测试。若同时音符表现不稳定，尝试“组合按键兼容模式”。若目标程序仍不响应，再尝试“激活消息兼容模式”。",
+        "如果需要在目标窗口不在前台时播放，优先使用激活消息兼容模式。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalTargetWindowCompatibilityWarning:
         "这些配置仅用于目标窗口消息模式。不同程序、权限状态和窗口状态下结果可能不同；请遵守目标程序规则。",
@@ -505,8 +525,6 @@ export const uiText = {
       },
       tableEyebrow: "Current session",
       tableTitle: "Local Imports",
-      tableDescription:
-        "Scores are kept only in memory and will be cleared after restart.",
       emptyEyebrow: "No scores",
       emptyTitle: "No scores imported yet",
       emptyDescription: "Use the import button above to choose JSON or TXT score files.",
@@ -520,6 +538,7 @@ export const uiText = {
       },
       localImport: "Local Import",
       likedPlaceholder: "Placeholder",
+      playThisScoreAction: "Play this score",
       playNextAction: "Play Next",
       addToQueueAction: "Add to Queue",
       selected: "Selected",
@@ -563,7 +582,7 @@ export const uiText = {
     },
     playback: {
       panelTitle: "Playback controls area",
-      panelDescription: "This phase still only provides UI preview.",
+      panelDescription: "This page shows keyboard preview and playback controls.",
       stateLabel: "Playback state",
       states: {
         idle: "Idle",
@@ -603,6 +622,7 @@ export const uiText = {
       pause: "Pause",
       resume: "Resume",
       stop: "Stop",
+      next: "Next",
       progress: "Progress",
       queue: "Queue",
       queuePanelTitle: "Playback Queue",
@@ -635,6 +655,12 @@ export const uiText = {
       panelTitle: "Log area",
       panelDescription: "Runtime messages will appear here.",
       emptyState: "No log entries yet.",
+      groups: {
+        experimentalInput: "Experimental Input",
+        imports: "Imports",
+        playback: "Playback",
+        system: "System",
+      },
       appReady: "App layout is ready.",
       dryRunFailed: "Rust dry-run failed: {error}",
       dryRunFinished:
@@ -669,6 +695,11 @@ export const uiText = {
       queueCleared: "Queue cleared.",
       queueNextTriggered: "Queue: playing {songName}.",
       queueUnknownSong: "Unknown score",
+      queueItemAlreadyExists: "Already in queue: {songName}",
+      importBlockedDuringPlayback:
+        "Import was blocked while playback is active. Please stop playback first.",
+      manualNextTriggered: "Skipped to next score: {songName}",
+      manualNextUnavailable: "No next score available.",
       appDataLoaded: "Restored local app data.",
       appDataMissing: "No local app data found. Defaults are active.",
       appDataInvalid: "Local app data is invalid. Defaults are active.",
@@ -710,6 +741,14 @@ export const uiText = {
         "Target window activation preflight completed: hwnd={targetHwnd}; method={method}; profile={profile}",
       experimentalTargetWindowActivationPreflightFailed:
         "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
+      experimentalInputPreferencesRestored:
+        "Restored experimental input settings.",
+      experimentalRestoredTargetWindow:
+        "Restored previous target window: {target}",
+      experimentalRestoredTargetWindowMissing:
+        "Previous target window was not found after refreshing windows: {target}",
+      experimentalRestoredTargetWindowSendFailed:
+        "Sending to the restored target window failed. Please detect or select the window again: {error}",
       foregroundPlaybackCountdownStarted:
         "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
@@ -757,6 +796,8 @@ export const uiText = {
       experimentalInputDetecting: "Detecting...",
       experimentalInputEnable: "Enable Experimental Input",
       experimentalInputNoWindows: "No candidate windows yet.",
+      experimentalRestoredTargetWindowLabel: "Restored target window",
+      experimentalInputHwndLabel: "HWND",
       experimentalInputUntitledWindow: "Untitled window",
       experimentalInputUnknownProcess: "Unknown process",
       experimentalInputUnknownClass: "Unknown class",
@@ -799,7 +840,7 @@ export const uiText = {
           "Sends a window activation message before scan-code key messages. Also runs one activation preflight before playback starts. Higher compatibility, but the target application may behave as if activated.",
       },
       experimentalTargetWindowRecommendation:
-        "Recommended starting point: Scan Code Compatibility Mode + Queued Delivery. If simultaneous notes behave inconsistently, try Grouped Key Compatibility Mode. If the target application still does not respond, try Activation Message Compatibility Mode.",
+        "If playback is needed while the target window is not foreground, prefer Activation Message Compatibility Mode.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalTargetWindowCompatibilityWarning:
         "These options only apply to Target Window Message Mode. Results may vary depending on the application, permission level, and window state. Please follow the target application's rules.",

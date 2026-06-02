@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
+import type { ExperimentalInputPreferences } from "../types/appData";
 import { formatText } from "../lib/formatText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
@@ -31,6 +32,10 @@ import type {
 } from "../types/playbackOptions";
 import type { Note, Song } from "../types/score";
 import { useForegroundPlayback } from "./useForegroundPlayback";
+
+type SelectedWindowSnapshot = NonNullable<
+  ExperimentalInputPreferences
+>["selectedWindowSnapshot"];
 
 type UseExperimentalInputOptions = {
   appendLog: (message: string) => void;
@@ -91,6 +96,8 @@ export function useExperimentalInput({
   const [selectedWindowHwnd, setSelectedWindowHwnd] = useState<string | null>(
     null,
   );
+  const [selectedWindowSnapshot, setSelectedWindowSnapshot] =
+    useState<SelectedWindowSnapshot>(undefined);
   const [experimentalInputEnabled, setExperimentalInputEnabled] =
     useState(false);
   const [experimentalInputMode, setExperimentalInputMode] =
@@ -199,12 +206,24 @@ export function useExperimentalInput({
     try {
       const windows = await listCandidateWindows();
       setCandidateWindows(windows);
-      setSelectedWindowHwnd((currentHwnd) =>
-        currentHwnd !== null &&
-        windows.some((window) => window.hwnd === currentHwnd)
-          ? currentHwnd
-          : null,
+      const refreshedSelectedWindow = windows.find(
+        (window) => window.hwnd === selectedWindowHwnd,
       );
+
+      if (refreshedSelectedWindow) {
+        setSelectedWindowSnapshot(
+          candidateWindowToSnapshot(refreshedSelectedWindow),
+        );
+      } else if (selectedWindowHwnd !== null) {
+        appendLog(
+          formatText(text.logs.experimentalRestoredTargetWindowMissing, {
+            target: getTargetLabelFromSnapshot(
+              selectedWindowSnapshot,
+              selectedWindowHwnd,
+            ),
+          }),
+        );
+      }
       appendLog(
         formatText(text.logs.experimentalWindowListRefreshed, {
           count: windows.length,
@@ -242,6 +261,7 @@ export function useExperimentalInput({
 
         return [skyWindow, ...currentWindows];
       });
+      setSelectedWindowSnapshot(candidateWindowToSnapshot(skyWindow));
       setSelectedWindowHwnd(skyWindow.hwnd);
       appendLog(
         formatText(text.logs.experimentalSkyWindowDetected, {
@@ -362,10 +382,28 @@ export function useExperimentalInput({
     setTargetWindowKeyHoldMs(clampedKeyHoldMs);
   }
 
+  function handleSelectedWindowChange(hwnd: string) {
+    const candidateWindow = candidateWindows.find(
+      (window) => window.hwnd === hwnd,
+    );
+
+    setSelectedWindowHwnd(hwnd);
+    setSelectedWindowSnapshot(
+      candidateWindow
+        ? candidateWindowToSnapshot(candidateWindow)
+        : hwnd === selectedWindowHwnd
+          ? selectedWindowSnapshot
+          : undefined,
+    );
+  }
+
   function applyExperimentalInputPreferences(
     preferences:
       | {
+          experimentalInputEnabled: boolean;
           experimentalInputMode: ExperimentalInputMode;
+          selectedWindowHwnd: string | null;
+          selectedWindowSnapshot?: SelectedWindowSnapshot;
           targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
           targetWindowKeyHoldMs: number;
           targetWindowMessageMethod: TargetWindowMessageMethod;
@@ -375,6 +413,7 @@ export function useExperimentalInput({
     if (!preferences) {
       setExperimentalInputEnabled(false);
       setSelectedWindowHwnd(null);
+      setSelectedWindowSnapshot(undefined);
       return;
     }
 
@@ -387,14 +426,27 @@ export function useExperimentalInput({
     targetWindowCompatibilityProfileRef.current =
       preferences.targetWindowCompatibilityProfile;
     targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
-    setExperimentalInputEnabled(false);
-    setSelectedWindowHwnd(null);
+    setExperimentalInputEnabled(preferences.experimentalInputEnabled);
+    setSelectedWindowHwnd(preferences.selectedWindowHwnd);
+    setSelectedWindowSnapshot(preferences.selectedWindowSnapshot);
     setExperimentalInputMode(preferences.experimentalInputMode);
     setTargetWindowMessageMethod(preferences.targetWindowMessageMethod);
     setTargetWindowCompatibilityProfile(
       preferences.targetWindowCompatibilityProfile,
     );
     setTargetWindowKeyHoldMs(clampedKeyHoldMs);
+    appendLog(text.logs.experimentalInputPreferencesRestored);
+
+    if (preferences.selectedWindowHwnd !== null) {
+      appendLog(
+        formatText(text.logs.experimentalRestoredTargetWindow, {
+          target: getTargetLabelFromSnapshot(
+            preferences.selectedWindowSnapshot,
+            preferences.selectedWindowHwnd,
+          ),
+        }),
+      );
+    }
   }
 
   function handlePauseExperimentalPlayback() {
@@ -423,6 +475,26 @@ export function useExperimentalInput({
       selectedWindowHwnd === null ||
       selectedSongIndex === null
     ) {
+      return;
+    }
+
+    await startExperimentalPlaybackWithPreflight(selectedSongIndex);
+  }
+
+  async function handlePlayExperimentalSong(songIndex: number) {
+    if (
+      !experimentalInputEnabled ||
+      experimentalInputMode !== "target-window-message" ||
+      selectedWindowHwnd === null
+    ) {
+      return;
+    }
+
+    await startExperimentalPlaybackWithPreflight(songIndex);
+  }
+
+  async function startExperimentalPlaybackWithPreflight(songIndex: number) {
+    if (selectedWindowHwnd === null) {
       return;
     }
 
@@ -456,7 +528,7 @@ export function useExperimentalInput({
       return;
     }
 
-    startExperimentalPlaybackForSong(selectedSongIndex);
+    startExperimentalPlaybackForSong(songIndex);
   }
 
   async function runTargetWindowActivationPreflight({
@@ -553,7 +625,11 @@ export function useExperimentalInput({
     const runId = experimentalPlaybackRunIdRef.current + 1;
     const targetWindowHwnd = selectedWindowHwnd;
     const targetWindowTitle =
-      selectedWindow?.title || selectedWindow?.class_name || targetWindowHwnd;
+      selectedWindow?.title ||
+      selectedWindowSnapshot?.title ||
+      selectedWindow?.class_name ||
+      selectedWindowSnapshot?.className ||
+      targetWindowHwnd;
     const method = targetWindowMessageMethodRef.current;
     const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
     const keyHoldMs = targetWindowKeyHoldMsRef.current;
@@ -692,9 +768,12 @@ export function useExperimentalInput({
       }
 
       const errorMessage = String(error);
-      const logTemplate = isTargetWindowInvalidError(errorMessage)
-        ? text.logs.experimentalPlaybackTargetInvalid
-        : text.logs.experimentalPlaybackCommandFailed;
+      const logTemplate =
+        selectedWindow === null && selectedWindowSnapshot !== undefined
+          ? text.logs.experimentalRestoredTargetWindowSendFailed
+          : isTargetWindowInvalidError(errorMessage)
+            ? text.logs.experimentalPlaybackTargetInvalid
+            : text.logs.experimentalPlaybackCommandFailed;
       const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
       const grouped =
         isGroupedTargetWindowProfile(compatibilityProfile)
@@ -741,6 +820,8 @@ export function useExperimentalInput({
     handlePauseExperimentalPlayback,
     handlePauseForegroundPlayback:
       foregroundPlayback.handlePauseForegroundPlayback,
+    handlePlayExperimentalSong,
+    handlePlayForegroundSong: foregroundPlayback.handlePlayForegroundSong,
     handleRefreshWindows,
     handleResumeExperimentalPlayback,
     handleResumeForegroundPlayback:
@@ -760,8 +841,9 @@ export function useExperimentalInput({
     lastError,
     selectedWindow,
     selectedWindowHwnd,
+    selectedWindowSnapshot,
     setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
-    setSelectedWindowHwnd,
+    setSelectedWindowHwnd: handleSelectedWindowChange,
     setTargetWindowCompatibilityProfile:
       handleTargetWindowCompatibilityProfileChange,
     setTargetWindowKeyHoldMs: handleTargetWindowKeyHoldMsChange,
@@ -804,6 +886,32 @@ function shouldRunTargetWindowActivationPreflight(
     profile === "grouped-legacy" ||
     profile === "legacy-activate-scan-lparam"
   );
+}
+
+function candidateWindowToSnapshot(
+  candidateWindow: CandidateWindow,
+): SelectedWindowSnapshot {
+  return {
+    className: candidateWindow.class_name,
+    hwnd: candidateWindow.hwnd,
+    processName: candidateWindow.process_name ?? undefined,
+    title: candidateWindow.title,
+  };
+}
+
+function getTargetLabelFromSnapshot(
+  snapshot: SelectedWindowSnapshot,
+  hwnd: string,
+) {
+  if (snapshot?.title) {
+    return `${snapshot.title} / HWND ${hwnd}`;
+  }
+
+  if (snapshot?.className) {
+    return `${snapshot.className} / HWND ${hwnd}`;
+  }
+
+  return `HWND ${hwnd}`;
 }
 
 function isTargetWindowInvalidError(errorMessage: string) {

@@ -15,14 +15,24 @@ import type { Song } from "./score";
 
 export const appDataVersion = 1;
 
+export type ExperimentalInputPreferences = {
+  experimentalInputEnabled: boolean;
+  experimentalInputMode: ExperimentalInputMode;
+  selectedWindowHwnd: string | null;
+  selectedWindowSnapshot?: {
+    className: string;
+    hwnd: string;
+    processName?: string;
+    title: string;
+  };
+  targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
+  targetWindowKeyHoldMs: number;
+  targetWindowMessageMethod: TargetWindowMessageMethod;
+};
+
 export type PersistedAppData = {
   appDataVersion: typeof appDataVersion;
-  experimentalInputPreferences?: {
-    experimentalInputMode: ExperimentalInputMode;
-    targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
-    targetWindowKeyHoldMs: number;
-    targetWindowMessageMethod: TargetWindowMessageMethod;
-  };
+  experimentalInputPreferences?: ExperimentalInputPreferences;
   keyMapping: KeyMapping;
   language: LanguageCode;
   library: {
