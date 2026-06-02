@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
+import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { UiText } from "../i18n/uiText";
 import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
 import type {
@@ -15,18 +16,15 @@ type LibraryPanelProps = {
   items: LibrarySongListItem[];
   onAddSongToPlaylist: (playlistId: string, songIndex: number) => void;
   onAddToQueue: (songIndex: number) => void;
-  onCreatePlaylist: () => void;
   onCreatePlaylistWithSong: (
     songIndex: number,
     playlistName?: string,
-    isPrivate?: boolean,
   ) => void;
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
-  onPlaylistSelect: (playlistId: string) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   onRenamePlaylist: (playlistId: string) => void;
@@ -177,25 +175,6 @@ function LibraryPlusIcon() {
   );
 }
 
-function LibraryLockIcon() {
-  return (
-    <svg
-      className="library-title-icon"
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M5 7V5.6a3 3 0 0 1 6 0V7m-7.2 0h8.4v6H3.8V7Z"
-        fill="none"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.3"
-      />
-    </svg>
-  );
-}
-
 function LibraryImportArea({
   importDisabled,
   importError,
@@ -238,24 +217,18 @@ function LibraryImportArea({
   );
 }
 
-function PlaylistManager({
-  onCreatePlaylist,
+function PlaylistHeader({
   onDeletePlaylist,
   onPlayAll,
-  onPlaylistSelect,
   onRenamePlaylist,
-  playlists,
   selectedPlaylist,
   selectedPlaylistId,
   visibleSongCount,
   text,
 }: Pick<
   LibraryPanelProps,
-  | "onCreatePlaylist"
   | "onDeletePlaylist"
-  | "onPlaylistSelect"
   | "onRenamePlaylist"
-  | "playlists"
   | "selectedPlaylist"
   | "selectedPlaylistId"
   | "text"
@@ -304,114 +277,70 @@ function PlaylistManager({
     };
   }, [isMoreMenuOpen]);
 
+  if (!selectedPlaylist) {
+    return null;
+  }
+
   return (
-    <section className="playlist-manager" aria-label={text.playlistsTitle}>
-      <div className="playlist-manager-header">
-        <h3>{text.playlistsTitle}</h3>
-        <button type="button" onClick={onCreatePlaylist}>
-          {text.createPlaylist}
-        </button>
+    <div className="playlist-detail-header">
+      <div className="playlist-cover-placeholder" aria-hidden="true">
+        <LibraryCollectIcon />
       </div>
-      {playlists.length === 0 ? (
-        <p className="library-empty-note">{text.noPlaylists}</p>
-      ) : (
-        <>
-          <div className="playlist-list">
-            {playlists.map((playlist) => (
+      <div className="playlist-detail-main">
+        <div className="playlist-detail-title-row">
+          <h3>{selectedPlaylist.name}</h3>
+        </div>
+        <p>
+          {text.playlistSongCountMeta.replace(
+            "{count}",
+            String(visibleSongCount),
+          )}
+        </p>
+      </div>
+      <div className="playlist-detail-actions">
+        <button
+          type="button"
+          disabled={visibleSongCount === 0}
+          onClick={onPlayAll}
+        >
+          {text.playAll}
+        </button>
+        <button
+          type="button"
+          onClick={() => onRenamePlaylist(selectedPlaylist.id)}
+        >
+          {text.renamePlaylist}
+        </button>
+        <span className="playlist-more-anchor" data-playlist-menu-root="true">
+          <button
+            type="button"
+            aria-label={text.playlistMore}
+            onClick={(event) => {
+              event.stopPropagation();
+              event.currentTarget.blur();
+              setIsMoreMenuOpen((isOpen) => !isOpen);
+            }}
+          >
+            {text.playlistMore}
+          </button>
+          {isMoreMenuOpen ? (
+            <div className="playlist-more-menu" role="menu">
               <button
-                className={`playlist-list-item${
-                  playlist.id === selectedPlaylistId ? " is-selected" : ""
-                }`}
-                key={playlist.id}
+                className="is-danger"
                 type="button"
-                onClick={() => onPlaylistSelect(playlist.id)}
+                role="menuitem"
+                onClick={() => {
+                  setIsMoreMenuOpen(false);
+                  onDeletePlaylist(selectedPlaylist.id);
+                }}
               >
-                <span className="playlist-list-name">{playlist.name}</span>
-                {playlist.isPrivate ? (
-                  <span className="playlist-private-badge">
-                    <LibraryLockIcon />
-                    {text.privatePlaylist}
-                  </span>
-                ) : null}
-                <span className="playlist-list-count">
-                  {playlist.songIds.length} {text.playlistSongCount}
-                </span>
+                {text.deletePlaylist}
               </button>
-            ))}
-          </div>
-          {selectedPlaylist ? (
-            <div className="playlist-detail-header">
-              <div className="playlist-cover-placeholder" aria-hidden="true">
-                <LibraryCollectIcon />
-              </div>
-              <div className="playlist-detail-main">
-                <div className="playlist-detail-title-row">
-                  <h3>{selectedPlaylist.name}</h3>
-                  {selectedPlaylist.isPrivate ? (
-                    <span className="playlist-private-badge">
-                      <LibraryLockIcon />
-                      {text.privatePlaylist}
-                    </span>
-                  ) : null}
-                </div>
-                <p>
-                  {text.playlistSongCountMeta.replace(
-                    "{count}",
-                    String(visibleSongCount),
-                  )}
-                </p>
-              </div>
-              <div className="playlist-detail-actions">
-                <button
-                  type="button"
-                  disabled={visibleSongCount === 0}
-                  onClick={onPlayAll}
-                >
-                  {text.playAll}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRenamePlaylist(selectedPlaylist.id)}
-                >
-                  {text.renamePlaylist}
-                </button>
-                <span
-                  className="playlist-more-anchor"
-                  data-playlist-menu-root="true"
-                >
-                  <button
-                    type="button"
-                    aria-label={text.playlistMore}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.currentTarget.blur();
-                      setIsMoreMenuOpen((isOpen) => !isOpen);
-                    }}
-                  >
-                    {text.playlistMore}
-                  </button>
-                  {isMoreMenuOpen ? (
-                    <div className="playlist-more-menu" role="menu">
-                      <button
-                        className="is-danger"
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setIsMoreMenuOpen(false);
-                          onDeletePlaylist(selectedPlaylist.id);
-                        }}
-                      >
-                        {text.deletePlaylist}
-                      </button>
-                    </div>
-                  ) : null}
-                </span>
-              </div>
             </div>
           ) : null}
-        </>
-      )}
-    </section>
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -509,7 +438,7 @@ function AddToPlaylistPopup({
   );
 }
 
-function CreatePlaylistDialog({
+export function UnusedCreatePlaylistDialog({
   item,
   onClose,
   onCreatePlaylistWithSong,
@@ -519,7 +448,6 @@ function CreatePlaylistDialog({
   onClose: () => void;
 }) {
   const [playlistName, setPlaylistName] = useState("");
-  const [isPrivate, setIsPrivate] = useState(false);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -554,7 +482,6 @@ function CreatePlaylistDialog({
           onCreatePlaylistWithSong(
             item.songIndex,
             playlistName.trim() || text.defaultPlaylistName,
-            isPrivate,
           );
           onClose();
         }}
@@ -574,14 +501,6 @@ function CreatePlaylistDialog({
             autoFocus
             onChange={(event) => setPlaylistName(event.currentTarget.value)}
           />
-        </label>
-        <label className="library-create-playlist-check">
-          <input
-            type="checkbox"
-            checked={isPrivate}
-            onChange={(event) => setIsPrivate(event.currentTarget.checked)}
-          />
-          <span>{text.makePrivatePlaylist}</span>
         </label>
         <button className="library-create-playlist-submit" type="submit">
           {text.createPlaylistConfirm}
@@ -905,14 +824,12 @@ export function LibraryPanel({
   items,
   onAddSongToPlaylist,
   onAddToQueue,
-  onCreatePlaylist,
   onCreatePlaylistWithSong,
   onDeleteLocalSong,
   onDeletePlaylist,
   onImportFiles,
   onPlaySong,
   onPlaySongNext,
-  onPlaylistSelect,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onRenamePlaylist,
@@ -1013,18 +930,15 @@ export function LibraryPanel({
             />
           </label>
         </div>
-        {isPlaylists ? (
-          <PlaylistManager
-            onCreatePlaylist={onCreatePlaylist}
+        {isPlaylists && selectedPlaylist ? (
+          <PlaylistHeader
             onDeletePlaylist={onDeletePlaylist}
             onPlayAll={() => {
               if (items[0]) {
                 onPlaySong(items[0]);
               }
             }}
-            onPlaylistSelect={onPlaylistSelect}
             onRenamePlaylist={onRenamePlaylist}
-            playlists={playlists}
             selectedPlaylist={selectedPlaylist}
             selectedPlaylistId={selectedPlaylistId}
             visibleSongCount={items.length}
@@ -1038,8 +952,16 @@ export function LibraryPanel({
           </div>
         ) : isPlaylists && !selectedPlaylist ? (
           <div className="library-empty">
-            <h3>{text.playlistEmptyTitle}</h3>
-            <p>{text.playlistEmptyDescription}</p>
+            <h3>
+              {playlists.length === 0
+                ? text.noPlaylistsTitle
+                : text.playlistEmptyTitle}
+            </h3>
+            <p>
+              {playlists.length === 0
+                ? text.noPlaylistsDescription
+                : text.playlistEmptyDescription}
+            </p>
           </div>
         ) : (
           <LibrarySongTable
@@ -1084,10 +1006,12 @@ export function LibraryPanel({
       ) : null}
       {creatingPlaylistForItem ? (
         <CreatePlaylistDialog
-          item={creatingPlaylistForItem}
           onClose={() => setCreatingPlaylistForItem(null)}
-          onCreatePlaylistWithSong={(songIndex, playlistName, isPrivate) => {
-            onCreatePlaylistWithSong(songIndex, playlistName, isPrivate);
+          onCreate={(playlistName) => {
+            onCreatePlaylistWithSong(
+              creatingPlaylistForItem.songIndex,
+              playlistName,
+            );
             setCreatingPlaylistForItem(null);
             setCollectingSongItem(null);
           }}

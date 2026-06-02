@@ -214,11 +214,16 @@ export function useScoreLibrary({
     );
   }
 
-  function handleCreatePlaylist() {
-    const playlist = createPlaylist(text.library.defaultPlaylistName);
+  function handleCreatePlaylist(
+    playlistName: string = text.library.defaultPlaylistName,
+  ) {
+    const playlist = createPlaylist(
+      playlistName.trim() || text.library.defaultPlaylistName,
+    );
 
     setPlaylists((currentPlaylists) => [...currentPlaylists, playlist]);
     setSelectedPlaylistId(playlist.id);
+    setSelectedLibraryCategory("playlists");
   }
 
   function handleRenamePlaylist(playlistId: string) {
@@ -269,12 +274,18 @@ export function useScoreLibrary({
     }
 
     setPlaylists((currentPlaylists) => {
+      const deletedPlaylistIndex = currentPlaylists.findIndex(
+        (currentPlaylist) => currentPlaylist.id === playlistId,
+      );
       const nextPlaylists = currentPlaylists.filter(
         (currentPlaylist) => currentPlaylist.id !== playlistId,
       );
 
       if (selectedPlaylistId === playlistId) {
-        setSelectedPlaylistId(nextPlaylists[0]?.id ?? null);
+        setSelectedPlaylistId(
+          nextPlaylists[Math.min(deletedPlaylistIndex, nextPlaylists.length - 1)]
+            ?.id ?? null,
+        );
       }
 
       return nextPlaylists;
@@ -312,7 +323,6 @@ export function useScoreLibrary({
   function handleCreatePlaylistWithSong(
     songIndex: number,
     playlistName: string = text.library.defaultPlaylistName,
-    isPrivate = false,
   ) {
     const librarySong = librarySongsRef.current[songIndex];
 
@@ -321,12 +331,13 @@ export function useScoreLibrary({
     }
 
     const playlist = addSongToPlaylist(
-      createPlaylist(playlistName.trim() || text.library.defaultPlaylistName, isPrivate),
+      createPlaylist(playlistName.trim() || text.library.defaultPlaylistName),
       librarySong.id,
     );
 
     setPlaylists((currentPlaylists) => [...currentPlaylists, playlist]);
     setSelectedPlaylistId(playlist.id);
+    setSelectedLibraryCategory("playlists");
   }
 
   function handleRemoveSongFromPlaylist(

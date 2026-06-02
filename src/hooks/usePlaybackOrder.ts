@@ -1,6 +1,10 @@
 import { useRef } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
-import type { LibrarySong, LibrarySongId } from "../types/library";
+import type {
+  LibrarySong,
+  LibrarySongId,
+  LibrarySongListItem,
+} from "../types/library";
 import type { PlaybackMode } from "../types/playbackOptions";
 
 export type ActivePlaybackContext = {
@@ -110,6 +114,16 @@ export function usePlaybackOrder() {
     removeSongFromPlaybackContext,
     setPlaybackContext,
   };
+}
+
+export function buildPlaybackOrderFromVisibleItems(
+  items: LibrarySongListItem[],
+  clickedSongId: LibrarySongId,
+) {
+  const songIds = items.map((item) => item.librarySong.id);
+  const clickedIndex = songIds.indexOf(clickedSongId);
+
+  return clickedIndex < 0 ? songIds : songIds.slice(clickedIndex);
 }
 
 function normalizeCategorySource(

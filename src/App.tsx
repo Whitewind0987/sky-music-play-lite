@@ -5,6 +5,7 @@ import {
   type AppSection,
 } from "./components/AppShell";
 import { BottomPlayer } from "./components/BottomPlayer";
+import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
@@ -13,7 +14,10 @@ import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
-import { usePlaybackOrder } from "./hooks/usePlaybackOrder";
+import {
+  buildPlaybackOrderFromVisibleItems,
+  usePlaybackOrder,
+} from "./hooks/usePlaybackOrder";
 import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
@@ -127,6 +131,8 @@ function App() {
     text: text.bottomPlayer,
   });
   const [queueOpen, setQueueOpen] = useState(false);
+  const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
+    useState(false);
   const isAnyPlaybackActive =
     previewPlayback.playbackState === "playing" ||
     previewPlayback.playbackState === "paused" ||
@@ -162,8 +168,9 @@ function App() {
     playbackOrder.setPlaybackContext({
       currentSongId: item.librarySong.id,
       selectedCategory: scoreLibrary.selectedLibraryCategory,
-      songIds: scoreLibrary.visibleLibraryItems.map(
-        (libraryItem) => libraryItem.librarySong.id,
+      songIds: buildPlaybackOrderFromVisibleItems(
+        scoreLibrary.visibleLibraryItems,
+        item.librarySong.id,
       ),
       usesSearch: scoreLibrary.hasSearchQuery,
     });
@@ -191,12 +198,10 @@ function App() {
             playbackMode: playbackOutput.playbackMode,
           })
         : null;
-    const nextSongIndex =
-      queuedItem?.songIndex ??
-      playbackOrderNextSongIndex ??
-      getNextLibrarySongIndex(scoreLibrary.selectedSongIndex, songs.length);
+    const nextSongIndex = queuedItem?.songIndex ?? playbackOrderNextSongIndex;
 
     if (nextSongIndex === null) {
+      playbackOrder.clearPlaybackContext();
       playbackOutput.onStop();
       appendLog(text.logs.manualNextUnavailable);
       return;
@@ -220,14 +225,12 @@ function App() {
           items={scoreLibrary.visibleLibraryItems}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
-          onCreatePlaylist={scoreLibrary.handleCreatePlaylist}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
           onDeleteLocalSong={handleDeleteLocalSong}
           onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onPlaySong={handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
-          onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
           onRemoveFromLiked={scoreLibrary.handleRemoveFromLiked}
           onRemoveSongFromPlaylist={scoreLibrary.handleRemoveSongFromPlaylist}
           onRenamePlaylist={scoreLibrary.handleRenamePlaylist}
@@ -315,9 +318,13 @@ function App() {
       <AppSidebar
         activeSection={activeSection}
         localImportCount={scoreLibrary.importedSongs.length}
+        onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
         onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
+        onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
         onSectionChange={setActiveSection}
+        playlists={scoreLibrary.playlists}
         selectedLibraryCategory={scoreLibrary.selectedLibraryCategory}
+        selectedPlaylistId={scoreLibrary.selectedPlaylistId}
         text={text}
       />
 
@@ -365,25 +372,19 @@ function App() {
         songs={scoreLibrary.importedSongs}
         text={text.bottomPlayer}
       />
+      {isCreatingPlaylistFromSidebar ? (
+        <CreatePlaylistDialog
+          onClose={() => setIsCreatingPlaylistFromSidebar(false)}
+          onCreate={(playlistName) => {
+            scoreLibrary.handleCreatePlaylist(playlistName);
+            setActiveSection("Library");
+            setIsCreatingPlaylistFromSidebar(false);
+          }}
+          text={text.library}
+        />
+      ) : null}
     </main>
   );
-}
-
-function getNextLibrarySongIndex(
-  selectedSongIndex: number | null,
-  songCount: number,
-) {
-  if (songCount <= 0) {
-    return null;
-  }
-
-  if (selectedSongIndex === null) {
-    return 0;
-  }
-
-  const nextSongIndex = selectedSongIndex + 1;
-
-  return nextSongIndex < songCount ? nextSongIndex : null;
 }
 
 export default App;

@@ -17,7 +17,6 @@ export type LikedSongEntry = {
 export type UserPlaylist = {
   createdAt: number;
   id: string;
-  isPrivate?: boolean;
   name: string;
   songIds: LibrarySongId[];
   updatedAt: number;

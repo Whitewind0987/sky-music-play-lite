@@ -169,6 +169,19 @@ button {
   gap: 4px;
 }
 
+.sidebar-subnav-group {
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar-subnav-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+
 .sidebar-subnav-link {
   min-width: 0;
   min-height: 34px;
@@ -187,13 +200,68 @@ button {
 }
 
 .sidebar-subnav-link:hover,
-.sidebar-subnav-link.is-active {
+.sidebar-subnav-link.is-active,
+.sidebar-playlist-link:hover,
+.sidebar-playlist-link.is-active {
   color: #111827;
   background: #edf5ff;
 }
 
-.sidebar-subnav-link.is-active {
+.sidebar-subnav-link.is-active,
+.sidebar-playlist-link.is-active {
   font-weight: 700;
+}
+
+.sidebar-playlist-add {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #52616f;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sidebar-playlist-add:hover,
+.sidebar-playlist-add:focus-visible {
+  color: #0b5db3;
+  background: #edf5ff;
+  outline: none;
+}
+
+.sidebar-playlist-list {
+  display: grid;
+  gap: 2px;
+  padding-left: 14px;
+}
+
+.sidebar-playlist-link {
+  min-width: 0;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 0 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #52616f;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.sidebar-playlist-link span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-subnav-count {
@@ -504,31 +572,6 @@ button {
   outline: none;
 }
 
-.playlist-manager {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid #e1e7ee;
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.playlist-manager-header {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.playlist-manager-header {
-  justify-content: space-between;
-}
-
-.playlist-manager-header h3 {
-  font-size: 15px;
-}
-
-.playlist-manager-header button,
 .library-danger-button,
 .library-muted-action {
   min-height: 28px;
@@ -540,40 +583,6 @@ button {
   cursor: pointer;
 }
 
-.playlist-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.playlist-list-item {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  border: 1px solid #d8dee6;
-  border-radius: 6px;
-  color: #1f2933;
-  background: #ffffff;
-  cursor: pointer;
-}
-
-.playlist-list-item.is-selected {
-  border-color: #b9d8fb;
-  color: #0b5db3;
-  background: #edf5ff;
-}
-
-.playlist-list-name {
-  min-width: 0;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.playlist-list-count,
 .library-empty-note {
   color: #52616f;
   font-size: 13px;
@@ -683,25 +692,6 @@ button {
 
 .playlist-more-menu button.is-danger {
   color: #9f1d1d;
-}
-
-.playlist-private-badge {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border: 1px solid #d8dee6;
-  border-radius: 999px;
-  color: #52616f;
-  background: #f8fafc;
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-.playlist-private-badge .library-title-icon {
-  width: 12px;
-  height: 12px;
 }
 
 .library-table {
@@ -893,9 +883,6 @@ button {
 
 .library-muted-action:hover,
 .library-muted-action:focus-visible,
-.playlist-manager-header button:hover,
-.playlist-list-item:hover,
-.playlist-list-item:focus-visible,
 .playlist-detail-actions button:hover:not(:disabled),
 .playlist-detail-actions button:focus-visible,
 .playlist-more-menu button:hover,
@@ -1083,8 +1070,7 @@ button {
   outline: none;
 }
 
-.library-create-playlist-field,
-.library-create-playlist-check {
+.library-create-playlist-field {
   display: grid;
   gap: 6px;
   color: #52616f;
@@ -1104,11 +1090,6 @@ button {
   border-color: #2f80ed;
   box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.14);
   outline: none;
-}
-
-.library-create-playlist-check {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
 }
 
 .library-create-playlist-submit {

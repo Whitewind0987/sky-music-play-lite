@@ -377,10 +377,6 @@ function sanitizePlaylists(
           ? rawPlaylist.createdAt
           : Date.now(),
       id: rawPlaylist.id,
-      isPrivate:
-        typeof rawPlaylist.isPrivate === "boolean"
-          ? rawPlaylist.isPrivate
-          : false,
       name: rawPlaylist.name.trim() || "Playlist",
       songIds,
       updatedAt:
