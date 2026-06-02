@@ -46,6 +46,14 @@ export function StopIcon(props: PlayerIconProps) {
   );
 }
 
+export function NextIcon(props: PlayerIconProps) {
+  return (
+    <PlayerIconBase {...props}>
+      <path d="M6 5.5v13l8.5-6.5L6 5.5Zm10 0h2v13h-2v-13Z" fill="currentColor" />
+    </PlayerIconBase>
+  );
+}
+
 export function QueueIcon(props: PlayerIconProps) {
   return (
     <PlayerIconBase {...props}>

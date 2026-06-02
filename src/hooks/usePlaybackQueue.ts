@@ -39,6 +39,15 @@ export function usePlaybackQueue({
   }
 
   function playNext(songIndex: number) {
+    if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
+      appendLog(
+        formatText(text.queueItemAlreadyExists, {
+          songName: getSongName(songIndex),
+        }),
+      );
+      return;
+    }
+
     const item = createQueueItem(songIndex);
 
     setQueueItemsAndRef([item, ...queueItemsRef.current]);
@@ -50,6 +59,15 @@ export function usePlaybackQueue({
   }
 
   function addToQueue(songIndex: number) {
+    if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
+      appendLog(
+        formatText(text.queueItemAlreadyExists, {
+          songName: getSongName(songIndex),
+        }),
+      );
+      return;
+    }
+
     const item = createQueueItem(songIndex);
 
     setQueueItemsAndRef([...queueItemsRef.current, item]);

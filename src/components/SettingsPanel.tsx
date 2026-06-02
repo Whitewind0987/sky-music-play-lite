@@ -42,6 +42,14 @@ type ExperimentalInputPanelState = {
     method: TargetWindowMessageMethod,
   ) => void;
   selectedWindowHwnd: string | null;
+  selectedWindowSnapshot:
+    | {
+        className: string;
+        hwnd: string;
+        processName?: string;
+        title: string;
+      }
+    | undefined;
   targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
   targetWindowKeyHoldMs: number;
   targetWindowMessageMethod: TargetWindowMessageMethod;
@@ -69,6 +77,20 @@ export function SettingsPlaceholder({
   const experimentalPlaybackPercent = Math.round(
     experimentalInput.experimentalPlaybackProgress.percent,
   );
+  const restoredSelectedWindow =
+    experimentalInput.selectedWindowHwnd !== null &&
+    !experimentalInput.candidateWindows.some(
+      (window) => window.hwnd === experimentalInput.selectedWindowHwnd,
+    )
+      ? {
+          hwnd: experimentalInput.selectedWindowHwnd,
+          label: getRestoredTargetLabel(
+            experimentalInput.selectedWindowSnapshot,
+            experimentalInput.selectedWindowHwnd,
+            text,
+          ),
+        }
+      : null;
 
   return (
     <section className="settings-grid" aria-label={text.aria}>
@@ -323,6 +345,25 @@ export function SettingsPlaceholder({
           </button>
         </div>
         <div className="experimental-window-list">
+          {restoredSelectedWindow !== null ? (
+            <button
+              className="experimental-window-row is-selected"
+              type="button"
+              aria-pressed
+              onClick={() =>
+                experimentalInput.onSelectedWindowChange(
+                  restoredSelectedWindow.hwnd,
+                )
+              }
+            >
+              <span className="experimental-window-title">
+                {text.experimentalRestoredTargetWindowLabel}
+              </span>
+              <span className="experimental-window-meta">
+                {restoredSelectedWindow.label}
+              </span>
+            </button>
+          ) : null}
           {experimentalInput.candidateWindows.length === 0 ? (
             <p>{text.experimentalInputNoWindows}</p>
           ) : (
@@ -423,4 +464,20 @@ export function SettingsPlaceholder({
       </article>
     </section>
   );
+}
+
+function getRestoredTargetLabel(
+  snapshot: ExperimentalInputPanelState["selectedWindowSnapshot"],
+  hwnd: string,
+  text: UiText["settings"],
+) {
+  if (snapshot?.title) {
+    return `${snapshot.title} / HWND ${hwnd}`;
+  }
+
+  if (snapshot?.className) {
+    return `${snapshot.className} / HWND ${hwnd}`;
+  }
+
+  return `${text.experimentalInputHwndLabel} ${hwnd}`;
 }

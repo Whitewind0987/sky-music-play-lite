@@ -420,6 +420,12 @@ button {
   background: #dbe7f2;
 }
 
+.library-import-button.is-disabled {
+  color: #8a97a5;
+  background: #d8dee6;
+  cursor: not-allowed;
+}
+
 .library-import-button:focus-within {
   outline: 2px solid rgba(47, 128, 237, 0.5);
   outline-offset: 2px;
@@ -1623,6 +1629,17 @@ button {
   min-width: 0;
   display: grid;
   gap: 2px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-panel-song:disabled {
+  cursor: not-allowed;
 }
 
 .queue-panel-song strong,
@@ -1646,6 +1663,10 @@ button {
 .queue-panel-remove {
   padding: 5px 8px;
   font-size: 12px;
+}
+
+.queue-panel-song:not(:disabled):hover strong {
+  color: #0b5db3;
 }
 
 .queue-panel-clear:not(:disabled):hover,
@@ -1938,11 +1959,48 @@ button {
   white-space: nowrap;
 }
 
+.log-group-list {
+  display: grid;
+  gap: 10px;
+}
+
+.log-group {
+  overflow: hidden;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.log-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #1f2933;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.log-group summary span:last-child {
+  min-width: 22px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #52616f;
+  background: #edf0f4;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .log-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-left: 18px;
+  margin: 0;
+  padding: 0 12px 12px 28px;
   color: #52616f;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
@@ -17,6 +17,7 @@ import { QueuePanel } from "./QueuePanel";
 import {
   PauseIcon,
   PlayIcon,
+  NextIcon,
   QueueIcon,
   RepeatIcon,
   RepeatOneIcon,
@@ -31,10 +32,13 @@ type BottomPlayerProps = {
   isRealInputOutput: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
+  onNext: () => void;
+  onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
   onPlay: () => void;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onQueueClear: () => void;
+  onQueueClose: () => void;
   onQueueItemRemove: (queueItemId: string) => void;
   onQueueToggle: () => void;
   onRepeatModeCycle: () => void;
@@ -170,10 +174,13 @@ export function BottomPlayer({
   isRealInputOutput,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
+  onNext,
+  onPlayQueueItem,
   onPause,
   onPlay,
   onPlaybackSpeedChange,
   onQueueClear,
+  onQueueClose,
   onQueueItemRemove,
   onQueueToggle,
   onRepeatModeCycle,
@@ -190,6 +197,8 @@ export function BottomPlayer({
   songs,
   text,
 }: BottomPlayerProps) {
+  const queueButtonRef = useRef<HTMLButtonElement | null>(null);
+  const queuePanelRef = useRef<HTMLDivElement | null>(null);
   const canPause = playbackState === "playing";
   const canResume = playbackState === "paused";
   const canStop = playbackState === "playing" || playbackState === "paused";
@@ -212,16 +221,56 @@ export function BottomPlayer({
   const RepeatModeIcon =
     playbackMode === "repeat-one" ? RepeatOneIcon : RepeatIcon;
 
+  useEffect(() => {
+    if (!queueOpen) {
+      return;
+    }
+
+    function handleDocumentMouseDown(event: MouseEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (
+        queuePanelRef.current?.contains(target) ||
+        queueButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      onQueueClose();
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onQueueClose();
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentMouseDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [onQueueClose, queueOpen]);
+
   return (
     <footer className="bottom-player" aria-label={text.aria}>
       {queueOpen ? (
-        <QueuePanel
-          onClearQueue={onQueueClear}
-          onRemoveQueueItem={onQueueItemRemove}
-          queueItems={queueItems}
-          songs={songs}
-          text={text}
-        />
+        <div ref={queuePanelRef}>
+          <QueuePanel
+            onClearQueue={onQueueClear}
+            onPlayQueueItem={onPlayQueueItem}
+            onRemoveQueueItem={onQueueItemRemove}
+            queueItems={queueItems}
+            songs={songs}
+            text={text}
+          />
+        </div>
       ) : null}
 
       <div
@@ -296,6 +345,14 @@ export function BottomPlayer({
             <StopIcon />
           </button>
           <button
+            className="player-icon-button player-icon-button-secondary"
+            type="button"
+            aria-label={text.next}
+            onClick={onNext}
+          >
+            <NextIcon />
+          </button>
+          <button
             className="player-icon-button player-icon-button-primary"
             type="button"
             aria-label={primaryAction.label}
@@ -358,6 +415,7 @@ export function BottomPlayer({
             type="button"
             aria-label={text.queue}
             aria-pressed={queueOpen}
+            ref={queueButtonRef}
             onClick={onQueueToggle}
           >
             <QueueIcon />

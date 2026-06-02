@@ -4,6 +4,7 @@ import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
 import type { Song } from "../types/score";
 
 type LibraryPanelProps = {
+  importDisabled: boolean;
   importError: string;
   onAddToQueue: (songIndex: number) => void;
   onImportFiles: (files: File[]) => void;
@@ -74,10 +75,14 @@ function LibraryAddToPlaylistIcon() {
 }
 
 function LibraryImportArea({
+  importDisabled,
   importError,
   onImportFiles,
   text,
-}: Pick<LibraryPanelProps, "importError" | "onImportFiles" | "text">) {
+}: Pick<
+  LibraryPanelProps,
+  "importDisabled" | "importError" | "onImportFiles" | "text"
+>) {
   return (
     <section className="library-import-area" aria-label={text.importTitle}>
       <div>
@@ -85,10 +90,14 @@ function LibraryImportArea({
         <h3>{text.importTitle}</h3>
         <p>{text.importDescription}</p>
       </div>
-      <label className="library-import-button">
+      <label
+        className={`library-import-button${importDisabled ? " is-disabled" : ""}`}
+        aria-disabled={importDisabled}
+      >
         <span>{text.importLabel}</span>
         <input
           accept=".json,.txt"
+          disabled={importDisabled}
           multiple
           type="file"
           onChange={(event) => {
@@ -115,7 +124,10 @@ function LibrarySongTable({
   selectedSongIndex,
   songs,
   text,
-}: Omit<LibraryPanelProps, "importError" | "onImportFiles" | "selectedCategory">) {
+}: Omit<
+  LibraryPanelProps,
+  "importDisabled" | "importError" | "onImportFiles" | "selectedCategory"
+>) {
   if (songs.length === 0) {
     return (
       <div className="library-empty">
@@ -162,7 +174,8 @@ function LibrarySongTable({
                 <button
                   className="library-row-play"
                   type="button"
-                  aria-label={`${text.playAction}: ${song.name}`}
+                  aria-label={`${text.playThisScoreAction}: ${song.name}`}
+                  title={text.playThisScoreAction}
                   onClick={(event) => {
                     event.stopPropagation();
                     onPlaySong(index);
@@ -178,6 +191,7 @@ function LibrarySongTable({
                     className="library-title-icon-button"
                     type="button"
                     aria-label={text.playNextAction}
+                    title={text.playNextAction}
                     onClick={(event) => {
                       event.stopPropagation();
                       onPlaySongNext(index);
@@ -189,6 +203,7 @@ function LibrarySongTable({
                     className="library-title-icon-button"
                     type="button"
                     aria-label={text.addToQueueAction}
+                    title={text.addToQueueAction}
                     onClick={(event) => {
                       event.stopPropagation();
                       onAddToQueue(index);
@@ -213,6 +228,7 @@ function LibrarySongTable({
 }
 
 export function LibraryPanel({
+  importDisabled,
   importError,
   onAddToQueue,
   onImportFiles,
@@ -229,18 +245,20 @@ export function LibraryPanel({
 
   return (
     <section className="library-panel" aria-label={text.aria}>
-      <LibraryImportArea
-        importError={importError}
-        onImportFiles={onImportFiles}
-        text={text}
-      />
+      {isLocalImports ? (
+        <LibraryImportArea
+          importDisabled={importDisabled}
+          importError={importError}
+          onImportFiles={onImportFiles}
+          text={text}
+        />
+      ) : null}
       <div className="library-content">
         <div className="library-content-header">
           <div>
-            <p className="eyebrow">{text.tableEyebrow}</p>
             <h3>{isLocalImports ? text.tableTitle : emptyState.title}</h3>
           </div>
-          <p>{isLocalImports ? text.tableDescription : emptyState.description}</p>
+          {!isLocalImports ? <p>{emptyState.description}</p> : null}
         </div>
         {isLocalImports ? (
           <LibrarySongTable
@@ -254,7 +272,6 @@ export function LibraryPanel({
           />
         ) : (
           <div className="library-empty">
-            <p className="eyebrow">{text.placeholderEyebrow}</p>
             <h3>{emptyState.title}</h3>
             <p>{emptyState.description}</p>
           </div>

@@ -32,6 +32,7 @@ type PlaybackOutput = {
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
   onPlay: () => void;
+  onPlaySong: (songIndex: number) => void;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onRepeatModeCycle: () => void;
   onResume: () => void;
@@ -68,6 +69,7 @@ export function usePlaybackOutput({
       mode: "preview",
       onPause: previewPlayback.handlePausePreview,
       onPlay: previewPlayback.handlePlayPreview,
+      onPlaySong: previewPlayback.handlePlayImportedSong,
       onResume: previewPlayback.handleResumePreview,
       onStop: previewPlayback.handleStopPreview,
       outputModeLabel: text.outputModes.preview,
@@ -84,6 +86,7 @@ export function usePlaybackOutput({
       mode: "experimental-foreground",
       onPause: experimentalInput.handlePauseForegroundPlayback,
       onPlay: experimentalInput.handleStartForegroundPlayback,
+      onPlaySong: experimentalInput.handlePlayForegroundSong,
       onResume: experimentalInput.handleResumeForegroundPlayback,
       onStop: experimentalInput.handleStopForegroundPlayback,
       outputModeLabel: text.outputModes.experimentalForeground,
@@ -99,6 +102,7 @@ export function usePlaybackOutput({
     mode: "experimental-target-window",
     onPause: experimentalInput.handlePauseExperimentalPlayback,
     onPlay: experimentalInput.handleStartExperimentalPlayback,
+    onPlaySong: experimentalInput.handlePlayExperimentalSong,
     onResume: experimentalInput.handleResumeExperimentalPlayback,
     onStop: experimentalInput.handleStopExperimentalPlayback,
     outputModeLabel: text.outputModes.experimentalTargetWindow,
