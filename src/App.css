@@ -302,7 +302,7 @@ button {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
   grid-template-areas:
     "score keyboard"
-    "controls log";
+    "log log";
   gap: 16px;
   align-content: start;
   overflow-x: hidden;
@@ -321,8 +321,8 @@ button {
 }
 
 .app-layout-playback {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas: "keyboard controls";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "keyboard";
 }
 
 .app-layout-logs {
@@ -1134,10 +1134,6 @@ button {
   grid-area: keyboard;
 }
 
-.controls-panel {
-  grid-area: controls;
-}
-
 .log-panel {
   grid-area: log;
 }
@@ -1346,8 +1342,7 @@ button {
   gap: clamp(6px, 1.2vw, 10px);
 }
 
-.key-button,
-.control-row button {
+.key-button {
   min-width: 0;
   min-height: 44px;
   border: 1px solid #c7d0dc;
@@ -1392,34 +1387,6 @@ button {
 .key-button.is-active:disabled .keyboard-key-label {
   color: #0b3d75;
   background: #ffffff;
-}
-
-.control-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 72px), 1fr));
-  gap: 10px;
-}
-
-.playback-state {
-  margin: 0;
-  color: #52616f;
-  font-weight: 700;
-}
-
-.control-row button:not(:disabled) {
-  color: #1f2933;
-  background: #e7eef6;
-  cursor: pointer;
-}
-
-.control-row button:not(:disabled):hover {
-  background: #dbe7f2;
-}
-
-.control-row button.is-playing {
-  border-color: #2f80ed;
-  color: #0b3d75;
-  background: #d8ebff;
 }
 
 .bottom-player {
@@ -2067,15 +2034,12 @@ button {
     grid-template-areas:
       "score"
       "keyboard"
-      "controls"
       "log";
   }
 
   .app-layout-playback {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "keyboard"
-      "controls";
+    grid-template-areas: "keyboard";
   }
 
   .library-import-area,
@@ -2127,10 +2091,6 @@ button {
 
   .home-score-status {
     justify-self: start;
-  }
-
-  .control-row {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr));
   }
 
   .bottom-player {

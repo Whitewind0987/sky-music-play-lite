@@ -157,23 +157,6 @@ export const uiText = {
       panelDescription: "这里只显示光遇琴键和键盘映射，不会发送真实按键。",
       previewAria: "静态琴键预览",
     },
-    playback: {
-      panelTitle: "播放控制区",
-      panelDescription: "这里显示琴键预览和播放控制。",
-      stateLabel: "播放状态",
-      states: {
-        idle: "空闲",
-        playing: "播放中",
-        paused: "已暂停",
-        finished: "已完成",
-      },
-      play: "播放",
-      pause: "暂停",
-      resume: "继续",
-      stop: "停止",
-      testRust: "测试 Rust",
-      rustDryRun: "Rust Dry Run",
-    },
     bottomPlayer: {
       aria: "底部播放栏",
       currentScore: "当前曲谱",
@@ -238,15 +221,7 @@ export const uiText = {
         system: "系统",
       },
       appReady: "应用布局已准备好。",
-      dryRunFailed: "Rust dry-run 失败：{error}",
-      dryRunFinished:
-        "Rust dry-run 完成：共 {noteCount} 个音符；第一条 {firstTime} / {firstKey} -> {firstMappedKey}；最后一条 {lastTime} / {lastKey} -> {lastMappedKey}；状态：{status}",
-      dryRunStarted: "开始 Rust dry-run：{songName}。",
-      dryRunStatus: {
-        received_notes_without_sending_keys: "已接收音符，未发送真实按键",
-      },
       noPlaybackYet: "还没有真实播放功能。",
-      noNoteSummary: "无",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
       importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
       importFailed: "导入 {fileName} 失败：{error}",
@@ -279,7 +254,6 @@ export const uiText = {
       appDataInvalid: "本地应用数据无效，已使用默认设置。",
       appDataLoadFailed: "读取本地应用数据失败，已使用默认设置：{error}",
       appDataSaveFailed: "保存本地应用数据失败：{error}",
-      rustCommandFailed: "Rust 命令失败：{error}",
       experimentalWindowListRefreshed: "已刷新候选窗口：{count} 个。",
       experimentalWindowListFailed: "刷新窗口列表失败：{error}",
       experimentalSkyWindowDetected: "已检测到光遇窗口：{title}",
@@ -580,23 +554,6 @@ export const uiText = {
         "Sky keys and their keyboard mapping are shown for preview only.",
       previewAria: "Static keyboard preview",
     },
-    playback: {
-      panelTitle: "Playback controls area",
-      panelDescription: "This page shows keyboard preview and playback controls.",
-      stateLabel: "Playback state",
-      states: {
-        idle: "Idle",
-        playing: "Playing",
-        paused: "Paused",
-        finished: "Finished",
-      },
-      play: "Play",
-      pause: "Pause",
-      resume: "Resume",
-      stop: "Stop",
-      testRust: "Test Rust",
-      rustDryRun: "Rust Dry Run",
-    },
     bottomPlayer: {
       aria: "Bottom player",
       currentScore: "Current score",
@@ -662,16 +619,7 @@ export const uiText = {
         system: "System",
       },
       appReady: "App layout is ready.",
-      dryRunFailed: "Rust dry-run failed: {error}",
-      dryRunFinished:
-        "Rust dry-run finished: {noteCount} note(s); first {firstTime} / {firstKey} -> {firstMappedKey}; last {lastTime} / {lastKey} -> {lastMappedKey}; status: {status}",
-      dryRunStarted: "Started Rust dry-run: {songName}.",
-      dryRunStatus: {
-        received_notes_without_sending_keys:
-          "received notes without sending real keys",
-      },
       noPlaybackYet: "No playback features yet.",
-      noNoteSummary: "none",
       importedScores: "Imported {count} score(s) from {fileName}.",
       importedScoresFromFiles:
         "Imported {count} score(s) from {fileCount} file(s).",
@@ -705,7 +653,6 @@ export const uiText = {
       appDataInvalid: "Local app data is invalid. Defaults are active.",
       appDataLoadFailed: "Failed to load local app data. Defaults are active: {error}",
       appDataSaveFailed: "Failed to save local app data: {error}",
-      rustCommandFailed: "Rust command failed: {error}",
       experimentalWindowListRefreshed:
         "Refreshed candidate windows: {count}.",
       experimentalWindowListFailed: "Failed to refresh windows: {error}",

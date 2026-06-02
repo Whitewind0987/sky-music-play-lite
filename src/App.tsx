@@ -7,10 +7,7 @@ import {
 import { BottomPlayer } from "./components/BottomPlayer";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
-import {
-  KeyboardPreview,
-  PlaybackControls,
-} from "./components/PlaybackPanel";
+import { KeyboardPreview } from "./components/PlaybackPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
@@ -26,7 +23,6 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
-import { dryRunPlayback, testRustCommand } from "./lib/tauriApi";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import "../font/iconfont.css";
 import "./App.css";
@@ -36,7 +32,7 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const text = uiText[language];
-  const { appendLog, logEntries, setLogEntries } = usePlaybackLog([
+  const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
     uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
@@ -127,59 +123,6 @@ function App() {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
 
-  async function handleTestRust() {
-    try {
-      const message = await testRustCommand();
-      appendLog(message);
-    } catch (error) {
-      setLogEntries((currentEntries) => [
-        ...currentEntries,
-        formatText(text.logs.rustCommandFailed, { error: String(error) }),
-      ]);
-    }
-  }
-
-  async function handleDryRunPlayback() {
-    if (!scoreLibrary.currentSelectedSong) {
-      appendLog(text.logs.noSelectedScore);
-      return;
-    }
-
-    try {
-      appendLog(
-        formatText(text.logs.dryRunStarted, {
-          songName: scoreLibrary.currentSelectedSong.name,
-        }),
-      );
-
-      const result = await dryRunPlayback(
-        scoreLibrary.currentSelectedSong.songNotes,
-        keyMapping,
-      );
-      const firstNote = result.first_note;
-      const lastNote = result.last_note;
-
-      appendLog(
-        formatText(text.logs.dryRunFinished, {
-          firstKey: firstNote?.key ?? text.logs.noNoteSummary,
-          firstMappedKey: firstNote?.mapped_key ?? text.logs.noNoteSummary,
-          firstTime: firstNote?.time ?? text.logs.noNoteSummary,
-          lastKey: lastNote?.key ?? text.logs.noNoteSummary,
-          lastMappedKey: lastNote?.mapped_key ?? text.logs.noNoteSummary,
-          lastTime: lastNote?.time ?? text.logs.noNoteSummary,
-          noteCount: result.note_count,
-          status: text.logs.dryRunStatus[result.status] ?? result.status,
-        }),
-      );
-    } catch (error) {
-      appendLog(
-        formatText(text.logs.dryRunFailed, {
-          error: String(error),
-        }),
-      );
-    }
-  }
-
   function handleImportScoreFiles(files: File[]) {
     if (isAnyPlaybackActive) {
       appendLog(text.logs.importBlockedDuringPlayback);
@@ -235,25 +178,11 @@ function App() {
 
     if (activeSection === "Playback") {
       return (
-        <>
-          <KeyboardPreview
-            activeKeys={previewPlayback.activeKeys}
-            keyMapping={keyMapping}
-            text={text.keyboard}
-          />
-          <PlaybackControls
-            canRunDryRun={scoreLibrary.currentSelectedSong !== null}
-            canPlayPreview={scoreLibrary.currentSelectedSong !== null}
-            onDryRunPlayback={handleDryRunPlayback}
-            playbackState={previewPlayback.playbackState}
-            onPausePreview={previewPlayback.handlePausePreview}
-            onPlayPreview={previewPlayback.handlePlayPreview}
-            onResumePreview={previewPlayback.handleResumePreview}
-            onStopPreview={previewPlayback.handleStopPreview}
-            onTestRust={handleTestRust}
-            text={text.playback}
-          />
-        </>
+        <KeyboardPreview
+          activeKeys={previewPlayback.activeKeys}
+          keyMapping={keyMapping}
+          text={text.keyboard}
+        />
       );
     }
 
