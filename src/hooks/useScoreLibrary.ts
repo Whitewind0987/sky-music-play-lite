@@ -340,7 +340,7 @@ export function useScoreLibrary({
 
   function handleDeleteLocalSong(
     songIndex: number,
-    onDeleted?: (deletedSongIndex: number) => void,
+    onDeleted?: (deletedSongIndex: number, deletedSongId: LibrarySongId) => void,
   ) {
     const librarySong = librarySongsRef.current[songIndex];
 
@@ -359,7 +359,7 @@ export function useScoreLibrary({
     }
 
     onBeforeLibraryMutation();
-    onDeleted?.(songIndex);
+    onDeleted?.(songIndex, librarySong.id);
 
     const removedCollections = removeSongFromAllCollections({
       likedSongs,

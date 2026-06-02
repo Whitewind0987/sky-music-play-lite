@@ -26,6 +26,11 @@ type UseForegroundPlaybackOptions = {
   consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
   currentSong: Song | null;
   experimentalInputEnabled: boolean;
+  getPlaybackOrderNextSongIndex: (options: {
+    currentSongIndex: number;
+    isShuffleEnabled: boolean;
+    playbackMode: PlaybackMode;
+  }) => number | null;
   importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
@@ -47,6 +52,7 @@ export function useForegroundPlayback({
   consumeNextQueueItem,
   currentSong,
   experimentalInputEnabled,
+  getPlaybackOrderNextSongIndex,
   importedSongs,
   importedSongsRef,
   isShuffleEnabled,
@@ -330,11 +336,19 @@ export function useForegroundPlayback({
       playbackModeRef.current === "repeat-one"
         ? null
         : consumeNextQueueItem(currentImportedSongs.length);
+    const playbackOrderNextSongIndex =
+      queuedItem === null && playbackModeRef.current !== "repeat-one"
+        ? getPlaybackOrderNextSongIndex({
+            currentSongIndex: songIndex,
+            isShuffleEnabled: isShuffleEnabledRef.current,
+            playbackMode: playbackModeRef.current,
+          })
+        : null;
     const finishDecision = decidePlaybackFinish({
       currentSongIndex: songIndex,
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
-      queuedSongIndex: queuedItem?.songIndex ?? null,
+      queuedSongIndex: queuedItem?.songIndex ?? playbackOrderNextSongIndex ?? null,
       songCount: currentImportedSongs.length,
     });
 

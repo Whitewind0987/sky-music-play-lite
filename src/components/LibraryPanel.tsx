@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import type { UiText } from "../i18n/uiText";
 import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
@@ -19,7 +20,7 @@ type LibraryPanelProps = {
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
-  onPlaySong: (songIndex: number) => void;
+  onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
   onPlaylistSelect: (playlistId: string) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
@@ -36,8 +37,6 @@ type LibraryPanelProps = {
   selectedSongIndex: number | null;
   text: UiText["library"];
 };
-
-const createPlaylistOptionValue = "__create_playlist__";
 
 function formatDuration(durationMs: number) {
   const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
@@ -109,6 +108,47 @@ function LibraryAddToQueueIcon() {
     >
       <path
         d="M2.5 4h6.8v1.2H2.5V4Zm0 3.2h6.8v1.2H2.5V7.2Zm0 3.2h4.8v1.2H2.5v-1.2Zm9.2-2.9h1.2v2h2v1.2h-2v2h-1.2v-2h-2V9.5h2v-2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function LibraryCollectIcon() {
+  return (
+    <svg
+      className="library-title-icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 3.5h7.5a2 2 0 0 1 2 2v7.1l-4-2.2-4 2.2V5.5a2 2 0 0 1 2-2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M8.5 6v3M7 7.5h3"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function LibraryMoreIcon() {
+  return (
+    <svg
+      className="library-title-icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M4 8a1.2 1.2 0 1 1-2.4 0A1.2 1.2 0 0 1 4 8Zm5.2 0a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Zm5.2 0a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z"
         fill="currentColor"
       />
     </svg>
@@ -216,74 +256,212 @@ function PlaylistManager({
   );
 }
 
-function AddToPlaylistSelect({
+function AddToPlaylistPopup({
+  item,
   onAddSongToPlaylist,
+  onClose,
   onCreatePlaylistWithSong,
   playlists,
-  songIndex,
   text,
 }: Pick<
   LibraryPanelProps,
   "onAddSongToPlaylist" | "onCreatePlaylistWithSong" | "playlists" | "text"
 > & {
-  songIndex: number;
+  item: LibrarySongListItem;
+  onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <select
-      className="library-playlist-select"
-      value=""
-      aria-label={text.addToPlaylist}
-      onClick={(event) => event.stopPropagation()}
-      onChange={(event) => {
-        const value = event.currentTarget.value;
-
-        if (value === createPlaylistOptionValue) {
-          onCreatePlaylistWithSong(songIndex);
-        } else if (value) {
-          onAddSongToPlaylist(value, songIndex);
+    <div
+      className="library-dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
         }
-
-        event.currentTarget.value = "";
       }}
     >
-      <option value="">{text.addToPlaylist}</option>
-      {playlists.map((playlist) => (
-        <option key={playlist.id} value={playlist.id}>
-          {playlist.name}
-        </option>
-      ))}
-      <option value={createPlaylistOptionValue}>
-        {text.createPlaylistAndAdd}
-      </option>
-    </select>
+      <div
+        className="library-collect-dialog"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={text.addToPlaylistDialogTitle}
+      >
+        <div className="library-collect-dialog-header">
+          <h3>{text.addToPlaylistDialogTitle}</h3>
+          <button type="button" onClick={onClose} aria-label={text.closeDialog}>
+            {text.closeDialog}
+          </button>
+        </div>
+        <button
+          className="library-collect-create"
+          type="button"
+          onClick={() => {
+            onCreatePlaylistWithSong(item.songIndex);
+            onClose();
+          }}
+        >
+          {text.createPlaylistAndAdd}
+        </button>
+        {playlists.length === 0 ? (
+          <p className="library-empty-note">{text.noPlaylists}</p>
+        ) : (
+          <div className="library-collect-list">
+            {playlists.map((playlist) => (
+              <button
+                className="library-collect-row"
+                key={playlist.id}
+                type="button"
+                onClick={() => {
+                  onAddSongToPlaylist(playlist.id, item.songIndex);
+                  onClose();
+                }}
+              >
+                <span>{playlist.name}</span>
+                <small>
+                  {playlist.songIds.length} {text.playlistSongCount}
+                </small>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LibraryActionMenu({
+  item,
+  onAddToQueue,
+  onClose,
+  onDeleteLocalSong,
+  onOpenCollectDialog,
+  onPlaySong,
+  onPlaySongNext,
+  onRemoveFromLiked,
+  onRemoveSongFromPlaylist,
+  selectedCategory,
+  selectedPlaylist,
+  text,
+}: Pick<
+  LibraryPanelProps,
+  | "onAddToQueue"
+  | "onDeleteLocalSong"
+  | "onPlaySong"
+  | "onPlaySongNext"
+  | "onRemoveFromLiked"
+  | "onRemoveSongFromPlaylist"
+  | "selectedCategory"
+  | "selectedPlaylist"
+  | "text"
+> & {
+  item: LibrarySongListItem;
+  onClose: () => void;
+  onOpenCollectDialog: (item: LibrarySongListItem) => void;
+}) {
+  function runAction(action: () => void) {
+    action();
+    onClose();
+  }
+
+  return (
+    <div className="library-action-menu" role="menu">
+      <button type="button" role="menuitem" onClick={() => runAction(() => onPlaySong(item))}>
+        {text.playAction}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => runAction(() => onPlaySongNext(item.songIndex))}
+      >
+        {text.playNextAction}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => runAction(() => onAddToQueue(item.songIndex))}
+      >
+        {text.addToQueueAction}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => runAction(() => onOpenCollectDialog(item))}
+      >
+        {text.addToPlaylist}
+      </button>
+      {selectedCategory === "liked" ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => runAction(() => onRemoveFromLiked(item.librarySong.id))}
+        >
+          {text.removeFromLiked}
+        </button>
+      ) : null}
+      {selectedCategory === "playlists" && selectedPlaylist ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() =>
+            runAction(() =>
+              onRemoveSongFromPlaylist(selectedPlaylist.id, item.librarySong.id),
+            )
+          }
+        >
+          {text.removeFromPlaylist}
+        </button>
+      ) : null}
+      <button
+        className="is-danger"
+        type="button"
+        role="menuitem"
+        onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
+      >
+        {text.deleteFromLocalImports}
+      </button>
+    </div>
   );
 }
 
 function LibrarySongTable({
-  hasSearchQuery,
   items,
-  onAddSongToPlaylist,
   onAddToQueue,
-  onCreatePlaylistWithSong,
+  onCloseActionMenu,
   onDeleteLocalSong,
+  onOpenActionMenu,
+  onOpenCollectDialog,
   onPlaySong,
   onPlaySongNext,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onSelectSong,
   onToggleLiked,
-  playlists,
+  emptyDescription,
+  emptyTitle,
   selectedCategory,
   selectedPlaylist,
   selectedSongIndex,
   text,
+  openActionMenuSongId,
 }: Pick<
   LibraryPanelProps,
-  | "hasSearchQuery"
   | "items"
-  | "onAddSongToPlaylist"
   | "onAddToQueue"
-  | "onCreatePlaylistWithSong"
   | "onDeleteLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
@@ -291,17 +469,23 @@ function LibrarySongTable({
   | "onRemoveSongFromPlaylist"
   | "onSelectSong"
   | "onToggleLiked"
-  | "playlists"
   | "selectedCategory"
   | "selectedPlaylist"
   | "selectedSongIndex"
   | "text"
->) {
+> & {
+  emptyDescription: string;
+  emptyTitle: string;
+  onCloseActionMenu: () => void;
+  onOpenActionMenu: (songId: LibrarySongId) => void;
+  onOpenCollectDialog: (item: LibrarySongListItem) => void;
+  openActionMenuSongId: LibrarySongId | null;
+}) {
   if (items.length === 0) {
     return (
       <div className="library-empty">
-        <h3>{hasSearchQuery ? text.noSearchResults : text.emptyTitle}</h3>
-        <p>{hasSearchQuery ? text.noSearchResults : text.emptyDescription}</p>
+        <h3>{emptyTitle}</h3>
+        <p>{emptyDescription}</p>
       </div>
     );
   }
@@ -348,7 +532,8 @@ function LibrarySongTable({
                   title={text.playThisScoreAction}
                   onClick={(event) => {
                     event.stopPropagation();
-                    onPlaySong(songIndex);
+                    event.currentTarget.blur();
+                    onPlaySong(item);
                   }}
                 >
                   <LibraryRowPlayIcon />
@@ -364,6 +549,7 @@ function LibrarySongTable({
                     title={text.playNextAction}
                     onClick={(event) => {
                       event.stopPropagation();
+                      event.currentTarget.blur();
                       onPlaySongNext(songIndex);
                     }}
                   >
@@ -376,57 +562,56 @@ function LibrarySongTable({
                     title={text.addToQueueAction}
                     onClick={(event) => {
                       event.stopPropagation();
+                      event.currentTarget.blur();
                       onAddToQueue(songIndex);
                     }}
                   >
                     <LibraryAddToQueueIcon />
                   </button>
-                  <AddToPlaylistSelect
-                    onAddSongToPlaylist={onAddSongToPlaylist}
-                    onCreatePlaylistWithSong={onCreatePlaylistWithSong}
-                    playlists={playlists}
-                    songIndex={songIndex}
-                    text={text}
-                  />
-                  {selectedCategory === "local-imports" ? (
+                  <button
+                    className="library-title-icon-button"
+                    type="button"
+                    aria-label={text.addToPlaylist}
+                    title={text.addToPlaylist}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.currentTarget.blur();
+                      onOpenCollectDialog(item);
+                    }}
+                  >
+                    <LibraryCollectIcon />
+                  </button>
+                  <span className="library-action-menu-anchor">
                     <button
-                      className="library-danger-button"
+                      className="library-title-icon-button"
                       type="button"
+                      aria-label={text.moreActions}
+                      title={text.moreActions}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onDeleteLocalSong(songIndex);
+                        event.currentTarget.blur();
+                        onOpenActionMenu(librarySong.id);
                       }}
                     >
-                      {text.deleteLocalSong}
+                      <LibraryMoreIcon />
                     </button>
-                  ) : null}
-                  {selectedCategory === "liked" ? (
-                    <button
-                      className="library-muted-action"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveFromLiked(librarySong.id);
-                      }}
-                    >
-                      {text.removeFromLiked}
-                    </button>
-                  ) : null}
-                  {selectedCategory === "playlists" && selectedPlaylist ? (
-                    <button
-                      className="library-muted-action"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveSongFromPlaylist(
-                          selectedPlaylist.id,
-                          librarySong.id,
-                        );
-                      }}
-                    >
-                      {text.removeFromPlaylist}
-                    </button>
-                  ) : null}
+                    {openActionMenuSongId === librarySong.id ? (
+                      <LibraryActionMenu
+                        item={item}
+                        onAddToQueue={onAddToQueue}
+                        onClose={onCloseActionMenu}
+                        onDeleteLocalSong={onDeleteLocalSong}
+                        onOpenCollectDialog={onOpenCollectDialog}
+                        onPlaySong={onPlaySong}
+                        onPlaySongNext={onPlaySongNext}
+                        onRemoveFromLiked={onRemoveFromLiked}
+                        onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
+                        selectedCategory={selectedCategory}
+                        selectedPlaylist={selectedPlaylist}
+                        text={text}
+                      />
+                    ) : null}
+                  </span>
                 </span>
                 {isSelected ? (
                   <span className="library-selected-badge">{text.selected}</span>
@@ -445,6 +630,7 @@ function LibrarySongTable({
                   title={item.isLiked ? text.unlikeAction : text.likeAction}
                   onClick={(event) => {
                     event.stopPropagation();
+                    event.currentTarget.blur();
                     onToggleLiked(songIndex);
                   }}
                 >
@@ -489,15 +675,46 @@ export function LibraryPanel({
   selectedSongIndex,
   text,
 }: LibraryPanelProps) {
+  const [collectingSongItem, setCollectingSongItem] =
+    useState<LibrarySongListItem | null>(null);
+  const [openActionMenuSongId, setOpenActionMenuSongId] =
+    useState<LibrarySongId | null>(null);
   const isLocalImports = selectedCategory === "local-imports";
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
   const emptyState = text.categoryEmptyStates[selectedCategory];
   const contentTitle =
     isPlaylists && selectedPlaylist ? selectedPlaylist.name : emptyState.title;
+  const listEmptyState = getLibraryEmptyState({
+    hasSearchQuery,
+    selectedCategory,
+    text,
+  });
+  const hasOpenActionMenu = openActionMenuSongId !== null;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCollectingSongItem(null);
+        setOpenActionMenuSongId(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <section className="library-panel" aria-label={text.aria}>
+      {hasOpenActionMenu ? (
+        <button
+          className="library-menu-scrim"
+          type="button"
+          aria-label={text.closeMenu}
+          onClick={() => setOpenActionMenuSongId(null)}
+        />
+      ) : null}
       {isLocalImports ? (
         <LibraryImportArea
           importDisabled={importDisabled}
@@ -540,31 +757,86 @@ export function LibraryPanel({
           </div>
         ) : isPlaylists && !selectedPlaylist ? (
           <div className="library-empty">
-            <h3>{text.emptyPlaylistTitle}</h3>
-            <p>{text.emptyPlaylistDescription}</p>
+            <h3>{text.playlistEmptyTitle}</h3>
+            <p>{text.playlistEmptyDescription}</p>
           </div>
         ) : (
           <LibrarySongTable
-            hasSearchQuery={hasSearchQuery}
+            emptyDescription={listEmptyState.description}
+            emptyTitle={listEmptyState.title}
             items={items}
-            onAddSongToPlaylist={onAddSongToPlaylist}
             onAddToQueue={onAddToQueue}
-            onCreatePlaylistWithSong={onCreatePlaylistWithSong}
+            onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
+            onOpenActionMenu={(songId) =>
+              setOpenActionMenuSongId((currentSongId) =>
+                currentSongId === songId ? null : songId,
+              )
+            }
+            onOpenCollectDialog={(item) => {
+              setOpenActionMenuSongId(null);
+              setCollectingSongItem(item);
+            }}
             onPlaySong={onPlaySong}
             onPlaySongNext={onPlaySongNext}
             onRemoveFromLiked={onRemoveFromLiked}
             onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
             onSelectSong={onSelectSong}
             onToggleLiked={onToggleLiked}
-            playlists={playlists}
             selectedCategory={selectedCategory}
             selectedPlaylist={selectedPlaylist}
             selectedSongIndex={selectedSongIndex}
             text={text}
+            openActionMenuSongId={openActionMenuSongId}
           />
         )}
       </div>
+      {collectingSongItem ? (
+        <AddToPlaylistPopup
+          item={collectingSongItem}
+          onAddSongToPlaylist={onAddSongToPlaylist}
+          onClose={() => setCollectingSongItem(null)}
+          onCreatePlaylistWithSong={onCreatePlaylistWithSong}
+          playlists={playlists}
+          text={text}
+        />
+      ) : null}
     </section>
   );
+}
+
+function getLibraryEmptyState({
+  hasSearchQuery,
+  selectedCategory,
+  text,
+}: {
+  hasSearchQuery: boolean;
+  selectedCategory: LibraryCategoryId;
+  text: UiText["library"];
+}) {
+  if (hasSearchQuery) {
+    return {
+      description: text.noSearchResultsDescription,
+      title: text.noSearchResultsTitle,
+    };
+  }
+
+  if (selectedCategory === "liked") {
+    return {
+      description: text.likedEmptyDescription,
+      title: text.likedEmptyTitle,
+    };
+  }
+
+  if (selectedCategory === "playlists") {
+    return {
+      description: text.playlistEmptyDescription,
+      title: text.playlistEmptyTitle,
+    };
+  }
+
+  return {
+    description: text.emptyDescription,
+    title: text.emptyTitle,
+  };
 }

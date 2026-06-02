@@ -13,6 +13,7 @@ import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
+import { usePlaybackOrder } from "./hooks/usePlaybackOrder";
 import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
@@ -23,6 +24,7 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
+import type { LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import "../font/iconfont.css";
 import "./App.css";
@@ -47,6 +49,7 @@ function App() {
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
     text,
   });
+  const playbackOrder = usePlaybackOrder();
   const playbackQueue = usePlaybackQueue({
     appendLog,
     importedSongsRef: scoreLibrary.importedSongsRef,
@@ -56,6 +59,11 @@ function App() {
     appendLog,
     consumeNextQueueItem: playbackQueue.consumeNextQueueItem,
     currentSelectedSong: scoreLibrary.currentSelectedSong,
+    getPlaybackOrderNextSongIndex: (options) =>
+      playbackOrder.getNextPlaybackOrderSongIndex({
+        ...options,
+        librarySongs: scoreLibrary.librarySongs,
+      }),
     importedSongs: scoreLibrary.importedSongs,
     importedSongsRef: scoreLibrary.importedSongsRef,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
@@ -66,6 +74,11 @@ function App() {
     appendLog,
     consumeNextQueueItem: playbackQueue.consumeNextQueueItem,
     currentSong: scoreLibrary.currentSelectedSong,
+    getPlaybackOrderNextSongIndex: (options) =>
+      playbackOrder.getNextPlaybackOrderSongIndex({
+        ...options,
+        librarySongs: scoreLibrary.librarySongs,
+      }),
     importedSongs: scoreLibrary.importedSongs,
     importedSongsRef: scoreLibrary.importedSongsRef,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
@@ -136,18 +149,51 @@ function App() {
   }
 
   function handleDeleteLocalSong(songIndex: number) {
-    scoreLibrary.handleDeleteLocalSong(songIndex, playbackQueue.removeSongIndex);
+    scoreLibrary.handleDeleteLocalSong(
+      songIndex,
+      (deletedSongIndex, deletedSongId) => {
+        playbackQueue.removeSongIndex(deletedSongIndex);
+        playbackOrder.removeSongFromPlaybackContext(deletedSongId);
+      },
+    );
+  }
+
+  function handlePlayLibraryItem(item: LibrarySongListItem) {
+    playbackOrder.setPlaybackContext({
+      currentSongId: item.librarySong.id,
+      selectedCategory: scoreLibrary.selectedLibraryCategory,
+      songIds: scoreLibrary.visibleLibraryItems.map(
+        (libraryItem) => libraryItem.librarySong.id,
+      ),
+      usesSearch: scoreLibrary.hasSearchQuery,
+    });
+    playbackOutput.onPlaySong(item.songIndex);
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    playbackOrder.clearPlaybackContext();
     playbackOutput.onPlaySong(queueItem.songIndex);
   }
 
   function handleNextPlayback() {
     const songs = scoreLibrary.importedSongsRef.current;
     const queuedItem = playbackQueue.consumeNextQueueItem(songs.length);
+    if (queuedItem) {
+      playbackOrder.clearPlaybackContext();
+    }
+
+    const playbackOrderNextSongIndex =
+      queuedItem === null && scoreLibrary.selectedSongIndex !== null
+        ? playbackOrder.getNextPlaybackOrderSongIndex({
+            currentSongIndex: scoreLibrary.selectedSongIndex,
+            isShuffleEnabled: playbackOutput.isShuffleEnabled,
+            librarySongs: scoreLibrary.librarySongs,
+            playbackMode: playbackOutput.playbackMode,
+          })
+        : null;
     const nextSongIndex =
       queuedItem?.songIndex ??
+      playbackOrderNextSongIndex ??
       getNextLibrarySongIndex(scoreLibrary.selectedSongIndex, songs.length);
 
     if (nextSongIndex === null) {
@@ -179,7 +225,7 @@ function App() {
           onDeleteLocalSong={handleDeleteLocalSong}
           onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
-          onPlaySong={playbackOutput.onPlaySong}
+          onPlaySong={handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
           onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
           onRemoveFromLiked={scoreLibrary.handleRemoveFromLiked}
