@@ -2,13 +2,14 @@ const builtInScoreSourceName = "SkyMusicPlay-for-Windows";
 const builtInScoreSourceUrl = "https://github.com/windhide/SkyMusicPlay-for-Windows";
 
 const scoreModules = import.meta.glob("./scores/*.{json,txt}", {
-  import: "default",
   query: "?raw",
-}) as Record<string, () => Promise<string>>;
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
 
 export type BuiltInScoreManifestEntry = {
   id: string;
-  loadRaw: () => Promise<string>;
+  raw: string;
   sourceName: string;
   sourceUrl: string;
   title: string;
@@ -33,7 +34,7 @@ function buildBuiltInScoreManifest(): BuiltInScoreManifestEntry[] {
 
       return {
         id,
-        loadRaw: raw,
+        raw,
         sourceName: builtInScoreSourceName,
         sourceUrl: builtInScoreSourceUrl,
         title: buildScoreTitle(filePath),

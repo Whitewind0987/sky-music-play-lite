@@ -11,14 +11,13 @@ export type BuiltInLibraryLoadResult = {
   songs: LibrarySong[];
 };
 
-export async function loadBuiltInLibrarySongs(): Promise<BuiltInLibraryLoadResult> {
+export function loadBuiltInLibrarySongs(): BuiltInLibraryLoadResult {
   const builtInSongs: LibrarySong[] = [];
   let skippedFileCount = 0;
 
   for (const entry of builtInScoreManifest) {
     try {
-      const raw = await entry.loadRaw();
-      const songs = parseScoreFileContent(raw);
+      const songs = parseScoreFileContent(entry.raw);
 
       songs.forEach((song, songIndex) => {
         builtInSongs.push({

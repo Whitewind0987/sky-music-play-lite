@@ -102,7 +102,6 @@ function App() {
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
-    canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
     experimentalInputMode: experimentalInput.experimentalInputMode,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,

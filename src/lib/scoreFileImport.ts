@@ -72,9 +72,9 @@ function validateSong(value: unknown, songIndex: number): Song {
   }
 
   const name = readString(value, "name", songIndex);
-  const bpm = readFlexibleNumber(value, "bpm", songIndex);
-  const bitsPerPage = readFlexibleNumber(value, "bitsPerPage", songIndex);
-  const pitchLevel = readFlexibleNumber(value, "pitchLevel", songIndex);
+  const bpm = readFlexibleNumber(value, "bpm", songIndex, 120);
+  const bitsPerPage = readFlexibleNumber(value, "bitsPerPage", songIndex, 16);
+  const pitchLevel = readFlexibleNumber(value, "pitchLevel", songIndex, 0);
   const isComposed = readOptionalFlexibleBoolean(
     value,
     "isComposed",
@@ -142,8 +142,21 @@ function readFlexibleNumber(
   value: Record<string, unknown>,
   fieldName: string,
   songIndex: number,
+  defaultValue?: number,
 ) {
   const fieldValue = value[fieldName];
+
+  if (fieldValue === undefined || fieldValue === null) {
+    if (defaultValue !== undefined) {
+      return defaultValue;
+    }
+
+    throw new ScoreFileImportError("songFieldInvalid", {
+      expectedType: "number",
+      fieldName,
+      songIndex,
+    });
+  }
 
   if (typeof fieldValue === "number" && Number.isFinite(fieldValue)) {
     return fieldValue;

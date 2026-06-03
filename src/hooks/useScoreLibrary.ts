@@ -42,9 +42,10 @@ export function useScoreLibrary({
   onBeforeLibraryMutation,
   text,
 }: UseScoreLibraryOptions) {
-  const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<LibrarySong[]>([]);
-  const [hasLoadedBuiltInSongs, setHasLoadedBuiltInSongs] = useState(false);
-  const pendingPersistedSelectedLocalIndexRef = useRef<number | null>(null);
+  const builtInLibrarySongs = useMemo(
+    () => loadBuiltInLibrarySongs().songs,
+    [],
+  );
   const importedSongsRef = useRef<Song[]>([]);
   const librarySongsRef = useRef<LibrarySong[]>([]);
   const localLibrarySongsRef = useRef<LibrarySong[]>([]);
@@ -143,48 +144,6 @@ export function useScoreLibrary({
 
     return localSongIndex >= 0 ? localSongIndex : null;
   }, [librarySongs, localLibrarySongs, selectedSongIndex]);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function loadBuiltInSongs() {
-      const result = await loadBuiltInLibrarySongs();
-
-      if (isCancelled) {
-        return;
-      }
-
-      setBuiltInLibrarySongs(result.songs);
-      setHasLoadedBuiltInSongs(true);
-    }
-
-    void loadBuiltInSongs().catch((error) => {
-      console.warn("[built-in-scores] load failed", error);
-
-      if (!isCancelled) {
-        setBuiltInLibrarySongs([]);
-        setHasLoadedBuiltInSongs(true);
-      }
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const persistedLocalIndex = pendingPersistedSelectedLocalIndexRef.current;
-
-    if (persistedLocalIndex === null || !hasLoadedBuiltInSongs) {
-      return;
-    }
-
-    pendingPersistedSelectedLocalIndexRef.current = null;
-
-    if (localLibrarySongsRef.current[persistedLocalIndex]) {
-      setSelectedSongIndex(builtInLibrarySongs.length + persistedLocalIndex);
-    }
-  }, [builtInLibrarySongs.length, hasLoadedBuiltInSongs]);
 
   useEffect(() => {
     importedSongsRef.current = importedSongs;
@@ -501,7 +460,6 @@ export function useScoreLibrary({
         ? builtInLibrarySongs.length + library.selectedSongIndex
         : null;
 
-    pendingPersistedSelectedLocalIndexRef.current = library.selectedSongIndex;
     localLibrarySongsRef.current = nextLocalLibrarySongs;
     librarySongsRef.current = nextLibrarySongs;
     setLocalLibrarySongs(nextLocalLibrarySongs);
@@ -531,7 +489,6 @@ export function useScoreLibrary({
     handleSelectImportedSong,
     handleToggleLikedSong,
     hasSearchQuery,
-    hasLoadedBuiltInSongs,
     importError,
     importedSongs,
     importedSongsRef,
