@@ -56,6 +56,9 @@ export function useScoreLibrary({
     null,
   );
   const [importError, setImportError] = useState("");
+  const [loadingBuiltInSongIds, setLoadingBuiltInSongIds] = useState<
+    Set<LibrarySongId>
+  >(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(
     null,
@@ -274,7 +277,7 @@ export function useScoreLibrary({
     setSelectedSongIndex(songIndex);
 
     if (songIndex !== null) {
-      void resolveSongForPlayback(songIndex);
+      void preloadBuiltInSong(songIndex);
     }
   }
 
@@ -519,11 +522,28 @@ export function useScoreLibrary({
     setSearchQuery("");
   }
 
-  async function resolveSongForPlayback(songIndex: number) {
+  function isBuiltInSongLoading(songId: LibrarySongId) {
+    return loadingBuiltInSongIds.has(songId);
+  }
+
+  function preloadBuiltInSong(songIndex: number) {
+    return loadBuiltInSong(songIndex, { shouldLogFailure: false });
+  }
+
+  function resolveSongForPlayback(songIndex: number) {
+    return loadBuiltInSong(songIndex, { shouldLogFailure: true });
+  }
+
+  async function loadBuiltInSong(
+    songIndex: number,
+    { shouldLogFailure }: { shouldLogFailure: boolean },
+  ) {
     const librarySong = librarySongsRef.current[songIndex];
 
     if (!librarySong) {
-      appendLog(text.logs.noSelectedScore);
+      if (shouldLogFailure) {
+        appendLog(text.logs.noSelectedScore);
+      }
       return null;
     }
 
@@ -531,38 +551,64 @@ export function useScoreLibrary({
       return librarySong.song;
     }
 
+    setBuiltInSongLoading(librarySong.id, true);
+
     const loadedSong = await loadBuiltInScoreById(librarySong.id);
 
     if (loadedSong === null) {
-      appendLog(
-        formatText(text.logs.builtInScoreLoadFailed, {
-          songName: librarySong.song.name,
-        }),
-      );
+      setBuiltInSongLoading(librarySong.id, false);
+
+      if (shouldLogFailure) {
+        appendLog(
+          formatText(text.logs.builtInScoreLoadFailed, {
+            songName: librarySong.song.name,
+          }),
+        );
+      }
+
       return null;
     }
 
-    const nextBuiltInLibrarySongs = builtInLibrarySongs.map((currentSong) =>
-      currentSong.id === librarySong.id
-        ? {
-            ...currentSong,
-            isBuiltInLoaded: true,
-            song: loadedSong,
-          }
-        : currentSong,
-    );
-    const nextLibrarySongs = [
-      ...nextBuiltInLibrarySongs,
-      ...localLibrarySongsRef.current,
-    ];
+    setBuiltInSongLoading(librarySong.id, false);
+    setBuiltInLibrarySongs((currentBuiltInLibrarySongs) => {
+      const nextBuiltInLibrarySongs = currentBuiltInLibrarySongs.map(
+        (currentSong) =>
+          currentSong.id === librarySong.id
+            ? {
+                ...currentSong,
+                isBuiltInLoaded: true,
+                song: loadedSong,
+              }
+            : currentSong,
+      );
+      const nextLibrarySongs = [
+        ...nextBuiltInLibrarySongs,
+        ...localLibrarySongsRef.current,
+      ];
 
-    setBuiltInLibrarySongs(nextBuiltInLibrarySongs);
-    librarySongsRef.current = nextLibrarySongs;
-    importedSongsRef.current = nextLibrarySongs.map(
-      (currentSong) => currentSong.song,
-    );
+      librarySongsRef.current = nextLibrarySongs;
+      importedSongsRef.current = nextLibrarySongs.map(
+        (currentSong) => currentSong.song,
+      );
+
+      return nextBuiltInLibrarySongs;
+    });
 
     return loadedSong;
+  }
+
+  function setBuiltInSongLoading(songId: LibrarySongId, isLoading: boolean) {
+    setLoadingBuiltInSongIds((currentLoadingIds) => {
+      const nextLoadingIds = new Set(currentLoadingIds);
+
+      if (isLoading) {
+        nextLoadingIds.add(songId);
+      } else {
+        nextLoadingIds.delete(songId);
+      }
+
+      return nextLoadingIds;
+    });
   }
 
   return {
@@ -586,11 +632,13 @@ export function useScoreLibrary({
     importError,
     importedSongs,
     importedSongsRef,
+    isBuiltInSongLoading,
     librarySongs,
     likedSongs,
     localLibrarySongs,
     persistedSelectedSongIndex,
     playlists,
+    preloadBuiltInSong,
     resolveSongForPlayback,
     searchQuery,
     selectedLibraryCategory,

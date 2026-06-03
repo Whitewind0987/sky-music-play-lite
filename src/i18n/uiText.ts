@@ -165,6 +165,7 @@ export const uiText = {
       deletePlaylistConfirm:
         "确定要删除歌单《{playlistName}》吗？曲谱本身不会被删除。",
       selected: "当前",
+      loadingScore: "加载中...",
       playAction: "播放",
     },
     score: {
@@ -219,6 +220,7 @@ export const uiText = {
         experimentalTargetWindow: "目标窗口",
       },
       realInputWarning: "将发送真实输入",
+      loadingScore: "加载曲谱中...",
       controlsAria: "底部播放控制",
       play: "播放",
       pause: "暂停",
@@ -601,6 +603,7 @@ export const uiText = {
       deletePlaylistConfirm:
         "Delete playlist “{playlistName}”? The scores themselves will not be deleted.",
       selected: "Selected",
+      loadingScore: "Loading...",
       playAction: "Play",
     },
     score: {
@@ -661,6 +664,7 @@ export const uiText = {
         experimentalTargetWindow: "Target",
       },
       realInputWarning: "Real input will be sent",
+      loadingScore: "Loading score...",
       controlsAria: "Bottom playback controls",
       play: "Play",
       pause: "Pause",

@@ -68,6 +68,22 @@ function isValidObjectNotes(songNotes) {
   );
 }
 
+function getDurationMs(songNotes) {
+  const groupedTimes = Array.from(
+    new Set(songNotes.map((note) => readFlexibleNumber(note.time, 0))),
+  ).sort((left, right) => left - right);
+
+  return groupedTimes.reduce((durationMs, groupTime, index) => {
+    if (index === 0) {
+      return durationMs + Math.max(0, groupTime);
+    }
+
+    const previousGroupTime = groupedTimes[index - 1];
+
+    return durationMs + Math.max(0, groupTime - previousGroupTime);
+  }, 0);
+}
+
 function createEntry({ fileName, song, songIndex }) {
   const bpm = readFlexibleNumber(song.bpm, 120);
   const bitsPerPage = readFlexibleNumber(song.bitsPerPage, 16);
@@ -98,6 +114,8 @@ function createEntry({ fileName, song, songIndex }) {
     bitsPerPage,
     pitchLevel,
     isComposed,
+    noteCount: song.songNotes.length,
+    durationMs: getDurationMs(song.songNotes),
   };
 }
 

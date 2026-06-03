@@ -23,6 +23,7 @@ type LibraryPanelProps = {
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
+  onPrefetchSong: (songIndex: number) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
@@ -37,6 +38,7 @@ type LibraryPanelProps = {
   selectedPlaylist: UserPlaylist | null;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  isBuiltInSongLoading: (songId: LibrarySongId) => boolean;
   text: UiText["library"];
 };
 
@@ -541,6 +543,7 @@ function LibrarySongTable({
   onDeleteLocalSong,
   onOpenActionMenu,
   onOpenCollectDialog,
+  onPrefetchSong,
   onPlaySong,
   onPlaySongNext,
   onRemoveFromLiked,
@@ -549,6 +552,7 @@ function LibrarySongTable({
   onToggleLiked,
   emptyDescription,
   emptyTitle,
+  isBuiltInSongLoading,
   selectedCategory,
   selectedPlaylist,
   selectedSongIndex,
@@ -561,6 +565,7 @@ function LibrarySongTable({
   | "onDeleteLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
+  | "onPrefetchSong"
   | "onRemoveFromLiked"
   | "onRemoveSongFromPlaylist"
   | "onSelectSong"
@@ -568,6 +573,7 @@ function LibrarySongTable({
   | "selectedCategory"
   | "selectedPlaylist"
   | "selectedSongIndex"
+  | "isBuiltInSongLoading"
   | "text"
 > & {
   emptyDescription: string;
@@ -600,8 +606,15 @@ function LibrarySongTable({
           const { librarySong, songIndex } = item;
           const song = librarySong.song;
           const isSelected = selectedSongIndex === songIndex;
+          const isLoading = isBuiltInSongLoading(librarySong.id);
+          const durationMs =
+            librarySong.source === "built-in" &&
+            !librarySong.isBuiltInLoaded &&
+            typeof librarySong.builtInDurationMs === "number"
+              ? librarySong.builtInDurationMs
+              : getAdjustedPreviewDurationMs(song.songNotes);
           const duration = formatDuration(
-            getAdjustedPreviewDurationMs(song.songNotes),
+            durationMs,
           );
           const rowNumber = String(displayIndex + 1).padStart(2, "0");
 
@@ -614,6 +627,8 @@ function LibrarySongTable({
               role="button"
               tabIndex={0}
               onClick={() => onSelectSong(songIndex)}
+              onFocus={() => onPrefetchSong(songIndex)}
+              onMouseEnter={() => onPrefetchSong(songIndex)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
@@ -628,6 +643,7 @@ function LibrarySongTable({
                   type="button"
                   aria-label={`${text.playThisScoreAction}: ${song.name}`}
                   title={text.playThisScoreAction}
+                  onMouseEnter={() => onPrefetchSong(songIndex)}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.currentTarget.blur();
@@ -717,6 +733,11 @@ function LibrarySongTable({
                 {isSelected ? (
                   <span className="library-selected-badge">{text.selected}</span>
                 ) : null}
+                {isSelected && isLoading ? (
+                  <span className="library-loading-badge">
+                    {text.loadingScore}
+                  </span>
+                ) : null}
               </span>
               <span className="library-song-source">
                 {librarySong.source === "built-in"
@@ -762,6 +783,7 @@ export function LibraryPanel({
   onDeleteLocalSong,
   onDeletePlaylist,
   onImportFiles,
+  onPrefetchSong,
   onPlaySong,
   onPlaySongNext,
   onRemoveFromLiked,
@@ -776,6 +798,7 @@ export function LibraryPanel({
   selectedPlaylist,
   selectedPlaylistId,
   selectedSongIndex,
+  isBuiltInSongLoading,
   text,
 }: LibraryPanelProps) {
   const [collectingSongItem, setCollectingSongItem] =
@@ -910,6 +933,7 @@ export function LibraryPanel({
             emptyDescription={listEmptyState.description}
             emptyTitle={listEmptyState.title}
             items={items}
+            isBuiltInSongLoading={isBuiltInSongLoading}
             onAddToQueue={onAddToQueue}
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
@@ -922,6 +946,7 @@ export function LibraryPanel({
               setOpenActionMenuSongId(null);
               setCollectingSongItem(item);
             }}
+            onPrefetchSong={onPrefetchSong}
             onPlaySong={onPlaySong}
             onPlaySongNext={onPlaySongNext}
             onRemoveFromLiked={onRemoveFromLiked}

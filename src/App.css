@@ -902,6 +902,17 @@ button {
   line-height: 1.2;
 }
 
+.library-loading-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid #ffe0a8;
+  border-radius: 999px;
+  color: #8a5a00;
+  background: #fff8e8;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .library-song-duration {
   font-variant-numeric: tabular-nums;
 }
@@ -1921,7 +1932,8 @@ button {
 }
 
 .bottom-player-output-badge,
-.bottom-player-real-input-badge {
+.bottom-player-real-input-badge,
+.bottom-player-loading-badge {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -1944,6 +1956,12 @@ button {
   border: 1px solid #ffd08a;
   color: #8a4d00;
   background: #fff7e6;
+}
+
+.bottom-player-loading-badge {
+  border: 1px solid #ffe0a8;
+  color: #8a5a00;
+  background: #fff8e8;
 }
 
 .queue-panel {

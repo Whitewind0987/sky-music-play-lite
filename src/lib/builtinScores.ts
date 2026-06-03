@@ -10,6 +10,8 @@ export async function loadBuiltInLibrarySongs(): Promise<BuiltInLibraryLoadResul
   const index = await loadBuiltInScoreIndex();
   const builtInSongs = index.entries.map<LibrarySong>((entry) => ({
     builtInFileName: entry.fileName,
+    builtInDurationMs: entry.durationMs,
+    builtInNoteCount: entry.noteCount,
     builtInSongIndex: entry.songIndex,
     id: entry.id,
     importedAt: 0,

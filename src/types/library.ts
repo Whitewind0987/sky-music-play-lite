@@ -4,7 +4,9 @@ export type LibrarySongId = string;
 export type LibrarySongSource = "built-in" | "local-import";
 
 export type LibrarySong = {
+  builtInDurationMs?: number;
   builtInFileName?: string;
+  builtInNoteCount?: number;
   builtInSongIndex?: number;
   id: LibrarySongId;
   importedAt: number;

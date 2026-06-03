@@ -142,6 +142,15 @@ function App() {
     experimentalInput.foregroundPlaybackState === "playing" ||
     experimentalInput.foregroundPlaybackState === "paused" ||
     experimentalInput.isExperimentalPlaybackRunning;
+  const selectedLibrarySong =
+    scoreLibrary.selectedSongIndex === null
+      ? null
+      : (scoreLibrary.librarySongs[scoreLibrary.selectedSongIndex] ?? null);
+  const isCurrentSongLoading =
+    selectedLibrarySong !== null &&
+    selectedLibrarySong.source === "built-in" &&
+    !selectedLibrarySong.isBuiltInLoaded &&
+    scoreLibrary.isBuiltInSongLoading(selectedLibrarySong.id);
 
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
@@ -231,6 +240,7 @@ function App() {
           onDeleteLocalSong={handleDeleteLocalSong}
           onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
+          onPrefetchSong={scoreLibrary.preloadBuiltInSong}
           onPlaySong={handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
           onRemoveFromLiked={scoreLibrary.handleRemoveFromLiked}
@@ -245,6 +255,7 @@ function App() {
           selectedPlaylist={scoreLibrary.selectedPlaylist}
           selectedPlaylistId={scoreLibrary.selectedPlaylistId}
           selectedSongIndex={scoreLibrary.selectedSongIndex}
+          isBuiltInSongLoading={scoreLibrary.isBuiltInSongLoading}
           text={text.library}
         />
       );
@@ -347,6 +358,7 @@ function App() {
       <BottomPlayer
         canPlay={playbackOutput.canPlay}
         currentSong={scoreLibrary.currentSelectedSong}
+        isCurrentSongLoading={isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}

@@ -28,6 +28,7 @@ import {
 type BottomPlayerProps = {
   canPlay: boolean;
   currentSong: Song | null;
+  isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
@@ -170,6 +171,7 @@ function PlayerStepper({
 export function BottomPlayer({
   canPlay,
   currentSong,
+  isCurrentSongLoading,
   isShuffleEnabled,
   isRealInputOutput,
   noteIntervalDelayMs,
@@ -211,7 +213,10 @@ export function BottomPlayer({
           onClick: onPause,
         }
       : {
-          disabled: playbackState === "paused" ? !canResume : !canPlay,
+          disabled:
+            playbackState === "paused"
+              ? !canResume
+              : !canPlay || isCurrentSongLoading,
           icon: <PlayIcon />,
           label: playbackState === "paused" ? text.resume : text.play,
           onClick: playbackState === "paused" ? onResume : onPlay,
@@ -297,6 +302,11 @@ export function BottomPlayer({
             <span className="bottom-player-output-badge">
               {outputModeLabel}
             </span>
+            {isCurrentSongLoading ? (
+              <span className="bottom-player-loading-badge">
+                {text.loadingScore}
+              </span>
+            ) : null}
             {isRealInputOutput ? (
               <span className="bottom-player-real-input-badge">
                 {text.realInputWarning}

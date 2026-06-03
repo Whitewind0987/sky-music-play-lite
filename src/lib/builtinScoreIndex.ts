@@ -3,9 +3,11 @@ import { builtInScoreSourceName, builtInScoreSourceUrl } from "../data/builtin-s
 export type BuiltInScoreIndexEntry = {
   bpm: number;
   bitsPerPage: number;
+  durationMs: number;
   fileName: string;
   id: string;
   isComposed: boolean;
+  noteCount: number;
   pitchLevel: number;
   songIndex: number;
   title: string;
@@ -112,7 +114,9 @@ function sanitizeBuiltInScoreIndexEntry(
     !/^[a-z0-9_-]+\.(txt|json)$/.test(rawEntry.fileName) ||
     typeof rawEntry.bpm !== "number" ||
     typeof rawEntry.bitsPerPage !== "number" ||
+    typeof rawEntry.durationMs !== "number" ||
     typeof rawEntry.pitchLevel !== "number" ||
+    typeof rawEntry.noteCount !== "number" ||
     typeof rawEntry.songIndex !== "number" ||
     typeof rawEntry.isComposed !== "boolean"
   ) {
@@ -122,9 +126,11 @@ function sanitizeBuiltInScoreIndexEntry(
   return {
     bpm: rawEntry.bpm,
     bitsPerPage: rawEntry.bitsPerPage,
+    durationMs: rawEntry.durationMs,
     fileName: rawEntry.fileName,
     id: rawEntry.id,
     isComposed: rawEntry.isComposed,
+    noteCount: rawEntry.noteCount,
     pitchLevel: rawEntry.pitchLevel,
     songIndex: rawEntry.songIndex,
     title: rawEntry.title,
