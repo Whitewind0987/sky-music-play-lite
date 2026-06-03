@@ -1,61 +1,32 @@
-import { builtInScoreManifest } from "../data/builtin-scores/manifest";
 import type { LibrarySong } from "../types/library";
-import {
-  parseScoreFileContent,
-  ScoreFileImportError,
-} from "./scoreFileImport";
+import { loadBuiltInScoreIndex } from "./builtinScoreIndex";
 
 export type BuiltInLibraryLoadResult = {
   fileCount: number;
-  skippedFileCount: number;
   songs: LibrarySong[];
 };
 
-export function loadBuiltInLibrarySongs(): BuiltInLibraryLoadResult {
-  const builtInSongs: LibrarySong[] = [];
-  let skippedFileCount = 0;
-
-  for (const entry of builtInScoreManifest) {
-    try {
-      const songs = parseScoreFileContent(entry.raw);
-
-      songs.forEach((song, songIndex) => {
-        builtInSongs.push({
-          id: `builtin:${entry.id}:${songIndex}`,
-          importedAt: 0,
-          song,
-          source: "built-in",
-        });
-      });
-    } catch (error) {
-      skippedFileCount += 1;
-
-      if (error instanceof ScoreFileImportError) {
-        console.warn("[built-in-scores] skipped", {
-          code: error.code,
-          details: error.details,
-          id: entry.id,
-          title: entry.title,
-        });
-      } else {
-        console.warn("[built-in-scores] skipped", {
-          error,
-          id: entry.id,
-          title: entry.title,
-        });
-      }
-    }
-  }
-
-  console.info("[built-in-scores] loaded", {
-    fileCount: builtInScoreManifest.length,
-    skippedFileCount,
-    songCount: builtInSongs.length,
-  });
+export async function loadBuiltInLibrarySongs(): Promise<BuiltInLibraryLoadResult> {
+  const index = await loadBuiltInScoreIndex();
+  const builtInSongs = index.entries.map<LibrarySong>((entry) => ({
+    builtInFileName: entry.fileName,
+    builtInSongIndex: entry.songIndex,
+    id: entry.id,
+    importedAt: 0,
+    isBuiltInLoaded: false,
+    song: {
+      bpm: entry.bpm,
+      bitsPerPage: entry.bitsPerPage,
+      isComposed: entry.isComposed,
+      name: entry.title,
+      pitchLevel: entry.pitchLevel,
+      songNotes: [],
+    },
+    source: "built-in",
+  }));
 
   return {
-    fileCount: builtInScoreManifest.length,
-    skippedFileCount,
+    fileCount: new Set(index.entries.map((entry) => entry.fileName)).size,
     songs: builtInSongs,
   };
 }

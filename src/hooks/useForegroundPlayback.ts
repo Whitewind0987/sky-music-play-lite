@@ -31,7 +31,6 @@ type UseForegroundPlaybackOptions = {
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
-  importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
@@ -39,6 +38,7 @@ type UseForegroundPlaybackOptions = {
   onBeforeStart: () => void;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
+  resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
   text: UiText;
@@ -53,7 +53,6 @@ export function useForegroundPlayback({
   currentSong,
   experimentalInputEnabled,
   getPlaybackOrderNextSongIndex,
-  importedSongs,
   importedSongsRef,
   isShuffleEnabled,
   keyMapping,
@@ -61,6 +60,7 @@ export function useForegroundPlayback({
   onBeforeStart,
   playbackMode,
   playbackSpeed,
+  resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
   text,
@@ -91,7 +91,6 @@ export function useForegroundPlayback({
   const canStartForegroundPlayback =
     experimentalInputEnabled &&
     currentSong !== null &&
-    currentSong.songNotes.length > 0 &&
     !isForegroundPlaybackActive;
   const canStopForegroundPlayback = isForegroundPlaybackActive;
   const bottomPlaybackState = mapForegroundStateToPlaybackState(
@@ -215,7 +214,9 @@ export function useForegroundPlayback({
     }
 
     onBeforeStart();
-    startForegroundPlaybackForSong(selectedSongIndex, { withCountdown: true });
+    void startForegroundPlaybackForSong(selectedSongIndex, {
+      withCountdown: true,
+    });
   }
 
   function handlePlayForegroundSong(songIndex: number) {
@@ -224,21 +225,21 @@ export function useForegroundPlayback({
     }
 
     onBeforeStart();
-    startForegroundPlaybackForSong(songIndex, { withCountdown: true });
+    void startForegroundPlaybackForSong(songIndex, { withCountdown: true });
   }
 
-  function startForegroundPlaybackForSong(
+  async function startForegroundPlaybackForSong(
     songIndex: number,
     { withCountdown }: { withCountdown: boolean },
   ) {
-    const song = importedSongsRef.current[songIndex] ?? importedSongs[songIndex];
+    ignoreNextCurrentSongChangeRef.current = selectedSongIndex !== songIndex;
+    const song = await resolveSongForPlayback(songIndex);
 
     if (!song) {
       appendLog(text.logs.noSelectedScore);
       return;
     }
 
-    ignoreNextCurrentSongChangeRef.current = selectedSongIndex !== songIndex;
     setSelectedSongIndex(songIndex);
 
     if (song.songNotes.length === 0) {
@@ -356,7 +357,7 @@ export function useForegroundPlayback({
       appendLog(
         formatText(text.logs.repeatOneTriggered, { songName: song.name }),
       );
-      startForegroundPlaybackForSong(songIndex, { withCountdown: false });
+      void startForegroundPlaybackForSong(songIndex, { withCountdown: false });
       return;
     }
 
@@ -372,7 +373,7 @@ export function useForegroundPlayback({
           songName: nextSong.name,
         }),
       );
-      startForegroundPlaybackForSong(finishDecision.nextSongIndex, {
+      void startForegroundPlaybackForSong(finishDecision.nextSongIndex, {
         withCountdown: false,
       });
       return;

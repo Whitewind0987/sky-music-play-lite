@@ -46,13 +46,13 @@ type UseExperimentalInputOptions = {
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
-  importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
+  resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
   stopPreviewPlayback: () => void;
@@ -70,13 +70,13 @@ export function useExperimentalInput({
   consumeNextQueueItem,
   currentSong,
   getPlaybackOrderNextSongIndex,
-  importedSongs,
   importedSongsRef,
   isShuffleEnabled,
   keyMapping,
   noteIntervalDelayMs,
   playbackMode,
   playbackSpeed,
+  resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
   stopPreviewPlayback,
@@ -146,7 +146,6 @@ export function useExperimentalInput({
     experimentalInputMode === "target-window-message" &&
     selectedWindowHwnd !== null &&
     currentSong !== null &&
-    currentSong.songNotes.length > 0 &&
     !isStartingExperimentalPlayback &&
     experimentalPlaybackState !== "playing" &&
     experimentalPlaybackState !== "paused";
@@ -159,7 +158,6 @@ export function useExperimentalInput({
     currentSong,
     experimentalInputEnabled,
     getPlaybackOrderNextSongIndex,
-    importedSongs,
     importedSongsRef,
     isShuffleEnabled,
     keyMapping,
@@ -170,6 +168,7 @@ export function useExperimentalInput({
     },
     playbackMode,
     playbackSpeed,
+    resolveSongForPlayback,
     selectedSongIndex,
     setSelectedSongIndex,
     text,
@@ -505,6 +504,12 @@ export function useExperimentalInput({
       return;
     }
 
+    const song = await resolveSongForPlayback(songIndex);
+
+    if (song === null) {
+      return;
+    }
+
     stopPreviewPlayback();
     foregroundPlayback.handleStopForegroundPlayback();
     stopExperimentalPlayback({ logStopped: false });
@@ -535,7 +540,7 @@ export function useExperimentalInput({
       return;
     }
 
-    startExperimentalPlaybackForSong(songIndex);
+    startExperimentalPlaybackForSong(songIndex, song);
   }
 
   async function runTargetWindowActivationPreflight({
@@ -608,12 +613,15 @@ export function useExperimentalInput({
     }
   }
 
-  function startExperimentalPlaybackForSong(songIndex: number) {
+  async function startExperimentalPlaybackForSong(
+    songIndex: number,
+    resolvedSong?: Song,
+  ) {
     if (selectedWindowHwnd === null) {
       return;
     }
 
-    const song = importedSongsRef.current[songIndex] ?? importedSongs[songIndex];
+    const song = resolvedSong ?? (await resolveSongForPlayback(songIndex));
 
     if (!song) {
       appendLog(text.logs.noSelectedScore);
@@ -728,7 +736,7 @@ export function useExperimentalInput({
       appendLog(
         formatText(text.logs.repeatOneTriggered, { songName: song.name }),
       );
-      startExperimentalPlaybackForSong(songIndex);
+      void startExperimentalPlaybackForSong(songIndex);
       return;
     }
 
@@ -744,7 +752,7 @@ export function useExperimentalInput({
           songName: nextSong.name,
         }),
       );
-      startExperimentalPlaybackForSong(finishDecision.nextSongIndex);
+      void startExperimentalPlaybackForSong(finishDecision.nextSongIndex);
       return;
     }
 
