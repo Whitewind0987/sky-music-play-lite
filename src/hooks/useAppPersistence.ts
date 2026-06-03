@@ -36,6 +36,7 @@ type UseAppPersistenceOptions = {
     playbackSettings: PersistedAppData["playbackSettings"],
   ) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
+  canSaveAppData?: boolean;
   experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
   isShuffleEnabled: boolean;
@@ -66,6 +67,7 @@ export function useAppPersistence({
   applyKeyMapping,
   applyPlaybackSettings,
   applyScoreLibrary,
+  canSaveAppData = true,
   experimentalInputEnabled,
   experimentalInputMode,
   isShuffleEnabled,
@@ -144,7 +146,7 @@ export function useAppPersistence({
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedAppData) {
+    if (!hasLoadedAppData || !canSaveAppData) {
       return;
     }
 
@@ -193,6 +195,7 @@ export function useAppPersistence({
       }
     };
   }, [
+    canSaveAppData,
     experimentalInputMode,
     experimentalInputEnabled,
     hasLoadedAppData,

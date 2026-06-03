@@ -1,0 +1,1394 @@
+[{"name":"Night Flower","author":"Ahn Ye Eun","transcribedBy":"Kamila Sky Kid","bpm":325,"pitchLevel":1,"songNotes":[{"time":400,"key":"1Key11"},{"time":768,"key":"1Key12"},{"time":1136,"key":"1Key13"},{"time":1504,"key":"1Key8"},{"time":1504,"key":"1Key14"},{"time":1688,"key":"1Key7"},{"time":1872,"key":"1Key9"},{"time":2056,"key":"1Key10"},{"time":2240,"key":"1Key14"},{"time":2608,"key":"1Key8"},{"time":2608,"key":"1Key14"},{"time":2792,"key":"1Key7"},{"time":2976,"key":"1Key9"},{"time":3160,"key":"1Key10"},{"time":3344,"key":"1Key14"},{"time":3712,"key":"1Key2"},{"time":3712,"key":"1Key9"},{"time":3712,"key":"1Key13"},{"time":3896,"key":"1Key6"},{"time":4080,"key":"1Key8"},{"time":4264,"key":"1Key9"},{"time":4448,"key":"1Key13"},{"time":4816,"key":"1Key2"},{"time":4816,"key":"1Key9"},{"time":4816,"key":"1Key13"},{"time":5000,"key":"1Key6"},{"time":5184,"key":"1Key8"},{"time":5368,"key":"1Key9"},{"time":5552,"key":"1Key13"},{"time":5920,"key":"1Key5"},{"time":5920,"key":"1Key9"},{"time":5920,"key":"1Key13"},{"time":6104,"key":"1Key4"},{"time":6288,"key":"1Key8"},{"time":6472,"key":"1Key9"},{"time":6656,"key":"1Key13"},{"time":7024,"key":"1Key5"},{"time":7024,"key":"1Key9"},{"time":7024,"key":"1Key13"},{"time":7208,"key":"1Key4"},{"time":7392,"key":"1Key8"},{"time":7576,"key":"1Key9"},{"time":7760,"key":"1Key13"},{"time":8128,"key":"1Key7"},{"time":8128,"key":"1Key12"},{"time":8312,"key":"1Key4"},{"time":8496,"key":"1Key7"},{"time":8680,"key":"1Key9"},{"time":8864,"key":"1Key12"},{"time":9232,"key":"1Key7"},{"time":9232,"key":"1Key12"},{"time":9600,"key":"1Key4"},{"time":9968,"key":"1Key9"},{"time":10336,"key":"1Key1"},{"time":10336,"key":"1Key8"},{"time":10520,"key":"1Key2"},{"time":10704,"key":"1Key3"},{"time":10888,"key":"1Key5"},{"time":11440,"key":"1Key1"},{"time":11440,"key":"1Key9"},{"time":11808,"key":"1Key2"},{"time":11992,"key":"1Key3"},{"time":12176,"key":"1Key5"},{"time":12544,"key":"1Key2"},{"time":12544,"key":"1Key5"},{"time":12912,"key":"1Key6"},{"time":13096,"key":"1Key2"},{"time":13280,"key":"1Key5"},{"time":13648,"key":"1Key1"},{"time":13648,"key":"1Key4"},{"time":14016,"key":"1Key0"},{"time":14200,"key":"1Key2"},{"time":14384,"key":"1Key4"},{"time":14752,"key":"1Key2"},{"time":14752,"key":"1Key5"},{"time":15304,"key":"1Key0"},{"time":15488,"key":"1Key2"},{"time":15672,"key":"1Key5"},{"time":15856,"key":"1Key6"},{"time":16592,"key":"1Key9"},{"time":16960,"key":"1Key12"},{"time":18616,"key":"1Key0"},{"time":18616,"key":"1Key2"},{"time":18616,"key":"1Key5"},{"time":18984,"key":"1Key6"},{"time":19352,"key":"1Key7"},{"time":19720,"key":"1Key2"},{"time":19720,"key":"1Key4"},{"time":19720,"key":"1Key7"},{"time":19720,"key":"1Key9"},{"time":20824,"key":"1Key0"},{"time":20824,"key":"1Key2"},{"time":20824,"key":"1Key5"},{"time":21192,"key":"1Key6"},{"time":21560,"key":"1Key7"},{"time":21928,"key":"1Key2"},{"time":21928,"key":"1Key4"},{"time":21928,"key":"1Key7"},{"time":21928,"key":"1Key9"},{"time":22296,"key":"1Key8"},{"time":23032,"key":"1Key0"},{"time":23032,"key":"1Key3"},{"time":23032,"key":"1Key7"},{"time":23400,"key":"1Key8"},{"time":23768,"key":"1Key5"},{"time":24136,"key":"1Key0"},{"time":24136,"key":"1Key2"},{"time":25240,"key":"1Key2"},{"time":25240,"key":"1Key5"},{"time":26344,"key":"1Key0"},{"time":26344,"key":"1Key2"},{"time":27448,"key":"1Key0"},{"time":27448,"key":"1Key2"},{"time":27448,"key":"1Key5"},{"time":27816,"key":"1Key6"},{"time":28184,"key":"1Key7"},{"time":28552,"key":"1Key2"},{"time":28552,"key":"1Key4"},{"time":28552,"key":"1Key7"},{"time":28552,"key":"1Key9"},{"time":29288,"key":"1Key2"},{"time":29656,"key":"1Key0"},{"time":29656,"key":"1Key5"},{"time":30024,"key":"1Key6"},{"time":30392,"key":"1Key7"},{"time":30760,"key":"1Key2"},{"time":30760,"key":"1Key4"},{"time":30760,"key":"1Key7"},{"time":30760,"key":"1Key9"},{"time":31128,"key":"1Key8"},{"time":31496,"key":"1Key4"},{"time":31864,"key":"1Key0"},{"time":31864,"key":"1Key3"},{"time":31864,"key":"1Key7"},{"time":32232,"key":"1Key8"},{"time":32600,"key":"1Key5"},{"time":32968,"key":"1Key0"},{"time":32968,"key":"1Key2"},{"time":33704,"key":"1Key3"},{"time":34072,"key":"1Key0"},{"time":34072,"key":"1Key2"},{"time":35176,"key":"1Key0"},{"time":35176,"key":"1Key2"},{"time":36280,"key":"1Key2"},{"time":36280,"key":"1Key5"},{"time":36648,"key":"1Key6"},{"time":37016,"key":"1Key7"},{"time":37384,"key":"1Key2"},{"time":37384,"key":"1Key4"},{"time":37384,"key":"1Key7"},{"time":37384,"key":"1Key9"},{"time":38120,"key":"1Key5"},{"time":38488,"key":"1Key0"},{"time":38488,"key":"1Key2"},{"time":38488,"key":"1Key5"},{"time":38856,"key":"1Key6"},{"time":39224,"key":"1Key7"},{"time":39592,"key":"1Key2"},{"time":39592,"key":"1Key4"},{"time":39592,"key":"1Key7"},{"time":39592,"key":"1Key9"},{"time":39960,"key":"1Key8"},{"time":40328,"key":"1Key4"},{"time":40328,"key":"1Key7"},{"time":40696,"key":"1Key0"},{"time":40696,"key":"1Key3"},{"time":40696,"key":"1Key8"},{"time":41064,"key":"1Key5"},{"time":41800,"key":"1Key0"},{"time":41800,"key":"1Key2"},{"time":42536,"key":"1Key3"},{"time":42904,"key":"1Key0"},{"time":42904,"key":"1Key2"},{"time":44192,"key":"1Key1"},{"time":44192,"key":"1Key5"},{"time":44560,"key":"1Key6"},{"time":44928,"key":"1Key7"},{"time":45296,"key":"1Key1"},{"time":45296,"key":"1Key3"},{"time":45296,"key":"1Key5"},{"time":45296,"key":"1Key9"},{"time":46032,"key":"1Key1"},{"time":46400,"key":"1Key2"},{"time":46400,"key":"1Key5"},{"time":46768,"key":"1Key6"},{"time":47136,"key":"1Key7"},{"time":47504,"key":"1Key2"},{"time":47504,"key":"1Key4"},{"time":47504,"key":"1Key6"},{"time":47504,"key":"1Key9"},{"time":47872,"key":"1Key8"},{"time":48240,"key":"1Key7"},{"time":48608,"key":"1Key2"},{"time":48608,"key":"1Key4"},{"time":48976,"key":"1Key8"},{"time":49344,"key":"1Key5"},{"time":49712,"key":"1Key0"},{"time":49712,"key":"1Key2"},{"time":50448,"key":"1Key0"},{"time":50816,"key":"1Key0"},{"time":50816,"key":"1Key2"},{"time":52104,"key":"1Key0"},{"time":52104,"key":"1Key2"},{"time":52104,"key":"1Key5"},{"time":52472,"key":"1Key6"},{"time":52840,"key":"1Key7"},{"time":53208,"key":"1Key2"},{"time":53208,"key":"1Key4"},{"time":53208,"key":"1Key7"},{"time":53208,"key":"1Key9"},{"time":54312,"key":"1Key0"},{"time":54312,"key":"1Key2"},{"time":54312,"key":"1Key5"},{"time":54680,"key":"1Key6"},{"time":55048,"key":"1Key7"},{"time":55416,"key":"1Key2"},{"time":55416,"key":"1Key4"},{"time":55416,"key":"1Key7"},{"time":55416,"key":"1Key9"},{"time":55784,"key":"1Key8"},{"time":56520,"key":"1Key0"},{"time":56520,"key":"1Key3"},{"time":56520,"key":"1Key7"},{"time":56888,"key":"1Key8"},{"time":57256,"key":"1Key5"},{"time":57624,"key":"1Key0"},{"time":57624,"key":"1Key2"},{"time":58728,"key":"1Key2"},{"time":58728,"key":"1Key5"},{"time":59832,"key":"1Key0"},{"time":59832,"key":"1Key2"},{"time":60936,"key":"1Key0"},{"time":60936,"key":"1Key2"},{"time":60936,"key":"1Key5"},{"time":61304,"key":"1Key6"},{"time":61672,"key":"1Key7"},{"time":62040,"key":"1Key2"},{"time":62040,"key":"1Key4"},{"time":62040,"key":"1Key7"},{"time":62040,"key":"1Key9"},{"time":62776,"key":"1Key2"},{"time":63144,"key":"1Key0"},{"time":63144,"key":"1Key5"},{"time":63512,"key":"1Key6"},{"time":63880,"key":"1Key7"},{"time":64248,"key":"1Key2"},{"time":64248,"key":"1Key4"},{"time":64248,"key":"1Key7"},{"time":64248,"key":"1Key9"},{"time":64616,"key":"1Key8"},{"time":64984,"key":"1Key4"},{"time":65352,"key":"1Key0"},{"time":65352,"key":"1Key3"},{"time":65352,"key":"1Key7"},{"time":65720,"key":"1Key8"},{"time":66088,"key":"1Key5"},{"time":66456,"key":"1Key0"},{"time":66456,"key":"1Key2"},{"time":67192,"key":"1Key3"},{"time":67560,"key":"1Key0"},{"time":67560,"key":"1Key2"},{"time":68664,"key":"1Key0"},{"time":68664,"key":"1Key2"},{"time":69768,"key":"1Key0"},{"time":69768,"key":"1Key3"},{"time":69768,"key":"1Key5"},{"time":70136,"key":"1Key6"},{"time":70504,"key":"1Key7"},{"time":70872,"key":"1Key3"},{"time":70872,"key":"1Key5"},{"time":70872,"key":"1Key7"},{"time":70872,"key":"1Key9"},{"time":71976,"key":"1Key1"},{"time":71976,"key":"1Key3"},{"time":71976,"key":"1Key5"},{"time":72344,"key":"1Key6"},{"time":72712,"key":"1Key7"},{"time":73080,"key":"1Key1"},{"time":73080,"key":"1Key4"},{"time":73080,"key":"1Key6"},{"time":73080,"key":"1Key9"},{"time":73448,"key":"1Key8"},{"time":73816,"key":"1Key7"},{"time":74184,"key":"1Key0"},{"time":74184,"key":"1Key2"},{"time":74184,"key":"1Key5"},{"time":74184,"key":"1Key12"},{"time":75288,"key":"1Key1"},{"time":75288,"key":"1Key4"},{"time":75288,"key":"1Key6"},{"time":75288,"key":"1Key11"},{"time":76024,"key":"1Key12"},{"time":76392,"key":"1Key2"},{"time":76392,"key":"1Key4"},{"time":76392,"key":"1Key7"},{"time":76392,"key":"1Key9"},{"time":77496,"key":"1Key0"},{"time":77496,"key":"1Key2"},{"time":77496,"key":"1Key4"},{"time":77496,"key":"1Key9"},{"time":77864,"key":"1Key8"},{"time":78232,"key":"1Key7"},{"time":78600,"key":"1Key1"},{"time":78600,"key":"1Key5"},{"time":78600,"key":"1Key9"},{"time":79336,"key":"1Key5"},{"time":79704,"key":"1Key1"},{"time":79704,"key":"1Key3"},{"time":79704,"key":"1Key5"},{"time":79704,"key":"1Key9"},{"time":80440,"key":"1Key5"},{"time":80808,"key":"1Key1"},{"time":80808,"key":"1Key5"},{"time":80808,"key":"1Key9"},{"time":81912,"key":"1Key1"},{"time":81912,"key":"1Key3"},{"time":81912,"key":"1Key5"},{"time":81912,"key":"1Key9"},{"time":82280,"key":"1Key8"},{"time":82648,"key":"1Key7"},{"time":83016,"key":"1Key2"},{"time":83016,"key":"1Key6"},{"time":83016,"key":"1Key9"},{"time":83752,"key":"1Key5"},{"time":84120,"key":"1Key2"},{"time":84120,"key":"1Key5"},{"time":84120,"key":"1Key6"},{"time":84120,"key":"1Key9"},{"time":84856,"key":"1Key5"},{"time":85224,"key":"1Key2"},{"time":85224,"key":"1Key6"},{"time":85224,"key":"1Key9"},{"time":86328,"key":"1Key2"},{"time":86328,"key":"1Key4"},{"time":86328,"key":"1Key6"},{"time":87432,"key":"1Key8"},{"time":87432,"key":"1Key10"},{"time":87432,"key":"1Key12"},{"time":87432,"key":"1Key14"},{"time":88536,"key":"1Key14"},{"time":89640,"key":"1Key6"},{"time":89640,"key":"1Key9"},{"time":89640,"key":"1Key11"},{"time":89640,"key":"1Key13"},{"time":90744,"key":"1Key13"},{"time":91848,"key":"1Key5"},{"time":91848,"key":"1Key7"},{"time":91848,"key":"1Key9"},{"time":91848,"key":"1Key13"},{"time":92952,"key":"1Key13"},{"time":94056,"key":"1Key5"},{"time":94056,"key":"1Key7"},{"time":94056,"key":"1Key9"},{"time":94056,"key":"1Key12"},{"time":96080,"key":"1Key1"},{"time":96080,"key":"1Key5"},{"time":96264,"key":"1Key0"},{"time":96448,"key":"1Key1"},{"time":96632,"key":"1Key3"},{"time":96632,"key":"1Key12"},{"time":96816,"key":"1Key5"},{"time":96816,"key":"1Key12"},{"time":97000,"key":"1Key12"},{"time":97184,"key":"1Key4"},{"time":97184,"key":"1Key12"},{"time":97368,"key":"1Key1"},{"time":97552,"key":"1Key4"},{"time":97552,"key":"1Key11"},{"time":97736,"key":"1Key6"},{"time":97920,"key":"1Key1"},{"time":97920,"key":"1Key9"},{"time":98288,"key":"1Key7"},{"time":98288,"key":"1Key11"},{"time":98472,"key":"1Key4"},{"time":98656,"key":"1Key0"},{"time":98656,"key":"1Key7"},{"time":98840,"key":"1Key2"},{"time":98840,"key":"1Key8"},{"time":99024,"key":"1Key4"},{"time":99024,"key":"1Key9"},{"time":99392,"key":"1Key0"},{"time":99392,"key":"1Key9"},{"time":99576,"key":"1Key4"},{"time":99760,"key":"1Key0"},{"time":99944,"key":"1Key2"},{"time":100128,"key":"1Key4"},{"time":100496,"key":"1Key1"},{"time":100496,"key":"1Key5"},{"time":100680,"key":"1Key0"},{"time":100864,"key":"1Key1"},{"time":101048,"key":"1Key3"},{"time":101048,"key":"1Key12"},{"time":101232,"key":"1Key5"},{"time":101232,"key":"1Key12"},{"time":101416,"key":"1Key12"},{"time":101600,"key":"1Key4"},{"time":101600,"key":"1Key12"},{"time":101784,"key":"1Key1"},{"time":101968,"key":"1Key4"},{"time":102152,"key":"1Key6"},{"time":102336,"key":"1Key1"},{"time":102336,"key":"1Key9"},{"time":102520,"key":"1Key11"},{"time":102704,"key":"1Key0"},{"time":102704,"key":"1Key7"},{"time":102888,"key":"1Key4"},{"time":103072,"key":"1Key0"},{"time":103072,"key":"1Key8"},{"time":103256,"key":"1Key2"},{"time":103440,"key":"1Key4"},{"time":103440,"key":"1Key9"},{"time":103808,"key":"1Key9"},{"time":103992,"key":"1Key6"},{"time":104176,"key":"1Key2"},{"time":104360,"key":"1Key4"},{"time":104544,"key":"1Key6"},{"time":104912,"key":"1Key3"},{"time":104912,"key":"1Key5"},{"time":105096,"key":"1Key0"},{"time":105280,"key":"1Key3"},{"time":105464,"key":"1Key5"},{"time":105464,"key":"1Key12"},{"time":105648,"key":"1Key7"},{"time":105648,"key":"1Key12"},{"time":105832,"key":"1Key12"},{"time":106016,"key":"1Key3"},{"time":106016,"key":"1Key12"},{"time":106200,"key":"1Key0"},{"time":106384,"key":"1Key3"},{"time":106384,"key":"1Key11"},{"time":106568,"key":"1Key5"},{"time":106752,"key":"1Key7"},{"time":106752,"key":"1Key9"},{"time":107120,"key":"1Key1"},{"time":107120,"key":"1Key7"},{"time":107304,"key":"1Key5"},{"time":107488,"key":"1Key1"},{"time":107488,"key":"1Key8"},{"time":107672,"key":"1Key3"},{"time":107856,"key":"1Key5"},{"time":107856,"key":"1Key9"},{"time":108224,"key":"1Key1"},{"time":108224,"key":"1Key9"},{"time":108408,"key":"1Key5"},{"time":108592,"key":"1Key8"},{"time":108592,"key":"1Key11"},{"time":108776,"key":"1Key3"},{"time":108960,"key":"1Key5"},{"time":108960,"key":"1Key9"},{"time":109328,"key":"1Key2"},{"time":109328,"key":"1Key9"},{"time":109328,"key":"1Key12"},{"time":109512,"key":"1Key6"},{"time":109696,"key":"1Key2"},{"time":109880,"key":"1Key5"},{"time":110064,"key":"1Key6"},{"time":110432,"key":"1Key2"},{"time":110616,"key":"1Key6"},{"time":110800,"key":"1Key2"},{"time":110984,"key":"1Key5"},{"time":111168,"key":"1Key6"},{"time":111536,"key":"1Key2"},{"time":111720,"key":"1Key6"},{"time":111904,"key":"1Key2"},{"time":112088,"key":"1Key4"},{"time":112272,"key":"1Key6"},{"time":112640,"key":"1Key2"},{"time":112640,"key":"1Key9"},{"time":112640,"key":"1Key11"},{"time":113008,"key":"1Key12"},{"time":113376,"key":"1Key13"},{"time":113744,"key":"1Key1"},{"time":113744,"key":"1Key8"},{"time":113744,"key":"1Key14"},{"time":114112,"key":"1Key1"},{"time":114112,"key":"1Key3"},{"time":114112,"key":"1Key5"},{"time":114480,"key":"1Key1"},{"time":114480,"key":"1Key3"},{"time":114480,"key":"1Key5"},{"time":114848,"key":"1Key2"},{"time":114848,"key":"1Key9"},{"time":115216,"key":"1Key1"},{"time":115216,"key":"1Key3"},{"time":115216,"key":"1Key5"},{"time":115584,"key":"1Key1"},{"time":115584,"key":"1Key3"},{"time":115584,"key":"1Key5"},{"time":115952,"key":"1Key2"},{"time":115952,"key":"1Key9"},{"time":115952,"key":"1Key13"},{"time":116320,"key":"1Key2"},{"time":116320,"key":"1Key5"},{"time":116320,"key":"1Key6"},{"time":116688,"key":"1Key2"},{"time":116688,"key":"1Key5"},{"time":116688,"key":"1Key6"},{"time":117056,"key":"1Key4"},{"time":117056,"key":"1Key9"},{"time":117424,"key":"1Key2"},{"time":117424,"key":"1Key4"},{"time":117424,"key":"1Key6"},{"time":117424,"key":"1Key8"},{"time":117792,"key":"1Key2"},{"time":117792,"key":"1Key4"},{"time":117792,"key":"1Key6"},{"time":117792,"key":"1Key11"},{"time":118160,"key":"1Key5"},{"time":118160,"key":"1Key9"},{"time":118528,"key":"1Key0"},{"time":118528,"key":"1Key2"},{"time":118896,"key":"1Key0"},{"time":118896,"key":"1Key2"},{"time":119080,"key":"1Key9"},{"time":119264,"key":"1Key5"},{"time":119264,"key":"1Key9"},{"time":119632,"key":"1Key0"},{"time":119632,"key":"1Key2"},{"time":119632,"key":"1Key8"},{"time":120000,"key":"1Key0"},{"time":120000,"key":"1Key2"},{"time":120000,"key":"1Key5"},{"time":120000,"key":"1Key11"},{"time":120368,"key":"1Key0"},{"time":120368,"key":"1Key7"},{"time":120368,"key":"1Key9"},{"time":120736,"key":"1Key0"},{"time":120736,"key":"1Key2"},{"time":120736,"key":"1Key4"},{"time":121104,"key":"1Key0"},{"time":121104,"key":"1Key2"},{"time":121104,"key":"1Key4"},{"time":121472,"key":"1Key0"},{"time":121472,"key":"1Key7"},{"time":121472,"key":"1Key9"},{"time":121840,"key":"1Key0"},{"time":121840,"key":"1Key2"},{"time":121840,"key":"1Key4"},{"time":121840,"key":"1Key8"},{"time":122208,"key":"1Key0"},{"time":122208,"key":"1Key2"},{"time":122208,"key":"1Key4"},{"time":122208,"key":"1Key7"},{"time":122576,"key":"1Key1"},{"time":122576,"key":"1Key8"},{"time":122944,"key":"1Key1"},{"time":122944,"key":"1Key3"},{"time":122944,"key":"1Key5"},{"time":123312,"key":"1Key1"},{"time":123312,"key":"1Key3"},{"time":123312,"key":"1Key5"},{"time":123680,"key":"1Key1"},{"time":123680,"key":"1Key9"},{"time":124048,"key":"1Key1"},{"time":124048,"key":"1Key3"},{"time":124048,"key":"1Key5"},{"time":124416,"key":"1Key1"},{"time":124416,"key":"1Key3"},{"time":124416,"key":"1Key5"},{"time":124600,"key":"1Key4"},{"time":124784,"key":"1Key2"},{"time":124784,"key":"1Key4"},{"time":125152,"key":"1Key2"},{"time":125152,"key":"1Key6"},{"time":125520,"key":"1Key2"},{"time":125520,"key":"1Key5"},{"time":125520,"key":"1Key6"},{"time":125520,"key":"1Key11"},{"time":125888,"key":"1Key3"},{"time":125888,"key":"1Key10"},{"time":126256,"key":"1Key2"},{"time":126256,"key":"1Key4"},{"time":126256,"key":"1Key6"},{"time":126256,"key":"1Key9"},{"time":126624,"key":"1Key2"},{"time":126624,"key":"1Key4"},{"time":126624,"key":"1Key6"},{"time":126624,"key":"1Key8"},{"time":126992,"key":"1Key5"},{"time":126992,"key":"1Key9"},{"time":127360,"key":"1Key0"},{"time":127360,"key":"1Key2"},{"time":127728,"key":"1Key0"},{"time":127728,"key":"1Key2"},{"time":128096,"key":"1Key5"},{"time":128096,"key":"1Key13"},{"time":128464,"key":"1Key0"},{"time":128464,"key":"1Key2"},{"time":128832,"key":"1Key0"},{"time":128832,"key":"1Key2"},{"time":129016,"key":"1Key12"},{"time":129200,"key":"1Key0"},{"time":129200,"key":"1Key7"},{"time":129200,"key":"1Key14"},{"time":129568,"key":"1Key0"},{"time":129568,"key":"1Key2"},{"time":129568,"key":"1Key4"},{"time":129936,"key":"1Key0"},{"time":129936,"key":"1Key2"},{"time":129936,"key":"1Key4"},{"time":130304,"key":"1Key7"},{"time":130304,"key":"1Key11"},{"time":130672,"key":"1Key0"},{"time":130672,"key":"1Key2"},{"time":130672,"key":"1Key4"},{"time":130672,"key":"1Key12"},{"time":131040,"key":"1Key0"},{"time":131040,"key":"1Key2"},{"time":131040,"key":"1Key4"},{"time":131040,"key":"1Key13"},{"time":131408,"key":"1Key1"},{"time":131408,"key":"1Key14"},{"time":131776,"key":"1Key1"},{"time":131776,"key":"1Key3"},{"time":131776,"key":"1Key5"},{"time":132144,"key":"1Key1"},{"time":132144,"key":"1Key3"},{"time":132144,"key":"1Key5"},{"time":132512,"key":"1Key1"},{"time":132512,"key":"1Key9"},{"time":132880,"key":"1Key1"},{"time":132880,"key":"1Key3"},{"time":132880,"key":"1Key5"},{"time":133248,"key":"1Key1"},{"time":133248,"key":"1Key3"},{"time":133248,"key":"1Key5"},{"time":133616,"key":"1Key2"},{"time":133616,"key":"1Key9"},{"time":133616,"key":"1Key13"},{"time":133984,"key":"1Key2"},{"time":133984,"key":"1Key5"},{"time":133984,"key":"1Key6"},{"time":134352,"key":"1Key2"},{"time":134352,"key":"1Key5"},{"time":134352,"key":"1Key6"},{"time":134720,"key":"1Key4"},{"time":134720,"key":"1Key9"},{"time":135088,"key":"1Key2"},{"time":135088,"key":"1Key4"},{"time":135088,"key":"1Key6"},{"time":135088,"key":"1Key8"},{"time":135456,"key":"1Key2"},{"time":135456,"key":"1Key4"},{"time":135456,"key":"1Key6"},{"time":135456,"key":"1Key11"},{"time":135824,"key":"1Key5"},{"time":135824,"key":"1Key9"},{"time":136192,"key":"1Key0"},{"time":136192,"key":"1Key2"},{"time":136560,"key":"1Key0"},{"time":136560,"key":"1Key2"},{"time":136744,"key":"1Key9"},{"time":136928,"key":"1Key5"},{"time":136928,"key":"1Key9"},{"time":137296,"key":"1Key0"},{"time":137296,"key":"1Key2"},{"time":137296,"key":"1Key8"},{"time":137664,"key":"1Key0"},{"time":137664,"key":"1Key2"},{"time":137664,"key":"1Key11"},{"time":138032,"key":"1Key0"},{"time":138032,"key":"1Key9"},{"time":138400,"key":"1Key0"},{"time":138400,"key":"1Key2"},{"time":138400,"key":"1Key4"},{"time":138768,"key":"1Key0"},{"time":138768,"key":"1Key2"},{"time":138768,"key":"1Key4"},{"time":139136,"key":"1Key0"},{"time":139136,"key":"1Key9"},{"time":139504,"key":"1Key0"},{"time":139504,"key":"1Key2"},{"time":139504,"key":"1Key4"},{"time":139504,"key":"1Key8"},{"time":139872,"key":"1Key0"},{"time":139872,"key":"1Key2"},{"time":139872,"key":"1Key4"},{"time":139872,"key":"1Key7"},{"time":140240,"key":"1Key1"},{"time":140240,"key":"1Key5"},{"time":141344,"key":"1Key1"},{"time":141344,"key":"1Key3"},{"time":141344,"key":"1Key5"},{"time":141344,"key":"1Key12"},{"time":142448,"key":"1Key12"},{"time":143552,"key":"1Key9"},{"time":143920,"key":"1Key8"},{"time":144288,"key":"1Key7"},{"time":144656,"key":"1Key2"},{"time":144656,"key":"1Key5"},{"time":145760,"key":"1Key2"},{"time":145760,"key":"1Key4"},{"time":145760,"key":"1Key6"},{"time":145760,"key":"1Key12"},{"time":146864,"key":"1Key12"},{"time":147968,"key":"1Key8"},{"time":147968,"key":"1Key14"},{"time":148152,"key":"1Key7"},{"time":148336,"key":"1Key9"},{"time":148520,"key":"1Key10"},{"time":148704,"key":"1Key14"},{"time":149072,"key":"1Key8"},{"time":149072,"key":"1Key14"},{"time":149256,"key":"1Key7"},{"time":149440,"key":"1Key9"},{"time":149624,"key":"1Key10"},{"time":149808,"key":"1Key14"},{"time":150176,"key":"1Key2"},{"time":150176,"key":"1Key9"},{"time":150176,"key":"1Key13"},{"time":150360,"key":"1Key6"},{"time":150544,"key":"1Key8"},{"time":150728,"key":"1Key9"},{"time":150912,"key":"1Key13"},{"time":151280,"key":"1Key2"},{"time":151280,"key":"1Key9"},{"time":151280,"key":"1Key13"},{"time":151464,"key":"1Key6"},{"time":151648,"key":"1Key8"},{"time":151832,"key":"1Key9"},{"time":152016,"key":"1Key13"},{"time":152384,"key":"1Key5"},{"time":152384,"key":"1Key9"},{"time":152384,"key":"1Key13"},{"time":152568,"key":"1Key4"},{"time":152752,"key":"1Key8"},{"time":152936,"key":"1Key9"},{"time":153120,"key":"1Key13"},{"time":153488,"key":"1Key5"},{"time":153488,"key":"1Key9"},{"time":153488,"key":"1Key13"},{"time":153672,"key":"1Key4"},{"time":153856,"key":"1Key8"},{"time":154040,"key":"1Key9"},{"time":154224,"key":"1Key13"},{"time":154592,"key":"1Key7"},{"time":154592,"key":"1Key12"},{"time":154776,"key":"1Key4"},{"time":154960,"key":"1Key7"},{"time":155144,"key":"1Key9"},{"time":155328,"key":"1Key12"},{"time":155696,"key":"1Key7"},{"time":155696,"key":"1Key12"},{"time":156064,"key":"1Key4"},{"time":156432,"key":"1Key9"},{"time":156800,"key":"1Key1"},{"time":156800,"key":"1Key8"},{"time":156984,"key":"1Key2"},{"time":157168,"key":"1Key3"},{"time":157352,"key":"1Key5"},{"time":157904,"key":"1Key1"},{"time":157904,"key":"1Key9"},{"time":158272,"key":"1Key2"},{"time":158456,"key":"1Key3"},{"time":158640,"key":"1Key5"},{"time":159008,"key":"1Key2"},{"time":159008,"key":"1Key5"},{"time":159376,"key":"1Key6"},{"time":159560,"key":"1Key2"},{"time":159744,"key":"1Key5"},{"time":160112,"key":"1Key1"},{"time":160112,"key":"1Key4"},{"time":160480,"key":"1Key0"},{"time":160664,"key":"1Key2"},{"time":160848,"key":"1Key4"},{"time":161216,"key":"1Key2"},{"time":161216,"key":"1Key5"},{"time":161768,"key":"1Key0"},{"time":161952,"key":"1Key2"},{"time":162136,"key":"1Key5"},{"time":162320,"key":"1Key6"},{"time":163056,"key":"1Key9"},{"time":163424,"key":"1Key12"}]}]624,
+				"key": "1Key3"
+			},
+			{
+				"time": 154624,
+				"key": "1Key12"
+			},
+			{
+				"time": 154896,
+				"key": "1Key0"
+			},
+			{
+				"time": 155168,
+				"key": "1Key3"
+			},
+			{
+				"time": 155168,
+				"key": "1Key11"
+			},
+			{
+				"time": 155440,
+				"key": "1Key5"
+			},
+			{
+				"time": 155712,
+				"key": "1Key7"
+			},
+			{
+				"time": 155712,
+				"key": "1Key9"
+			},
+			{
+				"time": 156256,
+				"key": "1Key1"
+			},
+			{
+				"time": 156256,
+				"key": "1Key7"
+			},
+			{
+				"time": 156528,
+				"key": "1Key5"
+			},
+			{
+				"time": 156800,
+				"key": "1Key1"
+			},
+			{
+				"time": 156800,
+				"key": "1Key8"
+			},
+			{
+				"time": 157072,
+				"key": "1Key3"
+			},
+			{
+				"time": 157344,
+				"key": "1Key5"
+			},
+			{
+				"time": 157344,
+				"key": "1Key9"
+			},
+			{
+				"time": 157888,
+				"key": "1Key1"
+			},
+			{
+				"time": 157888,
+				"key": "1Key9"
+			},
+			{
+				"time": 158160,
+				"key": "1Key5"
+			},
+			{
+				"time": 158432,
+				"key": "1Key8"
+			},
+			{
+				"time": 158432,
+				"key": "1Key11"
+			},
+			{
+				"time": 158704,
+				"key": "1Key3"
+			},
+			{
+				"time": 158976,
+				"key": "1Key5"
+			},
+			{
+				"time": 158976,
+				"key": "1Key9"
+			},
+			{
+				"time": 159520,
+				"key": "1Key2"
+			},
+			{
+				"time": 159520,
+				"key": "1Key9"
+			},
+			{
+				"time": 159520,
+				"key": "1Key12"
+			},
+			{
+				"time": 159792,
+				"key": "1Key6"
+			},
+			{
+				"time": 160064,
+				"key": "1Key2"
+			},
+			{
+				"time": 160336,
+				"key": "1Key5"
+			},
+			{
+				"time": 160608,
+				"key": "1Key6"
+			},
+			{
+				"time": 161152,
+				"key": "1Key2"
+			},
+			{
+				"time": 161424,
+				"key": "1Key6"
+			},
+			{
+				"time": 161696,
+				"key": "1Key2"
+			},
+			{
+				"time": 161968,
+				"key": "1Key5"
+			},
+			{
+				"time": 162240,
+				"key": "1Key2"
+			},
+			{
+				"time": 162240,
+				"key": "1Key6"
+			},
+			{
+				"time": 162512,
+				"key": "1Key6"
+			},
+			{
+				"time": 162784,
+				"key": "1Key2"
+			},
+			{
+				"time": 163056,
+				"key": "1Key4"
+			},
+			{
+				"time": 163328,
+				"key": "1Key6"
+			},
+			{
+				"time": 163872,
+				"key": "1Key2"
+			},
+			{
+				"time": 163872,
+				"key": "1Key9"
+			},
+			{
+				"time": 163872,
+				"key": "1Key11"
+			},
+			{
+				"time": 164416,
+				"key": "1Key12"
+			},
+			{
+				"time": 164960,
+				"key": "1Key13"
+			},
+			{
+				"time": 165504,
+				"key": "1Key1"
+			},
+			{
+				"time": 165504,
+				"key": "1Key8"
+			},
+			{
+				"time": 165504,
+				"key": "1Key14"
+			},
+			{
+				"time": 166048,
+				"key": "1Key1"
+			},
+			{
+				"time": 166048,
+				"key": "1Key3"
+			},
+			{
+				"time": 166048,
+				"key": "1Key5"
+			},
+			{
+				"time": 166592,
+				"key": "1Key1"
+			},
+			{
+				"time": 166592,
+				"key": "1Key3"
+			},
+			{
+				"time": 166592,
+				"key": "1Key5"
+			},
+			{
+				"time": 167136,
+				"key": "1Key2"
+			},
+			{
+				"time": 167136,
+				"key": "1Key9"
+			},
+			{
+				"time": 167680,
+				"key": "1Key1"
+			},
+			{
+				"time": 167680,
+				"key": "1Key3"
+			},
+			{
+				"time": 167680,
+				"key": "1Key5"
+			},
+			{
+				"time": 168224,
+				"key": "1Key1"
+			},
+			{
+				"time": 168224,
+				"key": "1Key3"
+			},
+			{
+				"time": 168224,
+				"key": "1Key5"
+			},
+			{
+				"time": 168496,
+				"key": "1Key2"
+			},
+			{
+				"time": 168496,
+				"key": "1Key9"
+			},
+			{
+				"time": 168496,
+				"key": "1Key13"
+			},
+			{
+				"time": 169040,
+				"key": "1Key2"
+			},
+			{
+				"time": 169040,
+				"key": "1Key5"
+			},
+			{
+				"time": 169040,
+				"key": "1Key6"
+			},
+			{
+				"time": 169584,
+				"key": "1Key2"
+			},
+			{
+				"time": 169584,
+				"key": "1Key5"
+			},
+			{
+				"time": 169584,
+				"key": "1Key6"
+			},
+			{
+				"time": 170128,
+				"key": "1Key4"
+			},
+			{
+				"time": 170128,
+				"key": "1Key9"
+			},
+			{
+				"time": 170672,
+				"key": "1Key2"
+			},
+			{
+				"time": 170672,
+				"key": "1Key4"
+			},
+			{
+				"time": 170672,
+				"key": "1Key6"
+			},
+			{
+				"time": 170672,
+				"key": "1Key8"
+			},
+			{
+				"time": 171216,
+				"key": "1Key2"
+			},
+			{
+				"time": 171216,
+				"key": "1Key4"
+			},
+			{
+				"time": 171216,
+				"key": "1Key6"
+			},
+			{
+				"time": 171216,
+				"key": "1Key11"
+			},
+			{
+				"time": 171760,
+				"key": "1Key5"
+			},
+			{
+				"time": 171760,
+				"key": "1Key9"
+			},
+			{
+				"time": 172304,
+				"key": "1Key0"
+			},
+			{
+				"time": 172304,
+				"key": "1Key2"
+			},
+			{
+				"time": 172848,
+				"key": "1Key0"
+			},
+			{
+				"time": 172848,
+				"key": "1Key2"
+			},
+			{
+				"time": 173120,
+				"key": "1Key9"
+			},
+			{
+				"time": 173392,
+				"key": "1Key5"
+			},
+			{
+				"time": 173392,
+				"key": "1Key9"
+			},
+			{
+				"time": 173936,
+				"key": "1Key0"
+			},
+			{
+				"time": 173936,
+				"key": "1Key2"
+			},
+			{
+				"time": 173936,
+				"key": "1Key8"
+			},
+			{
+				"time": 174480,
+				"key": "1Key0"
+			},
+			{
+				"time": 174480,
+				"key": "1Key2"
+			},
+			{
+				"time": 174480,
+				"key": "1Key5"
+			},
+			{
+				"time": 174480,
+				"key": "1Key11"
+			},
+			{
+				"time": 175024,
+				"key": "1Key0"
+			},
+			{
+				"time": 175024,
+				"key": "1Key7"
+			},
+			{
+				"time": 175024,
+				"key": "1Key9"
+			},
+			{
+				"time": 175568,
+				"key": "1Key0"
+			},
+			{
+				"time": 175568,
+				"key": "1Key2"
+			},
+			{
+				"time": 175568,
+				"key": "1Key4"
+			},
+			{
+				"time": 176112,
+				"key": "1Key0"
+			},
+			{
+				"time": 176112,
+				"key": "1Key2"
+			},
+			{
+				"time": 176112,
+				"key": "1Key4"
+			},
+			{
+				"time": 176656,
+				"key": "1Key0"
+			},
+			{
+				"time": 176656,
+				"key": "1Key7"
+			},
+			{
+				"time": 176656,
+				"key": "1Key9"
+			},
+			{
+				"time": 177200,
+				"key": "1Key0"
+			},
+			{
+				"time": 177200,
+				"key": "1Key2"
+			},
+			{
+				"time": 177200,
+				"key": "1Key4"
+			},
+			{
+				"time": 177200,
+				"key": "1Key8"
+			},
+			{
+				"time": 177744,
+				"key": "1Key0"
+			},
+			{
+				"time": 177744,
+				"key": "1Key2"
+			},
+			{
+				"time": 177744,
+				"key": "1Key4"
+			},
+			{
+				"time": 177744,
+				"key": "1Key7"
+			},
+			{
+				"time": 178288,
+				"key": "1Key1"
+			},
+			{
+				"time": 178288,
+				"key": "1Key8"
+			},
+			{
+				"time": 178832,
+				"key": "1Key1"
+			},
+			{
+				"time": 178832,
+				"key": "1Key3"
+			},
+			{
+				"time": 178832,
+				"key": "1Key5"
+			},
+			{
+				"time": 179376,
+				"key": "1Key1"
+			},
+			{
+				"time": 179376,
+				"key": "1Key3"
+			},
+			{
+				"time": 179376,
+				"key": "1Key5"
+			},
+			{
+				"time": 179920,
+				"key": "1Key1"
+			},
+			{
+				"time": 179920,
+				"key": "1Key9"
+			},
+			{
+				"time": 180464,
+				"key": "1Key1"
+			},
+			{
+				"time": 180464,
+				"key": "1Key3"
+			},
+			{
+				"time": 180464,
+				"key": "1Key5"
+			},
+			{
+				"time": 181008,
+				"key": "1Key1"
+			},
+			{
+				"time": 181008,
+				"key": "1Key3"
+			},
+			{
+				"time": 181008,
+				"key": "1Key5"
+			},
+			{
+				"time": 181280,
+				"key": "1Key4"
+			},
+			{
+				"time": 181552,
+				"key": "1Key2"
+			},
+			{
+				"time": 181552,
+				"key": "1Key4"
+			},
+			{
+				"time": 182096,
+				"key": "1Key2"
+			},
+			{
+				"time": 182096,
+				"key": "1Key6"
+			},
+			{
+				"time": 182368,
+				"key": "1Key2"
+			},
+			{
+				"time": 182368,
+				"key": "1Key5"
+			},
+			{
+				"time": 182368,
+				"key": "1Key6"
+			},
+			{
+				"time": 182368,
+				"key": "1Key11"
+			},
+			{
+				"time": 182912,
+				"key": "1Key3"
+			},
+			{
+				"time": 182912,
+				"key": "1Key10"
+			},
+			{
+				"time": 183456,
+				"key": "1Key2"
+			},
+			{
+				"time": 183456,
+				"key": "1Key4"
+			},
+			{
+				"time": 183456,
+				"key": "1Key6"
+			},
+			{
+				"time": 183456,
+				"key": "1Key9"
+			},
+			{
+				"time": 184000,
+				"key": "1Key2"
+			},
+			{
+				"time": 184000,
+				"key": "1Key4"
+			},
+			{
+				"time": 184000,
+				"key": "1Key6"
+			},
+			{
+				"time": 184000,
+				"key": "1Key8"
+			},
+			{
+				"time": 184544,
+				"key": "1Key5"
+			},
+			{
+				"time": 184544,
+				"key": "1Key9"
+			},
+			{
+				"time": 185088,
+				"key": "1Key0"
+			},
+			{
+				"time": 185088,
+				"key": "1Key2"
+			},
+			{
+				"time": 185632,
+				"key": "1Key0"
+			},
+			{
+				"time": 185632,
+				"key": "1Key2"
+			},
+			{
+				"time": 186176,
+				"key": "1Key5"
+			},
+			{
+				"time": 186176,
+				"key": "1Key13"
+			},
+			{
+				"time": 186720,
+				"key": "1Key0"
+			},
+			{
+				"time": 186720,
+				"key": "1Key2"
+			},
+			{
+				"time": 187264,
+				"key": "1Key0"
+			},
+			{
+				"time": 187264,
+				"key": "1Key2"
+			},
+			{
+				"time": 187536,
+				"key": "1Key12"
+			},
+			{
+				"time": 187808,
+				"key": "1Key0"
+			},
+			{
+				"time": 187808,
+				"key": "1Key7"
+			},
+			{
+				"time": 187808,
+				"key": "1Key14"
+			},
+			{
+				"time": 188624,
+				"key": "1Key0"
+			},
+			{
+				"time": 188624,
+				"key": "1Key2"
+			},
+			{
+				"time": 188624,
+				"key": "1Key4"
+			},
+			{
+				"time": 189168,
+				"key": "1Key0"
+			},
+			{
+				"time": 189168,
+				"key": "1Key2"
+			},
+			{
+				"time": 189168,
+				"key": "1Key4"
+			},
+			{
+				"time": 189712,
+				"key": "1Key7"
+			},
+			{
+				"time": 189712,
+				"key": "1Key11"
+			},
+			{
+				"time": 190256,
+				"key": "1Key0"
+			},
+			{
+				"time": 190256,
+				"key": "1Key2"
+			},
+			{
+				"time": 190256,
+				"key": "1Key4"
+			},
+			{
+				"time": 190256,
+				"key": "1Key12"
+			},
+			{
+				"time": 190800,
+				"key": "1Key0"
+			},
+			{
+				"time": 190800,
+				"key": "1Key2"
+			},
+			{
+				"time": 190800,
+				"key": "1Key4"
+			},
+			{
+				"time": 190800,
+				"key": "1Key13"
+			},
+			{
+				"time": 191344,
+				"key": "1Key1"
+			},
+			{
+				"time": 191344,
+				"key": "1Key14"
+			},
+			{
+				"time": 191888,
+				"key": "1Key1"
+			},
+			{
+				"time": 191888,
+				"key": "1Key3"
+			},
+			{
+				"time": 191888,
+				"key": "1Key5"
+			},
+			{
+				"time": 192432,
+				"key": "1Key1"
+			},
+			{
+				"time": 192432,
+				"key": "1Key3"
+			},
+			{
+				"time": 192432,
+				"key": "1Key5"
+			},
+			{
+				"time": 192976,
+				"key": "1Key1"
+			},
+			{
+				"time": 192976,
+				"key": "1Key9"
+			},
+			{
+				"time": 193520,
+				"key": "1Key1"
+			},
+			{
+				"time": 193520,
+				"key": "1Key3"
+			},
+			{
+				"time": 193520,
+				"key": "1Key5"
+			},
+			{
+				"time": 194064,
+				"key": "1Key1"
+			},
+			{
+				"time": 194064,
+				"key": "1Key3"
+			},
+			{
+				"time": 194064,
+				"key": "1Key5"
+			},
+			{
+				"time": 194608,
+				"key": "1Key2"
+			},
+			{
+				"time": 194608,
+				"key": "1Key9"
+			},
+			{
+				"time": 194608,
+				"key": "1Key13"
+			},
+			{
+				"time": 195152,
+				"key": "1Key2"
+			},
+			{
+				"time": 195152,
+				"key": "1Key5"
+			},
+			{
+				"time": 195152,
+				"key": "1Key6"
+			},
+			{
+				"time": 195696,
+				"key": "1Key2"
+			},
+			{
+				"time": 195696,
+				"key": "1Key5"
+			},
+			{
+				"time": 195696,
+				"key": "1Key6"
+			},
+			{
+				"time": 196240,
+				"key": "1Key4"
+			},
+			{
+				"time": 196240,
+				"key": "1Key9"
+			},
+			{
+				"time": 196784,
+				"key": "1Key2"
+			},
+			{
+				"time": 196784,
+				"key": "1Key4"
+			},
+			{
+				"time": 196784,
+				"key": "1Key6"
+			},
+			{
+				"time": 196784,
+				"key": "1Key8"
+			},
+			{
+				"time": 197328,
+				"key": "1Key2"
+			},
+			{
+				"time": 197328,
+				"key": "1Key4"
+			},
+			{
+				"time": 197328,
+				"key": "1Key6"
+			},
+			{
+				"time": 197328,
+				"key": "1Key11"
+			},
+			{
+				"time": 197872,
+				"key": "1Key5"
+			},
+			{
+				"time": 197872,
+				"key": "1Key9"
+			},
+			{
+				"time": 198416,
+				"key": "1Key0"
+			},
+			{
+				"time": 198416,
+				"key": "1Key2"
+			},
+			{
+				"time": 198960,
+				"key": "1Key0"
+			},
+			{
+				"time": 198960,
+				"key": "1Key2"
+			},
+			{
+				"time": 199232,
+				"key": "1Key9"
+			},
+			{
+				"time": 199504,
+				"key": "1Key5"
+			},
+			{
+				"time": 199504,
+				"key": "1Key9"
+			},
+			{
+				"time": 200048,
+				"key": "1Key0"
+			},
+			{
+				"time": 200048,
+				"key": "1Key2"
+			},
+			{
+				"time": 200048,
+				"key": "1Key8"
+			},
+			{
+				"time": 200592,
+				"key": "1Key0"
+			},
+			{
+				"time": 200592,
+				"key": "1Key3"
+			},
+			{
+				"time": 200592,
+				"key": "1Key11"
+			},
+			{
+				"time": 201136,
+				"key": "1Key0"
+			},
+			{
+				"time": 201136,
+				"key": "1Key9"
+			},
+			{
+				"time": 201408,
+				"key": "1Key0"
+			},
+			{
+				"time": 201408,
+				"key": "1Key2"
+			},
+			{
+				"time": 201408,
+				"key": "1Key4"
+			},
+			{
+				"time": 201952,
+				"key": "1Key0"
+			},
+			{
+				"time": 201952,
+				"key": "1Key2"
+			},
+			{
+				"time": 201952,
+				"key": "1Key4"
+			},
+			{
+				"time": 202496,
+				"key": "1Key0"
+			},
+			{
+				"time": 202496,
+				"key": "1Key9"
+			},
+			{
+				"time": 203040,
+				"key": "1Key0"
+			},
+			{
+				"time": 203040,
+				"key": "1Key2"
+			},
+			{
+				"time": 203040,
+				"key": "1Key4"
+			},
+			{
+				"time": 203040,
+				"key": "1Key8"
+			},
+			{
+				"time": 203584,
+				"key": "1Key0"
+			},
+			{
+				"time": 203584,
+				"key": "1Key2"
+			},
+			{
+				"time": 203584,
+				"key": "1Key4"
+			},
+			{
+				"time": 203584,
+				"key": "1Key7"
+			},
+			{
+				"time": 204128,
+				"key": "1Key1"
+			},
+			{
+				"time": 204128,
+				"key": "1Key5"
+			},
+			{
+				"time": 205488,
+				"key": "1Key1"
+			},
+			{
+				"time": 205488,
+				"key": "1Key3"
+			},
+			{
+				"time": 205488,
+				"key": "1Key5"
+			},
+			{
+				"time": 205488,
+				"key": "1Key12"
+			},
+			{
+				"time": 207120,
+				"key": "1Key12"
+			},
+			{
+				"time": 208752,
+				"key": "1Key9"
+			},
+			{
+				"time": 209296,
+				"key": "1Key8"
+			},
+			{
+				"time": 209840,
+				"key": "1Key7"
+			},
+			{
+				"time": 210384,
+				"key": "1Key2"
+			},
+			{
+				"time": 210384,
+				"key": "1Key5"
+			},
+			{
+				"time": 212016,
+				"key": "1Key2"
+			},
+			{
+				"time": 212016,
+				"key": "1Key4"
+			},
+			{
+				"time": 212016,
+				"key": "1Key6"
+			},
+			{
+				"time": 212016,
+				"key": "1Key12"
+			},
+			{
+				"time": 213648,
+				"key": "1Key12"
+			},
+			{
+				"time": 215280,
+				"key": "1Key8"
+			},
+			{
+				"time": 215280,
+				"key": "1Key14"
+			},
+			{
+				"time": 215552,
+				"key": "1Key6"
+			},
+			{
+				"time": 215824,
+				"key": "1Key9"
+			},
+			{
+				"time": 216096,
+				"key": "1Key10"
+			},
+			{
+				"time": 216368,
+				"key": "1Key14"
+			},
+			{
+				"time": 216912,
+				"key": "1Key8"
+			},
+			{
+				"time": 216912,
+				"key": "1Key14"
+			},
+			{
+				"time": 217184,
+				"key": "1Key7"
+			},
+			{
+				"time": 217456,
+				"key": "1Key9"
+			},
+			{
+				"time": 217728,
+				"key": "1Key10"
+			},
+			{
+				"time": 218000,
+				"key": "1Key14"
+			},
+			{
+				"time": 218544,
+				"key": "1Key1"
+			},
+			{
+				"time": 218544,
+				"key": "1Key9"
+			},
+			{
+				"time": 218544,
+				"key": "1Key13"
+			},
+			{
+				"time": 218816,
+				"key": "1Key6"
+			},
+			{
+				"time": 219088,
+				"key": "1Key8"
+			},
+			{
+				"time": 219360,
+				"key": "1Key9"
+			},
+			{
+				"time": 219632,
+				"key": "1Key13"
+			},
+			{
+				"time": 220176,
+				"key": "1Key1"
+			},
+			{
+				"time": 220176,
+				"key": "1Key9"
+			},
+			{
+				"time": 220176,
+				"key": "1Key13"
+			},
+			{
+				"time": 220448,
+				"key": "1Key6"
+			},
+			{
+				"time": 220720,
+				"key": "1Key8"
+			},
+			{
+				"time": 220992,
+				"key": "1Key9"
+			},
+			{
+				"time": 221264,
+				"key": "1Key13"
+			},
+			{
+				"time": 221808,
+				"key": "1Key5"
+			},
+			{
+				"time": 221808,
+				"key": "1Key9"
+			},
+			{
+				"time": 221808,
+				"key": "1Key13"
+			},
+			{
+				"time": 222080,
+				"key": "1Key4"
+			},
+			{
+				"time": 222352,
+				"key": "1Key8"
+			},
+			{
+				"time": 222624,
+				"key": "1Key9"
+			},
+			{
+				"time": 222896,
+				"key": "1Key13"
+			},
+			{
+				"time": 223440,
+				"key": "1Key5"
+			},
+			{
+				"time": 223440,
+				"key": "1Key9"
+			},
+			{
+				"time": 223440,
+				"key": "1Key13"
+			},
+			{
+				"time": 223712,
+				"key": "1Key4"
+			},
+			{
+				"time": 223984,
+				"key": "1Key8"
+			},
+			{
+				"time": 224256,
+				"key": "1Key9"
+			},
+			{
+				"time": 224528,
+				"key": "1Key13"
+			},
+			{
+				"time": 225072,
+				"key": "1Key7"
+			},
+			{
+				"time": 225072,
+				"key": "1Key12"
+			},
+			{
+				"time": 225344,
+				"key": "1Key4"
+			},
+			{
+				"time": 225616,
+				"key": "1Key7"
+			},
+			{
+				"time": 225888,
+				"key": "1Key9"
+			},
+			{
+				"time": 226160,
+				"key": "1Key12"
+			},
+			{
+				"time": 226704,
+				"key": "1Key7"
+			},
+			{
+				"time": 226704,
+				"key": "1Key12"
+			},
+			{
+				"time": 227248,
+				"key": "1Key4"
+			},
+			{
+				"time": 227792,
+				"key": "1Key9"
+			},
+			{
+				"time": 228336,
+				"key": "1Key1"
+			},
+			{
+				"time": 228336,
+				"key": "1Key8"
+			},
+			{
+				"time": 228608,
+				"key": "1Key2"
+			},
+			{
+				"time": 228880,
+				"key": "1Key3"
+			},
+			{
+				"time": 229152,
+				"key": "1Key5"
+			},
+			{
+				"time": 229968,
+				"key": "1Key1"
+			},
+			{
+				"time": 229968,
+				"key": "1Key9"
+			},
+			{
+				"time": 230512,
+				"key": "1Key2"
+			},
+			{
+				"time": 230784,
+				"key": "1Key3"
+			},
+			{
+				"time": 231056,
+				"key": "1Key5"
+			},
+			{
+				"time": 231600,
+				"key": "1Key2"
+			},
+			{
+				"time": 231600,
+				"key": "1Key5"
+			},
+			{
+				"time": 232144,
+				"key": "1Key6"
+			},
+			{
+				"time": 232416,
+				"key": "1Key2"
+			},
+			{
+				"time": 232688,
+				"key": "1Key5"
+			},
+			{
+				"time": 233232,
+				"key": "1Key1"
+			},
+			{
+				"time": 233232,
+				"key": "1Key4"
+			},
+			{
+				"time": 233776,
+				"key": "1Key0"
+			},
+			{
+				"time": 234048,
+				"key": "1Key2"
+			},
+			{
+				"time": 234320,
+				"key": "1Key4"
+			},
+			{
+				"time": 234864,
+				"key": "1Key2"
+			},
+			{
+				"time": 234864,
+				"key": "1Key5"
+			},
+			{
+				"time": 235680,
+				"key": "1Key0"
+			},
+			{
+				"time": 235952,
+				"key": "1Key2"
+			},
+			{
+				"time": 236224,
+				"key": "1Key5"
+			},
+			{
+				"time": 236496,
+				"key": "1Key6"
+			},
+			{
+				"time": 237584,
+				"key": "1Key9"
+			},
+			{
+				"time": 238128,
+				"key": "1Key12"
+			}
+		]
+	}
+]:1},{"n":2,"l":1},{"n":4,"l":1},{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":8,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":7,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":1,"l":1},{"n":5,"l":1},{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1},{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":7,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":6,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1},{"n":6,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":6,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":8,"l":1},{"n":10,"l":1},{"n":12,"l":1},{"n":14,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":14,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":6,"l":1},{"n":9,"l":1},{"n":11,"l":1},{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":7,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":7,"l":1},{"n":9,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":7,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":7,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[{"n":11,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":7,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":9,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":7,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":7,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":7,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":8,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[{"n":3,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":9,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":9,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":8,"l":1},{"n":14,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1},{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1},{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":9,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":5,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":7,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":7,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1},{"n":7,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[{"n":4,"l":1}],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1},{"n":6,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":3,"l":1},{"n":10,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":7,"l":1},{"n":14,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":7,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1},{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":14,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1},{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1},{"n":6,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":4,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1}],"co":"#dad8b3"},{"no":[{"n":9,"l":1}],"co":"#dad8b3"},{"no":[{"n":5,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":11,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1},{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1},{"n":2,"l":1},{"n":4,"l":1},{"n":7,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":1,"l":1},{"n":3,"l":1},{"n":5,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":9,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":8,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":7,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":5,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":2,"l":1},{"n":4,"l":1},{"n":6,"l":1},{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":12,"l":1}],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"#dad8b3"},{"no":[{"n":8,"l":1},{"n":14,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":7,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":10,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":14,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":8,"l":1},{"n":14,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":7,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":10,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":14,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":6,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":8,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":6,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":8,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":4,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":8,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1},{"n":9,"l":1},{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":4,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":8,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":13,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":7,"l":1},{"n":12,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":4,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":7,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":12,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":7,"l":1},{"n":12,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":4,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":1,"l":1},{"n":8,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":3,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":1,"l":1},{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":3,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1},{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":6,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":1,"l":1},{"n":4,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":0,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":4,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1},{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"#dad8b3"},{"no":[{"n":0,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":2,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":5,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[{"n":6,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[],"co":"#dad8b3"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":9,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"rgb(218, 216, 179)"},{"no":[{"n":12,"l":1}],"co":"rgb(218, 216, 179)"},{"no":[],"co":"#dad8b3"}]}]

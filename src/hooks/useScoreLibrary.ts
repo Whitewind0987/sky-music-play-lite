@@ -42,9 +42,11 @@ export function useScoreLibrary({
   onBeforeLibraryMutation,
   text,
 }: UseScoreLibraryOptions) {
-  const builtInLibrarySongs = useMemo(() => loadBuiltInLibrarySongs(), []);
+  const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<LibrarySong[]>([]);
+  const [hasLoadedBuiltInSongs, setHasLoadedBuiltInSongs] = useState(false);
+  const pendingPersistedSelectedLocalIndexRef = useRef<number | null>(null);
   const importedSongsRef = useRef<Song[]>([]);
-  const librarySongsRef = useRef<LibrarySong[]>(builtInLibrarySongs);
+  const librarySongsRef = useRef<LibrarySong[]>([]);
   const localLibrarySongsRef = useRef<LibrarySong[]>([]);
   const [localLibrarySongs, setLocalLibrarySongs] = useState<LibrarySong[]>([]);
   const [likedSongs, setLikedSongs] = useState<LikedSongEntry[]>([]);
@@ -141,6 +143,48 @@ export function useScoreLibrary({
 
     return localSongIndex >= 0 ? localSongIndex : null;
   }, [librarySongs, localLibrarySongs, selectedSongIndex]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadBuiltInSongs() {
+      const result = await loadBuiltInLibrarySongs();
+
+      if (isCancelled) {
+        return;
+      }
+
+      setBuiltInLibrarySongs(result.songs);
+      setHasLoadedBuiltInSongs(true);
+    }
+
+    void loadBuiltInSongs().catch((error) => {
+      console.warn("[built-in-scores] load failed", error);
+
+      if (!isCancelled) {
+        setBuiltInLibrarySongs([]);
+        setHasLoadedBuiltInSongs(true);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const persistedLocalIndex = pendingPersistedSelectedLocalIndexRef.current;
+
+    if (persistedLocalIndex === null || !hasLoadedBuiltInSongs) {
+      return;
+    }
+
+    pendingPersistedSelectedLocalIndexRef.current = null;
+
+    if (localLibrarySongsRef.current[persistedLocalIndex]) {
+      setSelectedSongIndex(builtInLibrarySongs.length + persistedLocalIndex);
+    }
+  }, [builtInLibrarySongs.length, hasLoadedBuiltInSongs]);
 
   useEffect(() => {
     importedSongsRef.current = importedSongs;
@@ -446,32 +490,23 @@ export function useScoreLibrary({
   function applyScoreLibrary(library: PersistedAppData["library"]) {
     const nextLocalLibrarySongs = library.librarySongs;
     const nextLibrarySongs = [...builtInLibrarySongs, ...nextLocalLibrarySongs];
-    const validSongIds = new Set(
-      nextLibrarySongs.map((librarySong) => librarySong.id),
-    );
-    const nextLikedSongs = library.likedSongs.filter((entry) =>
-      validSongIds.has(entry.songId),
-    );
-    const nextPlaylists = library.playlists.map((playlist) => ({
-      ...playlist,
-      songIds: playlist.songIds.filter((songId) => validSongIds.has(songId)),
-    }));
     const nextSelectedPlaylistId =
       library.selectedPlaylistId !== null &&
-      nextPlaylists.some((playlist) => playlist.id === library.selectedPlaylistId)
+      library.playlists.some((playlist) => playlist.id === library.selectedPlaylistId)
         ? library.selectedPlaylistId
-        : nextPlaylists[0]?.id ?? null;
+        : library.playlists[0]?.id ?? null;
     const nextSelectedSongIndex =
       library.selectedSongIndex !== null &&
       nextLocalLibrarySongs[library.selectedSongIndex]
         ? builtInLibrarySongs.length + library.selectedSongIndex
         : null;
 
+    pendingPersistedSelectedLocalIndexRef.current = library.selectedSongIndex;
     localLibrarySongsRef.current = nextLocalLibrarySongs;
     librarySongsRef.current = nextLibrarySongs;
     setLocalLibrarySongs(nextLocalLibrarySongs);
-    setLikedSongs(nextLikedSongs);
-    setPlaylists(nextPlaylists);
+    setLikedSongs(library.likedSongs);
+    setPlaylists(library.playlists);
     setSelectedPlaylistId(nextSelectedPlaylistId);
     setSelectedLibraryCategory(library.selectedLibraryCategory);
     setSelectedSongIndex(nextSelectedSongIndex);
@@ -496,6 +531,7 @@ export function useScoreLibrary({
     handleSelectImportedSong,
     handleToggleLikedSong,
     hasSearchQuery,
+    hasLoadedBuiltInSongs,
     importError,
     importedSongs,
     importedSongsRef,
