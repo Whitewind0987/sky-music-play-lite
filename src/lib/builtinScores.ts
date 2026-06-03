@@ -1,6 +1,9 @@
 import { builtInScoreManifest } from "../data/builtin-scores/manifest";
 import type { LibrarySong } from "../types/library";
-import { parseScoreFileContent } from "./scoreFileImport";
+import {
+  parseScoreFileContent,
+  ScoreFileImportError,
+} from "./scoreFileImport";
 
 export type BuiltInLibraryLoadResult = {
   fileCount: number;
@@ -27,7 +30,21 @@ export async function loadBuiltInLibrarySongs(): Promise<BuiltInLibraryLoadResul
       });
     } catch (error) {
       skippedFileCount += 1;
-      console.warn("[built-in-scores] skipped", entry.id, entry.title, error);
+
+      if (error instanceof ScoreFileImportError) {
+        console.warn("[built-in-scores] skipped", {
+          code: error.code,
+          details: error.details,
+          id: entry.id,
+          title: entry.title,
+        });
+      } else {
+        console.warn("[built-in-scores] skipped", {
+          error,
+          id: entry.id,
+          title: entry.title,
+        });
+      }
     }
   }
 
