@@ -180,6 +180,7 @@ function App() {
   }
 
   function handlePlayLibraryItem(item: LibrarySongListItem) {
+    scoreLibrary.handleSelectImportedSong(item.songIndex);
     playbackOrder.setPlaybackContext({
       currentSongId: item.librarySong.id,
       selectedCategory: scoreLibrary.selectedLibraryCategory,
@@ -190,18 +191,13 @@ function App() {
       ),
       usesSearch: scoreLibrary.hasSearchQuery,
     });
-    if (canStartQueueForCurrentOutput()) {
-      playbackQueue.startQueuePlayback(item.songIndex);
-    }
-    playbackOutput.onPlaySong(item.songIndex);
+    startPlaybackFromSongIndex(item.songIndex);
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
     playbackOrder.clearPlaybackContext();
-    if (canStartQueueForCurrentOutput()) {
-      playbackQueue.startQueuePlayback(queueItem.songIndex);
-    }
-    playbackOutput.onPlaySong(queueItem.songIndex);
+    startPlaybackFromSongIndex(queueItem.songIndex);
   }
 
   function handleNextPlayback() {
@@ -251,6 +247,14 @@ function App() {
     }
 
     playbackOutput.onPlay();
+  }
+
+  function startPlaybackFromSongIndex(songIndex: number) {
+    if (canStartQueueForCurrentOutput()) {
+      playbackQueue.startQueuePlayback(songIndex);
+    }
+
+    playbackOutput.onPlaySong(songIndex);
   }
 
   function canStartQueueForCurrentOutput() {
