@@ -38,6 +38,8 @@ type UseScoreLibraryOptions = {
   text: UiText;
 };
 
+const BUILT_IN_PAGE_SIZE = 100;
+
 export function useScoreLibrary({
   appendLog,
   onBeforeLibraryMutation,
@@ -60,6 +62,7 @@ export function useScoreLibrary({
     Set<LibrarySongId>
   >(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [builtInPage, setBuiltInPage] = useState(1);
   const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(
     null,
   );
@@ -125,6 +128,40 @@ export function useScoreLibrary({
     () => filterSongsByQuery(categoryLibraryItems, searchQuery),
     [categoryLibraryItems, searchQuery],
   );
+  const builtInPagination = useMemo(() => {
+    if (selectedLibraryCategory !== "built-in") {
+      return null;
+    }
+
+    const total = visibleLibraryItems.length;
+    const pageCount = Math.max(1, Math.ceil(total / BUILT_IN_PAGE_SIZE));
+    const page = Math.min(Math.max(builtInPage, 1), pageCount);
+    const start = total === 0 ? 0 : (page - 1) * BUILT_IN_PAGE_SIZE + 1;
+    const end = Math.min(page * BUILT_IN_PAGE_SIZE, total);
+
+    return {
+      end,
+      onNextPage: () =>
+        setBuiltInPage((currentPage) => Math.min(currentPage + 1, pageCount)),
+      onPreviousPage: () =>
+        setBuiltInPage((currentPage) => Math.max(currentPage - 1, 1)),
+      page,
+      pageCount,
+      pageSize: BUILT_IN_PAGE_SIZE,
+      start,
+      total,
+    };
+  }, [builtInPage, selectedLibraryCategory, visibleLibraryItems.length]);
+  const pagedVisibleLibraryItems = useMemo(() => {
+    if (selectedLibraryCategory !== "built-in" || builtInPagination === null) {
+      return visibleLibraryItems;
+    }
+
+    return visibleLibraryItems.slice(
+      builtInPagination.start === 0 ? 0 : builtInPagination.start - 1,
+      builtInPagination.end,
+    );
+  }, [builtInPagination, selectedLibraryCategory, visibleLibraryItems]);
   const hasSearchQuery = searchQuery.trim().length > 0;
   const validCollectionSongIds = useMemo(
     () => librarySongs.map((librarySong) => librarySong.id),
@@ -175,6 +212,10 @@ export function useScoreLibrary({
       isCancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setBuiltInPage(1);
+  }, [searchQuery, selectedLibraryCategory]);
 
   useEffect(() => {
     const persistedLocalIndex = pendingPersistedSelectedLocalIndexRef.current;
@@ -627,6 +668,7 @@ export function useScoreLibrary({
     handleRenamePlaylist,
     handleSelectImportedSong,
     handleToggleLikedSong,
+    builtInPagination,
     hasSearchQuery,
     hasLoadedBuiltInSongs,
     importError,
@@ -636,6 +678,7 @@ export function useScoreLibrary({
     librarySongs,
     likedSongs,
     localLibrarySongs,
+    pagedVisibleLibraryItems,
     persistedSelectedSongIndex,
     playlists,
     preloadBuiltInSong,

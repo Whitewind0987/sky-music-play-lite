@@ -922,6 +922,38 @@ button {
   align-items: center;
 }
 
+.library-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 2px 0;
+  color: #5f6b7a;
+  font-size: 12px;
+}
+
+.library-pagination button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d6dde8;
+  border-radius: 6px;
+  color: #2f3a4a;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.library-pagination button:disabled {
+  color: #a6afbb;
+  cursor: not-allowed;
+}
+
+.library-pagination button:not(:disabled):hover {
+  border-color: #b8d4fb;
+  color: #1f5ea8;
+  background: #f4f9ff;
+}
+
 .library-heart-button {
   width: 30px;
   height: 30px;

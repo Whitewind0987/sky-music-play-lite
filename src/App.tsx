@@ -61,7 +61,8 @@ function App() {
   });
   const previewPlayback = usePreviewPlayback({
     appendLog,
-    consumeNextQueueItem: playbackQueue.consumeNextQueueItem,
+    consumeNextQueueItemAfterCurrent:
+      playbackQueue.consumeNextQueueItemAfterCurrent,
     currentSelectedSong: scoreLibrary.currentSelectedSong,
     getPlaybackOrderNextSongIndex: (options) =>
       playbackOrder.getNextPlaybackOrderSongIndex({
@@ -72,11 +73,13 @@ function App() {
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    startQueuePlayback: playbackQueue.startQueuePlayback,
     text,
   });
   const experimentalInput = useExperimentalInput({
     appendLog,
-    consumeNextQueueItem: playbackQueue.consumeNextQueueItem,
+    consumeNextQueueItemAfterCurrent:
+      playbackQueue.consumeNextQueueItemAfterCurrent,
     currentSong: scoreLibrary.currentSelectedSong,
     getPlaybackOrderNextSongIndex: (options) =>
       playbackOrder.getNextPlaybackOrderSongIndex({
@@ -92,6 +95,7 @@ function App() {
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    startQueuePlayback: playbackQueue.startQueuePlayback,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
   });
@@ -182,20 +186,29 @@ function App() {
       songIds: buildPlaybackOrderFromVisibleItems(
         scoreLibrary.visibleLibraryItems,
         item.librarySong.id,
+        { usesSearch: scoreLibrary.hasSearchQuery },
       ),
       usesSearch: scoreLibrary.hasSearchQuery,
     });
+    if (canStartQueueForCurrentOutput()) {
+      playbackQueue.startQueuePlayback(item.songIndex);
+    }
     playbackOutput.onPlaySong(item.songIndex);
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
     playbackOrder.clearPlaybackContext();
+    if (canStartQueueForCurrentOutput()) {
+      playbackQueue.startQueuePlayback(queueItem.songIndex);
+    }
     playbackOutput.onPlaySong(queueItem.songIndex);
   }
 
   function handleNextPlayback() {
     const songs = scoreLibrary.importedSongsRef.current;
-    const queuedItem = playbackQueue.consumeNextQueueItem(songs.length);
+    const queuedItem = playbackQueue.consumeNextQueueItemAfterCurrent(
+      songs.length,
+    );
     if (queuedItem) {
       playbackOrder.clearPlaybackContext();
     }
@@ -223,24 +236,45 @@ function App() {
         songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
       }),
     );
+    if (queuedItem === null) {
+      playbackQueue.startQueuePlayback(nextSongIndex);
+    }
     playbackOutput.onPlaySong(nextSongIndex);
+  }
+
+  function handleBottomPlayerPlay() {
+    if (
+      scoreLibrary.selectedSongIndex !== null &&
+      canStartQueueForCurrentOutput()
+    ) {
+      playbackQueue.startQueuePlayback(scoreLibrary.selectedSongIndex);
+    }
+
+    playbackOutput.onPlay();
+  }
+
+  function canStartQueueForCurrentOutput() {
+    return (
+      playbackOutput.mode !== "experimental-target-window" ||
+      experimentalInput.selectedWindow !== null
+    );
   }
 
   function renderActiveSection() {
     if (activeSection === "Library") {
       return (
         <LibraryPanel
+          builtInPagination={scoreLibrary.builtInPagination}
           importError={scoreLibrary.importError}
           importDisabled={isAnyPlaybackActive}
           hasSearchQuery={scoreLibrary.hasSearchQuery}
-          items={scoreLibrary.visibleLibraryItems}
+          items={scoreLibrary.pagedVisibleLibraryItems}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
           onDeleteLocalSong={handleDeleteLocalSong}
           onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
-          onPrefetchSong={scoreLibrary.preloadBuiltInSong}
           onPlaySong={handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
           onRemoveFromLiked={scoreLibrary.handleRemoveFromLiked}
@@ -366,7 +400,7 @@ function App() {
         onNext={handleNextPlayback}
         onPause={playbackOutput.onPause}
         onPlayQueueItem={handlePlayQueueItem}
-        onPlay={playbackOutput.onPlay}
+        onPlay={handleBottomPlayerPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
         onQueueClear={playbackQueue.clearQueue}
         onQueueItemRemove={playbackQueue.removeQueueItem}

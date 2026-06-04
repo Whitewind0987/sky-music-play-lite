@@ -10,6 +10,16 @@ import type {
 } from "../types/library";
 
 type LibraryPanelProps = {
+  builtInPagination: {
+    end: number;
+    onNextPage: () => void;
+    onPreviousPage: () => void;
+    page: number;
+    pageCount: number;
+    pageSize: number;
+    start: number;
+    total: number;
+  } | null;
   hasSearchQuery: boolean;
   importDisabled: boolean;
   importError: string;
@@ -23,7 +33,6 @@ type LibraryPanelProps = {
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
-  onPrefetchSong: (songIndex: number) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
@@ -543,7 +552,6 @@ function LibrarySongTable({
   onDeleteLocalSong,
   onOpenActionMenu,
   onOpenCollectDialog,
-  onPrefetchSong,
   onPlaySong,
   onPlaySongNext,
   onRemoveFromLiked,
@@ -565,7 +573,6 @@ function LibrarySongTable({
   | "onDeleteLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
-  | "onPrefetchSong"
   | "onRemoveFromLiked"
   | "onRemoveSongFromPlaylist"
   | "onSelectSong"
@@ -627,8 +634,6 @@ function LibrarySongTable({
               role="button"
               tabIndex={0}
               onClick={() => onSelectSong(songIndex)}
-              onFocus={() => onPrefetchSong(songIndex)}
-              onMouseEnter={() => onPrefetchSong(songIndex)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
@@ -643,7 +648,6 @@ function LibrarySongTable({
                   type="button"
                   aria-label={`${text.playThisScoreAction}: ${song.name}`}
                   title={text.playThisScoreAction}
-                  onMouseEnter={() => onPrefetchSong(songIndex)}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.currentTarget.blur();
@@ -773,6 +777,7 @@ function LibrarySongTable({
 }
 
 export function LibraryPanel({
+  builtInPagination,
   hasSearchQuery,
   importDisabled,
   importError,
@@ -783,7 +788,6 @@ export function LibraryPanel({
   onDeleteLocalSong,
   onDeletePlaylist,
   onImportFiles,
-  onPrefetchSong,
   onPlaySong,
   onPlaySongNext,
   onRemoveFromLiked,
@@ -946,7 +950,6 @@ export function LibraryPanel({
               setOpenActionMenuSongId(null);
               setCollectingSongItem(item);
             }}
-            onPrefetchSong={onPrefetchSong}
             onPlaySong={onPlaySong}
             onPlaySongNext={onPlaySongNext}
             onRemoveFromLiked={onRemoveFromLiked}
@@ -960,6 +963,37 @@ export function LibraryPanel({
             openActionMenuSongId={openActionMenuSongId}
           />
         )}
+        {isBuiltIn &&
+        builtInPagination &&
+        builtInPagination.total > builtInPagination.pageSize ? (
+          <div className="library-pagination" aria-label={text.paginationAria}>
+            <button
+              type="button"
+              disabled={builtInPagination.page <= 1}
+              onClick={builtInPagination.onPreviousPage}
+            >
+              {text.paginationPrevious}
+            </button>
+            <span>
+              {text.paginationPage
+                .replace("{page}", String(builtInPagination.page))
+                .replace("{pageCount}", String(builtInPagination.pageCount))}
+            </span>
+            <span>
+              {text.paginationShowing
+                .replace("{start}", String(builtInPagination.start))
+                .replace("{end}", String(builtInPagination.end))
+                .replace("{total}", String(builtInPagination.total))}
+            </span>
+            <button
+              type="button"
+              disabled={builtInPagination.page >= builtInPagination.pageCount}
+              onClick={builtInPagination.onNextPage}
+            >
+              {text.paginationNext}
+            </button>
+          </div>
+        ) : null}
       </div>
       {collectingSongItem ? (
         <AddToPlaylistPopup

@@ -23,7 +23,9 @@ import type { Note, Song } from "../types/score";
 
 type UseForegroundPlaybackOptions = {
   appendLog: (message: string) => void;
-  consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
+  consumeNextQueueItemAfterCurrent: (
+    songCount: number,
+  ) => PlaybackQueueItem | null;
   currentSong: Song | null;
   experimentalInputEnabled: boolean;
   getPlaybackOrderNextSongIndex: (options: {
@@ -41,6 +43,7 @@ type UseForegroundPlaybackOptions = {
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
+  startQueuePlayback: (songIndex: number) => void;
   text: UiText;
 };
 
@@ -49,7 +52,7 @@ const COUNTDOWN_TICK_MS = 1000;
 
 export function useForegroundPlayback({
   appendLog,
-  consumeNextQueueItem,
+  consumeNextQueueItemAfterCurrent,
   currentSong,
   experimentalInputEnabled,
   getPlaybackOrderNextSongIndex,
@@ -63,6 +66,7 @@ export function useForegroundPlayback({
   resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
+  startQueuePlayback,
   text,
 }: UseForegroundPlaybackOptions) {
   const controllerRef = useRef<PreviewPlaybackController | null>(null);
@@ -336,7 +340,7 @@ export function useForegroundPlayback({
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : consumeNextQueueItem(currentImportedSongs.length);
+        : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current !== "repeat-one"
         ? getPlaybackOrderNextSongIndex({
@@ -346,6 +350,7 @@ export function useForegroundPlayback({
           })
         : null;
     const finishDecision = decidePlaybackFinish({
+      allowLibraryFallback: false,
       currentSongIndex: songIndex,
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
@@ -373,6 +378,9 @@ export function useForegroundPlayback({
           songName: nextSong.name,
         }),
       );
+      if (queuedItem === null) {
+        startQueuePlayback(finishDecision.nextSongIndex);
+      }
       void startForegroundPlaybackForSong(finishDecision.nextSongIndex, {
         withCountdown: false,
       });

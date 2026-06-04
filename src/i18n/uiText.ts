@@ -166,6 +166,11 @@ export const uiText = {
         "确定要删除歌单《{playlistName}》吗？曲谱本身不会被删除。",
       selected: "当前",
       loadingScore: "加载中...",
+      paginationAria: "内置曲谱分页",
+      paginationPrevious: "上一页",
+      paginationNext: "下一页",
+      paginationPage: "第 {page} / {pageCount} 页",
+      paginationShowing: "显示 {start}-{end} / {total}",
       playAction: "播放",
     },
     score: {
@@ -289,7 +294,7 @@ export const uiText = {
       queueCleared: "队列已清空。",
       queueNextTriggered: "队列播放：{songName}。",
       queueUnknownSong: "未知曲目",
-      queueItemAlreadyExists: "队列中已存在：{songName}",
+      queueItemAlreadyExists: "该曲谱已在播放队列中",
       playlistSongAlreadyExists: "歌单中已存在：{songName}",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
@@ -333,6 +338,8 @@ export const uiText = {
         "目标窗口激活预处理完成：HWND={targetHwnd}；方式={method}；兼容={profile}",
       experimentalTargetWindowActivationPreflightFailed:
         "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
+      experimentalTargetWindowMissing:
+        "请先刷新或检测目标窗口，然后再播放。",
       experimentalInputPreferencesRestored: "已恢复实验性输入设置。",
       experimentalRestoredTargetWindow: "已恢复上次目标窗口：{target}",
       experimentalRestoredTargetWindowMissing:
@@ -604,6 +611,11 @@ export const uiText = {
         "Delete playlist “{playlistName}”? The scores themselves will not be deleted.",
       selected: "Selected",
       loadingScore: "Loading...",
+      paginationAria: "Built-in score pagination",
+      paginationPrevious: "Previous",
+      paginationNext: "Next",
+      paginationPage: "Page {page} / {pageCount}",
+      paginationShowing: "Showing {start}-{end} / {total}",
       playAction: "Play",
     },
     score: {
@@ -735,7 +747,7 @@ export const uiText = {
       queueCleared: "Queue cleared.",
       queueNextTriggered: "Queue: playing {songName}.",
       queueUnknownSong: "Unknown score",
-      queueItemAlreadyExists: "Already in queue: {songName}",
+      queueItemAlreadyExists: "This score is already in the playback queue",
       playlistSongAlreadyExists: "Already in playlist: {songName}",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
@@ -781,6 +793,8 @@ export const uiText = {
         "Target window activation preflight completed: hwnd={targetHwnd}; method={method}; profile={profile}",
       experimentalTargetWindowActivationPreflightFailed:
         "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
+      experimentalTargetWindowMissing:
+        "Please refresh or detect the target window before playing.",
       experimentalInputPreferencesRestored:
         "Restored experimental input settings.",
       experimentalRestoredTargetWindow:

@@ -22,7 +22,9 @@ import type { Song } from "../types/score";
 
 type UsePreviewPlaybackOptions = {
   appendLog: (entry: string) => void;
-  consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
+  consumeNextQueueItemAfterCurrent: (
+    songCount: number,
+  ) => PlaybackQueueItem | null;
   currentSelectedSong: Song | null;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
@@ -33,18 +35,20 @@ type UsePreviewPlaybackOptions = {
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
+  startQueuePlayback: (songIndex: number) => void;
   text: UiText;
 };
 
 export function usePreviewPlayback({
   appendLog,
-  consumeNextQueueItem,
+  consumeNextQueueItemAfterCurrent,
   currentSelectedSong,
   getPlaybackOrderNextSongIndex,
   importedSongsRef,
   resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
+  startQueuePlayback,
   text,
 }: UsePreviewPlaybackOptions) {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
@@ -177,7 +181,7 @@ export function usePreviewPlayback({
           const queuedItem =
             playbackModeRef.current === "repeat-one"
               ? null
-              : consumeNextQueueItem(currentImportedSongs.length);
+              : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
           const playbackOrderNextSongIndex =
             queuedItem === null && playbackModeRef.current !== "repeat-one"
               ? getPlaybackOrderNextSongIndex({
@@ -187,6 +191,7 @@ export function usePreviewPlayback({
                 })
               : null;
           const finishDecision = decidePlaybackFinish({
+            allowLibraryFallback: false,
             currentSongIndex: songIndex,
             isShuffleEnabled: isShuffleEnabledRef.current,
             playbackMode: playbackModeRef.current,
@@ -216,6 +221,9 @@ export function usePreviewPlayback({
                 songName: nextSong.name,
               }),
             );
+            if (queuedItem === null) {
+              startQueuePlayback(finishDecision.nextSongIndex);
+            }
             void startPreviewForSong(finishDecision.nextSongIndex);
             return;
           }
