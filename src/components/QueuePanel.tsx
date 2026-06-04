@@ -54,7 +54,14 @@ export function QueuePanel({
                   disabled={!song}
                   onClick={() => onPlayQueueItem(queueItem)}
                 >
-                  <strong>{song?.name ?? text.queueMissingSong}</strong>
+                  <strong>
+                    {song?.name ?? text.queueMissingSong}
+                    {index === 0 ? (
+                      <span className="queue-current-badge">
+                        {text.queueCurrent}
+                      </span>
+                    ) : null}
+                  </strong>
                   <span>
                     {song
                       ? `${text.bpm}: ${song.bpm} / ${text.notes}: ${song.songNotes.length}`

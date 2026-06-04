@@ -40,7 +40,6 @@ function App() {
   const text = uiText[language];
   const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
-    uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
   const {
     applyKeyMapping,

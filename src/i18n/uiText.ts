@@ -171,6 +171,7 @@ export const uiText = {
       paginationNext: "下一页",
       paginationPage: "第 {page} / {pageCount} 页",
       paginationShowing: "显示 {start}-{end} / {total}",
+      paginationSearchResults: "搜索结果：{total} 首",
       playAction: "播放",
     },
     score: {
@@ -202,7 +203,7 @@ export const uiText = {
     },
     keyboard: {
       panelTitle: "琴键预览区",
-      panelDescription: "这里只显示光遇琴键和键盘映射，不会发送真实按键。",
+      panelDescription: "",
       previewAria: "静态琴键预览",
     },
     bottomPlayer: {
@@ -237,6 +238,7 @@ export const uiText = {
       queuePanelTitle: "播放队列",
       queueEmpty: "队列为空。",
       queueClear: "清空",
+      queueCurrent: "当前",
       queueRemove: "移除",
       queueMissingSong: "不可用曲目",
       queueMissingSongDescription: "这首曲目已不在当前曲库中。",
@@ -270,7 +272,6 @@ export const uiText = {
         system: "系统",
       },
       appReady: "应用布局已准备好。",
-      noPlaybackYet: "还没有真实播放功能。",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
       importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
       importFailed: "导入 {fileName} 失败：{error}",
@@ -380,7 +381,6 @@ export const uiText = {
       previewTitle: "预览选项",
       previewDescription: "这些控件目前只是占位，不会保存。",
       detailedLogs: "详细日志",
-      realKeyboardMode: "真实键盘模式",
       manual: "使用手册",
       openLater: "稍后打开",
       experimentalInputTitle: "实验性输入",
@@ -393,7 +393,10 @@ export const uiText = {
       experimentalInputDetecting: "正在检测...",
       experimentalInputEnable: "启用实验性输入",
       experimentalInputNoWindows: "暂无候选窗口。",
-      experimentalRestoredTargetWindowLabel: "已恢复的目标窗口",
+      experimentalCurrentTargetWindowLabel: "当前可用目标窗口",
+      experimentalSavedTargetWindowLabel: "已保存目标窗口",
+      experimentalSavedTargetWindowMissingHint:
+        "未找到已保存窗口，请刷新或重新检测。",
       experimentalInputHwndLabel: "HWND",
       experimentalInputUntitledWindow: "无标题窗口",
       experimentalInputUnknownProcess: "未知进程",
@@ -404,11 +407,15 @@ export const uiText = {
       experimentalTargetWindowMode: "目标窗口消息模式",
       experimentalTargetWindowModeDescription:
         "目标窗口消息模式会向选中的窗口句柄发送按键消息，可尝试在游戏失焦时继续播放。兼容性取决于目标窗口是否接受这些消息。",
+      experimentalTargetWindowModeHelp:
+        "目标窗口模式是实验性功能。它会尝试把按键消息发送到已选择的游戏窗口，效果会受游戏窗口状态、权限和系统环境影响。建议保持默认设置，只有播放失败时再调整。",
       experimentalTargetWindowMessageMethod: "消息投递方式",
       experimentalTargetWindowMessageMethods: {
-        "post-message": "队列投递",
-        "send-message": "同步发送",
+        "post-message": "PostMessage（默认推荐）",
+        "send-message": "SendMessage（兼容备用）",
       },
+      experimentalTargetWindowMessageMethodHint:
+        "默认即可。只有目标窗口播放失败、漏音或无响应时，再尝试切换投递方式。",
       experimentalTargetWindowMessageMethodDescriptions: {
         "post-message":
           "将消息放入目标窗口消息队列，发送方不会等待目标窗口处理完成。通常更轻量，但结果取决于目标程序。",
@@ -620,6 +627,7 @@ export const uiText = {
       paginationNext: "Next",
       paginationPage: "Page {page} / {pageCount}",
       paginationShowing: "Showing {start}-{end} / {total}",
+      paginationSearchResults: "Search results: {total}",
       playAction: "Play",
     },
     score: {
@@ -656,8 +664,7 @@ export const uiText = {
     },
     keyboard: {
       panelTitle: "Keyboard preview area",
-      panelDescription:
-        "Sky keys and their keyboard mapping are shown for preview only.",
+      panelDescription: "",
       previewAria: "Static keyboard preview",
     },
     bottomPlayer: {
@@ -692,6 +699,7 @@ export const uiText = {
       queuePanelTitle: "Playback Queue",
       queueEmpty: "Queue is empty.",
       queueClear: "Clear",
+      queueCurrent: "Current",
       queueRemove: "Remove",
       queueMissingSong: "Unavailable score",
       queueMissingSongDescription:
@@ -726,7 +734,6 @@ export const uiText = {
         system: "System",
       },
       appReady: "App layout is ready.",
-      noPlaybackYet: "No playback features yet.",
       importedScores: "Imported {count} score(s) from {fileName}.",
       importedScoresFromFiles:
         "Imported {count} score(s) from {fileCount} file(s).",
@@ -844,7 +851,6 @@ export const uiText = {
       previewTitle: "Preview options",
       previewDescription: "These controls are placeholders and do not save yet.",
       detailedLogs: "Detailed logs",
-      realKeyboardMode: "Real keyboard mode",
       manual: "Manual",
       openLater: "Open later",
       experimentalInputTitle: "Experimental input",
@@ -858,7 +864,10 @@ export const uiText = {
       experimentalInputDetecting: "Detecting...",
       experimentalInputEnable: "Enable Experimental Input",
       experimentalInputNoWindows: "No candidate windows yet.",
-      experimentalRestoredTargetWindowLabel: "Restored target window",
+      experimentalCurrentTargetWindowLabel: "Current available target window",
+      experimentalSavedTargetWindowLabel: "Saved target window",
+      experimentalSavedTargetWindowMissingHint:
+        "Saved window not found. Refresh or detect again.",
       experimentalInputHwndLabel: "HWND",
       experimentalInputUntitledWindow: "Untitled window",
       experimentalInputUnknownProcess: "Unknown process",
@@ -869,11 +878,15 @@ export const uiText = {
       experimentalTargetWindowMode: "Target Window Message Mode",
       experimentalTargetWindowModeDescription:
         "Target-window message mode sends key messages to the selected window handle and can attempt playback while the game is not focused. Compatibility depends on whether the target window accepts these messages.",
+      experimentalTargetWindowModeHelp:
+        "Target Window mode is experimental. It attempts to send key messages to the selected game window, and the result may depend on the window state, permissions, and system environment. Keep the default settings unless playback fails.",
       experimentalTargetWindowMessageMethod: "Message delivery method",
       experimentalTargetWindowMessageMethods: {
-        "post-message": "Queued Delivery",
-        "send-message": "Synchronous Send",
+        "post-message": "PostMessage (default)",
+        "send-message": "SendMessage (compatibility)",
       },
+      experimentalTargetWindowMessageMethodHint:
+        "Keep the default option unless target-window playback fails, misses notes, or does not respond.",
       experimentalTargetWindowMessageMethodDescriptions: {
         "post-message":
           "Posts the message to the target window queue without waiting for it to finish processing. Usually lighter, but behavior depends on the target application.",

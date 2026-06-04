@@ -1588,7 +1588,8 @@ button {
 }
 
 .experimental-window-title,
-.experimental-window-meta {
+.experimental-window-meta,
+.experimental-window-status {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1602,6 +1603,11 @@ button {
 
 .experimental-window-meta {
   font-size: 13px;
+}
+
+.experimental-window-status {
+  color: #0b5db3;
+  font-size: 12px;
 }
 
 .panel {
@@ -2115,8 +2121,26 @@ button {
 }
 
 .queue-panel-song strong {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
   color: #111827;
   font-size: 13px;
+}
+
+.queue-current-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid #bdd7f5;
+  border-radius: 999px;
+  color: #0b5db3;
+  background: #eef6ff;
+  font-size: 11px;
+  font-weight: 700;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .queue-panel-song span {

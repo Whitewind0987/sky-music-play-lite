@@ -91,6 +91,11 @@ export function SettingsPlaceholder({
           ),
         }
       : null;
+  const selectedWindowIsAvailable =
+    experimentalInput.selectedWindowHwnd !== null &&
+    experimentalInput.candidateWindows.some(
+      (window) => window.hwnd === experimentalInput.selectedWindowHwnd,
+    );
 
   return (
     <section className="settings-grid" aria-label={text.aria}>
@@ -140,10 +145,6 @@ export function SettingsPlaceholder({
           <div className="setting-row">
             <span>{text.detailedLogs}</span>
             <span className="fake-toggle is-on" />
-          </div>
-          <div className="setting-row">
-            <span>{text.realKeyboardMode}</span>
-            <span className="fake-toggle" />
           </div>
           <div className="setting-row">
             <span>{text.manual}</span>
@@ -221,6 +222,9 @@ export function SettingsPlaceholder({
         </div>
         {experimentalInput.experimentalInputMode === "target-window-message" ? (
           <>
+            <p className="experimental-setting-description">
+              {text.experimentalTargetWindowModeHelp}
+            </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowMessageMethod}</span>
               <div className="language-options">
@@ -252,6 +256,9 @@ export function SettingsPlaceholder({
                 ))}
               </div>
             </div>
+            <p className="experimental-setting-description">
+              {text.experimentalTargetWindowMessageMethodHint}
+            </p>
             <p className="experimental-setting-description">
               {
                 text.experimentalTargetWindowMessageMethodDescriptions[
@@ -357,10 +364,13 @@ export function SettingsPlaceholder({
               }
             >
               <span className="experimental-window-title">
-                {text.experimentalRestoredTargetWindowLabel}
+                {text.experimentalSavedTargetWindowLabel}
               </span>
               <span className="experimental-window-meta">
                 {restoredSelectedWindow.label}
+              </span>
+              <span className="experimental-window-status">
+                {text.experimentalSavedTargetWindowMissingHint}
               </span>
             </button>
           ) : null}
@@ -384,9 +394,16 @@ export function SettingsPlaceholder({
                 }
               >
                 <span className="experimental-window-title">
-                  {window.title || text.experimentalInputUntitledWindow}
+                  {experimentalInput.selectedWindowHwnd === window.hwnd &&
+                  selectedWindowIsAvailable
+                    ? text.experimentalCurrentTargetWindowLabel
+                    : window.title || text.experimentalInputUntitledWindow}
                 </span>
                 <span className="experimental-window-meta">
+                  {experimentalInput.selectedWindowHwnd === window.hwnd &&
+                  selectedWindowIsAvailable
+                    ? `${window.title || text.experimentalInputUntitledWindow} / `
+                    : ""}
                   {window.process_name ?? text.experimentalInputUnknownProcess}
                   {" / "}
                   {window.class_name || text.experimentalInputUnknownClass}

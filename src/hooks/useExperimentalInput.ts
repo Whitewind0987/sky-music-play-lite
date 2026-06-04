@@ -527,10 +527,6 @@ export function useExperimentalInput({
   }
 
   async function handlePlayExperimentalSong(songIndex: number) {
-    appendLog(
-      `[DEBUG_PLAYBACK] handlePlayExperimentalSong requested index=${songIndex} state=${experimentalPlaybackState}`,
-    );
-
     if (
       !experimentalInputEnabled ||
       experimentalInputMode !== "target-window-message"
@@ -569,9 +565,6 @@ export function useExperimentalInput({
       stopPreviewPlayback();
       foregroundPlayback.handleStopForegroundPlayback();
       stopExperimentalPlayback({ logStopped: false });
-      appendLog(
-        `[DEBUG_PLAYBACK] target-window switch stopped existing before resolve index=${songIndex}`,
-      );
     }
 
     const runId = experimentalPlaybackRunIdRef.current + 1;
@@ -579,16 +572,10 @@ export function useExperimentalInput({
     experimentalPlaybackRunIdRef.current = runId;
     setIsStartingExperimentalPlayback(true);
     setLastError(null);
-    appendLog(
-      `[DEBUG_PLAYBACK] target-window start request index=${songIndex} runId=${runId}`,
-    );
 
     const song = await resolveSongForPlayback(songIndex);
 
     if (experimentalPlaybackRunIdRef.current !== runId) {
-      appendLog(
-        `[DEBUG_PLAYBACK] target-window stale request ignored index=${songIndex} runId=${runId}`,
-      );
       return;
     }
 
@@ -616,9 +603,6 @@ export function useExperimentalInput({
     });
 
     if (experimentalPlaybackRunIdRef.current !== runId) {
-      appendLog(
-        `[DEBUG_PLAYBACK] target-window stale request ignored index=${songIndex} runId=${runId}`,
-      );
       return;
     }
 
