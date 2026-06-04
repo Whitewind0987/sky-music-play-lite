@@ -103,7 +103,6 @@ export function SettingsPlaceholder({
         <PanelHeader
           id="settings-system-title"
           title={text.systemTitle}
-          description={text.systemDescription}
         />
         <div className="setting-placeholder-list">
           <div className="setting-row">
@@ -131,24 +130,6 @@ export function SettingsPlaceholder({
           <div className="setting-row">
             <span>{text.defaultPage}</span>
             <span className="fake-select">{text.home}</span>
-          </div>
-        </div>
-      </article>
-
-      <article className="panel settings-panel">
-        <PanelHeader
-          id="settings-preview-title"
-          title={text.previewTitle}
-          description={text.previewDescription}
-        />
-        <div className="setting-placeholder-list">
-          <div className="setting-row">
-            <span>{text.detailedLogs}</span>
-            <span className="fake-toggle is-on" />
-          </div>
-          <div className="setting-row">
-            <span>{text.manual}</span>
-            <span className="fake-link">{text.openLater}</span>
           </div>
         </div>
       </article>
@@ -449,7 +430,6 @@ export function SettingsPlaceholder({
         <PanelHeader
           id="settings-key-mapping-title"
           title={text.keyMappingTitle}
-          description={text.keyMappingDescription}
         />
         <div className="key-mapping-grid">
           {skyKeyNames.map((skyKey) => {

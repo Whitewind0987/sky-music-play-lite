@@ -1336,6 +1336,16 @@ button {
   background: #d8ebff;
 }
 
+.key-binding-card:focus-visible {
+  outline: none;
+  border-color: #2f80ed;
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.22);
+}
+
+.key-binding-card.is-listening {
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.16);
+}
+
 .key-binding-name {
   color: #1f2933;
   font-size: clamp(8px, 1.2vw, 13px);
@@ -1461,6 +1471,10 @@ button {
 }
 
 .experimental-input-panel {
+  grid-column: 1 / -1;
+}
+
+.key-mapping-panel {
   grid-column: 1 / -1;
 }
 

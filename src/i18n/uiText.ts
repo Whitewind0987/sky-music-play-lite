@@ -366,7 +366,6 @@ export const uiText = {
     settings: {
       aria: "设置占位页",
       systemTitle: "系统设置",
-      systemDescription: "真实设置保存会在后续阶段加入。",
       language: "语言",
       theme: "主题",
       systemTheme: "跟随系统",
@@ -374,15 +373,8 @@ export const uiText = {
       home: "曲库",
       keyMappingCancelHint: "按 Escape 取消",
       keyMappingClickHint: "点击后按键盘",
-      keyMappingDescription:
-        "这些映射用于预览、dry-run 和实验性播放。",
       keyMappingListening: "等待按键...",
       keyMappingTitle: "键位映射",
-      previewTitle: "预览选项",
-      previewDescription: "这些控件目前只是占位，不会保存。",
-      detailedLogs: "详细日志",
-      manual: "使用手册",
-      openLater: "稍后打开",
       experimentalInputTitle: "实验性输入",
       experimentalInputDescription: "检测目标窗口并提供实验性播放控制。",
       experimentalInputWarning:
@@ -836,7 +828,6 @@ export const uiText = {
     settings: {
       aria: "Settings placeholder",
       systemTitle: "System settings",
-      systemDescription: "Real settings persistence will be added later.",
       language: "Language",
       theme: "Theme",
       systemTheme: "System",
@@ -844,15 +835,8 @@ export const uiText = {
       home: "Library",
       keyMappingCancelHint: "Press Escape to cancel",
       keyMappingClickHint: "Click, then press a key",
-      keyMappingDescription:
-        "These mappings are used for preview, dry-run, and experimental playback.",
       keyMappingListening: "Waiting for key...",
       keyMappingTitle: "Key mapping",
-      previewTitle: "Preview options",
-      previewDescription: "These controls are placeholders and do not save yet.",
-      detailedLogs: "Detailed logs",
-      manual: "Manual",
-      openLater: "Open later",
       experimentalInputTitle: "Experimental input",
       experimentalInputDescription:
         "Detect a target window and provide experimental playback controls.",
