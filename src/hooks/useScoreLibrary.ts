@@ -27,6 +27,7 @@ import type { PersistedAppData } from "../types/appData";
 import type {
   LibrarySong,
   LibrarySongId,
+  LibrarySongListItem,
   LikedSongEntry,
   UserPlaylist,
 } from "../types/library";
@@ -240,6 +241,12 @@ export function useScoreLibrary({
   }, [librarySongs]);
 
   useEffect(() => {
+    if (selectedSongIndex !== null && !librarySongs[selectedSongIndex]) {
+      setSelectedSongIndex(null);
+    }
+  }, [librarySongs, selectedSongIndex]);
+
+  useEffect(() => {
     localLibrarySongsRef.current = localLibrarySongs;
   }, [localLibrarySongs]);
 
@@ -337,15 +344,21 @@ export function useScoreLibrary({
       return;
     }
 
-    setLikedSongs((currentLikedSongs) =>
-      toggleLikedSong(currentLikedSongs, librarySong.id),
-    );
+    const nextLikedSongs = toggleLikedSong(likedSongs, librarySong.id);
+
+    setLikedSongs(nextLikedSongs);
+    clearSelectedSongIfMissingFromCurrentView({
+      likedSongs: nextLikedSongs,
+    });
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
-    setLikedSongs((currentLikedSongs) =>
-      currentLikedSongs.filter((entry) => entry.songId !== songId),
-    );
+    const nextLikedSongs = likedSongs.filter((entry) => entry.songId !== songId);
+
+    setLikedSongs(nextLikedSongs);
+    clearSelectedSongIfMissingFromCurrentView({
+      likedSongs: nextLikedSongs,
+    });
   }
 
   function handleCreatePlaylist(
@@ -407,22 +420,23 @@ export function useScoreLibrary({
       return;
     }
 
-    setPlaylists((currentPlaylists) => {
-      const deletedPlaylistIndex = currentPlaylists.findIndex(
-        (currentPlaylist) => currentPlaylist.id === playlistId,
-      );
-      const nextPlaylists = currentPlaylists.filter(
-        (currentPlaylist) => currentPlaylist.id !== playlistId,
-      );
+    const deletedPlaylistIndex = playlists.findIndex(
+      (currentPlaylist) => currentPlaylist.id === playlistId,
+    );
+    const nextPlaylists = playlists.filter(
+      (currentPlaylist) => currentPlaylist.id !== playlistId,
+    );
+    const nextSelectedPlaylistId =
+      selectedPlaylistId === playlistId
+        ? nextPlaylists[Math.min(deletedPlaylistIndex, nextPlaylists.length - 1)]
+            ?.id ?? null
+        : selectedPlaylistId;
 
-      if (selectedPlaylistId === playlistId) {
-        setSelectedPlaylistId(
-          nextPlaylists[Math.min(deletedPlaylistIndex, nextPlaylists.length - 1)]
-            ?.id ?? null,
-        );
-      }
-
-      return nextPlaylists;
+    setPlaylists(nextPlaylists);
+    setSelectedPlaylistId(nextSelectedPlaylistId);
+    clearSelectedSongIfMissingFromCurrentView({
+      playlists: nextPlaylists,
+      selectedPlaylistId: nextSelectedPlaylistId,
     });
   }
 
@@ -478,13 +492,16 @@ export function useScoreLibrary({
     playlistId: string,
     songId: LibrarySongId,
   ) {
-    setPlaylists((currentPlaylists) =>
-      currentPlaylists.map((playlist) =>
-        playlist.id === playlistId
-          ? removeSongFromPlaylist(playlist, songId)
-          : playlist,
-      ),
+    const nextPlaylists = playlists.map((playlist) =>
+      playlist.id === playlistId
+        ? removeSongFromPlaylist(playlist, songId)
+        : playlist,
     );
+
+    setPlaylists(nextPlaylists);
+    clearSelectedSongIfMissingFromCurrentView({
+      playlists: nextPlaylists,
+    });
   }
 
   function handleDeleteLocalSong(
@@ -650,6 +667,86 @@ export function useScoreLibrary({
 
       return nextLoadingIds;
     });
+  }
+
+  function clearSelectedSongIfMissingFromCurrentView({
+    likedSongs: nextLikedSongs = likedSongs,
+    playlists: nextPlaylists = playlists,
+    selectedPlaylistId: nextSelectedPlaylistId = selectedPlaylistId,
+  }: {
+    likedSongs?: LikedSongEntry[];
+    playlists?: UserPlaylist[];
+    selectedPlaylistId?: string | null;
+  }) {
+    const nextVisibleItems = getVisibleLibraryItemsForState({
+      likedSongs: nextLikedSongs,
+      playlists: nextPlaylists,
+      selectedPlaylistId: nextSelectedPlaylistId,
+    });
+
+    setSelectedSongIndex((currentSelectedSongIndex) => {
+      if (currentSelectedSongIndex === null) {
+        return null;
+      }
+
+      const selectedSong = librarySongsRef.current[currentSelectedSongIndex];
+
+      if (!selectedSong) {
+        return null;
+      }
+
+      return nextVisibleItems.some(
+        (item) => item.librarySong.id === selectedSong.id,
+      )
+        ? currentSelectedSongIndex
+        : null;
+    });
+  }
+
+  function getVisibleLibraryItemsForState({
+    likedSongs: nextLikedSongs,
+    playlists: nextPlaylists,
+    selectedPlaylistId: nextSelectedPlaylistId,
+  }: {
+    likedSongs: LikedSongEntry[];
+    playlists: UserPlaylist[];
+    selectedPlaylistId: string | null;
+  }): LibrarySongListItem[] {
+    const nextAllItems = librarySongsRef.current.map((librarySong, songIndex) => ({
+      isLiked: isSongLiked(nextLikedSongs, librarySong.id),
+      librarySong,
+      songIndex,
+    }));
+
+    let nextCategoryItems: LibrarySongListItem[];
+
+    if (selectedLibraryCategory === "liked") {
+      nextCategoryItems = nextAllItems.filter((item) => item.isLiked);
+    } else if (selectedLibraryCategory === "playlists") {
+      const nextSelectedPlaylist =
+        nextSelectedPlaylistId === null
+          ? null
+          : nextPlaylists.find(
+              (playlist) => playlist.id === nextSelectedPlaylistId,
+            ) ?? null;
+
+      nextCategoryItems =
+        nextSelectedPlaylist?.songIds
+          .map((songId) =>
+            nextAllItems.find((item) => item.librarySong.id === songId),
+          )
+          .filter((item): item is LibrarySongListItem => Boolean(item)) ?? [];
+    } else if (selectedLibraryCategory === "built-in") {
+      nextCategoryItems = nextAllItems.filter(
+        (item) => item.librarySong.source === "built-in",
+      );
+    } else {
+      nextCategoryItems = nextAllItems.filter(
+        (item) => item.librarySong.source === "local-import",
+      );
+    }
+
+    return filterSongsByQuery(nextCategoryItems, searchQuery);
   }
 
   return {

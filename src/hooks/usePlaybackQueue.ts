@@ -55,6 +55,24 @@ export function usePlaybackQueue({
     setQueueItemsAndRef([item, ...remainingItems]);
   }
 
+  function replaceQueueWithCurrent(songIndex: number) {
+    setQueueItemsAndRef([createQueueItem(songIndex)]);
+  }
+
+  function promoteQueueItemToCurrent(songIndex: number) {
+    const currentItems = queueItemsRef.current;
+    const queueItemIndex = currentItems.findIndex(
+      (queueItem) => queueItem.songIndex === songIndex,
+    );
+
+    if (queueItemIndex === -1) {
+      setQueueItemsAndRef([createQueueItem(songIndex)]);
+      return;
+    }
+
+    setQueueItemsAndRef(currentItems.slice(queueItemIndex));
+  }
+
   function playNext(songIndex: number) {
     if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
       logAlreadyQueued(songIndex);
@@ -187,7 +205,9 @@ export function usePlaybackQueue({
     clearQueue,
     consumeNextQueueItemAfterCurrent,
     playNext,
+    promoteQueueItemToCurrent,
     queueItems,
+    replaceQueueWithCurrent,
     removeSongIndex,
     removeQueueItem,
     startQueuePlayback,

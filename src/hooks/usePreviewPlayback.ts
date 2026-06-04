@@ -32,6 +32,7 @@ type UsePreviewPlaybackOptions = {
     playbackMode: PlaybackMode;
   }) => number | null;
   importedSongsRef: React.MutableRefObject<Song[]>;
+  markPlaybackOrderCurrentSong: (songIndex: number) => void;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
@@ -45,6 +46,7 @@ export function usePreviewPlayback({
   currentSelectedSong,
   getPlaybackOrderNextSongIndex,
   importedSongsRef,
+  markPlaybackOrderCurrentSong,
   resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
@@ -221,6 +223,7 @@ export function usePreviewPlayback({
                 songName: nextSong.name,
               }),
             );
+            markPlaybackOrderCurrentSong(finishDecision.nextSongIndex);
             if (queuedItem === null) {
               startQueuePlayback(finishDecision.nextSongIndex);
             }

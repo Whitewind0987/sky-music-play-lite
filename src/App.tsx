@@ -70,6 +70,7 @@ function App() {
         librarySongs: scoreLibrary.librarySongs,
       }),
     importedSongsRef: scoreLibrary.importedSongsRef,
+    markPlaybackOrderCurrentSong,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
@@ -92,6 +93,7 @@ function App() {
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
     playbackSpeed: previewPlayback.playbackSpeed,
+    markPlaybackOrderCurrentSong,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
@@ -180,24 +182,19 @@ function App() {
   }
 
   function handlePlayLibraryItem(item: LibrarySongListItem) {
-    scoreLibrary.handleSelectImportedSong(item.songIndex);
-    playbackOrder.setPlaybackContext({
-      currentSongId: item.librarySong.id,
-      selectedCategory: scoreLibrary.selectedLibraryCategory,
-      songIds: buildPlaybackOrderFromVisibleItems(
-        scoreLibrary.visibleLibraryItems,
-        item.librarySong.id,
-        { usesSearch: scoreLibrary.hasSearchQuery },
-      ),
-      usesSearch: scoreLibrary.hasSearchQuery,
-    });
-    startPlaybackFromSongIndex(item.songIndex);
+    scoreLibrary.setSelectedSongIndex(item.songIndex);
+    setPlaybackContextForLibraryItem(item);
+    replaceQueueWithCurrentIfAllowed(item.songIndex);
+    playbackOutput.onPlaySong(item.songIndex);
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
-    scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
+    scoreLibrary.setSelectedSongIndex(queueItem.songIndex);
     playbackOrder.clearPlaybackContext();
-    startPlaybackFromSongIndex(queueItem.songIndex);
+    if (canStartQueueForCurrentOutput()) {
+      playbackQueue.promoteQueueItemToCurrent(queueItem.songIndex);
+    }
+    playbackOutput.onPlaySong(queueItem.songIndex);
   }
 
   function handleNextPlayback() {
@@ -232,6 +229,7 @@ function App() {
         songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
       }),
     );
+    markPlaybackOrderCurrentSong(nextSongIndex);
     if (queuedItem === null) {
       playbackQueue.startQueuePlayback(nextSongIndex);
     }
@@ -239,22 +237,52 @@ function App() {
   }
 
   function handleBottomPlayerPlay() {
-    if (
-      scoreLibrary.selectedSongIndex !== null &&
-      canStartQueueForCurrentOutput()
-    ) {
-      playbackQueue.startQueuePlayback(scoreLibrary.selectedSongIndex);
+    if (scoreLibrary.selectedSongIndex === null) {
+      playbackOutput.onPlay();
+      return;
     }
+
+    const selectedVisibleItem = scoreLibrary.visibleLibraryItems.find(
+      (item) => item.songIndex === scoreLibrary.selectedSongIndex,
+    );
+
+    if (!selectedVisibleItem) {
+      scoreLibrary.setSelectedSongIndex(null);
+      appendLog(text.logs.selectedSongNotInCurrentView);
+      return;
+    }
+
+    setPlaybackContextForLibraryItem(selectedVisibleItem);
+    replaceQueueWithCurrentIfAllowed(scoreLibrary.selectedSongIndex);
 
     playbackOutput.onPlay();
   }
 
-  function startPlaybackFromSongIndex(songIndex: number) {
-    if (canStartQueueForCurrentOutput()) {
-      playbackQueue.startQueuePlayback(songIndex);
-    }
+  function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
+    playbackOrder.setPlaybackContext({
+      currentSongId: item.librarySong.id,
+      selectedCategory: scoreLibrary.selectedLibraryCategory,
+      songIds: buildPlaybackOrderFromVisibleItems(
+        scoreLibrary.visibleLibraryItems,
+        item.librarySong.id,
+        { usesSearch: scoreLibrary.hasSearchQuery },
+      ),
+      usesSearch: scoreLibrary.hasSearchQuery,
+    });
+  }
 
-    playbackOutput.onPlaySong(songIndex);
+  function markPlaybackOrderCurrentSong(songIndex: number) {
+    const librarySong = scoreLibrary.librarySongs[songIndex];
+
+    if (librarySong) {
+      playbackOrder.markCurrentSong(librarySong.id);
+    }
+  }
+
+  function replaceQueueWithCurrentIfAllowed(songIndex: number) {
+    if (canStartQueueForCurrentOutput()) {
+      playbackQueue.replaceQueueWithCurrent(songIndex);
+    }
   }
 
   function canStartQueueForCurrentOutput() {

@@ -36,6 +36,7 @@ type UseForegroundPlaybackOptions = {
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
+  markPlaybackOrderCurrentSong: (songIndex: number) => void;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onBeforeStart: () => void;
   playbackMode: PlaybackMode;
@@ -59,6 +60,7 @@ export function useForegroundPlayback({
   importedSongsRef,
   isShuffleEnabled,
   keyMapping,
+  markPlaybackOrderCurrentSong,
   noteIntervalDelayMs,
   onBeforeStart,
   playbackMode,
@@ -378,6 +380,7 @@ export function useForegroundPlayback({
           songName: nextSong.name,
         }),
       );
+      markPlaybackOrderCurrentSong(finishDecision.nextSongIndex);
       if (queuedItem === null) {
         startQueuePlayback(finishDecision.nextSongIndex);
       }

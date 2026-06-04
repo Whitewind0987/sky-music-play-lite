@@ -51,6 +51,7 @@ type UseExperimentalInputOptions = {
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
+  markPlaybackOrderCurrentSong: (songIndex: number) => void;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
@@ -76,6 +77,7 @@ export function useExperimentalInput({
   importedSongsRef,
   isShuffleEnabled,
   keyMapping,
+  markPlaybackOrderCurrentSong,
   noteIntervalDelayMs,
   playbackMode,
   playbackSpeed,
@@ -168,6 +170,7 @@ export function useExperimentalInput({
     importedSongsRef,
     isShuffleEnabled,
     keyMapping,
+    markPlaybackOrderCurrentSong,
     noteIntervalDelayMs,
     onBeforeStart: () => {
       stopPreviewPlayback();
@@ -816,6 +819,7 @@ export function useExperimentalInput({
           songName: nextSong.name,
         }),
       );
+      markPlaybackOrderCurrentSong(finishDecision.nextSongIndex);
       if (queuedItem === null) {
         startQueuePlayback(finishDecision.nextSongIndex);
       }
