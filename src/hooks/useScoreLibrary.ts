@@ -317,6 +317,10 @@ export function useScoreLibrary({
   }
 
   function selectSongByIndex(songIndex: number | null) {
+    appendLog(
+      `[DEBUG_PLAYBACK] selectSongByIndex index=${songIndex ?? "null"} resolvedId=${songIndex === null ? "null" : librarySongsRef.current[songIndex]?.id ?? "null"}`,
+    );
+
     if (songIndex === null) {
       setSelectedSongId(null);
       return;
@@ -515,6 +519,9 @@ export function useScoreLibrary({
     }
 
     onBeforeLibraryMutation();
+    appendLog(
+      `[DEBUG_PLAYBACK] delete local id=${librarySong.id} index=${songIndex} selectedSongId=${selectedSongId ?? "null"}`,
+    );
     onDeleted?.(songIndex, librarySong.id);
 
     const removedCollections = removeSongFromAllCollections({
@@ -533,6 +540,7 @@ export function useScoreLibrary({
       return nextSongs;
     });
     if (selectedSongId === librarySong.id) {
+      appendLog("[DEBUG_PLAYBACK] delete local selected song cleared");
       setSelectedSongId(null);
     }
   }

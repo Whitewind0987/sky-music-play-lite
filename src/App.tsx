@@ -180,10 +180,16 @@ function App() {
   }
 
   function handlePlayLibraryItem(item: LibrarySongListItem) {
+    appendLog(
+      `[DEBUG_PLAYBACK] handlePlayLibraryItem id=${item.librarySong.id} index=${item.songIndex} name=${item.librarySong.song.name}`,
+    );
     scoreLibrary.setSelectedSongId(item.librarySong.id);
     setPlaybackContextForLibraryItem(item);
     playbackQueue.replaceQueueWithCurrent(item.songIndex);
     playbackOutput.onPlaySong(item.songIndex);
+    appendLog(
+      `[DEBUG_PLAYBACK] handlePlayLibraryItem called onPlaySong index=${item.songIndex}`,
+    );
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
@@ -197,6 +203,9 @@ function App() {
       scoreLibrary.selectedLibraryCategory === "liked" &&
       scoreLibrary.selectedSongId === songId;
 
+    appendLog(
+      `[DEBUG_PLAYBACK] remove liked songId=${songId} selectedSongId=${scoreLibrary.selectedSongId ?? "null"} shouldClear=${String(shouldClear)}`,
+    );
     scoreLibrary.handleRemoveFromLiked(songId);
 
     if (shouldClear) {
@@ -213,6 +222,9 @@ function App() {
       scoreLibrary.selectedPlaylistId === playlistId &&
       scoreLibrary.selectedSongId === songId;
 
+    appendLog(
+      `[DEBUG_PLAYBACK] remove playlist songId=${songId} playlistId=${playlistId} selectedSongId=${scoreLibrary.selectedSongId ?? "null"} shouldClear=${String(shouldClear)}`,
+    );
     scoreLibrary.handleRemoveSongFromPlaylist(playlistId, songId);
 
     if (shouldClear) {
@@ -278,6 +290,10 @@ function App() {
   }
 
   function handleBottomPlayerPlay() {
+    appendLog(
+      `[DEBUG_PLAYBACK] bottom play selectedSongId=${scoreLibrary.selectedSongId ?? "null"} selectedSongIndex=${scoreLibrary.selectedSongIndex ?? "null"}`,
+    );
+
     if (
       scoreLibrary.selectedSongId === null ||
       scoreLibrary.selectedSongIndex === null
@@ -291,11 +307,17 @@ function App() {
     );
 
     if (!selectedVisibleItem) {
+      appendLog(
+        "[DEBUG_PLAYBACK] bottom play selected item not in current displayed list",
+      );
       clearCurrentSelectionAfterRemoval();
       appendLog(text.logs.selectedSongNotInCurrentView);
       return;
     }
 
+    appendLog(
+      `[DEBUG_PLAYBACK] bottom play resolved item id=${selectedVisibleItem.librarySong.id} index=${selectedVisibleItem.songIndex} name=${selectedVisibleItem.librarySong.song.name}`,
+    );
     setPlaybackContextForLibraryItem(selectedVisibleItem);
     playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
     playbackOutput.onPlaySong(selectedVisibleItem.songIndex);
@@ -329,6 +351,7 @@ function App() {
   }
 
   function clearCurrentSelectionAfterRemoval() {
+    appendLog("[DEBUG_PLAYBACK] clearCurrentSelectionAfterRemoval called");
     playbackOutput.onStop();
     playbackOrder.clearPlaybackContext();
     playbackQueue.clearQueue();
