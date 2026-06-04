@@ -47,7 +47,6 @@ export function useScoreLibrary({
 }: UseScoreLibraryOptions) {
   const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<LibrarySong[]>([]);
   const [hasLoadedBuiltInSongs, setHasLoadedBuiltInSongs] = useState(false);
-  const pendingPersistedSelectedLocalIndexRef = useRef<number | null>(null);
   const importedSongsRef = useRef<Song[]>([]);
   const librarySongsRef = useRef<LibrarySong[]>([]);
   const localLibrarySongsRef = useRef<LibrarySong[]>([]);
@@ -63,7 +62,7 @@ export function useScoreLibrary({
   >(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [builtInPage, setBuiltInPage] = useState(1);
-  const [selectedSongIndex, setSelectedSongIndex] = useState<number | null>(
+  const [selectedSongId, setSelectedSongId] = useState<LibrarySongId | null>(
     null,
   );
   const [selectedLibraryCategory, setSelectedLibraryCategory] =
@@ -72,6 +71,17 @@ export function useScoreLibrary({
     () => [...builtInLibrarySongs, ...localLibrarySongs],
     [builtInLibrarySongs, localLibrarySongs],
   );
+  const selectedSongIndex = useMemo(() => {
+    if (selectedSongId === null) {
+      return null;
+    }
+
+    const index = librarySongs.findIndex(
+      (librarySong) => librarySong.id === selectedSongId,
+    );
+
+    return index >= 0 ? index : null;
+  }, [librarySongs, selectedSongId]);
   const importedSongs = useMemo(
     () => librarySongs.map((librarySong) => librarySong.song),
     [librarySongs],
@@ -218,20 +228,6 @@ export function useScoreLibrary({
   }, [searchQuery, selectedLibraryCategory]);
 
   useEffect(() => {
-    const persistedLocalIndex = pendingPersistedSelectedLocalIndexRef.current;
-
-    if (persistedLocalIndex === null || !hasLoadedBuiltInSongs) {
-      return;
-    }
-
-    pendingPersistedSelectedLocalIndexRef.current = null;
-
-    if (localLibrarySongsRef.current[persistedLocalIndex]) {
-      setSelectedSongIndex(builtInLibrarySongs.length + persistedLocalIndex);
-    }
-  }, [builtInLibrarySongs.length, hasLoadedBuiltInSongs]);
-
-  useEffect(() => {
     importedSongsRef.current = importedSongs;
   }, [importedSongs]);
 
@@ -272,9 +268,7 @@ export function useScoreLibrary({
     }
 
     if (importedSongsFromFiles.length > 0) {
-      const firstNewSongIndex =
-        builtInLibrarySongs.length + localLibrarySongsRef.current.length;
-      const shouldSelectFirstImportedSong = selectedSongIndex === null;
+      const shouldSelectFirstImportedSong = selectedSongId === null;
       const nextLocalLibrarySongs = importedSongsFromFiles.map((song) =>
         createLibrarySong(song),
       );
@@ -287,7 +281,7 @@ export function useScoreLibrary({
       });
 
       if (shouldSelectFirstImportedSong) {
-        setSelectedSongIndex(firstNewSongIndex);
+        setSelectedSongId(nextLocalLibrarySongs[0]?.id ?? null);
       }
 
       setImportError("");
@@ -315,11 +309,24 @@ export function useScoreLibrary({
 
   function handleSelectImportedSong(songIndex: number | null) {
     onBeforeLibraryMutation();
-    setSelectedSongIndex(songIndex);
+    selectSongByIndex(songIndex);
 
     if (songIndex !== null) {
       void preloadBuiltInSong(songIndex);
     }
+  }
+
+  function selectSongByIndex(songIndex: number | null) {
+    if (songIndex === null) {
+      setSelectedSongId(null);
+      return;
+    }
+
+    setSelectedSongId(librarySongsRef.current[songIndex]?.id ?? null);
+  }
+
+  function setSelectedSongIndex(songIndex: number | null) {
+    selectSongByIndex(songIndex);
   }
 
   function handleLibraryCategoryChange(category: LibraryCategoryId) {
@@ -515,8 +522,6 @@ export function useScoreLibrary({
       playlists,
       songId: librarySong.id,
     });
-    const nextCombinedSongCount = Math.max(0, librarySongsRef.current.length - 1);
-
     setLikedSongs(removedCollections.likedSongs);
     setPlaylists(removedCollections.playlists);
     setLocalLibrarySongs((currentSongs) => {
@@ -527,13 +532,9 @@ export function useScoreLibrary({
       localLibrarySongsRef.current = nextSongs;
       return nextSongs;
     });
-    setSelectedSongIndex((currentSelectedSongIndex) =>
-      getNextSelectedSongIndexAfterDelete(
-        currentSelectedSongIndex,
-        songIndex,
-        nextCombinedSongCount,
-      ),
-    );
+    if (selectedSongId === librarySong.id) {
+      setSelectedSongId(null);
+    }
   }
 
   function applyScoreLibrary(library: PersistedAppData["library"]) {
@@ -544,13 +545,11 @@ export function useScoreLibrary({
       library.playlists.some((playlist) => playlist.id === library.selectedPlaylistId)
         ? library.selectedPlaylistId
         : library.playlists[0]?.id ?? null;
-    const nextSelectedSongIndex =
-      library.selectedSongIndex !== null &&
-      nextLocalLibrarySongs[library.selectedSongIndex]
-        ? builtInLibrarySongs.length + library.selectedSongIndex
+    const nextSelectedSongId =
+      library.selectedSongIndex !== null
+        ? nextLocalLibrarySongs[library.selectedSongIndex]?.id ?? null
         : null;
 
-    pendingPersistedSelectedLocalIndexRef.current = library.selectedSongIndex;
     localLibrarySongsRef.current = nextLocalLibrarySongs;
     librarySongsRef.current = nextLibrarySongs;
     setLocalLibrarySongs(nextLocalLibrarySongs);
@@ -558,7 +557,7 @@ export function useScoreLibrary({
     setPlaylists(library.playlists);
     setSelectedPlaylistId(nextSelectedPlaylistId);
     setSelectedLibraryCategory(library.selectedLibraryCategory);
-    setSelectedSongIndex(nextSelectedSongIndex);
+    setSelectedSongId(nextSelectedSongId);
     setImportError("");
     setSearchQuery("");
   }
@@ -684,38 +683,17 @@ export function useScoreLibrary({
     preloadBuiltInSong,
     resolveSongForPlayback,
     searchQuery,
+    selectSongByIndex,
     selectedLibraryCategory,
     selectedPlaylist,
     selectedPlaylistId,
+    selectedSongId,
     selectedSongIndex,
     setSearchQuery,
     setSelectedPlaylistId,
+    setSelectedSongId,
     setSelectedSongIndex,
     validCollectionSongIds,
     visibleLibraryItems,
   };
-}
-
-function getNextSelectedSongIndexAfterDelete(
-  currentSelectedSongIndex: number | null,
-  deletedSongIndex: number,
-  nextSongCount: number,
-) {
-  if (currentSelectedSongIndex === null) {
-    return null;
-  }
-
-  if (currentSelectedSongIndex > deletedSongIndex) {
-    return currentSelectedSongIndex - 1;
-  }
-
-  if (currentSelectedSongIndex < deletedSongIndex) {
-    return currentSelectedSongIndex;
-  }
-
-  if (nextSongCount <= 0) {
-    return null;
-  }
-
-  return Math.min(deletedSongIndex, nextSongCount - 1);
 }

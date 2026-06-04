@@ -55,6 +55,10 @@ export function usePlaybackQueue({
     setQueueItemsAndRef([item, ...remainingItems]);
   }
 
+  function replaceQueueWithCurrent(songIndex: number) {
+    setQueueItemsAndRef([createQueueItem(songIndex)]);
+  }
+
   function playNext(songIndex: number) {
     if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
       logAlreadyQueued(songIndex);
@@ -188,6 +192,7 @@ export function usePlaybackQueue({
     consumeNextQueueItemAfterCurrent,
     playNext,
     queueItems,
+    replaceQueueWithCurrent,
     removeSongIndex,
     removeQueueItem,
     startQueuePlayback,

@@ -28,7 +28,7 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
-import type { LibrarySongListItem } from "./types/library";
+import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import "../font/iconfont.css";
 import "./App.css";
@@ -180,24 +180,63 @@ function App() {
   }
 
   function handlePlayLibraryItem(item: LibrarySongListItem) {
-    scoreLibrary.handleSelectImportedSong(item.songIndex);
-    playbackOrder.setPlaybackContext({
-      currentSongId: item.librarySong.id,
-      selectedCategory: scoreLibrary.selectedLibraryCategory,
-      songIds: buildPlaybackOrderFromVisibleItems(
-        scoreLibrary.visibleLibraryItems,
-        item.librarySong.id,
-        { usesSearch: scoreLibrary.hasSearchQuery },
-      ),
-      usesSearch: scoreLibrary.hasSearchQuery,
-    });
-    startPlaybackFromSongIndex(item.songIndex);
+    scoreLibrary.setSelectedSongId(item.librarySong.id);
+    setPlaybackContextForLibraryItem(item);
+    playbackQueue.replaceQueueWithCurrent(item.songIndex);
+    playbackOutput.onPlaySong(item.songIndex);
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
     scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
     playbackOrder.clearPlaybackContext();
     startPlaybackFromSongIndex(queueItem.songIndex);
+  }
+
+  function handleRemoveFromLiked(songId: LibrarySongId) {
+    const shouldClear =
+      scoreLibrary.selectedLibraryCategory === "liked" &&
+      scoreLibrary.selectedSongId === songId;
+
+    scoreLibrary.handleRemoveFromLiked(songId);
+
+    if (shouldClear) {
+      clearCurrentSelectionAfterRemoval();
+    }
+  }
+
+  function handleRemoveSongFromPlaylist(
+    playlistId: string,
+    songId: LibrarySongId,
+  ) {
+    const shouldClear =
+      scoreLibrary.selectedLibraryCategory === "playlists" &&
+      scoreLibrary.selectedPlaylistId === playlistId &&
+      scoreLibrary.selectedSongId === songId;
+
+    scoreLibrary.handleRemoveSongFromPlaylist(playlistId, songId);
+
+    if (shouldClear) {
+      clearCurrentSelectionAfterRemoval();
+    }
+  }
+
+  function handleToggleLikedSong(songIndex: number) {
+    const toggledSong = scoreLibrary.librarySongs[songIndex];
+    const isCurrentlyLiked =
+      toggledSong !== undefined &&
+      scoreLibrary.likedSongs.some(
+        (entry) => entry.songId === toggledSong.id,
+      );
+    const shouldClear =
+      scoreLibrary.selectedLibraryCategory === "liked" &&
+      isCurrentlyLiked &&
+      scoreLibrary.selectedSongId === toggledSong?.id;
+
+    scoreLibrary.handleToggleLikedSong(songIndex);
+
+    if (shouldClear) {
+      clearCurrentSelectionAfterRemoval();
+    }
   }
 
   function handleNextPlayback() {
@@ -240,13 +279,26 @@ function App() {
 
   function handleBottomPlayerPlay() {
     if (
-      scoreLibrary.selectedSongIndex !== null &&
-      canStartQueueForCurrentOutput()
+      scoreLibrary.selectedSongId === null ||
+      scoreLibrary.selectedSongIndex === null
     ) {
-      playbackQueue.startQueuePlayback(scoreLibrary.selectedSongIndex);
+      playbackOutput.onPlay();
+      return;
     }
 
-    playbackOutput.onPlay();
+    const selectedVisibleItem = getCurrentDisplayedLibraryItems().find(
+      (item) => item.librarySong.id === scoreLibrary.selectedSongId,
+    );
+
+    if (!selectedVisibleItem) {
+      clearCurrentSelectionAfterRemoval();
+      appendLog(text.logs.selectedSongNotInCurrentView);
+      return;
+    }
+
+    setPlaybackContextForLibraryItem(selectedVisibleItem);
+    playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
+    playbackOutput.onPlaySong(selectedVisibleItem.songIndex);
   }
 
   function startPlaybackFromSongIndex(songIndex: number) {
@@ -255,6 +307,32 @@ function App() {
     }
 
     playbackOutput.onPlaySong(songIndex);
+  }
+
+  function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
+    playbackOrder.setPlaybackContext({
+      currentSongId: item.librarySong.id,
+      selectedCategory: scoreLibrary.selectedLibraryCategory,
+      songIds: buildPlaybackOrderFromVisibleItems(
+        scoreLibrary.visibleLibraryItems,
+        item.librarySong.id,
+        { usesSearch: scoreLibrary.hasSearchQuery },
+      ),
+      usesSearch: scoreLibrary.hasSearchQuery,
+    });
+  }
+
+  function getCurrentDisplayedLibraryItems() {
+    return scoreLibrary.selectedLibraryCategory === "built-in"
+      ? scoreLibrary.pagedVisibleLibraryItems
+      : scoreLibrary.visibleLibraryItems;
+  }
+
+  function clearCurrentSelectionAfterRemoval() {
+    playbackOutput.onStop();
+    playbackOrder.clearPlaybackContext();
+    playbackQueue.clearQueue();
+    scoreLibrary.setSelectedSongId(null);
   }
 
   function canStartQueueForCurrentOutput() {
@@ -281,12 +359,12 @@ function App() {
           onImportFiles={handleImportScoreFiles}
           onPlaySong={handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
-          onRemoveFromLiked={scoreLibrary.handleRemoveFromLiked}
-          onRemoveSongFromPlaylist={scoreLibrary.handleRemoveSongFromPlaylist}
+          onRemoveFromLiked={handleRemoveFromLiked}
+          onRemoveSongFromPlaylist={handleRemoveSongFromPlaylist}
           onRenamePlaylist={scoreLibrary.handleRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
-          onToggleLiked={scoreLibrary.handleToggleLikedSong}
+          onToggleLiked={handleToggleLikedSong}
           playlists={scoreLibrary.playlists}
           searchQuery={scoreLibrary.searchQuery}
           selectedCategory={scoreLibrary.selectedLibraryCategory}

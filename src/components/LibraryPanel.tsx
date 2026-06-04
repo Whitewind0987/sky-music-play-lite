@@ -648,7 +648,14 @@ function LibrarySongTable({
                   type="button"
                   aria-label={`${text.playThisScoreAction}: ${song.name}`}
                   title={text.playThisScoreAction}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                  }}
                   onClick={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
                     event.currentTarget.blur();
                     onPlaySong(item);
