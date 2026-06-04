@@ -301,6 +301,30 @@ function App() {
     playbackOutput.onPlaySong(selectedVisibleItem.songIndex);
   }
 
+  function handleQueueItemRemove(queueItemId: string) {
+    const removedItem = playbackQueue.queueItems.find(
+      (queueItem) => queueItem.id === queueItemId,
+    );
+    const isRemovingCurrentItem = playbackQueue.queueItems[0]?.id === queueItemId;
+    const isRemovingOnlyQueueItem = playbackQueue.queueItems.length === 1;
+
+    playbackQueue.removeQueueItem(queueItemId);
+
+    if (removedItem && isRemovingCurrentItem && isRemovingOnlyQueueItem) {
+      clearCurrentPlaybackSelection();
+    }
+  }
+
+  function handleQueueClear() {
+    const hadQueueItems = playbackQueue.queueItems.length > 0;
+
+    playbackQueue.clearQueue();
+
+    if (hadQueueItems) {
+      clearCurrentPlaybackSelection();
+    }
+  }
+
   function startPlaybackFromSongIndex(songIndex: number) {
     if (canStartQueueForCurrentOutput()) {
       playbackQueue.startQueuePlayback(songIndex);
@@ -332,6 +356,12 @@ function App() {
     playbackOutput.onStop();
     playbackOrder.clearPlaybackContext();
     playbackQueue.clearQueue();
+    scoreLibrary.setSelectedSongId(null);
+  }
+
+  function clearCurrentPlaybackSelection() {
+    playbackOutput.onStop();
+    playbackOrder.clearPlaybackContext();
     scoreLibrary.setSelectedSongId(null);
   }
 
@@ -484,8 +514,8 @@ function App() {
         onPlayQueueItem={handlePlayQueueItem}
         onPlay={handleBottomPlayerPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
-        onQueueClear={playbackQueue.clearQueue}
-        onQueueItemRemove={playbackQueue.removeQueueItem}
+        onQueueClear={handleQueueClear}
+        onQueueItemRemove={handleQueueItemRemove}
         onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
         onQueueClose={() => setQueueOpen(false)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}

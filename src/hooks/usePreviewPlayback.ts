@@ -183,7 +183,7 @@ export function usePreviewPlayback({
               ? null
               : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
           const playbackOrderNextSongIndex =
-            queuedItem === null && playbackModeRef.current !== "repeat-one"
+            queuedItem === null && playbackModeRef.current === "repeat-all"
               ? getPlaybackOrderNextSongIndex({
                   currentSongIndex: songIndex,
                   isShuffleEnabled: isShuffleEnabledRef.current,
