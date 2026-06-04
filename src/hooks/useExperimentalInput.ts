@@ -533,8 +533,7 @@ export function useExperimentalInput({
 
     if (
       !experimentalInputEnabled ||
-      experimentalInputMode !== "target-window-message" ||
-      isStartingExperimentalPlayback
+      experimentalInputMode !== "target-window-message"
     ) {
       return;
     }
@@ -575,9 +574,26 @@ export function useExperimentalInput({
       );
     }
 
+    const runId = experimentalPlaybackRunIdRef.current + 1;
+
+    experimentalPlaybackRunIdRef.current = runId;
+    setIsStartingExperimentalPlayback(true);
+    setLastError(null);
+    appendLog(
+      `[DEBUG_PLAYBACK] target-window start request index=${songIndex} runId=${runId}`,
+    );
+
     const song = await resolveSongForPlayback(songIndex);
 
+    if (experimentalPlaybackRunIdRef.current !== runId) {
+      appendLog(
+        `[DEBUG_PLAYBACK] target-window stale request ignored index=${songIndex} runId=${runId}`,
+      );
+      return;
+    }
+
     if (song === null) {
+      setIsStartingExperimentalPlayback(false);
       return;
     }
 
@@ -585,15 +601,12 @@ export function useExperimentalInput({
       stopPreviewPlayback();
       foregroundPlayback.handleStopForegroundPlayback();
       stopExperimentalPlayback({ logStopped: false });
+      experimentalPlaybackRunIdRef.current = runId;
+      setIsStartingExperimentalPlayback(true);
     }
 
-    const runId = experimentalPlaybackRunIdRef.current + 1;
     const method = targetWindowMessageMethodRef.current;
     const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
-
-    experimentalPlaybackRunIdRef.current = runId;
-    setIsStartingExperimentalPlayback(true);
-    setLastError(null);
 
     const preflightSucceeded = await runTargetWindowActivationPreflight({
       compatibilityProfile,
@@ -603,6 +616,9 @@ export function useExperimentalInput({
     });
 
     if (experimentalPlaybackRunIdRef.current !== runId) {
+      appendLog(
+        `[DEBUG_PLAYBACK] target-window stale request ignored index=${songIndex} runId=${runId}`,
+      );
       return;
     }
 
