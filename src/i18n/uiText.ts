@@ -92,8 +92,8 @@ export const uiText = {
       categoryLiked: "我喜欢",
       categoryEmptyStates: {
         "built-in": {
-          title: "系统自带",
-          description: "后续将加入内置曲谱。",
+          title: "还没有内置曲谱",
+          description: "内置曲谱资源尚未添加。",
         },
         "local-imports": {
           title: "本地导入",
@@ -128,6 +128,7 @@ export const uiText = {
         liked: "喜欢",
         duration: "时长",
       },
+      builtInSource: "内置曲谱",
       localImport: "本地导入",
       likeAction: "喜欢",
       unlikeAction: "取消喜欢",
@@ -164,6 +165,12 @@ export const uiText = {
       deletePlaylistConfirm:
         "确定要删除歌单《{playlistName}》吗？曲谱本身不会被删除。",
       selected: "当前",
+      loadingScore: "加载中...",
+      paginationAria: "内置曲谱分页",
+      paginationPrevious: "上一页",
+      paginationNext: "下一页",
+      paginationPage: "第 {page} / {pageCount} 页",
+      paginationShowing: "显示 {start}-{end} / {total}",
       playAction: "播放",
     },
     score: {
@@ -180,6 +187,8 @@ export const uiText = {
       unsupportedFile: "只支持 .json 和 .txt 曲谱文件。",
       importErrors: {
         emptyFile: "曲谱文件是空的。",
+        encryptedSongNotesUnsupported:
+          "曲谱“{songName}”使用了加密或编码后的数字音符格式，当前版本暂不支持。请使用未加密导出的 JSON 曲谱，或先转换为 { time, key } 音符格式。",
         invalidJson: "曲谱文件不是有效的 JSON。详细信息：{jsonError}",
         topLevelNotArray: "曲谱文件最外层必须是曲谱数组。",
         emptySongArray: "曲谱文件里没有任何曲谱。",
@@ -216,6 +225,7 @@ export const uiText = {
         experimentalTargetWindow: "目标窗口",
       },
       realInputWarning: "将发送真实输入",
+      loadingScore: "加载曲谱中...",
       controlsAria: "底部播放控制",
       play: "播放",
       pause: "暂停",
@@ -274,6 +284,7 @@ export const uiText = {
         "已开始预览导入曲谱：{songName}。倍速：{speed}x；音符间隔调整：{delayMs} ms。",
       playingPreviewKey: "正在预览琴键：{key}",
       playbackError: "播放预览出错：{error}",
+      builtInScoreLoadFailed: "内置曲谱加载失败：{songName}",
       previewFinished: "预览已完成。",
       repeatOneTriggered: "单曲循环：重新播放 {songName}。",
       repeatAllTriggered: "列表循环：播放下一首 {songName}。",
@@ -283,10 +294,12 @@ export const uiText = {
       queueCleared: "队列已清空。",
       queueNextTriggered: "队列播放：{songName}。",
       queueUnknownSong: "未知曲目",
-      queueItemAlreadyExists: "队列中已存在：{songName}",
+      queueItemAlreadyExists: "该曲谱已在播放队列中",
       playlistSongAlreadyExists: "歌单中已存在：{songName}",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
+      selectedSongNotInCurrentView:
+        "当前选中的曲谱已不在当前列表中。",
       manualNextTriggered: "手动切换到下一首：{songName}",
       manualNextUnavailable: "没有可播放的下一首。",
       appDataLoaded: "已恢复本地保存的应用数据。",
@@ -327,6 +340,10 @@ export const uiText = {
         "目标窗口激活预处理完成：HWND={targetHwnd}；方式={method}；兼容={profile}",
       experimentalTargetWindowActivationPreflightFailed:
         "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
+      experimentalTargetWindowMissing:
+        "请先刷新或检测目标窗口，然后再播放。",
+      experimentalSavedTargetWindowUnavailable:
+        "已保存的目标窗口不可用，请刷新或重新检测目标窗口。",
       experimentalInputPreferencesRestored: "已恢复实验性输入设置。",
       experimentalRestoredTargetWindow: "已恢复上次目标窗口：{target}",
       experimentalRestoredTargetWindowMissing:
@@ -522,8 +539,8 @@ export const uiText = {
       categoryLiked: "Liked",
       categoryEmptyStates: {
         "built-in": {
-          title: "Built-in",
-          description: "Built-in scores will be added later.",
+          title: "No built-in scores yet",
+          description: "Built-in score resources have not been added yet.",
         },
         "local-imports": {
           title: "Local Imports",
@@ -560,6 +577,7 @@ export const uiText = {
         liked: "Liked",
         duration: "Duration",
       },
+      builtInSource: "Built-in Score",
       localImport: "Local Import",
       likeAction: "Like",
       unlikeAction: "Unlike",
@@ -596,6 +614,12 @@ export const uiText = {
       deletePlaylistConfirm:
         "Delete playlist “{playlistName}”? The scores themselves will not be deleted.",
       selected: "Selected",
+      loadingScore: "Loading...",
+      paginationAria: "Built-in score pagination",
+      paginationPrevious: "Previous",
+      paginationNext: "Next",
+      paginationPage: "Page {page} / {pageCount}",
+      paginationShowing: "Showing {start}-{end} / {total}",
       playAction: "Play",
     },
     score: {
@@ -613,6 +637,8 @@ export const uiText = {
       unsupportedFile: "Only .json and .txt score files are supported.",
       importErrors: {
         emptyFile: "Score file is empty.",
+        encryptedSongNotesUnsupported:
+          'Score "{songName}" uses an encrypted or encoded numeric note format, which is not supported yet. Please use an unencrypted JSON export or convert it to { time, key } note objects first.',
         invalidJson: "Score file is not valid JSON. Details: {jsonError}",
         topLevelNotArray: "Score file must contain a JSON array of songs.",
         emptySongArray: "Score file does not contain any songs.",
@@ -654,6 +680,7 @@ export const uiText = {
         experimentalTargetWindow: "Target",
       },
       realInputWarning: "Real input will be sent",
+      loadingScore: "Loading score...",
       controlsAria: "Bottom playback controls",
       play: "Play",
       pause: "Pause",
@@ -714,6 +741,7 @@ export const uiText = {
         "Started previewing imported score: {songName}. Speed: {speed}x; note interval delay: {delayMs} ms.",
       playingPreviewKey: "Playing preview key: {key}",
       playbackError: "Playback preview error: {error}",
+      builtInScoreLoadFailed: "Built-in score failed to load: {songName}",
       previewFinished: "Preview finished.",
       repeatOneTriggered: "Repeat one: replaying {songName}.",
       repeatAllTriggered: "Repeat all: playing next score {songName}.",
@@ -723,10 +751,12 @@ export const uiText = {
       queueCleared: "Queue cleared.",
       queueNextTriggered: "Queue: playing {songName}.",
       queueUnknownSong: "Unknown score",
-      queueItemAlreadyExists: "Already in queue: {songName}",
+      queueItemAlreadyExists: "This score is already in the playback queue",
       playlistSongAlreadyExists: "Already in playlist: {songName}",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
+      selectedSongNotInCurrentView:
+        "The selected score is no longer in the current list.",
       manualNextTriggered: "Skipped to next score: {songName}",
       manualNextUnavailable: "No next score available.",
       appDataLoaded: "Restored local app data.",
@@ -769,6 +799,10 @@ export const uiText = {
         "Target window activation preflight completed: hwnd={targetHwnd}; method={method}; profile={profile}",
       experimentalTargetWindowActivationPreflightFailed:
         "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
+      experimentalTargetWindowMissing:
+        "Please refresh or detect the target window before playing.",
+      experimentalSavedTargetWindowUnavailable:
+        "The saved target window is unavailable. Please refresh or detect the target window again.",
       experimentalInputPreferencesRestored:
         "Restored experimental input settings.",
       experimentalRestoredTargetWindow:

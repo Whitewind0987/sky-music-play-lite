@@ -23,12 +23,14 @@ export function getRandomNextSongIndex(
 }
 
 export function decidePlaybackFinish({
+  allowLibraryFallback = true,
   currentSongIndex,
   isShuffleEnabled,
   playbackMode,
   queuedSongIndex = null,
   songCount,
 }: {
+  allowLibraryFallback?: boolean;
   currentSongIndex: number;
   isShuffleEnabled: boolean;
   playbackMode: PlaybackMode;
@@ -43,7 +45,7 @@ export function decidePlaybackFinish({
     return { nextSongIndex: queuedSongIndex, type: "play-next" };
   }
 
-  if (playbackMode !== "repeat-all") {
+  if (playbackMode !== "repeat-all" || !allowLibraryFallback) {
     return { type: "finish" };
   }
 

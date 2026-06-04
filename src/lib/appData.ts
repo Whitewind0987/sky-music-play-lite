@@ -72,9 +72,8 @@ export function sanitizePersistedAppData(
     rawVersion === 1
       ? ensureLibrarySongs(sanitizeSongs(rawLibrary.importedSongs))
       : sanitizeLibrarySongs(rawLibrary.librarySongs);
-  const validSongIds = new Set(librarySongs.map((librarySong) => librarySong.id));
-  const likedSongs = sanitizeLikedSongs(rawLibrary.likedSongs, validSongIds);
-  const playlists = sanitizePlaylists(rawLibrary.playlists, validSongIds);
+  const likedSongs = sanitizeLikedSongs(rawLibrary.likedSongs, null);
+  const playlists = sanitizePlaylists(rawLibrary.playlists, null);
   const selectedPlaylistId = sanitizeSelectedPlaylistId(
     rawLibrary.selectedPlaylistId,
     playlists,
@@ -118,6 +117,7 @@ export function buildPersistedAppData({
   playbackMode,
   playbackSpeed,
   playlists,
+  validCollectionSongIds,
   selectedLibraryCategory,
   selectedPlaylistId,
   selectedSongIndex,
@@ -132,6 +132,7 @@ export function buildPersistedAppData({
   playbackMode: PlaybackMode;
   playbackSpeed: number;
   playlists: UserPlaylist[];
+  validCollectionSongIds?: string[];
   selectedLibraryCategory: LibraryCategoryId;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
@@ -140,7 +141,13 @@ export function buildPersistedAppData({
   const validSongIds = new Set(
     sanitizedLibrarySongs.map((librarySong) => librarySong.id),
   );
-  const sanitizedPlaylists = sanitizePlaylists(playlists, validSongIds);
+  const validCollectionSongIdSet = new Set(
+    validCollectionSongIds ?? Array.from(validSongIds),
+  );
+  const sanitizedPlaylists = sanitizePlaylists(
+    playlists,
+    validCollectionSongIdSet,
+  );
 
   return {
     appDataVersion,
@@ -149,7 +156,7 @@ export function buildPersistedAppData({
     language,
     library: {
       librarySongs: sanitizedLibrarySongs,
-      likedSongs: sanitizeLikedSongs(likedSongs, validSongIds),
+      likedSongs: sanitizeLikedSongs(likedSongs, validCollectionSongIdSet),
       playlists: sanitizedPlaylists,
       selectedLibraryCategory,
       selectedPlaylistId: sanitizeSelectedPlaylistId(
@@ -294,7 +301,9 @@ function sanitizeLibrarySongs(rawLibrarySongs: unknown): LibrarySong[] {
     if (
       !isRecord(rawLibrarySong) ||
       typeof rawLibrarySong.id !== "string" ||
-      !isSong(rawLibrarySong.song)
+      !isSong(rawLibrarySong.song) ||
+      (rawLibrarySong.source !== undefined &&
+        rawLibrarySong.source !== "local-import")
     ) {
       return nextSongs;
     }
@@ -315,7 +324,7 @@ function sanitizeLibrarySongs(rawLibrarySongs: unknown): LibrarySong[] {
 
 function sanitizeLikedSongs(
   rawLikedSongs: unknown,
-  validSongIds: Set<string>,
+  validSongIds: Set<string> | null,
 ): LikedSongEntry[] {
   if (!Array.isArray(rawLikedSongs)) {
     return [];
@@ -327,7 +336,7 @@ function sanitizeLikedSongs(
     if (
       !isRecord(rawEntry) ||
       typeof rawEntry.songId !== "string" ||
-      !validSongIds.has(rawEntry.songId) ||
+      (validSongIds !== null && !validSongIds.has(rawEntry.songId)) ||
       seenSongIds.has(rawEntry.songId)
     ) {
       return nextEntries;
@@ -345,7 +354,7 @@ function sanitizeLikedSongs(
 
 function sanitizePlaylists(
   rawPlaylists: unknown,
-  validSongIds: Set<string>,
+  validSongIds: Set<string> | null,
 ): UserPlaylist[] {
   if (!Array.isArray(rawPlaylists)) {
     return [];
@@ -365,7 +374,8 @@ function sanitizePlaylists(
           new Set(
             rawPlaylist.songIds.filter(
               (songId): songId is string =>
-                typeof songId === "string" && validSongIds.has(songId),
+                typeof songId === "string" &&
+                (validSongIds === null || validSongIds.has(songId)),
             ),
           ),
         )

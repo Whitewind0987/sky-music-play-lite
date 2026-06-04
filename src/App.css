@@ -762,6 +762,7 @@ button {
 .library-row-play {
   position: absolute;
   inset: 5px;
+  z-index: 2;
   display: grid;
   place-items: center;
   padding: 0;
@@ -771,7 +772,7 @@ button {
   background: transparent;
   cursor: pointer;
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
   transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 
@@ -795,7 +796,6 @@ button {
 .library-song-row:hover .library-row-play,
 .library-song-index:focus-within .library-row-play {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .library-row-play-icon {
@@ -902,6 +902,17 @@ button {
   line-height: 1.2;
 }
 
+.library-loading-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid #ffe0a8;
+  border-radius: 999px;
+  color: #8a5a00;
+  background: #fff8e8;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .library-song-duration {
   font-variant-numeric: tabular-nums;
 }
@@ -909,6 +920,38 @@ button {
 .library-song-liked {
   display: flex;
   align-items: center;
+}
+
+.library-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 2px 0;
+  color: #5f6b7a;
+  font-size: 12px;
+}
+
+.library-pagination button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d6dde8;
+  border-radius: 6px;
+  color: #2f3a4a;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.library-pagination button:disabled {
+  color: #a6afbb;
+  cursor: not-allowed;
+}
+
+.library-pagination button:not(:disabled):hover {
+  border-color: #b8d4fb;
+  color: #1f5ea8;
+  background: #f4f9ff;
 }
 
 .library-heart-button {
@@ -1921,7 +1964,8 @@ button {
 }
 
 .bottom-player-output-badge,
-.bottom-player-real-input-badge {
+.bottom-player-real-input-badge,
+.bottom-player-loading-badge {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -1944,6 +1988,12 @@ button {
   border: 1px solid #ffd08a;
   color: #8a4d00;
   background: #fff7e6;
+}
+
+.bottom-player-loading-badge {
+  border: 1px solid #ffe0a8;
+  color: #8a5a00;
+  background: #fff8e8;
 }
 
 .queue-panel {

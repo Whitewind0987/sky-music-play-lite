@@ -25,8 +25,8 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 3. tell Vite to ignore Rust sources and the large built-in score pool
+      ignored: ["**/src-tauri/**", "**/public/builtin-scores/scores/**"],
     },
   },
 }));

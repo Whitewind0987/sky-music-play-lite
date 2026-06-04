@@ -39,22 +39,25 @@ type SelectedWindowSnapshot = NonNullable<
 
 type UseExperimentalInputOptions = {
   appendLog: (message: string) => void;
-  consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
+  consumeNextQueueItemAfterCurrent: (
+    songCount: number,
+  ) => PlaybackQueueItem | null;
   currentSong: Song | null;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
-  importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
+  resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
+  startQueuePlayback: (songIndex: number) => void;
   stopPreviewPlayback: () => void;
   text: UiText;
 };
@@ -67,24 +70,26 @@ const targetWindowKeyHoldMaxMs = 200;
 
 export function useExperimentalInput({
   appendLog,
-  consumeNextQueueItem,
+  consumeNextQueueItemAfterCurrent,
   currentSong,
   getPlaybackOrderNextSongIndex,
-  importedSongs,
   importedSongsRef,
   isShuffleEnabled,
   keyMapping,
   noteIntervalDelayMs,
   playbackMode,
   playbackSpeed,
+  resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
+  startQueuePlayback,
   stopPreviewPlayback,
   text,
 }: UseExperimentalInputOptions) {
   const experimentalPlaybackControllerRef =
     useRef<PreviewPlaybackController | null>(null);
   const experimentalPlaybackRunIdRef = useRef(0);
+  const hasAutoRefreshedRestoredWindowRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(playbackMode);
@@ -141,15 +146,16 @@ export function useExperimentalInput({
       null,
     [candidateWindows, selectedWindowHwnd],
   );
-  const canStartExperimentalPlayback =
+  const canAttemptExperimentalPlayback =
     experimentalInputEnabled &&
     experimentalInputMode === "target-window-message" &&
-    selectedWindowHwnd !== null &&
     currentSong !== null &&
-    currentSong.songNotes.length > 0 &&
     !isStartingExperimentalPlayback &&
     experimentalPlaybackState !== "playing" &&
     experimentalPlaybackState !== "paused";
+  const canStartExperimentalPlayback =
+    canAttemptExperimentalPlayback &&
+    selectedWindowHwnd !== null;
   const canStopExperimentalPlayback =
     isStartingExperimentalPlayback ||
     experimentalPlaybackState === "playing" ||
@@ -159,7 +165,6 @@ export function useExperimentalInput({
     currentSong,
     experimentalInputEnabled,
     getPlaybackOrderNextSongIndex,
-    importedSongs,
     importedSongsRef,
     isShuffleEnabled,
     keyMapping,
@@ -170,10 +175,12 @@ export function useExperimentalInput({
     },
     playbackMode,
     playbackSpeed,
+    resolveSongForPlayback,
     selectedSongIndex,
     setSelectedSongIndex,
+    startQueuePlayback,
     text,
-    consumeNextQueueItem,
+    consumeNextQueueItemAfterCurrent,
   });
 
   useEffect(() => {
@@ -453,6 +460,36 @@ export function useExperimentalInput({
           ),
         }),
       );
+
+      if (!hasAutoRefreshedRestoredWindowRef.current) {
+        hasAutoRefreshedRestoredWindowRef.current = true;
+        void refreshCandidateWindowsForRestoredTarget(
+          preferences.selectedWindowHwnd,
+        );
+      }
+    }
+  }
+
+  async function refreshCandidateWindowsForRestoredTarget(
+    restoredHwnd: string,
+  ) {
+    try {
+      const windows = await listCandidateWindows();
+      setCandidateWindows(windows);
+
+      const restoredWindow = windows.find(
+        (window) => window.hwnd === restoredHwnd,
+      );
+
+      if (restoredWindow) {
+        setSelectedWindowSnapshot(candidateWindowToSnapshot(restoredWindow));
+      }
+    } catch (error) {
+      appendLog(
+        formatText(text.logs.experimentalWindowListFailed, {
+          error: String(error instanceof Error ? error.message : error),
+        }),
+      );
     }
   }
 
@@ -477,11 +514,12 @@ export function useExperimentalInput({
   }
 
   async function handleStartExperimentalPlayback() {
-    if (
-      !canStartExperimentalPlayback ||
-      selectedWindowHwnd === null ||
-      selectedSongIndex === null
-    ) {
+    if (!canAttemptExperimentalPlayback || selectedSongIndex === null) {
+      return;
+    }
+
+    if (!isTargetWindowReadyForPlayback()) {
+      logMissingTargetWindow();
       return;
     }
 
@@ -489,34 +527,86 @@ export function useExperimentalInput({
   }
 
   async function handlePlayExperimentalSong(songIndex: number) {
+    appendLog(
+      `[DEBUG_PLAYBACK] handlePlayExperimentalSong requested index=${songIndex} state=${experimentalPlaybackState}`,
+    );
+
     if (
       !experimentalInputEnabled ||
-      experimentalInputMode !== "target-window-message" ||
-      selectedWindowHwnd === null
+      experimentalInputMode !== "target-window-message"
     ) {
       return;
     }
 
-    await startExperimentalPlaybackWithPreflight(songIndex);
-  }
-
-  async function startExperimentalPlaybackWithPreflight(songIndex: number) {
-    if (selectedWindowHwnd === null) {
+    if (!isTargetWindowReadyForPlayback()) {
+      logMissingTargetWindow();
       return;
     }
 
-    stopPreviewPlayback();
-    foregroundPlayback.handleStopForegroundPlayback();
-    stopExperimentalPlayback({ logStopped: false });
+    await startExperimentalPlaybackWithPreflight(songIndex, {
+      stopExistingBeforeResolve: true,
+    });
+  }
+
+  async function startExperimentalPlaybackWithPreflight(
+    songIndex: number,
+    {
+      stopExistingBeforeResolve = false,
+    }: { stopExistingBeforeResolve?: boolean } = {},
+  ) {
+    if (!isTargetWindowReadyForPlayback()) {
+      logMissingTargetWindow();
+      return;
+    }
+
+    const targetWindowHwnd = selectedWindowHwnd;
+    if (targetWindowHwnd === null) {
+      logMissingTargetWindow();
+      return;
+    }
+
+    if (stopExistingBeforeResolve) {
+      stopPreviewPlayback();
+      foregroundPlayback.handleStopForegroundPlayback();
+      stopExperimentalPlayback({ logStopped: false });
+      appendLog(
+        `[DEBUG_PLAYBACK] target-window switch stopped existing before resolve index=${songIndex}`,
+      );
+    }
 
     const runId = experimentalPlaybackRunIdRef.current + 1;
-    const targetWindowHwnd = selectedWindowHwnd;
-    const method = targetWindowMessageMethodRef.current;
-    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
 
     experimentalPlaybackRunIdRef.current = runId;
     setIsStartingExperimentalPlayback(true);
     setLastError(null);
+    appendLog(
+      `[DEBUG_PLAYBACK] target-window start request index=${songIndex} runId=${runId}`,
+    );
+
+    const song = await resolveSongForPlayback(songIndex);
+
+    if (experimentalPlaybackRunIdRef.current !== runId) {
+      appendLog(
+        `[DEBUG_PLAYBACK] target-window stale request ignored index=${songIndex} runId=${runId}`,
+      );
+      return;
+    }
+
+    if (song === null) {
+      setIsStartingExperimentalPlayback(false);
+      return;
+    }
+
+    if (!stopExistingBeforeResolve) {
+      stopPreviewPlayback();
+      foregroundPlayback.handleStopForegroundPlayback();
+      stopExperimentalPlayback({ logStopped: false });
+      experimentalPlaybackRunIdRef.current = runId;
+      setIsStartingExperimentalPlayback(true);
+    }
+
+    const method = targetWindowMessageMethodRef.current;
+    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
 
     const preflightSucceeded = await runTargetWindowActivationPreflight({
       compatibilityProfile,
@@ -526,6 +616,9 @@ export function useExperimentalInput({
     });
 
     if (experimentalPlaybackRunIdRef.current !== runId) {
+      appendLog(
+        `[DEBUG_PLAYBACK] target-window stale request ignored index=${songIndex} runId=${runId}`,
+      );
       return;
     }
 
@@ -535,7 +628,15 @@ export function useExperimentalInput({
       return;
     }
 
-    startExperimentalPlaybackForSong(songIndex);
+    startExperimentalPlaybackForSong(songIndex, song);
+  }
+
+  function isTargetWindowReadyForPlayback() {
+    return selectedWindowHwnd !== null;
+  }
+
+  function logMissingTargetWindow() {
+    appendLog(text.logs.experimentalTargetWindowMissing);
   }
 
   async function runTargetWindowActivationPreflight({
@@ -592,10 +693,13 @@ export function useExperimentalInput({
       }
 
       const errorMessage = String(error);
+      const logTemplate = isTargetWindowInvalidError(errorMessage)
+        ? text.logs.experimentalSavedTargetWindowUnavailable
+        : text.logs.experimentalTargetWindowActivationPreflightFailed;
 
       setLastError(errorMessage);
       appendLog(
-        formatText(text.logs.experimentalTargetWindowActivationPreflightFailed, {
+        formatText(logTemplate, {
           error: errorMessage,
           method: methodLabel,
           profile: profileLabel,
@@ -608,12 +712,15 @@ export function useExperimentalInput({
     }
   }
 
-  function startExperimentalPlaybackForSong(songIndex: number) {
+  async function startExperimentalPlaybackForSong(
+    songIndex: number,
+    resolvedSong?: Song,
+  ) {
     if (selectedWindowHwnd === null) {
       return;
     }
 
-    const song = importedSongsRef.current[songIndex] ?? importedSongs[songIndex];
+    const song = resolvedSong ?? (await resolveSongForPlayback(songIndex));
 
     if (!song) {
       appendLog(text.logs.noSelectedScore);
@@ -707,9 +814,9 @@ export function useExperimentalInput({
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : consumeNextQueueItem(currentImportedSongs.length);
+        : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
     const playbackOrderNextSongIndex =
-      queuedItem === null && playbackModeRef.current !== "repeat-one"
+      queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
             currentSongIndex: songIndex,
             isShuffleEnabled: isShuffleEnabledRef.current,
@@ -717,6 +824,7 @@ export function useExperimentalInput({
           })
         : null;
     const finishDecision = decidePlaybackFinish({
+      allowLibraryFallback: false,
       currentSongIndex: songIndex,
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
@@ -728,7 +836,7 @@ export function useExperimentalInput({
       appendLog(
         formatText(text.logs.repeatOneTriggered, { songName: song.name }),
       );
-      startExperimentalPlaybackForSong(songIndex);
+      void startExperimentalPlaybackForSong(songIndex);
       return;
     }
 
@@ -744,7 +852,10 @@ export function useExperimentalInput({
           songName: nextSong.name,
         }),
       );
-      startExperimentalPlaybackForSong(finishDecision.nextSongIndex);
+      if (queuedItem === null) {
+        startQueuePlayback(finishDecision.nextSongIndex);
+      }
+      void startExperimentalPlaybackForSong(finishDecision.nextSongIndex);
       return;
     }
 
@@ -784,10 +895,10 @@ export function useExperimentalInput({
 
       const errorMessage = String(error);
       const logTemplate =
-        selectedWindow === null && selectedWindowSnapshot !== undefined
-          ? text.logs.experimentalRestoredTargetWindowSendFailed
-          : isTargetWindowInvalidError(errorMessage)
-            ? text.logs.experimentalPlaybackTargetInvalid
+        isTargetWindowInvalidError(errorMessage)
+          ? text.logs.experimentalSavedTargetWindowUnavailable
+          : selectedWindow === null && selectedWindowSnapshot !== undefined
+            ? text.logs.experimentalRestoredTargetWindowSendFailed
             : text.logs.experimentalPlaybackCommandFailed;
       const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
       const grouped =
@@ -819,6 +930,7 @@ export function useExperimentalInput({
 
   return {
     applyExperimentalInputPreferences,
+    canAttemptExperimentalPlayback,
     canStartExperimentalPlayback,
     canStopExperimentalPlayback,
     candidateWindows,

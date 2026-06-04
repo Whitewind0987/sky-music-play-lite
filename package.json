@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate:builtin-index": "node scripts/generate-builtin-score-index.mjs",
+    "prebuild": "npm run generate:builtin-index",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"

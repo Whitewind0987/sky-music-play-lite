@@ -4,6 +4,7 @@ const SUPPORTED_SCORE_EXTENSIONS = [".json", ".txt"];
 
 export type ScoreFileImportErrorCode =
   | "emptyFile"
+  | "encryptedSongNotesUnsupported"
   | "invalidJson"
   | "topLevelNotArray"
   | "emptySongArray"
@@ -71,14 +72,25 @@ function validateSong(value: unknown, songIndex: number): Song {
   }
 
   const name = readString(value, "name", songIndex);
-  const bpm = readNumber(value, "bpm", songIndex);
-  const bitsPerPage = readNumber(value, "bitsPerPage", songIndex);
-  const pitchLevel = readNumber(value, "pitchLevel", songIndex);
-  const isComposed = readBoolean(value, "isComposed", songIndex);
+  const bpm = readFlexibleNumber(value, "bpm", songIndex, 120);
+  const bitsPerPage = readFlexibleNumber(value, "bitsPerPage", songIndex, 16);
+  const pitchLevel = readFlexibleNumber(value, "pitchLevel", songIndex, 0);
+  const isComposed = readOptionalFlexibleBoolean(
+    value,
+    "isComposed",
+    false,
+    songIndex,
+  );
   const songNotes = value.songNotes;
 
   if (!Array.isArray(songNotes)) {
     throw new ScoreFileImportError("songNotesInvalid", { songName: name });
+  }
+
+  if (value.isEncrypted === true || isNumericSongNotes(songNotes)) {
+    throw new ScoreFileImportError("encryptedSongNotesUnsupported", {
+      songName: name,
+    });
   }
 
   return {
@@ -98,12 +110,8 @@ function validateNote(value: unknown, songName: string, noteIndex: number): Note
     throw new ScoreFileImportError("noteNotObject", { noteIndex, songName });
   }
 
-  const time = value.time;
+  const time = readFlexibleNoteTime(value.time, songName, noteIndex);
   const key = value.key;
-
-  if (typeof time !== "number" || !Number.isFinite(time)) {
-    throw new ScoreFileImportError("noteTimeInvalid", { noteIndex, songName });
-  }
 
   if (typeof key !== "string") {
     throw new ScoreFileImportError("noteKeyInvalid", { noteIndex, songName });
@@ -130,14 +138,19 @@ function readString(
   return fieldValue;
 }
 
-function readNumber(
+function readFlexibleNumber(
   value: Record<string, unknown>,
   fieldName: string,
   songIndex: number,
+  defaultValue?: number,
 ) {
   const fieldValue = value[fieldName];
 
-  if (typeof fieldValue !== "number" || !Number.isFinite(fieldValue)) {
+  if (fieldValue === undefined || fieldValue === null) {
+    if (defaultValue !== undefined) {
+      return defaultValue;
+    }
+
     throw new ScoreFileImportError("songFieldInvalid", {
       expectedType: "number",
       fieldName,
@@ -145,25 +158,84 @@ function readNumber(
     });
   }
 
-  return fieldValue;
+  if (typeof fieldValue === "number" && Number.isFinite(fieldValue)) {
+    return fieldValue;
+  }
+
+  if (typeof fieldValue === "string") {
+    const trimmedValue = fieldValue.trim();
+    const parsedValue = Number(trimmedValue);
+
+    if (trimmedValue.length > 0 && Number.isFinite(parsedValue)) {
+      return parsedValue;
+    }
+  }
+
+  throw new ScoreFileImportError("songFieldInvalid", {
+    expectedType: "number",
+    fieldName,
+    songIndex,
+  });
 }
 
-function readBoolean(
+function readOptionalFlexibleBoolean(
   value: Record<string, unknown>,
   fieldName: string,
+  defaultValue: boolean,
   songIndex: number,
 ) {
   const fieldValue = value[fieldName];
 
-  if (typeof fieldValue !== "boolean") {
-    throw new ScoreFileImportError("songFieldInvalid", {
-      expectedType: "boolean",
-      fieldName,
-      songIndex,
-    });
+  if (fieldValue === undefined) {
+    return defaultValue;
   }
 
-  return fieldValue;
+  if (typeof fieldValue === "boolean") {
+    return fieldValue;
+  }
+
+  if (typeof fieldValue === "string") {
+    const normalizedValue = fieldValue.trim().toLowerCase();
+
+    if (normalizedValue === "true") {
+      return true;
+    }
+
+    if (normalizedValue === "false") {
+      return false;
+    }
+  }
+
+  throw new ScoreFileImportError("songFieldInvalid", {
+    expectedType: "boolean",
+    fieldName,
+    songIndex,
+  });
+}
+
+function readFlexibleNoteTime(
+  fieldValue: unknown,
+  songName: string,
+  noteIndex: number,
+) {
+  if (typeof fieldValue === "number" && Number.isFinite(fieldValue)) {
+    return fieldValue;
+  }
+
+  if (typeof fieldValue === "string") {
+    const trimmedValue = fieldValue.trim();
+    const parsedValue = Number(trimmedValue);
+
+    if (trimmedValue.length > 0 && Number.isFinite(parsedValue)) {
+      return parsedValue;
+    }
+  }
+
+  throw new ScoreFileImportError("noteTimeInvalid", { noteIndex, songName });
+}
+
+function isNumericSongNotes(value: unknown) {
+  return Array.isArray(value) && typeof value[0] === "number";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

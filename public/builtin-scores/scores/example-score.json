@@ -1,0 +1,15 @@
+[
+  {
+    "name": "Example Score",
+    "bpm": 100,
+    "bitsPerPage": 16,
+    "pitchLevel": 0,
+    "songNotes": [
+      { "time": 0, "key": "Key0" },
+      { "time": 300, "key": "Key1" },
+      { "time": 600, "key": "Key2" },
+      { "time": 900, "key": "Key3" },
+      { "time": 1200, "key": "Key4" }
+    ]
+  }
+]

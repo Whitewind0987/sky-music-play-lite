@@ -22,29 +22,33 @@ import type { Song } from "../types/score";
 
 type UsePreviewPlaybackOptions = {
   appendLog: (entry: string) => void;
-  consumeNextQueueItem: (songCount: number) => PlaybackQueueItem | null;
+  consumeNextQueueItemAfterCurrent: (
+    songCount: number,
+  ) => PlaybackQueueItem | null;
   currentSelectedSong: Song | null;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
-  importedSongs: Song[];
   importedSongsRef: React.MutableRefObject<Song[]>;
+  resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
+  startQueuePlayback: (songIndex: number) => void;
   text: UiText;
 };
 
 export function usePreviewPlayback({
   appendLog,
-  consumeNextQueueItem,
+  consumeNextQueueItemAfterCurrent,
   currentSelectedSong,
   getPlaybackOrderNextSongIndex,
-  importedSongs,
   importedSongsRef,
+  resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
+  startQueuePlayback,
   text,
 }: UsePreviewPlaybackOptions) {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
@@ -126,9 +130,9 @@ export function usePreviewPlayback({
     resetPlaybackProgress();
   }
 
-  function startPreviewForSong(songIndex: number) {
+  async function startPreviewForSong(songIndex: number) {
     try {
-      const song = importedSongs[songIndex];
+      const song = await resolveSongForPlayback(songIndex);
 
       if (!song) {
         appendLog(text.logs.noSelectedScore);
@@ -177,9 +181,9 @@ export function usePreviewPlayback({
           const queuedItem =
             playbackModeRef.current === "repeat-one"
               ? null
-              : consumeNextQueueItem(currentImportedSongs.length);
+              : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
           const playbackOrderNextSongIndex =
-            queuedItem === null && playbackModeRef.current !== "repeat-one"
+            queuedItem === null && playbackModeRef.current === "repeat-all"
               ? getPlaybackOrderNextSongIndex({
                   currentSongIndex: songIndex,
                   isShuffleEnabled: isShuffleEnabledRef.current,
@@ -187,6 +191,7 @@ export function usePreviewPlayback({
                 })
               : null;
           const finishDecision = decidePlaybackFinish({
+            allowLibraryFallback: false,
             currentSongIndex: songIndex,
             isShuffleEnabled: isShuffleEnabledRef.current,
             playbackMode: playbackModeRef.current,
@@ -199,7 +204,7 @@ export function usePreviewPlayback({
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
-            startPreviewForSong(songIndex);
+            void startPreviewForSong(songIndex);
             return;
           }
 
@@ -216,7 +221,10 @@ export function usePreviewPlayback({
                 songName: nextSong.name,
               }),
             );
-            startPreviewForSong(finishDecision.nextSongIndex);
+            if (queuedItem === null) {
+              startQueuePlayback(finishDecision.nextSongIndex);
+            }
+            void startPreviewForSong(finishDecision.nextSongIndex);
             return;
           }
 
@@ -241,7 +249,7 @@ export function usePreviewPlayback({
 
   function handlePlayImportedSong(songIndex: number) {
     stopCurrentPreview();
-    startPreviewForSong(songIndex);
+    void startPreviewForSong(songIndex);
   }
 
   function handlePlayPreview() {
@@ -251,7 +259,7 @@ export function usePreviewPlayback({
     }
 
     stopCurrentPreview();
-    startPreviewForSong(selectedSongIndex);
+    void startPreviewForSong(selectedSongIndex);
   }
 
   function handlePausePreview() {

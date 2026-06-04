@@ -38,19 +38,40 @@ export function usePlaybackQueue({
     return importedSongsRef.current[songIndex]?.name ?? text.queueUnknownSong;
   }
 
+  function logAlreadyQueued(songIndex: number) {
+    appendLog(
+      formatText(text.queueItemAlreadyExists, {
+        songName: getSongName(songIndex),
+      }),
+    );
+  }
+
+  function startQueuePlayback(songIndex: number) {
+    const item = createQueueItem(songIndex);
+    const remainingItems = queueItemsRef.current
+      .slice(1)
+      .filter((queueItem) => queueItem.songIndex !== songIndex);
+
+    setQueueItemsAndRef([item, ...remainingItems]);
+  }
+
+  function replaceQueueWithCurrent(songIndex: number) {
+    setQueueItemsAndRef([createQueueItem(songIndex)]);
+  }
+
   function playNext(songIndex: number) {
     if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
-      appendLog(
-        formatText(text.queueItemAlreadyExists, {
-          songName: getSongName(songIndex),
-        }),
-      );
+      logAlreadyQueued(songIndex);
       return;
     }
 
     const item = createQueueItem(songIndex);
+    const [currentItem, ...futureItems] = queueItemsRef.current;
+    const nextItems = currentItem
+      ? [currentItem, item, ...futureItems]
+      : [item, ...futureItems];
 
-    setQueueItemsAndRef([item, ...queueItemsRef.current]);
+    setQueueItemsAndRef(nextItems);
     appendLog(
       formatText(text.queuePlayNextAdded, {
         songName: getSongName(songIndex),
@@ -60,11 +81,7 @@ export function usePlaybackQueue({
 
   function addToQueue(songIndex: number) {
     if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
-      appendLog(
-        formatText(text.queueItemAlreadyExists, {
-          songName: getSongName(songIndex),
-        }),
-      );
+      logAlreadyQueued(songIndex);
       return;
     }
 
@@ -128,13 +145,17 @@ export function usePlaybackQueue({
     setQueueItemsAndRef(nextItems);
   }
 
-  function consumeNextQueueItem(songCount: number) {
+  function consumeNextQueueItemAfterCurrent(songCount: number) {
     const currentItems = queueItemsRef.current;
-    const nextItemIndex = currentItems.findIndex(
+    const currentItem = currentItems.find(
       (item) => item.songIndex >= 0 && item.songIndex < songCount,
     );
+    const nextItemIndex = currentItems.findIndex(
+      (item, index) =>
+        index > 0 && item.songIndex >= 0 && item.songIndex < songCount,
+    );
 
-    if (nextItemIndex === -1) {
+    if (!currentItem) {
       if (currentItems.length > 0) {
         setQueueItemsAndRef([]);
       }
@@ -142,9 +163,25 @@ export function usePlaybackQueue({
       return null;
     }
 
-    const nextItem = currentItems[nextItemIndex];
+    if (nextItemIndex === -1) {
+      const nextItems =
+        currentItems.length === 1 ? currentItems : [currentItem];
 
-    setQueueItemsAndRef(currentItems.slice(nextItemIndex + 1));
+      if (nextItems.length !== currentItems.length) {
+        setQueueItemsAndRef(nextItems);
+      }
+
+      return null;
+    }
+
+    const nextItem = currentItems[nextItemIndex];
+    const itemsAfterNext = currentItems
+      .slice(nextItemIndex + 1)
+      .filter(
+        (item) => item.songIndex >= 0 && item.songIndex < songCount,
+      );
+
+    setQueueItemsAndRef([nextItem, ...itemsAfterNext]);
 
     return nextItem;
   }
@@ -152,10 +189,12 @@ export function usePlaybackQueue({
   return {
     addToQueue,
     clearQueue,
-    consumeNextQueueItem,
+    consumeNextQueueItemAfterCurrent,
     playNext,
     queueItems,
+    replaceQueueWithCurrent,
     removeSongIndex,
     removeQueueItem,
+    startQueuePlayback,
   };
 }

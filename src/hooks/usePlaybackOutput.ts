@@ -97,7 +97,7 @@ export function usePlaybackOutput({
 
   return {
     ...sharedControls,
-    canPlay: experimentalInput.canStartExperimentalPlayback,
+    canPlay: experimentalInput.canAttemptExperimentalPlayback,
     isRealInputOutput: true,
     mode: "experimental-target-window",
     onPause: experimentalInput.handlePauseExperimentalPlayback,

@@ -10,6 +10,16 @@ import type {
 } from "../types/library";
 
 type LibraryPanelProps = {
+  builtInPagination: {
+    end: number;
+    onNextPage: () => void;
+    onPreviousPage: () => void;
+    page: number;
+    pageCount: number;
+    pageSize: number;
+    start: number;
+    total: number;
+  } | null;
   hasSearchQuery: boolean;
   importDisabled: boolean;
   importError: string;
@@ -37,6 +47,7 @@ type LibraryPanelProps = {
   selectedPlaylist: UserPlaylist | null;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  isBuiltInSongLoading: (songId: LibrarySongId) => boolean;
   text: UiText["library"];
 };
 
@@ -520,14 +531,16 @@ function LibraryActionMenu({
           {text.removeFromPlaylist}
         </button>
       ) : null}
-      <button
-        className="is-danger"
-        type="button"
-        role="menuitem"
-        onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
-      >
-        {text.deleteFromLocalImports}
-      </button>
+      {item.librarySong.source === "local-import" ? (
+        <button
+          className="is-danger"
+          type="button"
+          role="menuitem"
+          onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
+        >
+          {text.deleteFromLocalImports}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -547,6 +560,7 @@ function LibrarySongTable({
   onToggleLiked,
   emptyDescription,
   emptyTitle,
+  isBuiltInSongLoading,
   selectedCategory,
   selectedPlaylist,
   selectedSongIndex,
@@ -566,6 +580,7 @@ function LibrarySongTable({
   | "selectedCategory"
   | "selectedPlaylist"
   | "selectedSongIndex"
+  | "isBuiltInSongLoading"
   | "text"
 > & {
   emptyDescription: string;
@@ -598,8 +613,15 @@ function LibrarySongTable({
           const { librarySong, songIndex } = item;
           const song = librarySong.song;
           const isSelected = selectedSongIndex === songIndex;
+          const isLoading = isBuiltInSongLoading(librarySong.id);
+          const durationMs =
+            librarySong.source === "built-in" &&
+            !librarySong.isBuiltInLoaded &&
+            typeof librarySong.builtInDurationMs === "number"
+              ? librarySong.builtInDurationMs
+              : getAdjustedPreviewDurationMs(song.songNotes);
           const duration = formatDuration(
-            getAdjustedPreviewDurationMs(song.songNotes),
+            durationMs,
           );
           const rowNumber = String(displayIndex + 1).padStart(2, "0");
 
@@ -626,7 +648,14 @@ function LibrarySongTable({
                   type="button"
                   aria-label={`${text.playThisScoreAction}: ${song.name}`}
                   title={text.playThisScoreAction}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                  }}
                   onClick={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
                     event.currentTarget.blur();
                     onPlaySong(item);
@@ -715,8 +744,17 @@ function LibrarySongTable({
                 {isSelected ? (
                   <span className="library-selected-badge">{text.selected}</span>
                 ) : null}
+                {isSelected && isLoading ? (
+                  <span className="library-loading-badge">
+                    {text.loadingScore}
+                  </span>
+                ) : null}
               </span>
-              <span className="library-song-source">{text.localImport}</span>
+              <span className="library-song-source">
+                {librarySong.source === "built-in"
+                  ? text.builtInSource
+                  : text.localImport}
+              </span>
               <span className="library-song-liked">
                 <button
                   className={`library-heart-button${
@@ -746,6 +784,7 @@ function LibrarySongTable({
 }
 
 export function LibraryPanel({
+  builtInPagination,
   hasSearchQuery,
   importDisabled,
   importError,
@@ -770,6 +809,7 @@ export function LibraryPanel({
   selectedPlaylist,
   selectedPlaylistId,
   selectedSongIndex,
+  isBuiltInSongLoading,
   text,
 }: LibraryPanelProps) {
   const [collectingSongItem, setCollectingSongItem] =
@@ -783,7 +823,11 @@ export function LibraryPanel({
   const isBuiltIn = selectedCategory === "built-in";
   const emptyState = text.categoryEmptyStates[selectedCategory];
   const contentTitle =
-    isPlaylists && selectedPlaylist ? selectedPlaylist.name : emptyState.title;
+    isBuiltIn && (items.length > 0 || hasSearchQuery)
+      ? text.categoryBuiltIn
+      : isPlaylists && selectedPlaylist
+        ? selectedPlaylist.name
+        : emptyState.title;
   const listEmptyState = getLibraryEmptyState({
     hasSearchQuery,
     selectedCategory,
@@ -846,7 +890,11 @@ export function LibraryPanel({
         <div className="library-content-header">
           <div>
             <h3>{isLocalImports ? text.tableTitle : contentTitle}</h3>
-            {!isLocalImports && !isPlaylists ? <p>{emptyState.description}</p> : null}
+            {!isLocalImports &&
+            !isPlaylists &&
+            (!isBuiltIn || (items.length === 0 && !hasSearchQuery)) ? (
+              <p>{emptyState.description}</p>
+            ) : null}
           </div>
           <label className="library-search">
             <span className="sr-only">{text.searchPlaceholder}</span>
@@ -873,7 +921,7 @@ export function LibraryPanel({
             text={text}
           />
         ) : null}
-        {isBuiltIn ? (
+        {isBuiltIn && items.length === 0 && !hasSearchQuery ? (
           <div className="library-empty">
             <h3>{emptyState.title}</h3>
             <p>{emptyState.description}</p>
@@ -896,6 +944,7 @@ export function LibraryPanel({
             emptyDescription={listEmptyState.description}
             emptyTitle={listEmptyState.title}
             items={items}
+            isBuiltInSongLoading={isBuiltInSongLoading}
             onAddToQueue={onAddToQueue}
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
@@ -921,6 +970,37 @@ export function LibraryPanel({
             openActionMenuSongId={openActionMenuSongId}
           />
         )}
+        {isBuiltIn &&
+        builtInPagination &&
+        builtInPagination.total > builtInPagination.pageSize ? (
+          <div className="library-pagination" aria-label={text.paginationAria}>
+            <button
+              type="button"
+              disabled={builtInPagination.page <= 1}
+              onClick={builtInPagination.onPreviousPage}
+            >
+              {text.paginationPrevious}
+            </button>
+            <span>
+              {text.paginationPage
+                .replace("{page}", String(builtInPagination.page))
+                .replace("{pageCount}", String(builtInPagination.pageCount))}
+            </span>
+            <span>
+              {text.paginationShowing
+                .replace("{start}", String(builtInPagination.start))
+                .replace("{end}", String(builtInPagination.end))
+                .replace("{total}", String(builtInPagination.total))}
+            </span>
+            <button
+              type="button"
+              disabled={builtInPagination.page >= builtInPagination.pageCount}
+              onClick={builtInPagination.onNextPage}
+            >
+              {text.paginationNext}
+            </button>
+          </div>
+        ) : null}
       </div>
       {collectingSongItem ? (
         <AddToPlaylistPopup

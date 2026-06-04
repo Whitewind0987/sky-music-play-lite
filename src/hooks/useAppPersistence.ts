@@ -36,6 +36,7 @@ type UseAppPersistenceOptions = {
     playbackSettings: PersistedAppData["playbackSettings"],
   ) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
+  canSaveAppData?: boolean;
   experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
   isShuffleEnabled: boolean;
@@ -57,6 +58,7 @@ type UseAppPersistenceOptions = {
   targetWindowKeyHoldMs: number;
   targetWindowMessageMethod: TargetWindowMessageMethod;
   text: UiText["logs"];
+  validCollectionSongIds?: string[];
 };
 
 export function useAppPersistence({
@@ -65,6 +67,7 @@ export function useAppPersistence({
   applyKeyMapping,
   applyPlaybackSettings,
   applyScoreLibrary,
+  canSaveAppData = true,
   experimentalInputEnabled,
   experimentalInputMode,
   isShuffleEnabled,
@@ -86,6 +89,7 @@ export function useAppPersistence({
   targetWindowKeyHoldMs,
   targetWindowMessageMethod,
   text,
+  validCollectionSongIds,
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
   const [hasLoadedAppData, setHasLoadedAppData] = useState(false);
@@ -142,7 +146,7 @@ export function useAppPersistence({
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedAppData) {
+    if (!hasLoadedAppData || !canSaveAppData) {
       return;
     }
 
@@ -173,6 +177,7 @@ export function useAppPersistence({
         selectedLibraryCategory,
         selectedPlaylistId,
         selectedSongIndex,
+        validCollectionSongIds,
       });
 
       void saveAppData(appData).catch((error) => {
@@ -190,6 +195,7 @@ export function useAppPersistence({
       }
     };
   }, [
+    canSaveAppData,
     experimentalInputMode,
     experimentalInputEnabled,
     hasLoadedAppData,
@@ -210,6 +216,7 @@ export function useAppPersistence({
     targetWindowCompatibilityProfile,
     targetWindowKeyHoldMs,
     targetWindowMessageMethod,
+    validCollectionSongIds,
   ]);
 
   return {
