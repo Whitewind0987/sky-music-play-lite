@@ -299,7 +299,7 @@ export const uiText = {
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
       selectedSongNotInCurrentView:
-        "当前选中的曲谱不在当前列表中，请重新选择。",
+        "当前选中的曲谱已不在当前列表中。",
       manualNextTriggered: "手动切换到下一首：{songName}",
       manualNextUnavailable: "没有可播放的下一首。",
       appDataLoaded: "已恢复本地保存的应用数据。",
@@ -756,7 +756,7 @@ export const uiText = {
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
       selectedSongNotInCurrentView:
-        "The selected score is not in the current list. Please select it again.",
+        "The selected score is no longer in the current list.",
       manualNextTriggered: "Skipped to next score: {songName}",
       manualNextUnavailable: "No next score available.",
       appDataLoaded: "Restored local app data.",

@@ -524,7 +524,10 @@ export function useScoreLibrary({
       return;
     }
 
-    onBeforeLibraryMutation();
+    if (selectedSongIndex === songIndex) {
+      onBeforeLibraryMutation();
+    }
+
     onDeleted?.(songIndex, librarySong.id);
 
     const removedCollections = removeSongFromAllCollections({
@@ -532,7 +535,6 @@ export function useScoreLibrary({
       playlists,
       songId: librarySong.id,
     });
-    const nextCombinedSongCount = Math.max(0, librarySongsRef.current.length - 1);
 
     setLikedSongs(removedCollections.likedSongs);
     setPlaylists(removedCollections.playlists);
@@ -544,13 +546,19 @@ export function useScoreLibrary({
       localLibrarySongsRef.current = nextSongs;
       return nextSongs;
     });
-    setSelectedSongIndex((currentSelectedSongIndex) =>
-      getNextSelectedSongIndexAfterDelete(
-        currentSelectedSongIndex,
-        songIndex,
-        nextCombinedSongCount,
-      ),
-    );
+    setSelectedSongIndex((currentSelectedSongIndex) => {
+      if (currentSelectedSongIndex === null) {
+        return null;
+      }
+
+      if (currentSelectedSongIndex === songIndex) {
+        return null;
+      }
+
+      return currentSelectedSongIndex > songIndex
+        ? currentSelectedSongIndex - 1
+        : currentSelectedSongIndex;
+    });
   }
 
   function applyScoreLibrary(library: PersistedAppData["library"]) {
@@ -684,23 +692,19 @@ export function useScoreLibrary({
       selectedPlaylistId: nextSelectedPlaylistId,
     });
 
-    setSelectedSongIndex((currentSelectedSongIndex) => {
-      if (currentSelectedSongIndex === null) {
-        return null;
-      }
+    if (selectedSongIndex === null) {
+      return;
+    }
 
-      const selectedSong = librarySongsRef.current[currentSelectedSongIndex];
+    const selectedSong = librarySongsRef.current[selectedSongIndex];
 
-      if (!selectedSong) {
-        return null;
-      }
-
-      return nextVisibleItems.some(
-        (item) => item.librarySong.id === selectedSong.id,
-      )
-        ? currentSelectedSongIndex
-        : null;
-    });
+    if (
+      !selectedSong ||
+      !nextVisibleItems.some((item) => item.librarySong.id === selectedSong.id)
+    ) {
+      onBeforeLibraryMutation();
+      setSelectedSongIndex(null);
+    }
   }
 
   function getVisibleLibraryItemsForState({
@@ -791,28 +795,4 @@ export function useScoreLibrary({
     validCollectionSongIds,
     visibleLibraryItems,
   };
-}
-
-function getNextSelectedSongIndexAfterDelete(
-  currentSelectedSongIndex: number | null,
-  deletedSongIndex: number,
-  nextSongCount: number,
-) {
-  if (currentSelectedSongIndex === null) {
-    return null;
-  }
-
-  if (currentSelectedSongIndex > deletedSongIndex) {
-    return currentSelectedSongIndex - 1;
-  }
-
-  if (currentSelectedSongIndex < deletedSongIndex) {
-    return currentSelectedSongIndex;
-  }
-
-  if (nextSongCount <= 0) {
-    return null;
-  }
-
-  return Math.min(deletedSongIndex, nextSongCount - 1);
 }

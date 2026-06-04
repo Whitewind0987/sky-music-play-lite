@@ -242,12 +242,17 @@ function App() {
       return;
     }
 
-    const selectedVisibleItem = scoreLibrary.visibleLibraryItems.find(
+    const currentDisplayedItems =
+      scoreLibrary.selectedLibraryCategory === "built-in"
+        ? scoreLibrary.pagedVisibleLibraryItems
+        : scoreLibrary.visibleLibraryItems;
+    const selectedVisibleItem = currentDisplayedItems.find(
       (item) => item.songIndex === scoreLibrary.selectedSongIndex,
     );
 
     if (!selectedVisibleItem) {
       scoreLibrary.setSelectedSongIndex(null);
+      playbackOrder.clearPlaybackContext();
       appendLog(text.logs.selectedSongNotInCurrentView);
       return;
     }
