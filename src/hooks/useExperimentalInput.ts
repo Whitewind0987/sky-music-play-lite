@@ -527,12 +527,14 @@ export function useExperimentalInput({
   }
 
   async function handlePlayExperimentalSong(songIndex: number) {
+    appendLog(
+      `[DEBUG_PLAYBACK] handlePlayExperimentalSong requested index=${songIndex} state=${experimentalPlaybackState}`,
+    );
+
     if (
       !experimentalInputEnabled ||
       experimentalInputMode !== "target-window-message" ||
-      isStartingExperimentalPlayback ||
-      experimentalPlaybackState === "playing" ||
-      experimentalPlaybackState === "paused"
+      isStartingExperimentalPlayback
     ) {
       return;
     }
@@ -542,10 +544,17 @@ export function useExperimentalInput({
       return;
     }
 
-    await startExperimentalPlaybackWithPreflight(songIndex);
+    await startExperimentalPlaybackWithPreflight(songIndex, {
+      stopExistingBeforeResolve: true,
+    });
   }
 
-  async function startExperimentalPlaybackWithPreflight(songIndex: number) {
+  async function startExperimentalPlaybackWithPreflight(
+    songIndex: number,
+    {
+      stopExistingBeforeResolve = false,
+    }: { stopExistingBeforeResolve?: boolean } = {},
+  ) {
     if (!isTargetWindowReadyForPlayback()) {
       logMissingTargetWindow();
       return;
@@ -557,15 +566,26 @@ export function useExperimentalInput({
       return;
     }
 
+    if (stopExistingBeforeResolve) {
+      stopPreviewPlayback();
+      foregroundPlayback.handleStopForegroundPlayback();
+      stopExperimentalPlayback({ logStopped: false });
+      appendLog(
+        `[DEBUG_PLAYBACK] target-window switch stopped existing before resolve index=${songIndex}`,
+      );
+    }
+
     const song = await resolveSongForPlayback(songIndex);
 
     if (song === null) {
       return;
     }
 
-    stopPreviewPlayback();
-    foregroundPlayback.handleStopForegroundPlayback();
-    stopExperimentalPlayback({ logStopped: false });
+    if (!stopExistingBeforeResolve) {
+      stopPreviewPlayback();
+      foregroundPlayback.handleStopForegroundPlayback();
+      stopExperimentalPlayback({ logStopped: false });
+    }
 
     const runId = experimentalPlaybackRunIdRef.current + 1;
     const method = targetWindowMessageMethodRef.current;
