@@ -260,7 +260,7 @@ function App() {
   function canStartQueueForCurrentOutput() {
     return (
       playbackOutput.mode !== "experimental-target-window" ||
-      experimentalInput.selectedWindow !== null
+      experimentalInput.selectedWindowHwnd !== null
     );
   }
 

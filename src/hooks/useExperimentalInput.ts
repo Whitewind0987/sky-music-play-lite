@@ -89,6 +89,7 @@ export function useExperimentalInput({
   const experimentalPlaybackControllerRef =
     useRef<PreviewPlaybackController | null>(null);
   const experimentalPlaybackRunIdRef = useRef(0);
+  const hasAutoRefreshedRestoredWindowRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(playbackMode);
@@ -154,8 +155,7 @@ export function useExperimentalInput({
     experimentalPlaybackState !== "paused";
   const canStartExperimentalPlayback =
     canAttemptExperimentalPlayback &&
-    selectedWindowHwnd !== null &&
-    selectedWindow !== null;
+    selectedWindowHwnd !== null;
   const canStopExperimentalPlayback =
     isStartingExperimentalPlayback ||
     experimentalPlaybackState === "playing" ||
@@ -460,6 +460,36 @@ export function useExperimentalInput({
           ),
         }),
       );
+
+      if (!hasAutoRefreshedRestoredWindowRef.current) {
+        hasAutoRefreshedRestoredWindowRef.current = true;
+        void refreshCandidateWindowsForRestoredTarget(
+          preferences.selectedWindowHwnd,
+        );
+      }
+    }
+  }
+
+  async function refreshCandidateWindowsForRestoredTarget(
+    restoredHwnd: string,
+  ) {
+    try {
+      const windows = await listCandidateWindows();
+      setCandidateWindows(windows);
+
+      const restoredWindow = windows.find(
+        (window) => window.hwnd === restoredHwnd,
+      );
+
+      if (restoredWindow) {
+        setSelectedWindowSnapshot(candidateWindowToSnapshot(restoredWindow));
+      }
+    } catch (error) {
+      appendLog(
+        formatText(text.logs.experimentalWindowListFailed, {
+          error: String(error instanceof Error ? error.message : error),
+        }),
+      );
     }
   }
 
@@ -566,7 +596,7 @@ export function useExperimentalInput({
   }
 
   function isTargetWindowReadyForPlayback() {
-    return selectedWindowHwnd !== null && selectedWindow !== null;
+    return selectedWindowHwnd !== null;
   }
 
   function logMissingTargetWindow() {
@@ -627,10 +657,13 @@ export function useExperimentalInput({
       }
 
       const errorMessage = String(error);
+      const logTemplate = isTargetWindowInvalidError(errorMessage)
+        ? text.logs.experimentalSavedTargetWindowUnavailable
+        : text.logs.experimentalTargetWindowActivationPreflightFailed;
 
       setLastError(errorMessage);
       appendLog(
-        formatText(text.logs.experimentalTargetWindowActivationPreflightFailed, {
+        formatText(logTemplate, {
           error: errorMessage,
           method: methodLabel,
           profile: profileLabel,
@@ -826,10 +859,10 @@ export function useExperimentalInput({
 
       const errorMessage = String(error);
       const logTemplate =
-        selectedWindow === null && selectedWindowSnapshot !== undefined
-          ? text.logs.experimentalRestoredTargetWindowSendFailed
-          : isTargetWindowInvalidError(errorMessage)
-            ? text.logs.experimentalPlaybackTargetInvalid
+        isTargetWindowInvalidError(errorMessage)
+          ? text.logs.experimentalSavedTargetWindowUnavailable
+          : selectedWindow === null && selectedWindowSnapshot !== undefined
+            ? text.logs.experimentalRestoredTargetWindowSendFailed
             : text.logs.experimentalPlaybackCommandFailed;
       const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
       const grouped =

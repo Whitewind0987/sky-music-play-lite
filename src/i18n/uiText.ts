@@ -340,6 +340,8 @@ export const uiText = {
         "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
       experimentalTargetWindowMissing:
         "请先刷新或检测目标窗口，然后再播放。",
+      experimentalSavedTargetWindowUnavailable:
+        "已保存的目标窗口不可用，请刷新或重新检测目标窗口。",
       experimentalInputPreferencesRestored: "已恢复实验性输入设置。",
       experimentalRestoredTargetWindow: "已恢复上次目标窗口：{target}",
       experimentalRestoredTargetWindowMissing:
@@ -795,6 +797,8 @@ export const uiText = {
         "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
       experimentalTargetWindowMissing:
         "Please refresh or detect the target window before playing.",
+      experimentalSavedTargetWindowUnavailable:
+        "The saved target window is unavailable. Please refresh or detect the target window again.",
       experimentalInputPreferencesRestored:
         "Restored experimental input settings.",
       experimentalRestoredTargetWindow:
