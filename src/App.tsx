@@ -180,8 +180,9 @@ function App() {
   }
 
   function handlePlayLibraryItem(item: LibrarySongListItem) {
+    const displayedItems = getCurrentDisplayedLibraryItems();
     scoreLibrary.setSelectedSongId(item.librarySong.id);
-    setPlaybackContextForLibraryItem(item);
+    setPlaybackContextForLibraryItem(item, displayedItems);
     playbackQueue.replaceQueueWithCurrent(item.songIndex);
     playbackOutput.onPlaySong(item.songIndex);
   }
@@ -296,7 +297,10 @@ function App() {
       return;
     }
 
-    setPlaybackContextForLibraryItem(selectedVisibleItem);
+    setPlaybackContextForLibraryItem(
+      selectedVisibleItem,
+      getCurrentDisplayedLibraryItems(),
+    );
     playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
     playbackOutput.onPlaySong(selectedVisibleItem.songIndex);
   }
@@ -309,15 +313,18 @@ function App() {
     playbackOutput.onPlaySong(songIndex);
   }
 
-  function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
+  function setPlaybackContextForLibraryItem(
+    item: LibrarySongListItem,
+    scopeItems: LibrarySongListItem[],
+  ) {
     playbackOrder.setPlaybackContext({
       currentSongId: item.librarySong.id,
       selectedCategory: scoreLibrary.selectedLibraryCategory,
-      songIds: buildPlaybackOrderFromVisibleItems(
-        scoreLibrary.visibleLibraryItems,
-        item.librarySong.id,
-        { usesSearch: scoreLibrary.hasSearchQuery },
-      ),
+      songIds: scoreLibrary.hasSearchQuery
+        ? [item.librarySong.id]
+        : buildPlaybackOrderFromVisibleItems(scopeItems, item.librarySong.id, {
+            usesSearch: false,
+          }),
       usesSearch: scoreLibrary.hasSearchQuery,
     });
   }

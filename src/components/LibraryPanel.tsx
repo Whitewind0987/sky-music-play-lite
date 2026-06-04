@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { UiText } from "../i18n/uiText";
@@ -478,34 +479,57 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
 }) {
-  function runAction(action: () => void) {
+  function runAction(
+    event: ReactMouseEvent<HTMLButtonElement>,
+    action: () => void,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
     action();
     onClose();
   }
 
   return (
-    <div className="library-action-menu" role="menu">
-      <button type="button" role="menuitem" onClick={() => runAction(() => onPlaySong(item))}>
+    <div
+      className="library-action-menu"
+      role="menu"
+      onClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => runAction(event, () => onPlaySong(item))}
+      >
         {text.playAction}
       </button>
       <button
         type="button"
         role="menuitem"
-        onClick={() => runAction(() => onPlaySongNext(item.songIndex))}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => runAction(event, () => onPlaySongNext(item.songIndex))}
       >
         {text.playNextAction}
       </button>
       <button
         type="button"
         role="menuitem"
-        onClick={() => runAction(() => onAddToQueue(item.songIndex))}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => runAction(event, () => onAddToQueue(item.songIndex))}
       >
         {text.addToQueueAction}
       </button>
       <button
         type="button"
         role="menuitem"
-        onClick={() => runAction(() => onOpenCollectDialog(item))}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => runAction(event, () => onOpenCollectDialog(item))}
       >
         {text.addToPlaylist}
       </button>
@@ -513,7 +537,11 @@ function LibraryActionMenu({
         <button
           type="button"
           role="menuitem"
-          onClick={() => runAction(() => onRemoveFromLiked(item.librarySong.id))}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) =>
+            runAction(event, () => onRemoveFromLiked(item.librarySong.id))
+          }
         >
           {text.removeFromLiked}
         </button>
@@ -522,8 +550,10 @@ function LibraryActionMenu({
         <button
           type="button"
           role="menuitem"
-          onClick={() =>
-            runAction(() =>
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) =>
+            runAction(event, () =>
               onRemoveSongFromPlaylist(selectedPlaylist.id, item.librarySong.id),
             )
           }
@@ -536,7 +566,11 @@ function LibraryActionMenu({
           className="is-danger"
           type="button"
           role="menuitem"
-          onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) =>
+            runAction(event, () => onDeleteLocalSong(item.songIndex))
+          }
         >
           {text.deleteFromLocalImports}
         </button>
