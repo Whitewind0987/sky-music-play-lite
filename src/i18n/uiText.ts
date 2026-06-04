@@ -298,6 +298,8 @@ export const uiText = {
       playlistSongAlreadyExists: "歌单中已存在：{songName}",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
+      selectedSongNotInCurrentView:
+        "当前选中的曲谱已不在当前列表中。",
       manualNextTriggered: "手动切换到下一首：{songName}",
       manualNextUnavailable: "没有可播放的下一首。",
       appDataLoaded: "已恢复本地保存的应用数据。",
@@ -753,6 +755,8 @@ export const uiText = {
       playlistSongAlreadyExists: "Already in playlist: {songName}",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
+      selectedSongNotInCurrentView:
+        "The selected score is no longer in the current list.",
       manualNextTriggered: "Skipped to next score: {songName}",
       manualNextUnavailable: "No next score available.",
       appDataLoaded: "Restored local app data.",
