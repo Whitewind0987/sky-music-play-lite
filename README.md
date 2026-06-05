@@ -16,6 +16,12 @@ SkyMusicPlay Lite 是一个面向 Windows 的轻量级 Sky 光遇自动弹琴软
 
 当前项目仍处于 Alpha 开发阶段，功能、界面和数据结构后续仍可能调整。
 
+## 丨使用手册
+
+- [SkyMusicPlay Lite 使用手册](https://www.kdocs.cn/l/ca0kaYgxB59Z)
+
+如果你是第一次使用，建议先阅读使用手册中的快速开始、实验性输入和常见问题说明。
+
 ## 丨功能特性
 
 - 系统自带曲谱
