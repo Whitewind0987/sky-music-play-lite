@@ -119,26 +119,24 @@ button {
   left: 68px;
   top: 25px;
   z-index: 2;
-  height: 18px;
-  min-width: 34px;
-  padding: 0 7px;
-  border: 1px solid #dc2626;
+  height: 20px;
+  min-width: 38px;
+  padding: 0 8px;
+  border: 0;
   border-radius: 6px;
   color: #ffffff;
   background: #ef4444;
   font-size: 10px;
-  font-weight: 800;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 20px;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.2);
+  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.18);
 }
 
 .update-badge:hover,
 .update-badge:focus-visible {
-  border-color: #b91c1c;
   background: #dc2626;
-  outline: 2px solid rgba(239, 68, 68, 0.35);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .sidebar-brand .eyebrow {
