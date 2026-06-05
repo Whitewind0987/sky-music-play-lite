@@ -345,6 +345,8 @@ export const uiText = {
         "请先刷新或检测目标窗口，然后再播放。",
       experimentalSavedTargetWindowUnavailable:
         "已保存的目标窗口不可用，请刷新或重新检测目标窗口。",
+      experimentalSavedTargetWindowUnavailableShort:
+        "已保存的目标窗口不可用，请刷新或重新检测。",
       experimentalInputPreferencesRestored: "已恢复实验性输入设置。",
       experimentalRestoredTargetWindow: "已恢复上次目标窗口：{target}",
       experimentalRestoredTargetWindowMissing:
@@ -787,6 +789,8 @@ export const uiText = {
         "Please refresh or detect the target window before playing.",
       experimentalSavedTargetWindowUnavailable:
         "The saved target window is unavailable. Please refresh or detect the target window again.",
+      experimentalSavedTargetWindowUnavailableShort:
+        "The saved target window is unavailable. Please refresh or detect it again.",
       experimentalInputPreferencesRestored:
         "Restored experimental input settings.",
       experimentalRestoredTargetWindow:

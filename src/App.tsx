@@ -37,6 +37,8 @@ function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
+  const appNoticeTimerRef = useRef<number | null>(null);
+  const [appNotice, setAppNotice] = useState<string | null>(null);
   const text = uiText[language];
   const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
@@ -94,6 +96,7 @@ function App() {
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    showNotice: showAppNotice,
     startQueuePlayback: playbackQueue.startQueuePlayback,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
@@ -158,6 +161,25 @@ function App() {
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
+
+  useEffect(() => {
+    return () => {
+      if (appNoticeTimerRef.current !== null) {
+        window.clearTimeout(appNoticeTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showAppNotice(message: string) {
+    setAppNotice(message);
+    if (appNoticeTimerRef.current !== null) {
+      window.clearTimeout(appNoticeTimerRef.current);
+    }
+    appNoticeTimerRef.current = window.setTimeout(() => {
+      setAppNotice(null);
+      appNoticeTimerRef.current = null;
+    }, 3000);
+  }
 
   function handleImportScoreFiles(files: File[]) {
     if (isAnyPlaybackActive) {
@@ -499,6 +521,12 @@ function App() {
           {renderActiveSection()}
         </div>
       </section>
+
+      {appNotice ? (
+        <div className="app-notice" role="status" aria-live="polite">
+          {appNotice}
+        </div>
+      ) : null}
 
       <BottomPlayer
         canPlay={playbackOutput.canPlay}

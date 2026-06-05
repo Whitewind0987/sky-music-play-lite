@@ -43,6 +43,23 @@ button {
   overflow: hidden;
 }
 
+.app-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  z-index: 60;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  background: rgba(239, 246, 255, 0.98);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  font-size: 14px;
+  line-height: 1.4;
+  transform: translateX(-50%);
+}
+
 .app-sidebar {
   grid-area: sidebar;
   height: auto;

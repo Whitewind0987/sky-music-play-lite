@@ -57,6 +57,7 @@ type UseExperimentalInputOptions = {
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
+  showNotice?: (message: string) => void;
   startQueuePlayback: (songIndex: number) => void;
   stopPreviewPlayback: () => void;
   text: UiText;
@@ -82,6 +83,7 @@ export function useExperimentalInput({
   resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
+  showNotice,
   startQueuePlayback,
   stopPreviewPlayback,
   text,
@@ -620,7 +622,9 @@ export function useExperimentalInput({
   }
 
   function logMissingTargetWindow() {
-    appendLog(text.logs.experimentalTargetWindowMissing);
+    const message = text.logs.experimentalTargetWindowMissing;
+    appendLog(message);
+    showNotice?.(message);
   }
 
   async function runTargetWindowActivationPreflight({
@@ -677,7 +681,8 @@ export function useExperimentalInput({
       }
 
       const errorMessage = String(error);
-      const logTemplate = isTargetWindowInvalidError(errorMessage)
+      const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
+      const logTemplate = isInvalidTargetWindow
         ? text.logs.experimentalSavedTargetWindowUnavailable
         : text.logs.experimentalTargetWindowActivationPreflightFailed;
 
@@ -690,6 +695,9 @@ export function useExperimentalInput({
           targetHwnd: targetWindowHwnd,
         }),
       );
+      if (isInvalidTargetWindow) {
+        showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
+      }
       stopExperimentalPlayback({ logStopped: false });
 
       return false;
@@ -878,8 +886,9 @@ export function useExperimentalInput({
       }
 
       const errorMessage = String(error);
+      const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
       const logTemplate =
-        isTargetWindowInvalidError(errorMessage)
+        isInvalidTargetWindow
           ? text.logs.experimentalSavedTargetWindowUnavailable
           : selectedWindow === null && selectedWindowSnapshot !== undefined
             ? text.logs.experimentalRestoredTargetWindowSendFailed
@@ -908,6 +917,9 @@ export function useExperimentalInput({
           targetHwnd: targetWindowHwnd,
         }),
       );
+      if (isInvalidTargetWindow) {
+        showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
+      }
       stopExperimentalPlayback({ logStopped: false });
     }
   }
