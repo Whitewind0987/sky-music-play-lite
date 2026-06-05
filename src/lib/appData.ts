@@ -232,7 +232,7 @@ function sanitizeExperimentalInputPreferences(
     targetWindowCompatibilityProfile: sanitizeEnum(
       rawPreferences.targetWindowCompatibilityProfile,
       targetWindowCompatibilityProfiles,
-      "standard",
+      "legacy-activate-scan-lparam",
     ),
     targetWindowKeyHoldMs: clampNumber(
       Number(rawPreferences.targetWindowKeyHoldMs),

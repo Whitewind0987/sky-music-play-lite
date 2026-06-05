@@ -82,7 +82,7 @@ export const uiText = {
       importEyebrow: "本地曲谱",
       importTitle: "导入曲谱",
       importDescription:
-        "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件，曲谱会保存到本机并在重启后恢复。",
+        "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件。",
       importLabel: "导入 .json / .txt",
       searchPlaceholder: "搜索曲谱",
       categoriesTitle: "分类",
@@ -378,7 +378,7 @@ export const uiText = {
       experimentalInputTitle: "实验性输入",
       experimentalInputDescription: "检测目标窗口并提供实验性播放控制。",
       experimentalInputWarning:
-        "实验性功能，仅用于学习和个人测试。请自行确认是否符合游戏规则。",
+        "实验性功能，仅用于个人测试。建议保持默认设置。",
       experimentalInputRefreshWindows: "刷新窗口列表",
       experimentalInputRefreshing: "正在刷新...",
       experimentalInputDetectSkyWindow: "检测光遇窗口",
@@ -398,9 +398,9 @@ export const uiText = {
       experimentalPlaybackRunning: "发送中",
       experimentalTargetWindowMode: "目标窗口消息模式",
       experimentalTargetWindowModeDescription:
-        "目标窗口消息模式会向选中的窗口句柄发送按键消息，可尝试在游戏失焦时继续播放。兼容性取决于目标窗口是否接受这些消息。",
+        "向已选择的游戏窗口发送按键消息。",
       experimentalTargetWindowModeHelp:
-        "目标窗口模式是实验性功能。它会尝试把按键消息发送到已选择的游戏窗口，效果会受游戏窗口状态、权限和系统环境影响。建议保持默认设置，只有播放失败时再调整。",
+        "默认即可，失败再切换。",
       experimentalTargetWindowMessageMethod: "消息投递方式",
       experimentalTargetWindowMessageMethods: {
         "post-message": "PostMessage（默认推荐）",
@@ -408,12 +408,6 @@ export const uiText = {
       },
       experimentalTargetWindowMessageMethodHint:
         "默认即可。只有目标窗口播放失败、漏音或无响应时，再尝试切换投递方式。",
-      experimentalTargetWindowMessageMethodDescriptions: {
-        "post-message":
-          "将消息放入目标窗口消息队列，发送方不会等待目标窗口处理完成。通常更轻量，但结果取决于目标程序。",
-        "send-message":
-          "直接发送消息并等待目标窗口处理返回。可能更稳定，但目标窗口无响应时可能造成短暂停顿。",
-      },
       experimentalTargetWindowCompatibilityProfile: "兼容配置",
       experimentalTargetWindowCompatibilityProfiles: {
         standard: "基础消息模式",
@@ -422,28 +416,12 @@ export const uiText = {
         "grouped-legacy": "组合按键兼容模式",
         "legacy-activate-scan-lparam": "激活消息兼容模式",
       },
-      experimentalTargetWindowCompatibilityProfileDescriptions: {
-        standard:
-          "使用常规窗口按键消息。适合作为基础测试；部分程序可能需要目标窗口在前台。",
-        "legacy-vkscan-zero-lparam":
-          "使用 VkKeyScan 转换按键，但不附带完整扫描码参数。兼容性较低，主要用于对照测试。",
-        "legacy-vkscan-scan-lparam":
-          "使用 VkKeyScan 与扫描码参数发送按键消息。播放开始前会进行一次目标窗口激活预处理，推荐优先测试。",
-        "grouped-legacy":
-          "面向同时音符优化：同一组按键会先全部按下，再一起释放。播放开始前会进行一次目标窗口激活预处理，适合和弦或多键音符。",
-        "legacy-activate-scan-lparam":
-          "在扫描码按键消息前发送窗口激活消息。播放开始前也会进行一次激活预处理，兼容性更强，但目标程序可能会表现为被激活。",
-      },
-      experimentalTargetWindowRecommendation:
-        "如果需要在目标窗口不在前台时播放，优先使用激活消息兼容模式。",
+      experimentalTargetWindowCompatibilityHint:
+        "默认使用激活消息兼容模式。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
-      experimentalTargetWindowCompatibilityWarning:
-        "这些配置仅用于目标窗口消息模式。不同程序、权限状态和窗口状态下结果可能不同；请遵守目标程序规则。",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
-        "推荐的实验性模式。向当前前台窗口发送模拟键盘输入，需要你手动切换窗口。",
-      experimentalForegroundWarning:
-        "如果游戏以管理员身份运行，本应用也需要以管理员身份运行。实验性输入只会发送到当前前台窗口，请在倒计时结束前手动切换到游戏窗口。前台输入模式下，播放中点击本应用会让游戏失去前台。请优先在开始前调整倍速和间隔；播放中无焦点调整后续可通过全局快捷键支持。",
+        "向当前前台窗口发送模拟键盘输入。",
       experimentalForegroundStatusLabel: "前台播放",
       experimentalForegroundStates: {
         idle: "空闲",
@@ -454,6 +432,13 @@ export const uiText = {
         finished: "已完成",
         error: "出错",
       },
+      experimentalTargetWindowListHint: "未找到窗口时，请刷新或检测。",
+      keyboardShortcutsTitle: "快捷键",
+      keyboardShortcuts: [
+        { key: "Space", label: "暂停 / 继续" },
+        { key: "N", label: "下一首" },
+        { key: "Esc", label: "停止" },
+      ],
     },
   },
   "en-US": {
@@ -528,7 +513,7 @@ export const uiText = {
       importEyebrow: "Local scores",
       importTitle: "Import scores",
       importDescription:
-        "Import one or more SkyStudio-style JSON / TXT score files. Local imports are saved on this device and restored after restart.",
+        "Import one or more SkyStudio-style JSON / TXT score files.",
       importLabel: "Import .json / .txt",
       searchPlaceholder: "Search scores",
       categoriesTitle: "Categories",
@@ -841,7 +826,7 @@ export const uiText = {
       experimentalInputDescription:
         "Detect a target window and provide experimental playback controls.",
       experimentalInputWarning:
-        "Experimental feature for learning and personal testing. Please make sure your usage follows game rules.",
+        "Experimental feature for personal testing only. Keep defaults unless playback fails.",
       experimentalInputRefreshWindows: "Refresh Windows",
       experimentalInputRefreshing: "Refreshing...",
       experimentalInputDetectSkyWindow: "Detect Sky Window",
@@ -861,9 +846,9 @@ export const uiText = {
       experimentalPlaybackRunning: "Sending",
       experimentalTargetWindowMode: "Target Window Message Mode",
       experimentalTargetWindowModeDescription:
-        "Target-window message mode sends key messages to the selected window handle and can attempt playback while the game is not focused. Compatibility depends on whether the target window accepts these messages.",
+        "Send key messages to the selected game window.",
       experimentalTargetWindowModeHelp:
-        "Target Window mode is experimental. It attempts to send key messages to the selected game window, and the result may depend on the window state, permissions, and system environment. Keep the default settings unless playback fails.",
+        "Keep the default. Switch only if playback fails.",
       experimentalTargetWindowMessageMethod: "Message delivery method",
       experimentalTargetWindowMessageMethods: {
         "post-message": "PostMessage (default)",
@@ -871,12 +856,6 @@ export const uiText = {
       },
       experimentalTargetWindowMessageMethodHint:
         "Keep the default option unless target-window playback fails, misses notes, or does not respond.",
-      experimentalTargetWindowMessageMethodDescriptions: {
-        "post-message":
-          "Posts the message to the target window queue without waiting for it to finish processing. Usually lighter, but behavior depends on the target application.",
-        "send-message":
-          "Sends the message directly and waits for the target window to process it. It may be more consistent, but can briefly block if the target window is unresponsive.",
-      },
       experimentalTargetWindowCompatibilityProfile:
         "Compatibility profile",
       experimentalTargetWindowCompatibilityProfiles: {
@@ -886,28 +865,12 @@ export const uiText = {
         "grouped-legacy": "Grouped Key Compatibility Mode",
         "legacy-activate-scan-lparam": "Activation Message Compatibility Mode",
       },
-      experimentalTargetWindowCompatibilityProfileDescriptions: {
-        standard:
-          "Sends regular window key messages. Useful as a baseline test; some applications may require the target window to be foreground.",
-        "legacy-vkscan-zero-lparam":
-          "Uses VkKeyScan for key conversion without full scan-code parameters. Lower compatibility; mainly useful for comparison testing.",
-        "legacy-vkscan-scan-lparam":
-          "Uses VkKeyScan with scan-code key message parameters. Runs one target-window activation preflight before playback starts and is recommended for initial testing.",
-        "grouped-legacy":
-          "Optimized for simultaneous notes: keys in the same group are pressed first, then released together. Runs one target-window activation preflight before playback starts and is suitable for chords and multi-key notes.",
-        "legacy-activate-scan-lparam":
-          "Sends a window activation message before scan-code key messages. Also runs one activation preflight before playback starts. Higher compatibility, but the target application may behave as if activated.",
-      },
-      experimentalTargetWindowRecommendation:
-        "If playback is needed while the target window is not foreground, prefer Activation Message Compatibility Mode.",
+      experimentalTargetWindowCompatibilityHint:
+        "Default: activated message compatibility mode.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
-      experimentalTargetWindowCompatibilityWarning:
-        "These options only apply to Target Window Message Mode. Results may vary depending on the application, permission level, and window state. Please follow the target application's rules.",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:
-        "Recommended experimental mode. Sends simulated keyboard input to the current foreground window. You must switch windows manually.",
-      experimentalForegroundWarning:
-        "If the game is running as administrator, this app must also be started as administrator. Experimental input is sent to the current foreground window only. Manually switch to the game window before the countdown ends. In foreground input mode, clicking this app during playback will move focus away from the game. Adjust speed and delay before starting; no-focus controls may be added later with global hotkeys.",
+        "Send simulated keyboard input to the current foreground window.",
       experimentalForegroundStatusLabel: "Foreground playback",
       experimentalForegroundStates: {
         idle: "Idle",
@@ -918,6 +881,14 @@ export const uiText = {
         finished: "Finished",
         error: "Error",
       },
+      experimentalTargetWindowListHint:
+        "Refresh or detect again if the window is not found.",
+      keyboardShortcutsTitle: "Keyboard Shortcuts",
+      keyboardShortcuts: [
+        { key: "Space", label: "Pause / Resume" },
+        { key: "N", label: "Next" },
+        { key: "Esc", label: "Stop" },
+      ],
     },
   },
 } as const;

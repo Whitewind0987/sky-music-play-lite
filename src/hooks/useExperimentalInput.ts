@@ -63,7 +63,7 @@ type UseExperimentalInputOptions = {
 };
 
 const defaultTargetWindowCompatibilityProfile: TargetWindowCompatibilityProfile =
-  "standard";
+  "legacy-activate-scan-lparam";
 const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
 const targetWindowKeyHoldMaxMs = 200;

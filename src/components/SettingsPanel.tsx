@@ -99,41 +99,6 @@ export function SettingsPlaceholder({
 
   return (
     <section className="settings-grid" aria-label={text.aria}>
-      <article className="panel settings-panel">
-        <PanelHeader
-          id="settings-system-title"
-          title={text.systemTitle}
-        />
-        <div className="setting-placeholder-list">
-          <div className="setting-row">
-            <span>{text.language}</span>
-            <div className="language-options">
-              {languageOptions.map((option) => (
-                <button
-                  className={`language-option${
-                    language === option.code ? " is-selected" : ""
-                  }`}
-                  key={option.code}
-                  type="button"
-                  aria-pressed={language === option.code}
-                  onClick={() => onLanguageChange(option.code)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="setting-row">
-            <span>{text.theme}</span>
-            <span className="fake-segment">{text.systemTheme}</span>
-          </div>
-          <div className="setting-row">
-            <span>{text.defaultPage}</span>
-            <span className="fake-select">{text.home}</span>
-          </div>
-        </div>
-      </article>
-
       <article className="panel settings-panel experimental-input-panel">
         <PanelHeader
           id="settings-experimental-input-title"
@@ -240,13 +205,6 @@ export function SettingsPlaceholder({
             <p className="experimental-setting-description">
               {text.experimentalTargetWindowMessageMethodHint}
             </p>
-            <p className="experimental-setting-description">
-              {
-                text.experimentalTargetWindowMessageMethodDescriptions[
-                  experimentalInput.targetWindowMessageMethod
-                ]
-              }
-            </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowCompatibilityProfile}</span>
               <div className="language-options">
@@ -284,14 +242,7 @@ export function SettingsPlaceholder({
               </div>
             </div>
             <p className="experimental-setting-description">
-              {
-                text.experimentalTargetWindowCompatibilityProfileDescriptions[
-                  experimentalInput.targetWindowCompatibilityProfile
-                ]
-              }
-            </p>
-            <p className="experimental-setting-description">
-              {text.experimentalTargetWindowRecommendation}
+              {text.experimentalTargetWindowCompatibilityHint}
             </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowKeyHoldMs}</span>
@@ -306,11 +257,8 @@ export function SettingsPlaceholder({
                     Number(event.target.value),
                   )
                 }
-              />
+                />
             </div>
-            <p className="experimental-warning">
-              {text.experimentalTargetWindowCompatibilityWarning}
-            </p>
           </>
         ) : null}
         <div className="setting-row">
@@ -332,6 +280,9 @@ export function SettingsPlaceholder({
             </span>
           </button>
         </div>
+        <p className="experimental-setting-description">
+          {text.experimentalTargetWindowListHint}
+        </p>
         <div className="experimental-window-list">
           {restoredSelectedWindow !== null ? (
             <button
@@ -409,9 +360,6 @@ export function SettingsPlaceholder({
               {experimentalPlaybackPercent}%
             </strong>
           </div>
-          <p className="experimental-warning">
-            {text.experimentalForegroundWarning}
-          </p>
           <div className="experimental-target-summary">
             <span>{text.experimentalForegroundStatusLabel}</span>
             <strong>
@@ -457,6 +405,56 @@ export function SettingsPlaceholder({
               </button>
             );
           })}
+        </div>
+      </article>
+
+      <article className="panel settings-panel settings-system-panel">
+        <PanelHeader
+          id="settings-system-title"
+          title={text.systemTitle}
+        />
+        <div className="setting-placeholder-list">
+          <div className="setting-row">
+            <span>{text.language}</span>
+            <div className="language-options">
+              {languageOptions.map((option) => (
+                <button
+                  className={`language-option${
+                    language === option.code ? " is-selected" : ""
+                  }`}
+                  key={option.code}
+                  type="button"
+                  aria-pressed={language === option.code}
+                  onClick={() => onLanguageChange(option.code)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="setting-row">
+            <span>{text.theme}</span>
+            <span className="fake-segment">{text.systemTheme}</span>
+          </div>
+          <div className="setting-row">
+            <span>{text.defaultPage}</span>
+            <span className="fake-select">{text.home}</span>
+          </div>
+        </div>
+      </article>
+
+      <article className="panel settings-panel settings-shortcuts-panel">
+        <PanelHeader
+          id="settings-shortcuts-title"
+          title={text.keyboardShortcutsTitle}
+        />
+        <div className="setting-placeholder-list">
+          {text.keyboardShortcuts.map((shortcut) => (
+            <div className="setting-row" key={shortcut.key}>
+              <span>{shortcut.label}</span>
+              <span className="fake-segment">{shortcut.key}</span>
+            </div>
+          ))}
         </div>
       </article>
     </section>
