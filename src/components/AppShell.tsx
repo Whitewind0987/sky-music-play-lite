@@ -1,4 +1,5 @@
 import type { UiText } from "../i18n/uiText";
+import type { UpdateInfo } from "../lib/updateCheck";
 import type { UserPlaylist } from "../types/library";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
@@ -25,10 +26,12 @@ type AppSidebarProps = {
   onLibraryCategoryChange: (category: LibraryCategoryId) => void;
   onPlaylistSelect: (playlistId: string) => void;
   onSectionChange: (section: AppSection) => void;
+  onUpdateClick: () => void;
   playlists: UserPlaylist[];
   selectedLibraryCategory: LibraryCategoryId;
   selectedPlaylistId: string | null;
   text: UiText;
+  updateInfo: UpdateInfo | null;
 };
 
 export function AppSidebar({
@@ -38,10 +41,12 @@ export function AppSidebar({
   onLibraryCategoryChange,
   onPlaylistSelect,
   onSectionChange,
+  onUpdateClick,
   playlists,
   selectedLibraryCategory,
   selectedPlaylistId,
   text,
+  updateInfo,
 }: AppSidebarProps) {
   const libraryCategories: Array<{
     count?: number;
@@ -83,7 +88,20 @@ export function AppSidebar({
         <span className="brand-mark">S</span>
         <div>
           <p className="eyebrow">{text.brand.eyebrow}</p>
-          <h1>{text.brand.name}</h1>
+          <h1 className="brand-title">
+            <span>{text.brand.name}</span>
+            {updateInfo ? (
+              <button
+                className="update-badge"
+                type="button"
+                aria-label={`${text.actions.openReleasePage}: ${updateInfo.latestVersion}`}
+                title={`${text.actions.updateAvailable} ${updateInfo.latestVersion}`}
+                onClick={onUpdateClick}
+              >
+                {text.actions.updateBadge}
+              </button>
+            ) : null}
+          </h1>
         </div>
       </div>
 
@@ -168,12 +186,14 @@ export function AppSidebar({
 type WorkspaceHeaderProps = {
   activeSection: AppSection;
   onSettingsClick: () => void;
+  onUserManualClick: () => void;
   text: UiText;
 };
 
 export function WorkspaceHeader({
   activeSection,
   onSettingsClick,
+  onUserManualClick,
   text,
 }: WorkspaceHeaderProps) {
   const header = text.sections[activeSection];
@@ -194,7 +214,7 @@ export function WorkspaceHeader({
         <button
           className="icon-action"
           type="button"
-          disabled
+          onClick={onUserManualClick}
           title={text.actions.userManual}
           aria-label={text.actions.userManual}
         >

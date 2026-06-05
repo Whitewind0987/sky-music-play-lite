@@ -2,10 +2,30 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister"
+    "global-shortcut:allow-unregister",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://gitee.com/*" },
+        { "url": "https://*.gitee.com/*" },
+        { "url": "http://localhost:*/*" },
+        { "url": "http://127.0.0.1:*/*" }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://github.com/Whitewind0987/sky-music-play-lite/releases*"
+        },
+        { "url": "https://www.kdocs.cn/l/ca0kaYgxB59Z" }
+      ]
+    }
   ]
 }
