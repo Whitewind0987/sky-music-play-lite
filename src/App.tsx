@@ -35,13 +35,13 @@ import {
 import { formatText } from "./lib/formatText";
 import {
   formatShortcutCode,
+  isUnsafeGlobalStopShortcut,
   toGlobalShortcutAccelerators,
 } from "./lib/playbackShortcuts";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import {
   defaultPlaybackShortcuts,
-  playbackShortcutActions,
   type PlaybackShortcutAction,
   type PlaybackShortcuts,
 } from "./types/playbackShortcuts";
@@ -211,69 +211,120 @@ function App() {
   });
 
   useEffect(() => {
+    function isEditableTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName.toLowerCase();
+
+      return (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        tagName === "button" ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]') !== null
+      );
+    }
+
+    function handleInAppShortcutKeyDown(event: KeyboardEvent) {
+      if (
+        event.repeat ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        isEditableTarget(event.target)
+      ) {
+        return;
+      }
+
+      if (event.code === playbackShortcuts.pauseResume) {
+        event.preventDefault();
+        playbackHotkeyControlsRef.current.pauseResume();
+        return;
+      }
+
+      if (event.code === playbackShortcuts.next) {
+        event.preventDefault();
+        playbackHotkeyControlsRef.current.next();
+      }
+    }
+
+    window.addEventListener("keydown", handleInAppShortcutKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleInAppShortcutKeyDown);
+    };
+  }, [playbackShortcuts.next, playbackShortcuts.pauseResume]);
+
+  useEffect(() => {
     let isDisposed = false;
     const registeredAccelerators: string[] = [];
 
-    async function registerPlaybackHotkeys() {
-      for (const action of playbackShortcutActions) {
-        const shortcutCode = playbackShortcuts[action];
-        const acceleratorCandidates =
-          toGlobalShortcutAccelerators(shortcutCode);
-        const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
+    async function registerGlobalStopHotkey() {
+      const shortcutCode = playbackShortcuts.stop;
+      const acceleratorCandidates = toGlobalShortcutAccelerators(shortcutCode);
+      const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
 
-        if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
-          appendLog(text.logs.globalHotkeyUnsupported);
-          showAppNotice(text.logs.globalHotkeyUnsupported);
-          continue;
-        }
+      if (isUnsafeGlobalStopShortcut(shortcutCode)) {
+        appendLog(text.logs.globalHotkeyUnsupported);
+        showAppNotice(text.settings.keyboardShortcutUnsafeGlobalStop);
+        return;
+      }
 
-        for (const accelerator of acceleratorCandidates) {
-          try {
-            await register(accelerator, (event: ShortcutEvent) => {
-              if (event.state !== "Pressed") {
-                return;
-              }
+      if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
+        appendLog(text.logs.globalHotkeyUnsupported);
+        showAppNotice(text.logs.globalHotkeyUnsupported);
+        return;
+      }
 
-              playbackHotkeyControlsRef.current[action]();
-            });
-
-            if (isDisposed) {
-              await unregister(accelerator).catch(() => {});
+      for (const accelerator of acceleratorCandidates) {
+        try {
+          await register(accelerator, (event: ShortcutEvent) => {
+            if (event.state !== "Pressed") {
               return;
             }
 
-            registeredAccelerators.push(accelerator);
-            break;
-          } catch (error) {
-            const isLastCandidate =
-              accelerator ===
-              acceleratorCandidates[acceleratorCandidates.length - 1];
+            playbackHotkeyControlsRef.current.stop();
+          });
 
-            if (!isLastCandidate) {
-              continue;
-            }
-
-            appendLog(
-              formatText(text.logs.globalHotkeyRegisterFailed, {
-                shortcut: shortcutLabel,
-              }),
-            );
-            appendLog(
-              `${formatText(text.logs.globalHotkeyUnavailable, {
-                shortcut: shortcutLabel,
-              })} ${String(error)}`,
-            );
-            showAppNotice(
-              formatText(text.logs.globalHotkeyUnavailable, {
-                shortcut: shortcutLabel,
-              }),
-            );
+          if (isDisposed) {
+            await unregister(accelerator).catch(() => {});
+            return;
           }
+
+          registeredAccelerators.push(accelerator);
+          break;
+        } catch (error) {
+          const isLastCandidate =
+            accelerator ===
+            acceleratorCandidates[acceleratorCandidates.length - 1];
+
+          if (!isLastCandidate) {
+            continue;
+          }
+
+          appendLog(
+            formatText(text.logs.globalHotkeyRegisterFailed, {
+              shortcut: shortcutLabel,
+            }),
+          );
+          appendLog(
+            `${formatText(text.logs.globalHotkeyUnavailable, {
+              shortcut: shortcutLabel,
+            })} ${String(error)}`,
+          );
+          showAppNotice(
+            formatText(text.logs.globalHotkeyUnavailable, {
+              shortcut: shortcutLabel,
+            }),
+          );
         }
       }
     }
 
-    void registerPlaybackHotkeys();
+    void registerGlobalStopHotkey();
 
     return () => {
       isDisposed = true;
@@ -283,7 +334,7 @@ function App() {
         );
       }
     };
-  }, [appendLog, playbackShortcuts, text.logs]);
+  }, [appendLog, playbackShortcuts.stop, text.logs]);
 
   useEffect(() => {
     return () => {

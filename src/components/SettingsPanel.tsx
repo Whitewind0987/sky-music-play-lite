@@ -5,7 +5,10 @@ import {
   type UiText,
 } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
-import { formatShortcutCode } from "../lib/playbackShortcuts";
+import {
+  formatShortcutCode,
+  isUnsafeGlobalStopShortcut,
+} from "../lib/playbackShortcuts";
 import type {
   CandidateWindow,
   ExperimentalInputMode,
@@ -148,6 +151,14 @@ export function SettingsPlaceholder({
         return;
       }
 
+      if (
+        currentAction === "stop" &&
+        isUnsafeGlobalStopShortcut(event.code)
+      ) {
+        setShortcutConflictMessage(text.keyboardShortcutUnsafeGlobalStop);
+        return;
+      }
+
       onPlaybackShortcutsChange({
         ...playbackShortcuts,
         [currentAction]: event.code,
@@ -166,6 +177,7 @@ export function SettingsPlaceholder({
     onPlaybackShortcutsChange,
     playbackShortcuts,
     text.keyboardShortcutDuplicate,
+    text.keyboardShortcutUnsafeGlobalStop,
   ]);
 
   return (
@@ -543,6 +555,13 @@ export function SettingsPlaceholder({
                     ? text.keyboardShortcutListening
                     : formatShortcutCode(playbackShortcuts[action])}
                 </button>
+                <span className="shortcut-scope-badge">
+                  {
+                    text.keyboardShortcutScopes[
+                      action === "stop" ? "global" : "inApp"
+                    ]
+                  }
+                </span>
               </div>
             );
           })}

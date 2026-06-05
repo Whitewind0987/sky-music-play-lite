@@ -440,19 +440,25 @@ export const uiText = {
         error: "出错",
       },
       experimentalTargetWindowListHint: "未找到窗口时，请刷新或检测。",
-      keyboardShortcutsTitle: "全局快捷键",
+      keyboardShortcutsTitle: "快捷键",
       keyboardShortcutWarning:
-        "全局快捷键在应用不处于前台时也会生效。若与游戏或其他软件冲突，请修改对应快捷键。",
+        "暂停/继续和下一首仅在应用窗口内生效，避免抢占游戏内键盘。停止为全局热键，可在需要时快速停止播放。",
       keyboardShortcutActions: {
         pauseResume: "暂停 / 继续",
         next: "下一首",
         stop: "停止",
       },
+      keyboardShortcutScopes: {
+        global: "全局",
+        inApp: "仅应用内",
+      },
       keyboardShortcutListening: "按下新的快捷键...",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
+      keyboardShortcutUnsafeGlobalStop:
+        "该按键容易与游戏操作冲突，请为全局停止选择 F1-F12 或字母键。",
       keyboardShortcutMappingActive: "请先完成当前键位映射设置。",
-      keyboardShortcutResetLabel: "全局快捷键预设",
-      keyboardShortcutReset: "恢复默认全局快捷键",
+      keyboardShortcutResetLabel: "快捷键预设",
+      keyboardShortcutReset: "恢复默认快捷键",
       keyboardShortcuts: [
         { key: "Space", label: "暂停 / 继续" },
         { key: "ArrowRight", label: "下一首" },
@@ -910,19 +916,25 @@ export const uiText = {
       },
       experimentalTargetWindowListHint:
         "Refresh or detect again if the window is not found.",
-      keyboardShortcutsTitle: "Global Hotkeys",
+      keyboardShortcutsTitle: "Shortcuts",
       keyboardShortcutWarning:
-        "Global hotkeys also work when the app is not focused. Change a hotkey if it conflicts with a game or another app.",
+        "Pause/Resume and Next only work while the app window is focused to avoid stealing in-game keyboard input. Stop is global so playback can be stopped quickly when needed.",
       keyboardShortcutActions: {
         pauseResume: "Pause / Resume",
         next: "Next",
         stop: "Stop",
       },
+      keyboardShortcutScopes: {
+        global: "Global",
+        inApp: "In app",
+      },
       keyboardShortcutListening: "Press a new shortcut...",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
+      keyboardShortcutUnsafeGlobalStop:
+        "This key may conflict with game controls. Choose F1-F12 or a letter key for global Stop.",
       keyboardShortcutMappingActive: "Finish the current key mapping first.",
-      keyboardShortcutResetLabel: "Global hotkey preset",
-      keyboardShortcutReset: "Reset global hotkeys",
+      keyboardShortcutResetLabel: "Shortcut preset",
+      keyboardShortcutReset: "Reset shortcuts",
       keyboardShortcuts: [
         { key: "Space", label: "Pause / Resume" },
         { key: "ArrowRight", label: "Next" },

@@ -8,19 +8,19 @@ export function formatShortcutCode(code: string) {
   }
 
   if (code === "ArrowRight") {
-    return "→";
+    return "\u2192";
   }
 
   if (code === "ArrowLeft") {
-    return "←";
+    return "\u2190";
   }
 
   if (code === "ArrowUp") {
-    return "↑";
+    return "\u2191";
   }
 
   if (code === "ArrowDown") {
-    return "↓";
+    return "\u2193";
   }
 
   if (code === "Escape") {
@@ -45,7 +45,10 @@ export function toGlobalShortcutAccelerators(code: string) {
     return [];
   }
 
-  if (trimmedCode === "Space" || /^F([1-9]|1[0-9]|2[0-4])$/.test(trimmedCode)) {
+  if (
+    trimmedCode === "Space" ||
+    /^F([1-9]|1[0-9]|2[0-4])$/.test(trimmedCode)
+  ) {
     return [trimmedCode];
   }
 
@@ -74,4 +77,8 @@ export function toGlobalShortcutAccelerators(code: string) {
   }
 
   return [];
+}
+
+export function isUnsafeGlobalStopShortcut(code: string) {
+  return code === "Space" || code.startsWith("Arrow");
 }

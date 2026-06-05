@@ -1482,6 +1482,25 @@ button {
   cursor: not-allowed;
 }
 
+.settings-shortcuts-panel .setting-row {
+  grid-template-columns: minmax(0, 1fr) minmax(112px, auto) auto;
+}
+
+.shortcut-scope-badge {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid #d7d7d7;
+  border-radius: 999px;
+  color: #52616f;
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .shortcut-warning {
   margin: 0;
   padding: 10px 12px;
