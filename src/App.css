@@ -101,6 +101,44 @@ button {
   line-height: 1.2;
 }
 
+.brand-copy {
+  position: relative;
+  min-width: 0;
+}
+
+.brand-title {
+  margin: 0;
+  max-width: 112px;
+  font-size: 16px;
+  line-height: 1.2;
+  word-break: normal;
+}
+
+.update-badge {
+  position: absolute;
+  left: 68px;
+  top: 25px;
+  z-index: 2;
+  height: 20px;
+  min-width: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #ef4444;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.18);
+}
+
+.update-badge:hover,
+.update-badge:focus-visible {
+  background: #dc2626;
+  outline: none;
+}
+
 .sidebar-brand .eyebrow {
   color: #6b7280;
 }

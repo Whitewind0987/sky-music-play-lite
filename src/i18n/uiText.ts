@@ -47,7 +47,10 @@ export const uiText = {
       },
     },
     actions: {
+      openReleasePage: "打开发布页面",
       settings: "设置",
+      updateAvailable: "发现新版本",
+      updateBadge: "NEW",
       userManual: "使用手册",
     },
     workspace: {
@@ -504,7 +507,10 @@ export const uiText = {
       },
     },
     actions: {
+      openReleasePage: "Open release page",
       settings: "Settings",
+      updateAvailable: "Update available",
+      updateBadge: "NEW",
       userManual: "User Manual",
     },
     workspace: {

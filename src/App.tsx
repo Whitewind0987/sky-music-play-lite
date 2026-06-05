@@ -1,8 +1,10 @@
+import { getVersion } from "@tauri-apps/api/app";
 import {
   register,
   unregister,
   type ShortcutEvent,
 } from "@tauri-apps/plugin-global-shortcut";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
 import {
   AppSidebar,
@@ -15,6 +17,11 @@ import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
+import {
+  ALLOWED_RELEASE_URL_PREFIX,
+  UPDATE_MANIFEST_URL,
+  USER_MANUAL_URL,
+} from "./config/update";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
@@ -38,6 +45,10 @@ import {
   isUnsafeGlobalStopShortcut,
   toGlobalShortcutAccelerators,
 } from "./lib/playbackShortcuts";
+import {
+  checkForUpdate,
+  type UpdateInfo,
+} from "./lib/updateCheck";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import {
@@ -62,6 +73,7 @@ function App() {
   const appNoticeTimerRef = useRef<number | null>(null);
   const [appNotice, setAppNotice] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
@@ -188,6 +200,33 @@ function App() {
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadUpdateInfo() {
+      try {
+        const currentVersion = await getVersion();
+        const nextUpdateInfo = await checkForUpdate({
+          allowedReleaseUrlPrefix: ALLOWED_RELEASE_URL_PREFIX,
+          currentVersion,
+          manifestUrl: UPDATE_MANIFEST_URL,
+        });
+
+        if (!isCancelled && nextUpdateInfo !== null) {
+          setUpdateInfo(nextUpdateInfo);
+        }
+      } catch (error) {
+        console.warn("[update-check] startup check failed", error);
+      }
+    }
+
+    void loadUpdateInfo();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     playbackHotkeyControlsRef.current = {
@@ -351,6 +390,26 @@ function App() {
       setAppNotice(null);
       appNoticeTimerRef.current = null;
     }, 3000);
+  }
+
+  async function handleOpenUpdateReleasePage() {
+    if (updateInfo === null) {
+      return;
+    }
+
+    try {
+      await openUrl(updateInfo.releaseUrl);
+    } catch (error) {
+      console.warn("Failed to open release page.", error);
+    }
+  }
+
+  async function handleOpenUserManual() {
+    try {
+      await openUrl(USER_MANUAL_URL);
+    } catch (error) {
+      console.warn("Failed to open user manual.", error);
+    }
   }
 
   function handleImportScoreFiles(files: File[]) {
@@ -681,16 +740,19 @@ function App() {
         onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
         onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
         onSectionChange={setActiveSection}
+        onUpdateClick={handleOpenUpdateReleasePage}
         playlists={scoreLibrary.playlists}
         selectedLibraryCategory={scoreLibrary.selectedLibraryCategory}
         selectedPlaylistId={scoreLibrary.selectedPlaylistId}
         text={text}
+        updateInfo={updateInfo}
       />
 
       <section className="workspace-shell" aria-label={text.app.contentAria}>
         <WorkspaceHeader
           activeSection={activeSection}
           onSettingsClick={() => setActiveSection("Settings")}
+          onUserManualClick={handleOpenUserManual}
           text={text}
         />
 
