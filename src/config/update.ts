@@ -1,7 +1,8 @@
-// TODO: Replace the placeholder Gitee manifest URL before release.
+// Default production update manifest URL.
+// VITE_UPDATE_MANIFEST_URL can still override this for local testing.
 export const UPDATE_MANIFEST_URL =
   import.meta.env.VITE_UPDATE_MANIFEST_URL ||
-  "https://gitee.com/YOUR_USERNAME/YOUR_REPOSITORY/raw/main/latest.json";
+  "https://gitee.com/whitecrane0678/skymusicplay-lite-update/raw/master/latest.json";
 
 export const ALLOWED_RELEASE_URL_PREFIX =
   "https://github.com/Whitewind0987/sky-music-play-lite/releases";
