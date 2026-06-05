@@ -1,9 +1,14 @@
+import { useEffect, useState } from "react";
 import {
   languageOptions,
   type LanguageCode,
   type UiText,
 } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import {
+  formatShortcutCode,
+  isUnsafeGlobalStopShortcut,
+} from "../lib/playbackShortcuts";
 import type {
   CandidateWindow,
   ExperimentalInputMode,
@@ -16,6 +21,12 @@ import {
   type KeyMapping,
   type SkyKeyName,
 } from "../types/keyMapping";
+import {
+  defaultPlaybackShortcuts,
+  playbackShortcutActions,
+  type PlaybackShortcutAction,
+  type PlaybackShortcuts,
+} from "../types/playbackShortcuts";
 import { PanelHeader } from "./PanelHeader";
 
 type ExperimentalInputPanelState = {
@@ -60,8 +71,12 @@ type SettingsPlaceholderProps = {
   keyMapping: KeyMapping;
   language: LanguageCode;
   listeningSkyKey: SkyKeyName | null;
+  onShortcutNoticeClear: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onLanguageChange: (language: LanguageCode) => void;
+  onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
+  playbackShortcuts: PlaybackShortcuts;
+  shortcutNotice: string | null;
   text: UiText["settings"];
 };
 
@@ -70,10 +85,20 @@ export function SettingsPlaceholder({
   keyMapping,
   language,
   listeningSkyKey,
+  onShortcutNoticeClear,
   onKeyMappingListenStart,
   onLanguageChange,
+  onPlaybackShortcutsChange,
+  playbackShortcuts,
+  shortcutNotice,
   text,
 }: SettingsPlaceholderProps) {
+  const [listeningShortcutAction, setListeningShortcutAction] =
+    useState<PlaybackShortcutAction | null>(null);
+  const [shortcutConflictMessage, setShortcutConflictMessage] =
+    useState<string | null>(null);
+  const displayedShortcutNotice =
+    shortcutConflictMessage ?? shortcutNotice;
   const experimentalPlaybackPercent = Math.round(
     experimentalInput.experimentalPlaybackProgress.percent,
   );
@@ -91,67 +116,78 @@ export function SettingsPlaceholder({
           ),
         }
       : null;
+  const selectedWindowIsAvailable =
+    experimentalInput.selectedWindowHwnd !== null &&
+    experimentalInput.candidateWindows.some(
+      (window) => window.hwnd === experimentalInput.selectedWindowHwnd,
+    );
+
+  useEffect(() => {
+    if (listeningSkyKey !== null) {
+      setListeningShortcutAction(null);
+      setShortcutConflictMessage(null);
+    }
+  }, [listeningSkyKey]);
+
+  useEffect(() => {
+    if (listeningShortcutAction === null) {
+      return;
+    }
+
+    const currentAction = listeningShortcutAction;
+
+    function handleShortcutKeyDown(event: KeyboardEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.code === "Escape") {
+        setListeningShortcutAction(null);
+        setShortcutConflictMessage(null);
+        return;
+      }
+
+      const duplicateAction = playbackShortcutActions.find(
+        (action) =>
+          action !== currentAction &&
+          playbackShortcuts[action] === event.code,
+      );
+
+      if (duplicateAction !== undefined) {
+        setShortcutConflictMessage(text.keyboardShortcutDuplicate);
+        return;
+      }
+
+      if (
+        currentAction === "stop" &&
+        isUnsafeGlobalStopShortcut(event.code)
+      ) {
+        setShortcutConflictMessage(text.keyboardShortcutUnsafeGlobalStop);
+        return;
+      }
+
+      onPlaybackShortcutsChange({
+        ...playbackShortcuts,
+        [currentAction]: event.code,
+      });
+      setListeningShortcutAction(null);
+      setShortcutConflictMessage(null);
+    }
+
+    window.addEventListener("keydown", handleShortcutKeyDown, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleShortcutKeyDown, true);
+    };
+  }, [
+    listeningShortcutAction,
+    onPlaybackShortcutsChange,
+    playbackShortcuts,
+    text.keyboardShortcutDuplicate,
+    text.keyboardShortcutUnsafeGlobalStop,
+  ]);
 
   return (
     <section className="settings-grid" aria-label={text.aria}>
-      <article className="panel settings-panel">
-        <PanelHeader
-          id="settings-system-title"
-          title={text.systemTitle}
-          description={text.systemDescription}
-        />
-        <div className="setting-placeholder-list">
-          <div className="setting-row">
-            <span>{text.language}</span>
-            <div className="language-options">
-              {languageOptions.map((option) => (
-                <button
-                  className={`language-option${
-                    language === option.code ? " is-selected" : ""
-                  }`}
-                  key={option.code}
-                  type="button"
-                  aria-pressed={language === option.code}
-                  onClick={() => onLanguageChange(option.code)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="setting-row">
-            <span>{text.theme}</span>
-            <span className="fake-segment">{text.systemTheme}</span>
-          </div>
-          <div className="setting-row">
-            <span>{text.defaultPage}</span>
-            <span className="fake-select">{text.home}</span>
-          </div>
-        </div>
-      </article>
-
-      <article className="panel settings-panel">
-        <PanelHeader
-          id="settings-preview-title"
-          title={text.previewTitle}
-          description={text.previewDescription}
-        />
-        <div className="setting-placeholder-list">
-          <div className="setting-row">
-            <span>{text.detailedLogs}</span>
-            <span className="fake-toggle is-on" />
-          </div>
-          <div className="setting-row">
-            <span>{text.realKeyboardMode}</span>
-            <span className="fake-toggle" />
-          </div>
-          <div className="setting-row">
-            <span>{text.manual}</span>
-            <span className="fake-link">{text.openLater}</span>
-          </div>
-        </div>
-      </article>
-
       <article className="panel settings-panel experimental-input-panel">
         <PanelHeader
           id="settings-experimental-input-title"
@@ -221,6 +257,9 @@ export function SettingsPlaceholder({
         </div>
         {experimentalInput.experimentalInputMode === "target-window-message" ? (
           <>
+            <p className="experimental-setting-description">
+              {text.experimentalTargetWindowModeHelp}
+            </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowMessageMethod}</span>
               <div className="language-options">
@@ -253,11 +292,7 @@ export function SettingsPlaceholder({
               </div>
             </div>
             <p className="experimental-setting-description">
-              {
-                text.experimentalTargetWindowMessageMethodDescriptions[
-                  experimentalInput.targetWindowMessageMethod
-                ]
-              }
+              {text.experimentalTargetWindowMessageMethodHint}
             </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowCompatibilityProfile}</span>
@@ -296,14 +331,7 @@ export function SettingsPlaceholder({
               </div>
             </div>
             <p className="experimental-setting-description">
-              {
-                text.experimentalTargetWindowCompatibilityProfileDescriptions[
-                  experimentalInput.targetWindowCompatibilityProfile
-                ]
-              }
-            </p>
-            <p className="experimental-setting-description">
-              {text.experimentalTargetWindowRecommendation}
+              {text.experimentalTargetWindowCompatibilityHint}
             </p>
             <div className="setting-row">
               <span>{text.experimentalTargetWindowKeyHoldMs}</span>
@@ -318,11 +346,8 @@ export function SettingsPlaceholder({
                     Number(event.target.value),
                   )
                 }
-              />
+                />
             </div>
-            <p className="experimental-warning">
-              {text.experimentalTargetWindowCompatibilityWarning}
-            </p>
           </>
         ) : null}
         <div className="setting-row">
@@ -344,6 +369,9 @@ export function SettingsPlaceholder({
             </span>
           </button>
         </div>
+        <p className="experimental-setting-description">
+          {text.experimentalTargetWindowListHint}
+        </p>
         <div className="experimental-window-list">
           {restoredSelectedWindow !== null ? (
             <button
@@ -357,10 +385,13 @@ export function SettingsPlaceholder({
               }
             >
               <span className="experimental-window-title">
-                {text.experimentalRestoredTargetWindowLabel}
+                {text.experimentalSavedTargetWindowLabel}
               </span>
               <span className="experimental-window-meta">
                 {restoredSelectedWindow.label}
+              </span>
+              <span className="experimental-window-status">
+                {text.experimentalSavedTargetWindowMissingHint}
               </span>
             </button>
           ) : null}
@@ -384,9 +415,16 @@ export function SettingsPlaceholder({
                 }
               >
                 <span className="experimental-window-title">
-                  {window.title || text.experimentalInputUntitledWindow}
+                  {experimentalInput.selectedWindowHwnd === window.hwnd &&
+                  selectedWindowIsAvailable
+                    ? text.experimentalCurrentTargetWindowLabel
+                    : window.title || text.experimentalInputUntitledWindow}
                 </span>
                 <span className="experimental-window-meta">
+                  {experimentalInput.selectedWindowHwnd === window.hwnd &&
+                  selectedWindowIsAvailable
+                    ? `${window.title || text.experimentalInputUntitledWindow} / `
+                    : ""}
                   {window.process_name ?? text.experimentalInputUnknownProcess}
                   {" / "}
                   {window.class_name || text.experimentalInputUnknownClass}
@@ -411,9 +449,6 @@ export function SettingsPlaceholder({
               {experimentalPlaybackPercent}%
             </strong>
           </div>
-          <p className="experimental-warning">
-            {text.experimentalForegroundWarning}
-          </p>
           <div className="experimental-target-summary">
             <span>{text.experimentalForegroundStatusLabel}</span>
             <strong>
@@ -432,7 +467,6 @@ export function SettingsPlaceholder({
         <PanelHeader
           id="settings-key-mapping-title"
           title={text.keyMappingTitle}
-          description={text.keyMappingDescription}
         />
         <div className="key-mapping-grid">
           {skyKeyNames.map((skyKey) => {
@@ -460,6 +494,115 @@ export function SettingsPlaceholder({
               </button>
             );
           })}
+        </div>
+      </article>
+
+      <article className="panel settings-panel settings-system-panel">
+        <PanelHeader
+          id="settings-system-title"
+          title={text.systemTitle}
+        />
+        <div className="setting-placeholder-list">
+          <div className="setting-row">
+            <span>{text.language}</span>
+            <div className="language-options">
+              {languageOptions.map((option) => (
+                <button
+                  className={`language-option${
+                    language === option.code ? " is-selected" : ""
+                  }`}
+                  key={option.code}
+                  type="button"
+                  aria-pressed={language === option.code}
+                  onClick={() => onLanguageChange(option.code)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="setting-row">
+            <span>{text.theme}</span>
+            <span className="fake-segment">{text.systemTheme}</span>
+          </div>
+          <div className="setting-row">
+            <span>{text.defaultPage}</span>
+            <span className="fake-select">{text.home}</span>
+          </div>
+        </div>
+      </article>
+
+      <article className="panel settings-panel settings-shortcuts-panel">
+        <PanelHeader
+          id="settings-shortcuts-title"
+          title={text.keyboardShortcutsTitle}
+        />
+        <p className="shortcut-warning">{text.keyboardShortcutWarning}</p>
+        <div className="setting-placeholder-list">
+          {playbackShortcutActions.map((action) => {
+            const isListening = listeningShortcutAction === action;
+            const isDisabled = listeningSkyKey !== null;
+
+            return (
+              <div className="setting-row" key={action}>
+                <div className="shortcut-action-label">
+                  <span>{text.keyboardShortcutActions[action]}</span>
+                  <span
+                    className={`shortcut-scope-badge ${
+                      action === "stop" ? "is-global" : "is-in-app"
+                    }`}
+                  >
+                    {
+                      text.keyboardShortcutScopes[
+                        action === "stop" ? "global" : "inApp"
+                      ]
+                    }
+                  </span>
+                </div>
+                <button
+                  className={`shortcut-binding-button${
+                    isListening ? " is-listening" : ""
+                  }`}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    onShortcutNoticeClear();
+                    setListeningShortcutAction(action);
+                    setShortcutConflictMessage(null);
+                  }}
+                >
+                  {isListening
+                    ? text.keyboardShortcutListening
+                    : formatShortcutCode(playbackShortcuts[action])}
+                </button>
+              </div>
+            );
+          })}
+          {displayedShortcutNotice ? (
+            <p className="shortcut-helper-note shortcut-error-note">
+              {displayedShortcutNotice}
+            </p>
+          ) : null}
+          {listeningSkyKey !== null ? (
+            <p className="shortcut-helper-note">
+              {text.keyboardShortcutMappingActive}
+            </p>
+          ) : null}
+          <div className="setting-row">
+            <span>{text.keyboardShortcutResetLabel}</span>
+            <button
+              className="shortcut-reset-button"
+              type="button"
+              onClick={() => {
+                onShortcutNoticeClear();
+                onPlaybackShortcutsChange(defaultPlaybackShortcuts);
+                setListeningShortcutAction(null);
+                setShortcutConflictMessage(null);
+              }}
+            >
+              {text.keyboardShortcutReset}
+            </button>
+          </div>
         </div>
       </article>
     </section>

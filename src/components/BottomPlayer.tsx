@@ -355,14 +355,6 @@ export function BottomPlayer({
             <StopIcon />
           </button>
           <button
-            className="player-icon-button player-icon-button-secondary"
-            type="button"
-            aria-label={text.next}
-            onClick={onNext}
-          >
-            <NextIcon />
-          </button>
-          <button
             className="player-icon-button player-icon-button-primary"
             type="button"
             aria-label={primaryAction.label}
@@ -370,6 +362,14 @@ export function BottomPlayer({
             onClick={primaryAction.onClick}
           >
             {primaryAction.icon}
+          </button>
+          <button
+            className="player-icon-button player-icon-button-secondary"
+            type="button"
+            aria-label={text.next}
+            onClick={onNext}
+          >
+            <NextIcon />
           </button>
           <button
             className={`player-icon-button player-icon-button-secondary player-icon-button-toggle${

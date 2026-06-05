@@ -1,3 +1,8 @@
+import {
+  register,
+  unregister,
+  type ShortcutEvent,
+} from "@tauri-apps/plugin-global-shortcut";
 import { useEffect, useRef, useState } from "react";
 import {
   AppSidebar,
@@ -28,19 +33,40 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
+import {
+  formatShortcutCode,
+  isUnsafeGlobalStopShortcut,
+  toGlobalShortcutAccelerators,
+} from "./lib/playbackShortcuts";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
+import {
+  defaultPlaybackShortcuts,
+  type PlaybackShortcutAction,
+  type PlaybackShortcuts,
+} from "./types/playbackShortcuts";
 import "../font/iconfont.css";
 import "./App.css";
 
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
+  const playbackHotkeyControlsRef = useRef<
+    Record<PlaybackShortcutAction, () => void>
+  >({
+    next: () => {},
+    pauseResume: () => {},
+    stop: () => {},
+  });
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
+  const appNoticeTimerRef = useRef<number | null>(null);
+  const [appNotice, setAppNotice] = useState<string | null>(null);
+  const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
+  const [playbackShortcuts, setPlaybackShortcuts] =
+    useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
   const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
-    uiText[defaultLanguage].logs.noPlaybackYet,
   ]);
   const {
     applyKeyMapping,
@@ -95,6 +121,7 @@ function App() {
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    showNotice: showAppNotice,
     startQueuePlayback: playbackQueue.startQueuePlayback,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
@@ -105,6 +132,7 @@ function App() {
       experimentalInput.applyExperimentalInputPreferences,
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
+    applyPlaybackShortcuts: setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
     canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
@@ -116,6 +144,7 @@ function App() {
     likedSongs: scoreLibrary.likedSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
+    playbackShortcuts,
     playbackSpeed: previewPlayback.playbackSpeed,
     playlists: scoreLibrary.playlists,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
@@ -159,6 +188,170 @@ function App() {
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
+
+  useEffect(() => {
+    playbackHotkeyControlsRef.current = {
+      next: handleNextPlayback,
+      pauseResume: () => {
+        if (playbackOutput.playbackState === "playing") {
+          playbackOutput.onPause();
+          return;
+        }
+
+        if (playbackOutput.playbackState === "paused") {
+          playbackOutput.onResume();
+          return;
+        }
+
+        if (playbackOutput.canPlay && !isCurrentSongLoading) {
+          handleBottomPlayerPlay();
+        }
+      },
+      stop: playbackOutput.onStop,
+    };
+  });
+
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName.toLowerCase();
+
+      return (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        tagName === "button" ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]') !== null
+      );
+    }
+
+    function handleInAppShortcutKeyDown(event: KeyboardEvent) {
+      if (
+        event.repeat ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        isEditableTarget(event.target)
+      ) {
+        return;
+      }
+
+      if (event.code === playbackShortcuts.pauseResume) {
+        event.preventDefault();
+        playbackHotkeyControlsRef.current.pauseResume();
+        return;
+      }
+
+      if (event.code === playbackShortcuts.next) {
+        event.preventDefault();
+        playbackHotkeyControlsRef.current.next();
+      }
+    }
+
+    window.addEventListener("keydown", handleInAppShortcutKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleInAppShortcutKeyDown);
+    };
+  }, [playbackShortcuts.next, playbackShortcuts.pauseResume]);
+
+  useEffect(() => {
+    let isDisposed = false;
+    const registeredAccelerators: string[] = [];
+
+    async function registerGlobalStopHotkey() {
+      const shortcutCode = playbackShortcuts.stop;
+      const acceleratorCandidates = toGlobalShortcutAccelerators(shortcutCode);
+      const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
+
+      if (isUnsafeGlobalStopShortcut(shortcutCode)) {
+        appendLog(text.logs.globalHotkeyUnsupported);
+        setShortcutNotice(text.settings.keyboardShortcutUnsafeGlobalStop);
+        return;
+      }
+
+      if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
+        appendLog(text.logs.globalHotkeyUnsupported);
+        setShortcutNotice(text.logs.globalHotkeyUnsupported);
+        return;
+      }
+
+      for (const accelerator of acceleratorCandidates) {
+        try {
+          await register(accelerator, (event: ShortcutEvent) => {
+            if (event.state !== "Pressed") {
+              return;
+            }
+
+            playbackHotkeyControlsRef.current.stop();
+          });
+
+          if (isDisposed) {
+            await unregister(accelerator).catch(() => {});
+            return;
+          }
+
+          registeredAccelerators.push(accelerator);
+          setShortcutNotice(null);
+          break;
+        } catch (error) {
+          const isLastCandidate =
+            accelerator ===
+            acceleratorCandidates[acceleratorCandidates.length - 1];
+
+          if (!isLastCandidate) {
+            continue;
+          }
+
+          appendLog(
+            formatText(text.logs.globalHotkeyRegisterFailed, {
+              shortcut: shortcutLabel,
+            }),
+          );
+          appendLog(
+            `${formatText(text.logs.globalHotkeyUnavailable, {
+              shortcut: shortcutLabel,
+            })} ${String(error)}`,
+          );
+          setShortcutNotice(text.settings.keyboardShortcutGlobalStopFailed);
+        }
+      }
+    }
+
+    void registerGlobalStopHotkey();
+
+    return () => {
+      isDisposed = true;
+      if (registeredAccelerators.length > 0) {
+        void unregister(Array.from(new Set(registeredAccelerators))).catch(
+          () => {},
+        );
+      }
+    };
+  }, [appendLog, playbackShortcuts.stop, text.logs]);
+
+  useEffect(() => {
+    return () => {
+      if (appNoticeTimerRef.current !== null) {
+        window.clearTimeout(appNoticeTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showAppNotice(message: string) {
+    setAppNotice(message);
+    if (appNoticeTimerRef.current !== null) {
+      window.clearTimeout(appNoticeTimerRef.current);
+    }
+    appNoticeTimerRef.current = window.setTimeout(() => {
+      setAppNotice(null);
+      appNoticeTimerRef.current = null;
+    }, 3000);
+  }
 
   function handleImportScoreFiles(files: File[]) {
     if (isAnyPlaybackActive) {
@@ -464,6 +657,13 @@ function App() {
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
+          onPlaybackShortcutsChange={(nextShortcuts) => {
+            setShortcutNotice(null);
+            setPlaybackShortcuts(nextShortcuts);
+          }}
+          onShortcutNoticeClear={() => setShortcutNotice(null)}
+          playbackShortcuts={playbackShortcuts}
+          shortcutNotice={shortcutNotice}
           text={text.settings}
         />
       );
@@ -500,6 +700,12 @@ function App() {
           {renderActiveSection()}
         </div>
       </section>
+
+      {appNotice ? (
+        <div className="app-notice" role="status" aria-live="polite">
+          {appNotice}
+        </div>
+      ) : null}
 
       <BottomPlayer
         canPlay={playbackOutput.canPlay}

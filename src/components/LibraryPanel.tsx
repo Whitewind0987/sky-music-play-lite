@@ -972,8 +972,17 @@ export function LibraryPanel({
         )}
         {isBuiltIn &&
         builtInPagination &&
-        builtInPagination.total > builtInPagination.pageSize ? (
+        (builtInPagination.total > builtInPagination.pageSize ||
+          hasSearchQuery) ? (
           <div className="library-pagination" aria-label={text.paginationAria}>
+            {hasSearchQuery ? (
+              <span>
+                {text.paginationSearchResults.replace(
+                  "{total}",
+                  String(builtInPagination.total),
+                )}
+              </span>
+            ) : null}
             <button
               type="button"
               disabled={builtInPagination.page <= 1}

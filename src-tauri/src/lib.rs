@@ -145,6 +145,7 @@ fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             activate_target_window_message,
             dry_run_playback,
