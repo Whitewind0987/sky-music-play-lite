@@ -16,6 +16,12 @@ The project is built with **Tauri v2 + React + TypeScript + Rust**, aiming to pr
 
 The project is currently in alpha development. Features, UI, and data structures may still change over time.
 
+## 丨User Manual
+
+- [SkyMusicPlay Lite User Manual](https://www.kdocs.cn/l/ca0kaYgxB59Z)
+
+If this is your first time using the app, please read the Quick Start, Experimental Input, and FAQ sections first.
+
 ## 丨Features
 
 - Built-in scores
