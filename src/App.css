@@ -1482,6 +1482,17 @@ button {
   cursor: not-allowed;
 }
 
+.shortcut-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  color: #7c2d12;
+  background: #fffbeb;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .shortcut-helper-note {
   margin: 0;
   color: #52616f;

@@ -5,6 +5,7 @@ import {
   type UiText,
 } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import { formatShortcutCode } from "../lib/playbackShortcuts";
 import type {
   CandidateWindow,
   ExperimentalInputMode,
@@ -518,6 +519,7 @@ export function SettingsPlaceholder({
           id="settings-shortcuts-title"
           title={text.keyboardShortcutsTitle}
         />
+        <p className="shortcut-warning">{text.keyboardShortcutWarning}</p>
         <div className="setting-placeholder-list">
           {playbackShortcutActions.map((action) => {
             const isListening = listeningShortcutAction === action;
@@ -570,42 +572,6 @@ export function SettingsPlaceholder({
       </article>
     </section>
   );
-}
-
-function formatShortcutCode(code: string) {
-  if (code === "Space") {
-    return "Space";
-  }
-
-  if (code === "ArrowRight") {
-    return "→";
-  }
-
-  if (code === "ArrowLeft") {
-    return "←";
-  }
-
-  if (code === "ArrowUp") {
-    return "↑";
-  }
-
-  if (code === "ArrowDown") {
-    return "↓";
-  }
-
-  if (code === "Escape") {
-    return "Esc";
-  }
-
-  if (/^Key[A-Z]$/.test(code)) {
-    return code.slice(3);
-  }
-
-  if (/^Digit[0-9]$/.test(code)) {
-    return code.slice(5);
-  }
-
-  return code;
 }
 
 function getRestoredTargetLabel(

@@ -1,3 +1,8 @@
+import {
+  register,
+  unregister,
+  type ShortcutEvent,
+} from "@tauri-apps/plugin-global-shortcut";
 import { useEffect, useRef, useState } from "react";
 import {
   AppSidebar,
@@ -28,10 +33,16 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { formatText } from "./lib/formatText";
+import {
+  formatShortcutCode,
+  toGlobalShortcutAccelerators,
+} from "./lib/playbackShortcuts";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import {
   defaultPlaybackShortcuts,
+  playbackShortcutActions,
+  type PlaybackShortcutAction,
   type PlaybackShortcuts,
 } from "./types/playbackShortcuts";
 import "../font/iconfont.css";
@@ -39,6 +50,13 @@ import "./App.css";
 
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
+  const playbackHotkeyControlsRef = useRef<
+    Record<PlaybackShortcutAction, () => void>
+  >({
+    next: () => {},
+    pauseResume: () => {},
+    stop: () => {},
+  });
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const appNoticeTimerRef = useRef<number | null>(null);
@@ -171,67 +189,101 @@ function App() {
   }, [playbackOutput.onStop]);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (
-        event.repeat ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        listeningSkyKey !== null ||
-        isPlaybackShortcutEditableTarget(event.target)
-      ) {
-        return;
-      }
-
-      if (event.code === playbackShortcuts.pauseResume) {
+    playbackHotkeyControlsRef.current = {
+      next: handleNextPlayback,
+      pauseResume: () => {
         if (playbackOutput.playbackState === "playing") {
-          event.preventDefault();
           playbackOutput.onPause();
           return;
         }
 
         if (playbackOutput.playbackState === "paused") {
-          event.preventDefault();
           playbackOutput.onResume();
           return;
         }
 
         if (playbackOutput.canPlay && !isCurrentSongLoading) {
-          event.preventDefault();
           handleBottomPlayerPlay();
         }
-        return;
-      }
+      },
+      stop: playbackOutput.onStop,
+    };
+  });
 
-      if (event.code === playbackShortcuts.next) {
-        event.preventDefault();
-        handleNextPlayback();
-        return;
-      }
+  useEffect(() => {
+    let isDisposed = false;
+    const registeredAccelerators: string[] = [];
 
-      if (event.code === playbackShortcuts.stop) {
-        event.preventDefault();
-        playbackOutput.onStop();
+    async function registerPlaybackHotkeys() {
+      for (const action of playbackShortcutActions) {
+        const shortcutCode = playbackShortcuts[action];
+        const acceleratorCandidates =
+          toGlobalShortcutAccelerators(shortcutCode);
+        const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
+
+        if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
+          appendLog(text.logs.globalHotkeyUnsupported);
+          showAppNotice(text.logs.globalHotkeyUnsupported);
+          continue;
+        }
+
+        for (const accelerator of acceleratorCandidates) {
+          try {
+            await register(accelerator, (event: ShortcutEvent) => {
+              if (event.state !== "Pressed") {
+                return;
+              }
+
+              playbackHotkeyControlsRef.current[action]();
+            });
+
+            if (isDisposed) {
+              await unregister(accelerator).catch(() => {});
+              return;
+            }
+
+            registeredAccelerators.push(accelerator);
+            break;
+          } catch (error) {
+            const isLastCandidate =
+              accelerator ===
+              acceleratorCandidates[acceleratorCandidates.length - 1];
+
+            if (!isLastCandidate) {
+              continue;
+            }
+
+            appendLog(
+              formatText(text.logs.globalHotkeyRegisterFailed, {
+                shortcut: shortcutLabel,
+              }),
+            );
+            appendLog(
+              `${formatText(text.logs.globalHotkeyUnavailable, {
+                shortcut: shortcutLabel,
+              })} ${String(error)}`,
+            );
+            showAppNotice(
+              formatText(text.logs.globalHotkeyUnavailable, {
+                shortcut: shortcutLabel,
+              }),
+            );
+          }
+        }
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
+    void registerPlaybackHotkeys();
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      isDisposed = true;
+      if (registeredAccelerators.length > 0) {
+        void unregister(Array.from(new Set(registeredAccelerators))).catch(
+          () => {},
+        );
+      }
     };
-  }, [
-    handleBottomPlayerPlay,
-    handleNextPlayback,
-    isCurrentSongLoading,
-    listeningSkyKey,
-    playbackOutput.canPlay,
-    playbackOutput.onPause,
-    playbackOutput.onResume,
-    playbackOutput.onStop,
-    playbackOutput.playbackState,
-    playbackShortcuts,
-  ]);
+  }, [appendLog, playbackShortcuts, text.logs]);
 
   useEffect(() => {
     return () => {
@@ -644,23 +696,6 @@ function App() {
         />
       ) : null}
     </main>
-  );
-}
-
-function isPlaybackShortcutEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  const tagName = target.tagName.toLowerCase();
-
-  return (
-    tagName === "input" ||
-    tagName === "textarea" ||
-    tagName === "select" ||
-    tagName === "button" ||
-    target.isContentEditable ||
-    target.closest('[contenteditable="true"]') !== null
   );
 }
 

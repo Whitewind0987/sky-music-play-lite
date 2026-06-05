@@ -353,6 +353,11 @@ export const uiText = {
         "刷新窗口列表后未找到上次目标窗口：{target}",
       experimentalRestoredTargetWindowSendFailed:
         "恢复的目标窗口发送失败，请重新检测或手动选择窗口：{error}",
+      globalHotkeyRegisterFailed: "全局快捷键注册失败：{shortcut}",
+      globalHotkeyUnavailable:
+        "快捷键 {shortcut} 可能已被系统或其他软件占用，请换一个按键。",
+      globalHotkeyUnsupported:
+        "该快捷键暂不支持全局注册，请换一个按键。",
       foregroundPlaybackCountdownStarted:
         "前台播放倒计时已开始。请在倒计时结束前手动切换到游戏窗口；如果游戏以管理员身份运行，本应用也需要以管理员身份运行。",
       foregroundPlaybackCountdownCancelled: "前台播放倒计时已取消。",
@@ -435,7 +440,9 @@ export const uiText = {
         error: "出错",
       },
       experimentalTargetWindowListHint: "未找到窗口时，请刷新或检测。",
-      keyboardShortcutsTitle: "快捷键",
+      keyboardShortcutsTitle: "全局快捷键",
+      keyboardShortcutWarning:
+        "全局快捷键在应用不处于前台时也会生效。若与游戏或其他软件冲突，请修改对应快捷键。",
       keyboardShortcutActions: {
         pauseResume: "暂停 / 继续",
         next: "下一首",
@@ -444,8 +451,8 @@ export const uiText = {
       keyboardShortcutListening: "按下新的快捷键...",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutMappingActive: "请先完成当前键位映射设置。",
-      keyboardShortcutResetLabel: "快捷键预设",
-      keyboardShortcutReset: "恢复默认快捷键",
+      keyboardShortcutResetLabel: "全局快捷键预设",
+      keyboardShortcutReset: "恢复默认全局快捷键",
       keyboardShortcuts: [
         { key: "Space", label: "暂停 / 继续" },
         { key: "ArrowRight", label: "下一首" },
@@ -809,6 +816,12 @@ export const uiText = {
         "Previous target window was not found after refreshing windows: {target}",
       experimentalRestoredTargetWindowSendFailed:
         "Sending to the restored target window failed. Please detect or select the window again: {error}",
+      globalHotkeyRegisterFailed:
+        "Failed to register global hotkey: {shortcut}",
+      globalHotkeyUnavailable:
+        "Hotkey {shortcut} may already be used by the system or another app. Please choose another key.",
+      globalHotkeyUnsupported:
+        "This hotkey cannot be registered globally. Please choose another key.",
       foregroundPlaybackCountdownStarted:
         "Foreground playback countdown started. Manually switch to the game window before the countdown ends. If the game is running as administrator, this app must also be started as administrator.",
       foregroundPlaybackCountdownCancelled:
@@ -897,7 +910,9 @@ export const uiText = {
       },
       experimentalTargetWindowListHint:
         "Refresh or detect again if the window is not found.",
-      keyboardShortcutsTitle: "Keyboard Shortcuts",
+      keyboardShortcutsTitle: "Global Hotkeys",
+      keyboardShortcutWarning:
+        "Global hotkeys also work when the app is not focused. Change a hotkey if it conflicts with a game or another app.",
       keyboardShortcutActions: {
         pauseResume: "Pause / Resume",
         next: "Next",
@@ -906,8 +921,8 @@ export const uiText = {
       keyboardShortcutListening: "Press a new shortcut...",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutMappingActive: "Finish the current key mapping first.",
-      keyboardShortcutResetLabel: "Shortcut preset",
-      keyboardShortcutReset: "Reset shortcuts",
+      keyboardShortcutResetLabel: "Global hotkey preset",
+      keyboardShortcutReset: "Reset global hotkeys",
       keyboardShortcuts: [
         { key: "Space", label: "Pause / Resume" },
         { key: "ArrowRight", label: "Next" },
