@@ -60,6 +60,13 @@ Target-window message mode provides multiple compatibility profiles, including b
 
 These features are still experimental and are not guaranteed to work on every system, permission level, window state, or game environment.
 
+## 丨Administrator Privileges
+
+SkyMusicPlay Lite requests administrator privileges on startup on Windows.
+This helps reduce permission mismatch issues when using experimental input features with target windows.
+
+When Windows shows a User Account Control (UAC) prompt, confirm it to continue.
+
 ## 丨Development Environment
 
 Recommended development environment:
