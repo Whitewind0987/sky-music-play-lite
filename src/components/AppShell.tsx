@@ -86,22 +86,20 @@ export function AppSidebar({
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
       <div className="sidebar-brand">
         <span className="brand-mark">S</span>
-        <div>
+        <div className="brand-copy">
           <p className="eyebrow">{text.brand.eyebrow}</p>
-          <h1 className="brand-title">
-            <span>{text.brand.name}</span>
-            {updateInfo ? (
-              <button
-                className="update-badge"
-                type="button"
-                aria-label={`${text.actions.openReleasePage}: ${updateInfo.latestVersion}`}
-                title={`${text.actions.updateAvailable} ${updateInfo.latestVersion}`}
-                onClick={onUpdateClick}
-              >
-                {text.actions.updateBadge}
-              </button>
-            ) : null}
-          </h1>
+          <h1 className="brand-title">{text.brand.name}</h1>
+          {updateInfo ? (
+            <button
+              className="update-badge"
+              type="button"
+              aria-label={`${text.actions.openReleasePage}: ${updateInfo.latestVersion}`}
+              title={`${text.actions.updateAvailable} ${updateInfo.latestVersion}`}
+              onClick={onUpdateClick}
+            >
+              {text.actions.updateBadge}
+            </button>
+          ) : null}
         </div>
       </div>
 
