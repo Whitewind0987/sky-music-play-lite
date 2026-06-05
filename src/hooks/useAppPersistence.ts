@@ -22,6 +22,7 @@ import type {
   PlaybackMode,
   PlaybackSpeed,
 } from "../types/playbackOptions";
+import type { PlaybackShortcuts } from "../types/playbackShortcuts";
 import type { LibrarySong, LikedSongEntry, UserPlaylist } from "../types/library";
 
 const saveDebounceMs = 500;
@@ -35,6 +36,7 @@ type UseAppPersistenceOptions = {
   applyPlaybackSettings: (
     playbackSettings: PersistedAppData["playbackSettings"],
   ) => void;
+  applyPlaybackShortcuts: (playbackShortcuts: PlaybackShortcuts) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
   canSaveAppData?: boolean;
   experimentalInputEnabled: boolean;
@@ -46,6 +48,7 @@ type UseAppPersistenceOptions = {
   likedSongs: LikedSongEntry[];
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
+  playbackShortcuts: PlaybackShortcuts;
   playbackSpeed: PlaybackSpeed;
   playlists: UserPlaylist[];
   selectedLibraryCategory: LibraryCategoryId;
@@ -66,6 +69,7 @@ export function useAppPersistence({
   applyExperimentalInputPreferences,
   applyKeyMapping,
   applyPlaybackSettings,
+  applyPlaybackShortcuts,
   applyScoreLibrary,
   canSaveAppData = true,
   experimentalInputEnabled,
@@ -77,6 +81,7 @@ export function useAppPersistence({
   likedSongs,
   noteIntervalDelayMs,
   playbackMode,
+  playbackShortcuts,
   playbackSpeed,
   playlists,
   selectedLibraryCategory,
@@ -122,6 +127,7 @@ export function useAppPersistence({
         setLanguage(appData.language);
         applyKeyMapping(appData.keyMapping);
         applyPlaybackSettings(appData.playbackSettings);
+        applyPlaybackShortcuts(appData.playbackShortcuts);
         applyScoreLibrary(appData.library);
         applyExperimentalInputPreferences(appData.experimentalInputPreferences);
         appendLog(text.appDataLoaded);
@@ -172,6 +178,7 @@ export function useAppPersistence({
         likedSongs,
         noteIntervalDelayMs,
         playbackMode,
+        playbackShortcuts,
         playbackSpeed,
         playlists,
         selectedLibraryCategory,
@@ -206,6 +213,7 @@ export function useAppPersistence({
     likedSongs,
     noteIntervalDelayMs,
     playbackMode,
+    playbackShortcuts,
     playbackSpeed,
     playlists,
     selectedLibraryCategory,

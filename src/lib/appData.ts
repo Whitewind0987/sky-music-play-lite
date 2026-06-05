@@ -24,6 +24,11 @@ import {
   playbackModes,
   type PlaybackMode,
 } from "../types/playbackOptions";
+import {
+  defaultPlaybackShortcuts,
+  playbackShortcutActions,
+  type PlaybackShortcuts,
+} from "../types/playbackShortcuts";
 import { ensureLibrarySongs } from "./libraryCollections";
 import type { LibrarySong, LikedSongEntry, UserPlaylist } from "../types/library";
 import type { Song } from "../types/score";
@@ -102,6 +107,7 @@ export function sanitizePersistedAppData(
         librarySongs.length,
       ),
     },
+    playbackShortcuts: sanitizePlaybackShortcuts(rawData.playbackShortcuts),
     playbackSettings: sanitizePlaybackSettings(rawData.playbackSettings),
   };
 }
@@ -115,6 +121,7 @@ export function buildPersistedAppData({
   language,
   noteIntervalDelayMs,
   playbackMode,
+  playbackShortcuts,
   playbackSpeed,
   playlists,
   validCollectionSongIds,
@@ -130,6 +137,7 @@ export function buildPersistedAppData({
   language: LanguageCode;
   noteIntervalDelayMs: number;
   playbackMode: PlaybackMode;
+  playbackShortcuts: PlaybackShortcuts;
   playbackSpeed: number;
   playlists: UserPlaylist[];
   validCollectionSongIds?: string[];
@@ -168,6 +176,7 @@ export function buildPersistedAppData({
         sanitizedLibrarySongs.length,
       ),
     },
+    playbackShortcuts: sanitizePlaybackShortcuts(playbackShortcuts),
     playbackSettings: {
       isShuffleEnabled,
       noteIntervalDelayMs: normalizeNoteIntervalDelay(noteIntervalDelayMs),
@@ -175,6 +184,28 @@ export function buildPersistedAppData({
       playbackSpeed: normalizePlaybackSpeed(playbackSpeed),
     },
   };
+}
+
+function sanitizePlaybackShortcuts(
+  rawPlaybackShortcuts: unknown,
+): PlaybackShortcuts {
+  const playbackShortcuts = isRecord(rawPlaybackShortcuts)
+    ? rawPlaybackShortcuts
+    : {};
+
+  return playbackShortcutActions.reduce<PlaybackShortcuts>(
+    (nextShortcuts, action) => {
+      const shortcut = playbackShortcuts[action];
+      return {
+        ...nextShortcuts,
+        [action]:
+          typeof shortcut === "string" && shortcut.trim().length > 0
+            ? shortcut
+            : defaultPlaybackShortcuts[action],
+      };
+    },
+    { ...defaultPlaybackShortcuts },
+  );
 }
 
 function sanitizePlaybackSettings(

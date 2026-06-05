@@ -30,6 +30,10 @@ import {
 import { formatText } from "./lib/formatText";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
+import {
+  defaultPlaybackShortcuts,
+  type PlaybackShortcuts,
+} from "./types/playbackShortcuts";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -39,6 +43,8 @@ function App() {
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const appNoticeTimerRef = useRef<number | null>(null);
   const [appNotice, setAppNotice] = useState<string | null>(null);
+  const [playbackShortcuts, setPlaybackShortcuts] =
+    useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
   const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
@@ -107,6 +113,7 @@ function App() {
       experimentalInput.applyExperimentalInputPreferences,
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
+    applyPlaybackShortcuts: setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
     canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
@@ -118,6 +125,7 @@ function App() {
     likedSongs: scoreLibrary.likedSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
+    playbackShortcuts,
     playbackSpeed: previewPlayback.playbackSpeed,
     playlists: scoreLibrary.playlists,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
@@ -161,6 +169,69 @@ function App() {
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.repeat ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        listeningSkyKey !== null ||
+        isPlaybackShortcutEditableTarget(event.target)
+      ) {
+        return;
+      }
+
+      if (event.code === playbackShortcuts.pauseResume) {
+        if (playbackOutput.playbackState === "playing") {
+          event.preventDefault();
+          playbackOutput.onPause();
+          return;
+        }
+
+        if (playbackOutput.playbackState === "paused") {
+          event.preventDefault();
+          playbackOutput.onResume();
+          return;
+        }
+
+        if (playbackOutput.canPlay && !isCurrentSongLoading) {
+          event.preventDefault();
+          handleBottomPlayerPlay();
+        }
+        return;
+      }
+
+      if (event.code === playbackShortcuts.next) {
+        event.preventDefault();
+        handleNextPlayback();
+        return;
+      }
+
+      if (event.code === playbackShortcuts.stop) {
+        event.preventDefault();
+        playbackOutput.onStop();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    handleBottomPlayerPlay,
+    handleNextPlayback,
+    isCurrentSongLoading,
+    listeningSkyKey,
+    playbackOutput.canPlay,
+    playbackOutput.onPause,
+    playbackOutput.onResume,
+    playbackOutput.onStop,
+    playbackOutput.playbackState,
+    playbackShortcuts,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -485,6 +556,8 @@ function App() {
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
+          onPlaybackShortcutsChange={setPlaybackShortcuts}
+          playbackShortcuts={playbackShortcuts}
           text={text.settings}
         />
       );
@@ -571,6 +644,23 @@ function App() {
         />
       ) : null}
     </main>
+  );
+}
+
+function isPlaybackShortcutEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+
+  return (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    tagName === "button" ||
+    target.isContentEditable ||
+    target.closest('[contenteditable="true"]') !== null
   );
 }
 

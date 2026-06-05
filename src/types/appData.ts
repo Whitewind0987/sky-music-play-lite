@@ -11,6 +11,7 @@ import type {
   PlaybackMode,
   PlaybackSpeed,
 } from "./playbackOptions";
+import type { PlaybackShortcuts } from "./playbackShortcuts";
 import type { LibrarySong, LikedSongEntry, UserPlaylist } from "./library";
 
 export const appDataVersion = 2;
@@ -43,6 +44,7 @@ export type PersistedAppData = {
     selectedPlaylistId: string | null;
     selectedSongIndex: number | null;
   };
+  playbackShortcuts: PlaybackShortcuts;
   playbackSettings: {
     isShuffleEnabled: boolean;
     noteIntervalDelayMs: NoteIntervalDelayMs;

@@ -1445,6 +1445,50 @@ button {
   background: #2f80ed;
 }
 
+.shortcut-binding-button,
+.shortcut-reset-button {
+  min-height: 34px;
+  justify-self: end;
+  padding: 0 12px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.shortcut-binding-button {
+  min-width: 112px;
+  font-weight: 700;
+}
+
+.shortcut-binding-button:hover,
+.shortcut-reset-button:hover,
+.shortcut-binding-button.is-listening {
+  border-color: #2f80ed;
+  color: #0b3d75;
+  background: #edf5ff;
+}
+
+.shortcut-binding-button:focus-visible,
+.shortcut-reset-button:focus-visible {
+  outline: 2px solid #7ab8ff;
+  outline-offset: 2px;
+}
+
+.shortcut-binding-button:disabled {
+  color: #8a97a5;
+  background: #e5e7eb;
+  cursor: not-allowed;
+}
+
+.shortcut-helper-note {
+  margin: 0;
+  color: #52616f;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .language-option:disabled,
 .parse-button:disabled {
   color: #8a97a5;

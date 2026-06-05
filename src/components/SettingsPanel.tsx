@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   languageOptions,
   type LanguageCode,
@@ -16,6 +17,12 @@ import {
   type KeyMapping,
   type SkyKeyName,
 } from "../types/keyMapping";
+import {
+  defaultPlaybackShortcuts,
+  playbackShortcutActions,
+  type PlaybackShortcutAction,
+  type PlaybackShortcuts,
+} from "../types/playbackShortcuts";
 import { PanelHeader } from "./PanelHeader";
 
 type ExperimentalInputPanelState = {
@@ -62,6 +69,8 @@ type SettingsPlaceholderProps = {
   listeningSkyKey: SkyKeyName | null;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onLanguageChange: (language: LanguageCode) => void;
+  onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
+  playbackShortcuts: PlaybackShortcuts;
   text: UiText["settings"];
 };
 
@@ -72,8 +81,14 @@ export function SettingsPlaceholder({
   listeningSkyKey,
   onKeyMappingListenStart,
   onLanguageChange,
+  onPlaybackShortcutsChange,
+  playbackShortcuts,
   text,
 }: SettingsPlaceholderProps) {
+  const [listeningShortcutAction, setListeningShortcutAction] =
+    useState<PlaybackShortcutAction | null>(null);
+  const [shortcutConflictMessage, setShortcutConflictMessage] =
+    useState<string | null>(null);
   const experimentalPlaybackPercent = Math.round(
     experimentalInput.experimentalPlaybackProgress.percent,
   );
@@ -96,6 +111,61 @@ export function SettingsPlaceholder({
     experimentalInput.candidateWindows.some(
       (window) => window.hwnd === experimentalInput.selectedWindowHwnd,
     );
+
+  useEffect(() => {
+    if (listeningSkyKey !== null) {
+      setListeningShortcutAction(null);
+      setShortcutConflictMessage(null);
+    }
+  }, [listeningSkyKey]);
+
+  useEffect(() => {
+    if (listeningShortcutAction === null) {
+      return;
+    }
+
+    const currentAction = listeningShortcutAction;
+
+    function handleShortcutKeyDown(event: KeyboardEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.code === "Escape") {
+        setListeningShortcutAction(null);
+        setShortcutConflictMessage(null);
+        return;
+      }
+
+      const duplicateAction = playbackShortcutActions.find(
+        (action) =>
+          action !== currentAction &&
+          playbackShortcuts[action] === event.code,
+      );
+
+      if (duplicateAction !== undefined) {
+        setShortcutConflictMessage(text.keyboardShortcutDuplicate);
+        return;
+      }
+
+      onPlaybackShortcutsChange({
+        ...playbackShortcuts,
+        [currentAction]: event.code,
+      });
+      setListeningShortcutAction(null);
+      setShortcutConflictMessage(null);
+    }
+
+    window.addEventListener("keydown", handleShortcutKeyDown, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleShortcutKeyDown, true);
+    };
+  }, [
+    listeningShortcutAction,
+    onPlaybackShortcutsChange,
+    playbackShortcuts,
+    text.keyboardShortcutDuplicate,
+  ]);
 
   return (
     <section className="settings-grid" aria-label={text.aria}>
@@ -449,16 +519,93 @@ export function SettingsPlaceholder({
           title={text.keyboardShortcutsTitle}
         />
         <div className="setting-placeholder-list">
-          {text.keyboardShortcuts.map((shortcut) => (
-            <div className="setting-row" key={shortcut.key}>
-              <span>{shortcut.label}</span>
-              <span className="fake-segment">{shortcut.key}</span>
-            </div>
-          ))}
+          {playbackShortcutActions.map((action) => {
+            const isListening = listeningShortcutAction === action;
+            const isDisabled = listeningSkyKey !== null;
+
+            return (
+              <div className="setting-row" key={action}>
+                <span>{text.keyboardShortcutActions[action]}</span>
+                <button
+                  className={`shortcut-binding-button${
+                    isListening ? " is-listening" : ""
+                  }`}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    setListeningShortcutAction(action);
+                    setShortcutConflictMessage(null);
+                  }}
+                >
+                  {isListening
+                    ? text.keyboardShortcutListening
+                    : formatShortcutCode(playbackShortcuts[action])}
+                </button>
+              </div>
+            );
+          })}
+          {shortcutConflictMessage ? (
+            <p className="shortcut-helper-note">{shortcutConflictMessage}</p>
+          ) : null}
+          {listeningSkyKey !== null ? (
+            <p className="shortcut-helper-note">
+              {text.keyboardShortcutMappingActive}
+            </p>
+          ) : null}
+          <div className="setting-row">
+            <span>{text.keyboardShortcutResetLabel}</span>
+            <button
+              className="shortcut-reset-button"
+              type="button"
+              onClick={() => {
+                onPlaybackShortcutsChange(defaultPlaybackShortcuts);
+                setListeningShortcutAction(null);
+                setShortcutConflictMessage(null);
+              }}
+            >
+              {text.keyboardShortcutReset}
+            </button>
+          </div>
         </div>
       </article>
     </section>
   );
+}
+
+function formatShortcutCode(code: string) {
+  if (code === "Space") {
+    return "Space";
+  }
+
+  if (code === "ArrowRight") {
+    return "→";
+  }
+
+  if (code === "ArrowLeft") {
+    return "←";
+  }
+
+  if (code === "ArrowUp") {
+    return "↑";
+  }
+
+  if (code === "ArrowDown") {
+    return "↓";
+  }
+
+  if (code === "Escape") {
+    return "Esc";
+  }
+
+  if (/^Key[A-Z]$/.test(code)) {
+    return code.slice(3);
+  }
+
+  if (/^Digit[0-9]$/.test(code)) {
+    return code.slice(5);
+  }
+
+  return code;
 }
 
 function getRestoredTargetLabel(
