@@ -101,36 +101,43 @@ button {
   line-height: 1.2;
 }
 
-.brand-title {
+.brand-copy {
+  position: relative;
   min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
-.brand-title > span {
-  min-width: 0;
+.brand-title {
+  margin: 0;
+  max-width: 112px;
+  font-size: 16px;
+  line-height: 1.2;
+  word-break: normal;
 }
 
 .update-badge {
+  position: absolute;
+  left: 68px;
+  top: 25px;
+  z-index: 2;
   height: 18px;
-  flex: 0 0 auto;
-  padding: 0 6px;
-  border: 1px solid #93c5fd;
-  border-radius: 999px;
-  color: #075985;
-  background: #e0f2fe;
+  min-width: 34px;
+  padding: 0 7px;
+  border: 1px solid #dc2626;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #ef4444;
   font-size: 10px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 16px;
   cursor: pointer;
+  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.2);
 }
 
 .update-badge:hover,
 .update-badge:focus-visible {
-  border-color: #38bdf8;
-  background: #bae6fd;
-  outline: 2px solid rgba(56, 189, 248, 0.35);
+  border-color: #b91c1c;
+  background: #dc2626;
+  outline: 2px solid rgba(239, 68, 68, 0.35);
   outline-offset: 2px;
 }
 
