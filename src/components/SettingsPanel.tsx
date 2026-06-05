@@ -71,10 +71,12 @@ type SettingsPlaceholderProps = {
   keyMapping: KeyMapping;
   language: LanguageCode;
   listeningSkyKey: SkyKeyName | null;
+  onShortcutNoticeClear: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onLanguageChange: (language: LanguageCode) => void;
   onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
   playbackShortcuts: PlaybackShortcuts;
+  shortcutNotice: string | null;
   text: UiText["settings"];
 };
 
@@ -83,16 +85,20 @@ export function SettingsPlaceholder({
   keyMapping,
   language,
   listeningSkyKey,
+  onShortcutNoticeClear,
   onKeyMappingListenStart,
   onLanguageChange,
   onPlaybackShortcutsChange,
   playbackShortcuts,
+  shortcutNotice,
   text,
 }: SettingsPlaceholderProps) {
   const [listeningShortcutAction, setListeningShortcutAction] =
     useState<PlaybackShortcutAction | null>(null);
   const [shortcutConflictMessage, setShortcutConflictMessage] =
     useState<string | null>(null);
+  const displayedShortcutNotice =
+    shortcutConflictMessage ?? shortcutNotice;
   const experimentalPlaybackPercent = Math.round(
     experimentalInput.experimentalPlaybackProgress.percent,
   );
@@ -539,7 +545,20 @@ export function SettingsPlaceholder({
 
             return (
               <div className="setting-row" key={action}>
-                <span>{text.keyboardShortcutActions[action]}</span>
+                <div className="shortcut-action-label">
+                  <span>{text.keyboardShortcutActions[action]}</span>
+                  <span
+                    className={`shortcut-scope-badge ${
+                      action === "stop" ? "is-global" : "is-in-app"
+                    }`}
+                  >
+                    {
+                      text.keyboardShortcutScopes[
+                        action === "stop" ? "global" : "inApp"
+                      ]
+                    }
+                  </span>
+                </div>
                 <button
                   className={`shortcut-binding-button${
                     isListening ? " is-listening" : ""
@@ -547,6 +566,7 @@ export function SettingsPlaceholder({
                   type="button"
                   disabled={isDisabled}
                   onClick={() => {
+                    onShortcutNoticeClear();
                     setListeningShortcutAction(action);
                     setShortcutConflictMessage(null);
                   }}
@@ -555,18 +575,13 @@ export function SettingsPlaceholder({
                     ? text.keyboardShortcutListening
                     : formatShortcutCode(playbackShortcuts[action])}
                 </button>
-                <span className="shortcut-scope-badge">
-                  {
-                    text.keyboardShortcutScopes[
-                      action === "stop" ? "global" : "inApp"
-                    ]
-                  }
-                </span>
               </div>
             );
           })}
-          {shortcutConflictMessage ? (
-            <p className="shortcut-helper-note">{shortcutConflictMessage}</p>
+          {displayedShortcutNotice ? (
+            <p className="shortcut-helper-note shortcut-error-note">
+              {displayedShortcutNotice}
+            </p>
           ) : null}
           {listeningSkyKey !== null ? (
             <p className="shortcut-helper-note">
@@ -579,6 +594,7 @@ export function SettingsPlaceholder({
               className="shortcut-reset-button"
               type="button"
               onClick={() => {
+                onShortcutNoticeClear();
                 onPlaybackShortcutsChange(defaultPlaybackShortcuts);
                 setListeningShortcutAction(null);
                 setShortcutConflictMessage(null);

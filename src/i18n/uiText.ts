@@ -456,6 +456,8 @@ export const uiText = {
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutUnsafeGlobalStop:
         "该按键容易与游戏操作冲突，请为全局停止选择 F1-F12 或字母键。",
+      keyboardShortcutGlobalStopFailed:
+        "停止全局热键注册失败，可能已被系统或其他软件占用，请更换按键。",
       keyboardShortcutMappingActive: "请先完成当前键位映射设置。",
       keyboardShortcutResetLabel: "快捷键预设",
       keyboardShortcutReset: "恢复默认快捷键",
@@ -932,6 +934,8 @@ export const uiText = {
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutUnsafeGlobalStop:
         "This key may conflict with game controls. Choose F1-F12 or a letter key for global Stop.",
+      keyboardShortcutGlobalStopFailed:
+        "Failed to register the global Stop hotkey. It may already be used by the system or another app. Please choose another key.",
       keyboardShortcutMappingActive: "Finish the current key mapping first.",
       keyboardShortcutResetLabel: "Shortcut preset",
       keyboardShortcutReset: "Reset shortcuts",

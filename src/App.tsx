@@ -61,6 +61,7 @@ function App() {
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const appNoticeTimerRef = useRef<number | null>(null);
   const [appNotice, setAppNotice] = useState<string | null>(null);
+  const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
@@ -269,13 +270,13 @@ function App() {
 
       if (isUnsafeGlobalStopShortcut(shortcutCode)) {
         appendLog(text.logs.globalHotkeyUnsupported);
-        showAppNotice(text.settings.keyboardShortcutUnsafeGlobalStop);
+        setShortcutNotice(text.settings.keyboardShortcutUnsafeGlobalStop);
         return;
       }
 
       if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
         appendLog(text.logs.globalHotkeyUnsupported);
-        showAppNotice(text.logs.globalHotkeyUnsupported);
+        setShortcutNotice(text.logs.globalHotkeyUnsupported);
         return;
       }
 
@@ -295,6 +296,7 @@ function App() {
           }
 
           registeredAccelerators.push(accelerator);
+          setShortcutNotice(null);
           break;
         } catch (error) {
           const isLastCandidate =
@@ -315,11 +317,7 @@ function App() {
               shortcut: shortcutLabel,
             })} ${String(error)}`,
           );
-          showAppNotice(
-            formatText(text.logs.globalHotkeyUnavailable, {
-              shortcut: shortcutLabel,
-            }),
-          );
+          setShortcutNotice(text.settings.keyboardShortcutGlobalStopFailed);
         }
       }
     }
@@ -659,8 +657,13 @@ function App() {
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
-          onPlaybackShortcutsChange={setPlaybackShortcuts}
+          onPlaybackShortcutsChange={(nextShortcuts) => {
+            setShortcutNotice(null);
+            setPlaybackShortcuts(nextShortcuts);
+          }}
+          onShortcutNoticeClear={() => setShortcutNotice(null)}
           playbackShortcuts={playbackShortcuts}
+          shortcutNotice={shortcutNotice}
           text={text.settings}
         />
       );

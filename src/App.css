@@ -1483,22 +1483,43 @@ button {
 }
 
 .settings-shortcuts-panel .setting-row {
-  grid-template-columns: minmax(0, 1fr) minmax(112px, auto) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, auto);
+}
+
+.shortcut-action-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .shortcut-scope-badge {
-  min-height: 26px;
+  min-height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 8px;
+  padding: 4px 8px;
   border: 1px solid #d7d7d7;
   border-radius: 999px;
+  line-height: 1;
   color: #52616f;
   background: #f8fafc;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.shortcut-scope-badge.is-in-app {
+  border-color: #bfdbfe;
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+
+.shortcut-scope-badge.is-global {
+  border-color: #fcd34d;
+  color: #7c2d12;
+  background: #fffbeb;
 }
 
 .shortcut-warning {
@@ -1517,6 +1538,10 @@ button {
   color: #52616f;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.shortcut-error-note {
+  color: #991b1b;
 }
 
 .language-option:disabled,
