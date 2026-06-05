@@ -87,7 +87,7 @@ function validateSong(value: unknown, songIndex: number): Song {
     throw new ScoreFileImportError("songNotesInvalid", { songName: name });
   }
 
-  if (value.isEncrypted === true || isNumericSongNotes(songNotes)) {
+  if (isNumericSongNotes(songNotes)) {
     throw new ScoreFileImportError("encryptedSongNotesUnsupported", {
       songName: name,
     });
