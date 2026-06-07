@@ -1,6 +1,6 @@
 [package]
 name = "sky-music-play-lite"
-version = "0.1.0"
+version = "0.1.1"
 description = "SkyMusicPlay Lite desktop app"
 authors = ["Whitewind0987"]
 edition = "2021"
