@@ -14,7 +14,7 @@ SkyMusicPlay Lite is a lightweight Windows desktop automatic music-playing tool 
 
 The project is built with **Tauri v2 + React + TypeScript + Rust**, aiming to provide a lighter, clearer, and more controllable desktop experience for score library management, playback, and experimental input.
 
-The project is currently in alpha development. Features, UI, and data structures may still change over time.
+The project currently has a stable release and will continue to be maintained and improved.
 
 ## 丨User Manual
 
@@ -135,9 +135,8 @@ See [LICENSE](./LICENSE) for details.
 
 ## 丨Credits
 
-SkyMusicPlay Lite is inspired by SkyMusicPlay-for-Windows and other automatic music-playing tools for Sky: Children of the Light.
+SkyMusicPlay Lite is inspired by [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) and other automatic music-playing tools for Sky: Children of the Light.
 
-Built-in score resources are used with permission from the author of SkyMusicPlay-for-Windows.  
-Please keep attribution to the original source when reusing these resources.
+Built-in score resources are used with permission from the author of [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows). Please keep attribution to the original source when reusing these resources.
 
 This project is a separate lightweight implementation.
