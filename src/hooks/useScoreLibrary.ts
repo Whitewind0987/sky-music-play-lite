@@ -1,4 +1,11 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
@@ -61,6 +68,7 @@ export function useScoreLibrary({
     Set<LibrarySongId>
   >(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [builtInPage, setBuiltInPage] = useState(1);
   const [selectedSongId, setSelectedSongId] = useState<LibrarySongId | null>(
     null,
@@ -135,8 +143,8 @@ export function useScoreLibrary({
     return [];
   }, [allLibraryItems, selectedLibraryCategory, selectedPlaylist]);
   const visibleLibraryItems = useMemo(
-    () => filterSongsByQuery(categoryLibraryItems, searchQuery),
-    [categoryLibraryItems, searchQuery],
+    () => filterSongsByQuery(categoryLibraryItems, deferredSearchQuery),
+    [categoryLibraryItems, deferredSearchQuery],
   );
   const builtInPagination = useMemo(() => {
     if (selectedLibraryCategory !== "built-in") {
@@ -344,9 +352,7 @@ export function useScoreLibrary({
   }
 
   function handleSearchQueryChange(query: string) {
-    startTransition(() => {
-      setSearchQuery(query);
-    });
+    setSearchQuery(query);
   }
 
   function handleToggleLikedSong(songIndex: number) {
