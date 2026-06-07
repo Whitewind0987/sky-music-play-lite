@@ -1,6 +1,10 @@
 {
-  "latestVersion": "0.1.1",
-  "releaseUrl": "https://github.com/Whitewind0987/sky-music-play-lite/releases/latest",
-  "title": "SkyMusicPlay Lite 0.1.1",
-  "notes": "Local update notice test."
+  "latestVersion": "0.1.1-alpha.1",
+  "releaseUrl": "https://github.com/Whitewind0987/sky-music-play-lite/releases/tag/v0.1.1-alpha.1",
+  "title": "SkyMusicPlay Lite 0.1.1 Alpha 1",
+  "notes": [
+    "修复曲库菜单操作异常。",
+    "优化更新提醒体验。"
+  ],
+  "updateKind": "alpha"
 }

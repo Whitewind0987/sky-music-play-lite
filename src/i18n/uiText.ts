@@ -53,6 +53,20 @@ export const uiText = {
       updateBadge: "NEW",
       userManual: "使用手册",
     },
+    updateDialog: {
+      titleFallback: "SkyMusicPlay Lite 更新",
+      latestVersion: "最新版本",
+      updateKind: "更新类型",
+      updateKindLabels: {
+        alpha: "Alpha 测试版",
+        recommended: "推荐更新",
+      },
+      notesTitle: "更新说明",
+      download: "前往下载",
+      later: "稍后",
+      ignore: "忽略此版本",
+      close: "关闭更新提示",
+    },
     workspace: {
       aria: "工作区概览",
       scoreTitle: "曲谱",
@@ -456,6 +470,7 @@ export const uiText = {
         inApp: "仅应用内",
       },
       keyboardShortcutListening: "按下新的快捷键...",
+      keyboardShortcutConflictBadge: "快捷键与其他软件冲突",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutUnsafeGlobalStop:
         "该按键容易与游戏操作冲突，请为全局停止选择 F1-F12 或字母键。",
@@ -512,6 +527,20 @@ export const uiText = {
       updateAvailable: "Update available",
       updateBadge: "NEW",
       userManual: "User Manual",
+    },
+    updateDialog: {
+      titleFallback: "SkyMusicPlay Lite Update",
+      latestVersion: "Latest version",
+      updateKind: "Update kind",
+      updateKindLabels: {
+        alpha: "Alpha version",
+        recommended: "Recommended update",
+      },
+      notesTitle: "Update notes",
+      download: "Go to download",
+      later: "Later",
+      ignore: "Ignore this version",
+      close: "Close update notice",
     },
     workspace: {
       aria: "Workspace overview",
@@ -937,6 +966,7 @@ export const uiText = {
         inApp: "In app",
       },
       keyboardShortcutListening: "Press a new shortcut...",
+      keyboardShortcutConflictBadge: "Shortcut conflicts with another app",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutUnsafeGlobalStop:
         "This key may conflict with game controls. Choose F1-F12 or a letter key for global Stop.",

@@ -93,7 +93,7 @@ export function AppSidebar({
             <button
               className="update-badge"
               type="button"
-              aria-label={`${text.actions.openReleasePage}: ${updateInfo.latestVersion}`}
+              aria-label={`${text.actions.updateAvailable}: ${updateInfo.latestVersion}`}
               title={`${text.actions.updateAvailable} ${updateInfo.latestVersion}`}
               onClick={onUpdateClick}
             >

@@ -1106,6 +1106,121 @@ button {
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
 }
 
+.update-dialog-card {
+  position: relative;
+  width: min(460px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 8px;
+  color: #1f2933;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+}
+
+.update-dialog-card.is-alpha {
+  background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 100%);
+}
+
+.update-dialog-card.is-recommended {
+  background: linear-gradient(180deg, #fef3c7 0%, #fff7ed 100%);
+}
+
+.update-dialog-kind {
+  margin: 0 0 4px;
+  color: #52616f;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.update-dialog-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.update-dialog-meta div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-dialog-meta dt {
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.update-dialog-meta dd {
+  margin: 0;
+  font-weight: 800;
+}
+
+.update-dialog-notes {
+  display: grid;
+  gap: 8px;
+}
+
+.update-dialog-notes h4 {
+  font-size: 14px;
+}
+
+.update-dialog-notes ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.update-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.update-dialog-primary,
+.update-dialog-secondary {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.update-dialog-primary {
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.update-dialog-primary:hover,
+.update-dialog-primary:focus-visible {
+  background: #1d4ed8;
+  outline: none;
+}
+
+.update-dialog-secondary {
+  border: 1px solid #c7d0dc;
+  color: #1f2933;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.update-dialog-secondary:hover,
+.update-dialog-secondary:focus-visible {
+  background: #ffffff;
+  outline: none;
+}
+
+.update-dialog-header {
+  padding-right: 34px;
+}
+
 .library-collect-dialog-header {
   display: flex;
   align-items: center;
@@ -1130,6 +1245,39 @@ button {
 
 .library-collect-dialog-header button {
   padding: 0 10px;
+}
+
+.update-dialog-header .update-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #475569;
+  background: transparent;
+  cursor: pointer;
+}
+
+.update-dialog-header .update-dialog-close:hover,
+.update-dialog-header .update-dialog-close:focus-visible {
+  color: #111827;
+  background: rgba(255, 255, 255, 0.45);
+  outline: none;
+}
+
+.update-dialog-header .update-dialog-close:focus-visible {
+  box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.35);
+}
+
+.update-dialog-close svg {
+  width: 18px;
+  height: 18px;
 }
 
 .library-collect-create {
@@ -1558,6 +1706,25 @@ button {
   border-color: #fcd34d;
   color: #7c2d12;
   background: #fffbeb;
+}
+
+.shortcut-conflict-badge {
+  max-width: 180px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  color: #991b1b;
+  background: #fee2e2;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shortcut-warning {

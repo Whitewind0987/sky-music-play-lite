@@ -7,12 +7,14 @@ import type { Song } from "../types/score";
 type UsePlaybackQueueOptions = {
   appendLog: (entry: string) => void;
   importedSongsRef: React.MutableRefObject<Song[]>;
+  showNotice?: (message: string) => void;
   text: UiText["logs"];
 };
 
 export function usePlaybackQueue({
   appendLog,
   importedSongsRef,
+  showNotice,
   text,
 }: UsePlaybackQueueOptions) {
   const idCounterRef = useRef(0);
@@ -39,11 +41,12 @@ export function usePlaybackQueue({
   }
 
   function logAlreadyQueued(songIndex: number) {
-    appendLog(
-      formatText(text.queueItemAlreadyExists, {
-        songName: getSongName(songIndex),
-      }),
-    );
+    const message = formatText(text.queueItemAlreadyExists, {
+      songName: getSongName(songIndex),
+    });
+
+    appendLog(message);
+    showNotice?.(message);
   }
 
   function startQueuePlayback(songIndex: number) {

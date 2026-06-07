@@ -17,6 +17,7 @@ import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
+import { UpdateDialog } from "./components/UpdateDialog";
 import {
   ALLOWED_RELEASE_URL_PREFIX,
   UPDATE_MANIFEST_URL,
@@ -49,11 +50,13 @@ import {
   checkForUpdate,
   type UpdateInfo,
 } from "./lib/updateCheck";
+import { ignoreUpdate, isUpdateIgnored } from "./lib/updateIgnore";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import {
   defaultPlaybackShortcuts,
   type PlaybackShortcutAction,
+  type PlaybackShortcutNotices,
   type PlaybackShortcuts,
 } from "./types/playbackShortcuts";
 import "../font/iconfont.css";
@@ -72,8 +75,10 @@ function App() {
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const appNoticeTimerRef = useRef<number | null>(null);
   const [appNotice, setAppNotice] = useState<string | null>(null);
-  const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
+  const [shortcutNotice, setShortcutNotice] =
+    useState<PlaybackShortcutNotices>({});
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
@@ -95,6 +100,7 @@ function App() {
   const playbackQueue = usePlaybackQueue({
     appendLog,
     importedSongsRef: scoreLibrary.importedSongsRef,
+    showNotice: showAppNotice,
     text: text.logs,
   });
   const previewPlayback = usePreviewPlayback({
@@ -213,7 +219,11 @@ function App() {
           manifestUrl: UPDATE_MANIFEST_URL,
         });
 
-        if (!isCancelled && nextUpdateInfo !== null) {
+        if (
+          !isCancelled &&
+          nextUpdateInfo !== null &&
+          !isUpdateIgnored(nextUpdateInfo)
+        ) {
           setUpdateInfo(nextUpdateInfo);
         }
       } catch (error) {
@@ -308,14 +318,16 @@ function App() {
       const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
 
       if (isUnsafeGlobalStopShortcut(shortcutCode)) {
-        appendLog(text.logs.globalHotkeyUnsupported);
-        setShortcutNotice(text.settings.keyboardShortcutUnsafeGlobalStop);
+        setShortcutNotice({
+          stop: text.settings.keyboardShortcutUnsafeGlobalStop,
+        });
         return;
       }
 
       if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
-        appendLog(text.logs.globalHotkeyUnsupported);
-        setShortcutNotice(text.logs.globalHotkeyUnsupported);
+        setShortcutNotice({
+          stop: text.settings.keyboardShortcutGlobalStopFailed,
+        });
         return;
       }
 
@@ -335,7 +347,10 @@ function App() {
           }
 
           registeredAccelerators.push(accelerator);
-          setShortcutNotice(null);
+          setShortcutNotice((currentNotices) => {
+            const { stop: _stopNotice, ...nextNotices } = currentNotices;
+            return nextNotices;
+          });
           break;
         } catch (error) {
           const isLastCandidate =
@@ -346,17 +361,14 @@ function App() {
             continue;
           }
 
-          appendLog(
-            formatText(text.logs.globalHotkeyRegisterFailed, {
-              shortcut: shortcutLabel,
-            }),
+          console.warn(
+            "Failed to register global Stop hotkey.",
+            shortcutLabel,
+            error,
           );
-          appendLog(
-            `${formatText(text.logs.globalHotkeyUnavailable, {
-              shortcut: shortcutLabel,
-            })} ${String(error)}`,
-          );
-          setShortcutNotice(text.settings.keyboardShortcutGlobalStopFailed);
+          setShortcutNotice({
+            stop: text.settings.keyboardShortcutGlobalStopFailed,
+          });
         }
       }
     }
@@ -371,7 +383,11 @@ function App() {
         );
       }
     };
-  }, [appendLog, playbackShortcuts.stop, text.logs]);
+  }, [
+    playbackShortcuts.stop,
+    text.settings.keyboardShortcutGlobalStopFailed,
+    text.settings.keyboardShortcutUnsafeGlobalStop,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -392,6 +408,12 @@ function App() {
     }, 3000);
   }
 
+  function handleOpenUpdateDialog() {
+    if (updateInfo !== null) {
+      setIsUpdateDialogOpen(true);
+    }
+  }
+
   async function handleOpenUpdateReleasePage() {
     if (updateInfo === null) {
       return;
@@ -402,6 +424,16 @@ function App() {
     } catch (error) {
       console.warn("Failed to open release page.", error);
     }
+  }
+
+  function handleIgnoreUpdate() {
+    if (updateInfo === null || updateInfo.updateKind !== "alpha") {
+      return;
+    }
+
+    ignoreUpdate(updateInfo);
+    setIsUpdateDialogOpen(false);
+    setUpdateInfo(null);
   }
 
   async function handleOpenUserManual() {
@@ -717,10 +749,10 @@ function App() {
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
           onPlaybackShortcutsChange={(nextShortcuts) => {
-            setShortcutNotice(null);
+            setShortcutNotice({});
             setPlaybackShortcuts(nextShortcuts);
           }}
-          onShortcutNoticeClear={() => setShortcutNotice(null)}
+          onShortcutNoticeClear={() => setShortcutNotice({})}
           playbackShortcuts={playbackShortcuts}
           shortcutNotice={shortcutNotice}
           text={text.settings}
@@ -740,7 +772,7 @@ function App() {
         onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
         onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
         onSectionChange={setActiveSection}
-        onUpdateClick={handleOpenUpdateReleasePage}
+        onUpdateClick={handleOpenUpdateDialog}
         playlists={scoreLibrary.playlists}
         selectedLibraryCategory={scoreLibrary.selectedLibraryCategory}
         selectedPlaylistId={scoreLibrary.selectedPlaylistId}
@@ -767,6 +799,16 @@ function App() {
         <div className="app-notice" role="status" aria-live="polite">
           {appNotice}
         </div>
+      ) : null}
+
+      {isUpdateDialogOpen && updateInfo !== null ? (
+        <UpdateDialog
+          onClose={() => setIsUpdateDialogOpen(false)}
+          onDownload={handleOpenUpdateReleasePage}
+          onIgnore={handleIgnoreUpdate}
+          text={text.updateDialog}
+          updateInfo={updateInfo}
+        />
       ) : null}
 
       <BottomPlayer

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
@@ -152,9 +152,13 @@ export function useScoreLibrary({
     return {
       end,
       onNextPage: () =>
-        setBuiltInPage((currentPage) => Math.min(currentPage + 1, pageCount)),
+        startTransition(() => {
+          setBuiltInPage((currentPage) => Math.min(currentPage + 1, pageCount));
+        }),
       onPreviousPage: () =>
-        setBuiltInPage((currentPage) => Math.max(currentPage - 1, 1)),
+        startTransition(() => {
+          setBuiltInPage((currentPage) => Math.max(currentPage - 1, 1));
+        }),
       page,
       pageCount,
       pageSize: BUILT_IN_PAGE_SIZE,
@@ -330,11 +334,19 @@ export function useScoreLibrary({
   }
 
   function handleLibraryCategoryChange(category: LibraryCategoryId) {
-    setSelectedLibraryCategory(category);
+    startTransition(() => {
+      setSelectedLibraryCategory(category);
 
-    if (category === "playlists" && selectedPlaylistId === null) {
-      setSelectedPlaylistId(playlists[0]?.id ?? null);
-    }
+      if (category === "playlists" && selectedPlaylistId === null) {
+        setSelectedPlaylistId(playlists[0]?.id ?? null);
+      }
+    });
+  }
+
+  function handleSearchQueryChange(query: string) {
+    startTransition(() => {
+      setSearchQuery(query);
+    });
   }
 
   function handleToggleLikedSong(songIndex: number) {
@@ -689,7 +701,7 @@ export function useScoreLibrary({
     selectedPlaylistId,
     selectedSongId,
     selectedSongIndex,
-    setSearchQuery,
+    setSearchQuery: handleSearchQueryChange,
     setSelectedPlaylistId,
     setSelectedSongId,
     setSelectedSongIndex,

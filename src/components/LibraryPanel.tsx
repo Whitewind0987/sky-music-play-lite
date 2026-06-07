@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { UiText } from "../i18n/uiText";
@@ -258,7 +258,7 @@ function PlaylistHeader({
       return;
     }
 
-    function handlePointerDown(event: PointerEvent | MouseEvent) {
+    function handlePointerDown(event: Event) {
       const target = event.target;
 
       if (
@@ -478,34 +478,54 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
 }) {
-  function runAction(action: () => void) {
+  function stopMenuPropagation(event: MouseEvent<HTMLElement>) {
+    event.stopPropagation();
+  }
+
+  function runAction(
+    event: MouseEvent<HTMLButtonElement>,
+    action: () => void,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.blur();
     action();
     onClose();
   }
 
   return (
-    <div className="library-action-menu" role="menu">
-      <button type="button" role="menuitem" onClick={() => runAction(() => onPlaySong(item))}>
+    <div
+      className="library-action-menu"
+      role="menu"
+      onClick={stopMenuPropagation}
+      onMouseDown={stopMenuPropagation}
+      onPointerDown={stopMenuPropagation}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onClick={(event) => runAction(event, () => onPlaySong(item))}
+      >
         {text.playAction}
       </button>
       <button
         type="button"
         role="menuitem"
-        onClick={() => runAction(() => onPlaySongNext(item.songIndex))}
+        onClick={(event) => runAction(event, () => onPlaySongNext(item.songIndex))}
       >
         {text.playNextAction}
       </button>
       <button
         type="button"
         role="menuitem"
-        onClick={() => runAction(() => onAddToQueue(item.songIndex))}
+        onClick={(event) => runAction(event, () => onAddToQueue(item.songIndex))}
       >
         {text.addToQueueAction}
       </button>
       <button
         type="button"
         role="menuitem"
-        onClick={() => runAction(() => onOpenCollectDialog(item))}
+        onClick={(event) => runAction(event, () => onOpenCollectDialog(item))}
       >
         {text.addToPlaylist}
       </button>
@@ -513,7 +533,9 @@ function LibraryActionMenu({
         <button
           type="button"
           role="menuitem"
-          onClick={() => runAction(() => onRemoveFromLiked(item.librarySong.id))}
+          onClick={(event) =>
+            runAction(event, () => onRemoveFromLiked(item.librarySong.id))
+          }
         >
           {text.removeFromLiked}
         </button>
@@ -522,8 +544,8 @@ function LibraryActionMenu({
         <button
           type="button"
           role="menuitem"
-          onClick={() =>
-            runAction(() =>
+          onClick={(event) =>
+            runAction(event, () =>
               onRemoveSongFromPlaylist(selectedPlaylist.id, item.librarySong.id),
             )
           }
@@ -536,7 +558,9 @@ function LibraryActionMenu({
           className="is-danger"
           type="button"
           role="menuitem"
-          onClick={() => runAction(() => onDeleteLocalSong(item.songIndex))}
+          onClick={(event) =>
+            runAction(event, () => onDeleteLocalSong(item.songIndex))
+          }
         >
           {text.deleteFromLocalImports}
         </button>
@@ -854,7 +878,7 @@ export function LibraryPanel({
       return;
     }
 
-    function handlePointerDown(event: PointerEvent | MouseEvent) {
+    function handlePointerDown(event: Event) {
       const target = event.target;
 
       if (

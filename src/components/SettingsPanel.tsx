@@ -25,6 +25,7 @@ import {
   defaultPlaybackShortcuts,
   playbackShortcutActions,
   type PlaybackShortcutAction,
+  type PlaybackShortcutNotices,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
 import { PanelHeader } from "./PanelHeader";
@@ -76,7 +77,7 @@ type SettingsPlaceholderProps = {
   onLanguageChange: (language: LanguageCode) => void;
   onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
   playbackShortcuts: PlaybackShortcuts;
-  shortcutNotice: string | null;
+  shortcutNotice: PlaybackShortcutNotices;
   text: UiText["settings"];
 };
 
@@ -95,10 +96,8 @@ export function SettingsPlaceholder({
 }: SettingsPlaceholderProps) {
   const [listeningShortcutAction, setListeningShortcutAction] =
     useState<PlaybackShortcutAction | null>(null);
-  const [shortcutConflictMessage, setShortcutConflictMessage] =
-    useState<string | null>(null);
-  const displayedShortcutNotice =
-    shortcutConflictMessage ?? shortcutNotice;
+  const [shortcutConflictNotices, setShortcutConflictNotices] =
+    useState<PlaybackShortcutNotices>({});
   const experimentalPlaybackPercent = Math.round(
     experimentalInput.experimentalPlaybackProgress.percent,
   );
@@ -125,7 +124,7 @@ export function SettingsPlaceholder({
   useEffect(() => {
     if (listeningSkyKey !== null) {
       setListeningShortcutAction(null);
-      setShortcutConflictMessage(null);
+      setShortcutConflictNotices({});
     }
   }, [listeningSkyKey]);
 
@@ -142,7 +141,7 @@ export function SettingsPlaceholder({
 
       if (event.code === "Escape") {
         setListeningShortcutAction(null);
-        setShortcutConflictMessage(null);
+        setShortcutConflictNotices({});
         return;
       }
 
@@ -153,7 +152,9 @@ export function SettingsPlaceholder({
       );
 
       if (duplicateAction !== undefined) {
-        setShortcutConflictMessage(text.keyboardShortcutDuplicate);
+        setShortcutConflictNotices({
+          [currentAction]: text.keyboardShortcutDuplicate,
+        });
         return;
       }
 
@@ -161,7 +162,9 @@ export function SettingsPlaceholder({
         currentAction === "stop" &&
         isUnsafeGlobalStopShortcut(event.code)
       ) {
-        setShortcutConflictMessage(text.keyboardShortcutUnsafeGlobalStop);
+        setShortcutConflictNotices({
+          [currentAction]: text.keyboardShortcutUnsafeGlobalStop,
+        });
         return;
       }
 
@@ -170,7 +173,7 @@ export function SettingsPlaceholder({
         [currentAction]: event.code,
       });
       setListeningShortcutAction(null);
-      setShortcutConflictMessage(null);
+      setShortcutConflictNotices({});
     }
 
     window.addEventListener("keydown", handleShortcutKeyDown, true);
@@ -542,6 +545,8 @@ export function SettingsPlaceholder({
           {playbackShortcutActions.map((action) => {
             const isListening = listeningShortcutAction === action;
             const isDisabled = listeningSkyKey !== null;
+            const rowShortcutNotice =
+              shortcutConflictNotices[action] ?? shortcutNotice[action];
 
             return (
               <div className="setting-row" key={action}>
@@ -558,6 +563,15 @@ export function SettingsPlaceholder({
                       ]
                     }
                   </span>
+                  {rowShortcutNotice ? (
+                    <span
+                      className="shortcut-conflict-badge"
+                      title={rowShortcutNotice}
+                      aria-label={rowShortcutNotice}
+                    >
+                      {text.keyboardShortcutConflictBadge}
+                    </span>
+                  ) : null}
                 </div>
                 <button
                   className={`shortcut-binding-button${
@@ -568,7 +582,7 @@ export function SettingsPlaceholder({
                   onClick={() => {
                     onShortcutNoticeClear();
                     setListeningShortcutAction(action);
-                    setShortcutConflictMessage(null);
+                    setShortcutConflictNotices({});
                   }}
                 >
                   {isListening
@@ -578,11 +592,6 @@ export function SettingsPlaceholder({
               </div>
             );
           })}
-          {displayedShortcutNotice ? (
-            <p className="shortcut-helper-note shortcut-error-note">
-              {displayedShortcutNotice}
-            </p>
-          ) : null}
           {listeningSkyKey !== null ? (
             <p className="shortcut-helper-note">
               {text.keyboardShortcutMappingActive}
@@ -597,7 +606,7 @@ export function SettingsPlaceholder({
                 onShortcutNoticeClear();
                 onPlaybackShortcutsChange(defaultPlaybackShortcuts);
                 setListeningShortcutAction(null);
-                setShortcutConflictMessage(null);
+                setShortcutConflictNotices({});
               }}
             >
               {text.keyboardShortcutReset}
