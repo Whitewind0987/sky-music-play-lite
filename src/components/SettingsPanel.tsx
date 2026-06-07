@@ -564,8 +564,12 @@ export function SettingsPlaceholder({
                     }
                   </span>
                   {rowShortcutNotice ? (
-                    <span className="shortcut-inline-warning">
-                      {rowShortcutNotice}
+                    <span
+                      className="shortcut-conflict-badge"
+                      title={rowShortcutNotice}
+                      aria-label={rowShortcutNotice}
+                    >
+                      {text.keyboardShortcutConflictBadge}
                     </span>
                   ) : null}
                 </div>

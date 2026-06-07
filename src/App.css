@@ -1107,6 +1107,7 @@ button {
 }
 
 .update-dialog-card {
+  position: relative;
   width: min(460px, 100%);
   display: grid;
   gap: 14px;
@@ -1216,6 +1217,10 @@ button {
   outline: none;
 }
 
+.update-dialog-header {
+  padding-right: 34px;
+}
+
 .library-collect-dialog-header {
   display: flex;
   align-items: center;
@@ -1240,6 +1245,39 @@ button {
 
 .library-collect-dialog-header button {
   padding: 0 10px;
+}
+
+.update-dialog-header .update-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #475569;
+  background: transparent;
+  cursor: pointer;
+}
+
+.update-dialog-header .update-dialog-close:hover,
+.update-dialog-header .update-dialog-close:focus-visible {
+  color: #111827;
+  background: rgba(255, 255, 255, 0.45);
+  outline: none;
+}
+
+.update-dialog-header .update-dialog-close:focus-visible {
+  box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.35);
+}
+
+.update-dialog-close svg {
+  width: 18px;
+  height: 18px;
 }
 
 .library-collect-create {
@@ -1670,12 +1708,20 @@ button {
   background: #fffbeb;
 }
 
-.shortcut-inline-warning {
-  min-width: 0;
+.shortcut-conflict-badge {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
   color: #991b1b;
+  background: #fee2e2;
   font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .shortcut-warning {

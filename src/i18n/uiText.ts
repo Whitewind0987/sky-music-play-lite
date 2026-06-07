@@ -470,6 +470,7 @@ export const uiText = {
         inApp: "仅应用内",
       },
       keyboardShortcutListening: "按下新的快捷键...",
+      keyboardShortcutConflictBadge: "冲突",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutUnsafeGlobalStop:
         "该按键容易与游戏操作冲突，请为全局停止选择 F1-F12 或字母键。",
@@ -965,6 +966,7 @@ export const uiText = {
         inApp: "In app",
       },
       keyboardShortcutListening: "Press a new shortcut...",
+      keyboardShortcutConflictBadge: "Conflict",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutUnsafeGlobalStop:
         "This key may conflict with game controls. Choose F1-F12 or a letter key for global Stop.",

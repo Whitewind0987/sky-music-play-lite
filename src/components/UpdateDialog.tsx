@@ -48,15 +48,28 @@ export function UpdateDialog({
         aria-modal="true"
         aria-labelledby="update-dialog-title"
       >
-        <div className="library-collect-dialog-header">
+        <div className="library-collect-dialog-header update-dialog-header">
           <div>
             <p className="update-dialog-kind">
               {text.updateKindLabels[updateInfo.updateKind]}
             </p>
             <h3 id="update-dialog-title">{title}</h3>
           </div>
-          <button type="button" onClick={onClose} aria-label={text.close}>
-            x
+          <button
+            className="update-dialog-close"
+            type="button"
+            onClick={onClose}
+            aria-label={text.close}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="2"
+              />
+            </svg>
           </button>
         </div>
 
