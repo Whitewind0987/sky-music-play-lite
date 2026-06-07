@@ -4,10 +4,19 @@ export type UpdateManifest = {
   latestVersion: string;
   releaseUrl: string;
   title?: string;
-  notes?: string;
+  notes?: string | string[];
+  updateKind?: UpdateKind;
 };
 
-export type UpdateInfo = UpdateManifest;
+export type UpdateKind = "alpha" | "recommended";
+
+export type UpdateInfo = {
+  latestVersion: string;
+  releaseUrl: string;
+  title?: string;
+  notes: string[];
+  updateKind: UpdateKind;
+};
 
 type ParsedVersion = {
   core: [number, number, number];
@@ -76,7 +85,7 @@ export async function checkForUpdate(options: {
 function validateUpdateManifest(
   value: unknown,
   allowedReleaseUrlPrefix: string,
-): UpdateManifest | null {
+): UpdateInfo | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -93,9 +102,10 @@ function validateUpdateManifest(
   }
 
   const title = readOptionalString(value.title);
-  const notes = readOptionalString(value.notes);
+  const notes = readOptionalNotes(value.notes);
+  const updateKind = readOptionalUpdateKind(value.updateKind);
 
-  if (title === null || notes === null) {
+  if (title === null || notes === null || updateKind === null) {
     return null;
   }
 
@@ -103,7 +113,13 @@ function validateUpdateManifest(
     latestVersion,
     releaseUrl,
     ...(title === undefined ? {} : { title }),
-    ...(notes === undefined ? {} : { notes }),
+    notes: notes ?? [],
+    updateKind:
+      updateKind ??
+      inferUpdateKind({
+        latestVersion,
+        title,
+      }),
   };
 }
 
@@ -205,6 +221,48 @@ function readOptionalString(value: unknown): string | undefined | null {
   }
 
   return typeof value === "string" ? value : null;
+}
+
+function readOptionalNotes(value: unknown): string[] | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? [value] : [];
+  }
+
+  if (Array.isArray(value)) {
+    const notes = value
+      .map((note) => (typeof note === "string" ? note.trim() : null))
+      .filter((note): note is string => note !== null && note.length > 0);
+
+    return notes.length === value.length ? notes : null;
+  }
+
+  return null;
+}
+
+function readOptionalUpdateKind(value: unknown): UpdateKind | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return value === "alpha" || value === "recommended" ? value : null;
+}
+
+function inferUpdateKind({
+  latestVersion,
+  title,
+}: {
+  latestVersion: string;
+  title?: string;
+}): UpdateKind {
+  const searchableText = `${latestVersion} ${title ?? ""}`;
+
+  return searchableText.toLowerCase().includes("alpha")
+    ? "alpha"
+    : "recommended";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
