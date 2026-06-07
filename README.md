@@ -135,7 +135,7 @@ cd ..
 
 ## 丨致谢
 
-SkyMusicPlay Lite 受到  [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 以及相关 Sky 光遇自动弹琴软件的启发。
+SkyMusicPlay Lite 受到 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 以及相关 Sky 光遇自动弹琴软件的启发。
 
 内置曲谱资源经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可使用。如复用这些资源，请保留原始来源和作者署名。
 
