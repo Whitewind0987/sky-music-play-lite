@@ -3,6 +3,8 @@ import type { UpdateInfo } from "./updateCheck";
 const IGNORED_UPDATE_STORAGE_KEY = "skyMusicPlayLite.ignoredUpdate";
 
 export function getUpdateIgnoreKey(updateInfo: UpdateInfo) {
+  // Ignoring an update only hides this exact latestVersion + releaseUrl pair.
+  // A newer alpha version or a different release URL will show NEW again.
   return `${updateInfo.latestVersion}|${updateInfo.releaseUrl}`;
 }
 

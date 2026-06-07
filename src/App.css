@@ -1709,6 +1709,7 @@ button {
 }
 
 .shortcut-conflict-badge {
+  max-width: 180px;
   min-height: 22px;
   display: inline-flex;
   align-items: center;
@@ -1721,6 +1722,8 @@ button {
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
