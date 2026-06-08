@@ -28,6 +28,10 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Use Radix UI for interactive primitives such as Dialog, AlertDialog, DropdownMenu, Toast, Tooltip, Slider, Progress, and Popover.
 - Use Tailwind CSS for new UI styling, but preserve existing CSS during the gradual migration.
 - During the early migration, do not use the full `@import "tailwindcss";` in the existing app styles. Use the no-Preflight Tailwind import until the user explicitly approves enabling Preflight.
+- New shared UI building blocks should live in `src/components/ui/`.
+- Shared className helpers should live in `src/lib/cn.ts`.
+- Do not use `clsx`, `tailwind-merge`, or new styling dependencies unless the user explicitly approves them.
+- UI foundation components must not be wired into existing screens until a later stage explicitly asks for it.
 - Do not introduce Mantine, shadcn/ui CLI, or Radix Themes unless the user explicitly approves it.
 - Controlled text inputs must update their value synchronously.
 - Do not wrap controlled text input value updates in `startTransition`.
