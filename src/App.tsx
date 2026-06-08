@@ -11,6 +11,7 @@ import {
   WorkspaceHeader,
   type AppSection,
 } from "./components/AppShell";
+import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
 import { LibraryPanel } from "./components/LibraryPanel";
@@ -73,11 +74,14 @@ function App() {
   });
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
-  const appNoticeTimerRef = useRef<number | null>(null);
   const globalStopShortcutOperationRef = useRef<Promise<void>>(
     Promise.resolve(),
   );
-  const [appNotice, setAppNotice] = useState<string | null>(null);
+  const [appNotice, setAppNotice] = useState<{
+    id: number;
+    message: string;
+  } | null>(null);
+  const [isAppNoticeOpen, setIsAppNoticeOpen] = useState(false);
   const [shortcutNotice, setShortcutNotice] =
     useState<PlaybackShortcutNotices>({});
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -437,23 +441,12 @@ function App() {
     text.settings.keyboardShortcutUnsafeGlobalStop,
   ]);
 
-  useEffect(() => {
-    return () => {
-      if (appNoticeTimerRef.current !== null) {
-        window.clearTimeout(appNoticeTimerRef.current);
-      }
-    };
-  }, []);
-
   function showAppNotice(message: string) {
-    setAppNotice(message);
-    if (appNoticeTimerRef.current !== null) {
-      window.clearTimeout(appNoticeTimerRef.current);
-    }
-    appNoticeTimerRef.current = window.setTimeout(() => {
-      setAppNotice(null);
-      appNoticeTimerRef.current = null;
-    }, 3000);
+    setAppNotice((currentNotice) => ({
+      id: (currentNotice?.id ?? 0) + 1,
+      message,
+    }));
+    setIsAppNoticeOpen(true);
   }
 
   function handleOpenUpdateDialog() {
@@ -879,11 +872,12 @@ function App() {
         </div>
       </section>
 
-      {appNotice ? (
-        <div className="app-notice" role="status" aria-live="polite">
-          {appNotice}
-        </div>
-      ) : null}
+      <AppNoticeToast
+        message={appNotice?.message ?? null}
+        noticeKey={appNotice?.id ?? 0}
+        open={isAppNoticeOpen}
+        onOpenChange={setIsAppNoticeOpen}
+      />
 
       {isUpdateDialogOpen && updateInfo !== null ? (
         <UpdateDialog
