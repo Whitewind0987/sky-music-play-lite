@@ -11,7 +11,6 @@ import {
 } from "../lib/playbackScheduler";
 import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
 import {
-  activateTargetWindowMessage,
   findSkyWindow,
   listCandidateWindows,
   sendKeyGroupToWindowMessage,
@@ -605,8 +604,7 @@ export function useExperimentalInput({
       return;
     }
 
-    const targetWindowHwnd = selectedWindowHwnd;
-    if (targetWindowHwnd === null) {
+    if (selectedWindowHwnd === null) {
       logMissingTargetWindow();
       return;
     }
@@ -642,26 +640,11 @@ export function useExperimentalInput({
       setIsStartingExperimentalPlayback(true);
     }
 
-    const method = targetWindowMessageMethodRef.current;
-    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
-
-    const preflightSucceeded = await runTargetWindowActivationPreflight({
-      compatibilityProfile,
-      method,
-      runId,
-      targetWindowHwnd,
-    });
-
     if (experimentalPlaybackRunIdRef.current !== runId) {
       return;
     }
 
     setIsStartingExperimentalPlayback(false);
-
-    if (!preflightSucceeded) {
-      return;
-    }
-
     startExperimentalPlaybackForSong(songIndex, song);
   }
 
@@ -673,83 +656,6 @@ export function useExperimentalInput({
     const message = text.logs.experimentalTargetWindowMissing;
     appendLog(message);
     showNotice?.(message);
-  }
-
-  async function runTargetWindowActivationPreflight({
-    compatibilityProfile,
-    method,
-    runId,
-    targetWindowHwnd,
-  }: {
-    compatibilityProfile: TargetWindowCompatibilityProfile;
-    method: TargetWindowMessageMethod;
-    runId: number;
-    targetWindowHwnd: string;
-  }) {
-    if (!shouldRunTargetWindowActivationPreflight(compatibilityProfile)) {
-      return true;
-    }
-
-    const methodLabel = text.settings.experimentalTargetWindowMessageMethods[method];
-    const profileLabel =
-      text.settings.experimentalTargetWindowCompatibilityProfiles[
-        compatibilityProfile
-      ];
-
-    appendLog(
-      formatText(text.logs.experimentalTargetWindowActivationPreflightStarted, {
-        method: methodLabel,
-        profile: profileLabel,
-        targetHwnd: targetWindowHwnd,
-      }),
-    );
-
-    try {
-      await activateTargetWindowMessage(targetWindowHwnd, method);
-
-      if (experimentalPlaybackRunIdRef.current !== runId) {
-        return false;
-      }
-
-      appendLog(
-        formatText(
-          text.logs.experimentalTargetWindowActivationPreflightSucceeded,
-          {
-            method: methodLabel,
-            profile: profileLabel,
-            targetHwnd: targetWindowHwnd,
-          },
-        ),
-      );
-
-      return true;
-    } catch (error) {
-      if (experimentalPlaybackRunIdRef.current !== runId) {
-        return false;
-      }
-
-      const errorMessage = String(error);
-      const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
-      const logTemplate = isInvalidTargetWindow
-        ? text.logs.experimentalSavedTargetWindowUnavailable
-        : text.logs.experimentalTargetWindowActivationPreflightFailed;
-
-      setLastError(errorMessage);
-      appendLog(
-        formatText(logTemplate, {
-          error: errorMessage,
-          method: methodLabel,
-          profile: profileLabel,
-          targetHwnd: targetWindowHwnd,
-        }),
-      );
-      if (isInvalidTargetWindow) {
-        showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
-      }
-      stopExperimentalPlayback({ logStopped: false });
-
-      return false;
-    }
   }
 
   async function startExperimentalPlaybackForSong(
@@ -1045,16 +951,6 @@ function isGroupedTargetWindowProfile(
   profile: TargetWindowCompatibilityProfile,
 ) {
   return (
-    profile === "grouped-legacy" ||
-    profile === "legacy-activate-scan-lparam"
-  );
-}
-
-function shouldRunTargetWindowActivationPreflight(
-  profile: TargetWindowCompatibilityProfile,
-) {
-  return (
-    profile === "legacy-vkscan-scan-lparam" ||
     profile === "grouped-legacy" ||
     profile === "legacy-activate-scan-lparam"
   );
