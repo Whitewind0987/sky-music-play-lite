@@ -346,7 +346,7 @@ export function BottomPlayer({
             <span className="visually-hidden">{text.shuffle}</span>
           </button>
           <button
-            className="player-icon-button player-icon-button-secondary"
+            className="player-icon-button player-icon-button-secondary player-icon-button-stop"
             type="button"
             aria-label={text.stop}
             disabled={!canStop}

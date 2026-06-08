@@ -2684,21 +2684,21 @@ button {
 .player-icon-button-primary {
   width: 42px;
   height: 42px;
-  border-color: #f05b72;
+  border-color: #2f80ed;
   border-radius: 999px;
   color: #ffffff;
-  background: #f05b72;
-  box-shadow: 0 8px 18px rgba(240, 91, 114, 0.22);
+  background: #2f80ed;
+  box-shadow: 0 8px 18px rgba(47, 128, 237, 0.18);
 }
 
 .player-icon-button-primary:not(:disabled) {
   color: #ffffff;
-  background: #f05b72;
+  background: #2f80ed;
 }
 
 .player-icon-button-primary:not(:disabled):hover {
-  border-color: #e84b65;
-  background: #e84b65;
+  border-color: #1c6fd7;
+  background: #1c6fd7;
 }
 
 .player-icon-button-primary:disabled {
@@ -2770,10 +2770,24 @@ button {
   height: 20px;
 }
 
-.player-icon-button:not(:disabled) .player-icon-stop {
-  width: 13px;
-  height: 13px;
+.player-icon-button-stop:not(:disabled) {
   color: #e05260;
+}
+
+.player-icon-button-stop:not(:disabled):hover {
+  color: #d63a4e;
+  background: #fff1f3;
+}
+
+.player-icon-button-stop:not(:disabled) .player-icon-stop {
+  width: 17px;
+  height: 17px;
+  color: #e05260;
+}
+
+.player-icon-button-stop:disabled .player-icon-stop {
+  width: 16px;
+  height: 16px;
 }
 
 .player-icon-next {
