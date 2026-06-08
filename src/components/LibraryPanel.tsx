@@ -1,3 +1,4 @@
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   BookmarkPlus,
   Heart,
@@ -7,7 +8,7 @@ import {
   Plus,
   SkipForward,
 } from "lucide-react";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { UiText } from "../i18n/uiText";
@@ -331,81 +332,74 @@ function AddToPlaylistPopup({
   onClose: () => void;
   onCreatePlaylist: () => void;
 }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div
-      className="library-dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) {
           onClose();
         }
       }}
     >
-      <div
-        className="library-collect-dialog"
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={text.addToPlaylistDialogTitle}
-      >
-        <div className="library-collect-dialog-header">
-          <h3>{text.addToPlaylistDialogTitle}</h3>
-          <button type="button" onClick={onClose} aria-label={text.closeDialog}>
-            {text.closeDialog}
-          </button>
-        </div>
-        <button
-          className="library-collect-create"
-          type="button"
-          onClick={onCreatePlaylist}
-        >
-          <LibraryPlusIcon />
-          {text.createPlaylistAndAdd}
-        </button>
-        {playlists.length === 0 ? (
-          <p className="library-empty-note">{text.noPlaylists}</p>
-        ) : (
-          <div className="library-collect-list">
-            {playlists.map((playlist) => (
-              <button
-                className="library-collect-row"
-                key={playlist.id}
-                type="button"
-                onClick={() => {
-                  const result = onAddSongToPlaylist(
-                    playlist.id,
-                    item.songIndex,
-                  );
+      <Dialog.Portal>
+        <Dialog.Overlay className="library-dialog-backdrop">
+          <Dialog.Content
+            className="library-collect-dialog"
+            aria-describedby={undefined}
+          >
+            <div className="library-collect-dialog-header">
+              <Dialog.Title asChild>
+                <h3>{text.addToPlaylistDialogTitle}</h3>
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <button type="button" aria-label={text.closeDialog}>
+                  {text.closeDialog}
+                </button>
+              </Dialog.Close>
+            </div>
+            <button
+              className="library-collect-create"
+              type="button"
+              onClick={onCreatePlaylist}
+            >
+              <LibraryPlusIcon />
+              {text.createPlaylistAndAdd}
+            </button>
+            {playlists.length === 0 ? (
+              <p className="library-empty-note">{text.noPlaylists}</p>
+            ) : (
+              <div className="library-collect-list">
+                {playlists.map((playlist) => (
+                  <button
+                    className="library-collect-row"
+                    key={playlist.id}
+                    type="button"
+                    onClick={() => {
+                      const result = onAddSongToPlaylist(
+                        playlist.id,
+                        item.songIndex,
+                      );
 
-                  if (result.status === "added" || result.status === "duplicate") {
-                    onClose();
-                  }
-                }}
-              >
-                <span>{playlist.name}</span>
-                <small>
-                  {playlist.songIds.length} {text.playlistSongCount}
-                </small>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+                      if (
+                        result.status === "added" ||
+                        result.status === "duplicate"
+                      ) {
+                        onClose();
+                      }
+                    }}
+                  >
+                    <span>{playlist.name}</span>
+                    <small>
+                      {playlist.songIds.length} {text.playlistSongCount}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Overlay>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
