@@ -27,6 +27,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Do not add new handwritten inline SVG icons unless there is no suitable `lucide-react` icon and the user approves it.
 - Use Radix UI for interactive primitives such as Dialog, AlertDialog, DropdownMenu, Toast, Tooltip, Slider, Progress, and Popover.
 - Use Tailwind CSS for new UI styling, but preserve existing CSS during the gradual migration.
+- During the early migration, do not use the full `@import "tailwindcss";` in the existing app styles. Use the no-Preflight Tailwind import until the user explicitly approves enabling Preflight.
 - Do not introduce Mantine, shadcn/ui CLI, or Radix Themes unless the user explicitly approves it.
 - Controlled text inputs must update their value synchronously.
 - Do not wrap controlled text input value updates in `startTransition`.
