@@ -16,6 +16,27 @@ SkyMusicPlay Lite must use this stack:
 
 Do not replace this stack unless the human user explicitly changes the project direction.
 
+## UI Refresh Rules
+
+- This project is gradually introducing Tailwind CSS, Radix UI, and lucide-react.
+- Do not rewrite the whole UI at once.
+- Do not remove `App.css` until the migration is explicitly finished.
+- Do not remove `iconfont.css` until every icon usage has been replaced and verified.
+- New icons should use `lucide-react`.
+- Do not add new font icon dependencies.
+- Do not add new handwritten inline SVG icons unless there is no suitable `lucide-react` icon and the user approves it.
+- Use Radix UI for interactive primitives such as Dialog, AlertDialog, DropdownMenu, Toast, Tooltip, Slider, Progress, and Popover.
+- Use Tailwind CSS for new UI styling, but preserve existing CSS during the gradual migration.
+- Do not introduce Mantine, shadcn/ui CLI, or Radix Themes unless the user explicitly approves it.
+- Controlled text inputs must update their value synchronously.
+- Do not wrap controlled text input value updates in `startTransition`.
+- Do not manually build input text from keydown events.
+- Do not block IME composition events.
+- Search input and other text inputs must support Chinese IME correctly.
+- Do not change playback, queue, experimental input, or score import logic during UI-only stages.
+- Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
+- Every stage must run `npm run build` and `cargo check` before completion.
+
 ## Development Style
 
 - Build the project in small, phase-by-phase steps.
