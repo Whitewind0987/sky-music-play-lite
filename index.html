@@ -4,11 +4,78 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + Typescript</title>
+    <title>SkyMusicPlay Lite</title>
+    <style>
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e9e9e9;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .startup-splash {
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1f2933;
+      }
+
+      .startup-splash-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+      }
+
+      .startup-splash-mark {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 9px;
+        color: #ffffff;
+        background: #1f2933;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .startup-splash-title,
+      .startup-splash-subtitle {
+        margin: 0;
+      }
+
+      .startup-splash-title {
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .startup-splash-subtitle {
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 12px;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="startup-splash" aria-label="SkyMusicPlay Lite loading">
+        <div class="startup-splash-card">
+          <div class="startup-splash-mark">S</div>
+          <div>
+            <p class="startup-splash-title">SkyMusicPlay Lite</p>
+            <p class="startup-splash-subtitle">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
