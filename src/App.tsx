@@ -101,6 +101,7 @@ function App() {
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
+    showNotice: showAppNotice,
     text,
   });
   const playbackOrder = usePlaybackOrder();

@@ -40,6 +40,7 @@ export function PlayIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={Play}
+      className={`player-icon-primary player-icon-play${props.className ? ` ${props.className}` : ""}`}
       filled
       strokeWidth={0}
     />
@@ -51,6 +52,7 @@ export function PauseIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={Pause}
+      className={`player-icon-primary${props.className ? ` ${props.className}` : ""}`}
       filled
       strokeWidth={0}
     />
@@ -62,6 +64,7 @@ export function StopIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={Square}
+      className={`player-icon-stop${props.className ? ` ${props.className}` : ""}`}
       filled
       strokeWidth={0}
     />
@@ -73,8 +76,9 @@ export function NextIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={SkipForward}
+      className={`player-icon-next${props.className ? ` ${props.className}` : ""}`}
       filled
-      strokeWidth={2.8}
+      strokeWidth={2.2}
     />
   );
 }

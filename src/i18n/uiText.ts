@@ -314,6 +314,8 @@ export const uiText = {
       queueUnknownSong: "未知曲目",
       queueItemAlreadyExists: "该曲谱已在播放队列中",
       playlistSongAlreadyExists: "歌单中已存在：{songName}",
+      duplicateImportSkipped: "已跳过重复曲谱：{songName}",
+      duplicateImportSkippedSummary: "已跳过 {count} 首已存在的曲谱。",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
       selectedSongNotInCurrentView:
@@ -799,6 +801,8 @@ export const uiText = {
       queueUnknownSong: "Unknown score",
       queueItemAlreadyExists: "This score is already in the playback queue",
       playlistSongAlreadyExists: "Already in playlist: {songName}",
+      duplicateImportSkipped: "Skipped duplicate score: {songName}",
+      duplicateImportSkippedSummary: "Skipped {count} existing score(s).",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
       selectedSongNotInCurrentView:

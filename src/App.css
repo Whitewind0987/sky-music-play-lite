@@ -2682,21 +2682,23 @@ button {
 }
 
 .player-icon-button-primary {
-  width: 46px;
-  height: 46px;
-  border-color: #2f80ed;
+  width: 42px;
+  height: 42px;
+  border-color: #f05b72;
   border-radius: 999px;
   color: #ffffff;
-  background: #2f80ed;
+  background: #f05b72;
+  box-shadow: 0 8px 18px rgba(240, 91, 114, 0.22);
 }
 
 .player-icon-button-primary:not(:disabled) {
   color: #ffffff;
-  background: #2f80ed;
+  background: #f05b72;
 }
 
 .player-icon-button-primary:not(:disabled):hover {
-  background: #1c6fd7;
+  border-color: #e84b65;
+  background: #e84b65;
 }
 
 .player-icon-button-primary:disabled {
@@ -2764,8 +2766,27 @@ button {
 }
 
 .player-icon-button-primary .player-icon {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
+}
+
+.player-icon-button:not(:disabled) .player-icon-stop {
+  width: 13px;
+  height: 13px;
+  color: #e05260;
+}
+
+.player-icon-next {
+  width: 21px;
+  height: 21px;
+}
+
+.player-icon-play {
+  transform: translateX(1px);
+}
+
+.player-icon-button-primary .player-icon-primary {
+  color: #ffffff;
 }
 
 .player-icon-repeat {

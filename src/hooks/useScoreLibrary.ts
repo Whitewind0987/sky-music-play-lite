@@ -21,6 +21,9 @@ import {
   createLibrarySong,
   createPlaylist,
   filterSongsByQuery,
+  getLibrarySongFingerprint,
+  getSongFingerprint,
+  hasReliableDuplicateFingerprint,
   isSongLiked,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
@@ -32,6 +35,7 @@ import {
 } from "../lib/scoreFileImport";
 import type { PersistedAppData } from "../types/appData";
 import type {
+  AddSongToPlaylistResult,
   LibrarySong,
   LibrarySongId,
   LikedSongEntry,
@@ -42,6 +46,7 @@ import type { Song } from "../types/score";
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
   onBeforeLibraryMutation: () => void;
+  showNotice?: (message: string) => void;
   text: UiText;
 };
 
@@ -50,6 +55,7 @@ const BUILT_IN_PAGE_SIZE = 100;
 export function useScoreLibrary({
   appendLog,
   onBeforeLibraryMutation,
+  showNotice,
   text,
 }: UseScoreLibraryOptions) {
   const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<LibrarySong[]>([]);
@@ -280,29 +286,81 @@ export function useScoreLibrary({
     }
 
     if (importedSongsFromFiles.length > 0) {
-      const shouldSelectFirstImportedSong = selectedSongId === null;
-      const nextLocalLibrarySongs = importedSongsFromFiles.map((song) =>
-        createLibrarySong(song),
+      const existingSongFingerprints = new Set(
+        librarySongsRef.current
+          .filter(hasReliableDuplicateFingerprint)
+          .map(getLibrarySongFingerprint),
       );
+      const uniqueImportedSongs: Song[] = [];
+      const skippedDuplicateSongs: Song[] = [];
 
-      setLocalLibrarySongs((currentSongs) => {
-        const nextSongs = [...currentSongs, ...nextLocalLibrarySongs];
+      importedSongsFromFiles.forEach((song) => {
+        const fingerprint = getSongFingerprint(song);
 
-        localLibrarySongsRef.current = nextSongs;
-        return nextSongs;
+        if (
+          song.songNotes.length > 0 &&
+          existingSongFingerprints.has(fingerprint)
+        ) {
+          skippedDuplicateSongs.push(song);
+          return;
+        }
+
+        uniqueImportedSongs.push(song);
+        if (song.songNotes.length > 0) {
+          existingSongFingerprints.add(fingerprint);
+        }
       });
 
-      if (shouldSelectFirstImportedSong) {
-        setSelectedSongId(nextLocalLibrarySongs[0]?.id ?? null);
+      skippedDuplicateSongs.forEach((song) => {
+        appendLog(
+          formatText(text.logs.duplicateImportSkipped, {
+            songName: song.name,
+          }),
+        );
+      });
+
+      if (skippedDuplicateSongs.length > 0) {
+        const skippedMessage =
+          skippedDuplicateSongs.length === 1
+            ? formatText(text.logs.duplicateImportSkipped, {
+                songName: skippedDuplicateSongs[0]?.name ?? "",
+              })
+            : formatText(text.logs.duplicateImportSkippedSummary, {
+                count: skippedDuplicateSongs.length,
+              });
+
+        showNotice?.(skippedMessage);
       }
 
-      setImportError("");
-      appendLog(
-        formatText(text.logs.importedScoresFromFiles, {
-          count: importedSongsFromFiles.length,
-          fileCount: successfulFileCount,
-        }),
-      );
+      if (uniqueImportedSongs.length === 0) {
+        if (failedImports.length === 0) {
+          setImportError("");
+        }
+      } else {
+        const shouldSelectFirstImportedSong = selectedSongId === null;
+        const nextLocalLibrarySongs = uniqueImportedSongs.map((song) =>
+          createLibrarySong(song),
+        );
+
+        setLocalLibrarySongs((currentSongs) => {
+          const nextSongs = [...currentSongs, ...nextLocalLibrarySongs];
+
+          localLibrarySongsRef.current = nextSongs;
+          return nextSongs;
+        });
+
+        if (shouldSelectFirstImportedSong) {
+          setSelectedSongId(nextLocalLibrarySongs[0]?.id ?? null);
+        }
+
+        setImportError("");
+        appendLog(
+          formatText(text.logs.importedScoresFromFiles, {
+            count: uniqueImportedSongs.length,
+            fileCount: successfulFileCount,
+          }),
+        );
+      }
     }
 
     if (failedImports.length > 0) {
@@ -451,23 +509,27 @@ export function useScoreLibrary({
     });
   }
 
-  function handleAddSongToPlaylist(playlistId: string, songIndex: number) {
+  function handleAddSongToPlaylist(
+    playlistId: string,
+    songIndex: number,
+  ): AddSongToPlaylistResult {
     const librarySong = librarySongsRef.current[songIndex];
     const playlist = playlists.find(
       (currentPlaylist) => currentPlaylist.id === playlistId,
     );
 
     if (!librarySong || !playlist) {
-      return;
+      return { status: "missing" };
     }
 
     if (playlist.songIds.includes(librarySong.id)) {
-      appendLog(
-        formatText(text.logs.playlistSongAlreadyExists, {
-          songName: librarySong.song.name,
-        }),
-      );
-      return;
+      const message = formatText(text.logs.playlistSongAlreadyExists, {
+        songName: librarySong.song.name,
+      });
+
+      appendLog(message);
+      showNotice?.(message);
+      return { message, status: "duplicate" };
     }
 
     setPlaylists((currentPlaylists) =>
@@ -477,6 +539,8 @@ export function useScoreLibrary({
           : currentPlaylist,
       ),
     );
+
+    return { status: "added" };
   }
 
   function handleCreatePlaylistWithSong(

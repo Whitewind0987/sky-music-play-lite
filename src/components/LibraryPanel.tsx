@@ -13,6 +13,7 @@ import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { UiText } from "../i18n/uiText";
 import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
 import type {
+  AddSongToPlaylistResult,
   LibrarySongId,
   LibrarySongListItem,
   UserPlaylist,
@@ -33,7 +34,10 @@ type LibraryPanelProps = {
   importDisabled: boolean;
   importError: string;
   items: LibrarySongListItem[];
-  onAddSongToPlaylist: (playlistId: string, songIndex: number) => void;
+  onAddSongToPlaylist: (
+    playlistId: string,
+    songIndex: number,
+  ) => AddSongToPlaylistResult;
   onAddToQueue: (songIndex: number) => void;
   onCreatePlaylistWithSong: (
     songIndex: number,
@@ -382,13 +386,12 @@ function AddToPlaylistPopup({
                 key={playlist.id}
                 type="button"
                 onClick={() => {
-                  const isAlreadyInPlaylist = playlist.songIds.includes(
-                    item.librarySong.id,
+                  const result = onAddSongToPlaylist(
+                    playlist.id,
+                    item.songIndex,
                   );
 
-                  onAddSongToPlaylist(playlist.id, item.songIndex);
-
-                  if (!isAlreadyInPlaylist) {
+                  if (result.status === "added" || result.status === "duplicate") {
                     onClose();
                   }
                 }}
