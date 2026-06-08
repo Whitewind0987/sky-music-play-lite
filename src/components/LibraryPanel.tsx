@@ -1,3 +1,12 @@
+import {
+  BookmarkPlus,
+  Heart,
+  ListPlus,
+  MoreHorizontal,
+  Play,
+  Plus,
+  SkipForward,
+} from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
@@ -65,124 +74,72 @@ function readFilesFromInput(fileList: FileList | null) {
 
 function HeartIcon({ isLiked }: { isLiked: boolean }) {
   return (
-    <svg
+    <Heart
       className="library-heart-icon"
-      viewBox="0 0 20 20"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M10 17.2 8.8 16.1C4.4 12.1 2 9.9 2 6.7 2 4.2 4 2.3 6.5 2.3c1.4 0 2.7.6 3.5 1.6.8-1 2.1-1.6 3.5-1.6C16 2.3 18 4.2 18 6.7c0 3.2-2.4 5.4-6.8 9.4L10 17.2Z"
-        fill={isLiked ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.7"
-      />
-    </svg>
+      fill={isLiked ? "currentColor" : "none"}
+    />
   );
 }
 
 function LibraryRowPlayIcon() {
   return (
-    <svg
+    <Play
       className="library-row-play-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path d="M5.2 3.4v9.2L12 8 5.2 3.4Z" fill="currentColor" />
-    </svg>
+    />
   );
 }
 
 function LibraryPlayNextIcon() {
   return (
-    <svg
+    <SkipForward
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M3 3.8v8.4l5.8-4.2L3 3.8Zm7 0h1.4v8.4H10V3.8Z"
-        fill="currentColor"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryAddToQueueIcon() {
   return (
-    <svg
+    <ListPlus
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M2.5 4h6.8v1.2H2.5V4Zm0 3.2h6.8v1.2H2.5V7.2Zm0 3.2h4.8v1.2H2.5v-1.2Zm9.2-2.9h1.2v2h2v1.2h-2v2h-1.2v-2h-2V9.5h2v-2Z"
-        fill="currentColor"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryCollectIcon() {
   return (
-    <svg
+    <BookmarkPlus
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M3 3.5h7.5a2 2 0 0 1 2 2v7.1l-4-2.2-4 2.2V5.5a2 2 0 0 1 2-2Z"
-        fill="none"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M8.5 6v3M7 7.5h3"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.3"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryMoreIcon() {
   return (
-    <svg
+    <MoreHorizontal
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M4 8a1.2 1.2 0 1 1-2.4 0A1.2 1.2 0 0 1 4 8Zm5.2 0a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Zm5.2 0a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z"
-        fill="currentColor"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryPlusIcon() {
   return (
-    <svg
+    <Plus
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M8 3v10M3 8h10"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </svg>
+    />
   );
 }
 

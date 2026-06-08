@@ -1,3 +1,11 @@
+import {
+  CircleHelp,
+  Eye,
+  Library,
+  ScrollText,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
 import type { UserPlaylist } from "../types/library";
@@ -5,14 +13,14 @@ import type { UserPlaylist } from "../types/library";
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
 const librarySidebarItem = {
-  iconClass: "icon-Homehomepagemenu",
+  Icon: Library,
   section: "Library",
 } as const;
 
 const secondarySidebarItems = [
-  { iconClass: "icon-yulan", section: "Playback" },
-  { iconClass: "icon-rizhi", section: "Logs" },
-  { iconClass: "icon-shezhi", section: "Settings" },
+  { Icon: Eye, section: "Playback" },
+  { Icon: ScrollText, section: "Logs" },
+  { Icon: Settings, section: "Settings" },
 ] as const;
 
 export type AppSection =
@@ -63,24 +71,29 @@ export function AppSidebar({
     { id: "playlists", label: text.library.categoryPlaylists },
   ];
   const renderSidebarItem = (item: {
-    iconClass: string;
+    Icon: LucideIcon;
     section: AppSection;
-  }) => (
-    <button
-      className={`sidebar-link${
-        activeSection === item.section ? " is-active" : ""
-      }`}
-      key={item.section}
-      type="button"
-      onClick={() => onSectionChange(item.section)}
-    >
-      <span
-        className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()} iconfont ${item.iconClass}`}
-        aria-hidden="true"
-      />
-      <span>{text.navigation[item.section]}</span>
-    </button>
-  );
+  }) => {
+    const { Icon } = item;
+
+    return (
+      <button
+        className={`sidebar-link${
+          activeSection === item.section ? " is-active" : ""
+        }`}
+        key={item.section}
+        type="button"
+        onClick={() => onSectionChange(item.section)}
+      >
+        <Icon
+          className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()}`}
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span>{text.navigation[item.section]}</span>
+      </button>
+    );
+  };
 
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
@@ -207,7 +220,7 @@ export function WorkspaceHeader({
           title={text.actions.settings}
           aria-label={text.actions.settings}
         >
-          <span className="iconfont icon-shezhi" aria-hidden="true" />
+          <Settings aria-hidden="true" focusable="false" />
         </button>
         <button
           className="icon-action"
@@ -216,7 +229,7 @@ export function WorkspaceHeader({
           title={text.actions.userManual}
           aria-label={text.actions.userManual}
         >
-          <span className="iconfont icon-wenhao" aria-hidden="true" />
+          <CircleHelp aria-hidden="true" focusable="false" />
         </button>
       </div>
     </header>

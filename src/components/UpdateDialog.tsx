@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useEffect } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
@@ -61,15 +62,7 @@ export function UpdateDialog({
             onClick={onClose}
             aria-label={text.close}
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="2"
-              />
-            </svg>
+            <X aria-hidden="true" focusable="false" />
           </button>
         </div>
 

@@ -25,6 +25,10 @@ Do not replace this stack unless the human user explicitly changes the project d
 - New icons should use `lucide-react`.
 - Do not add new font icon dependencies.
 - Do not add new handwritten inline SVG icons unless there is no suitable `lucide-react` icon and the user approves it.
+- Existing iconfont and handwritten SVG icons should be migrated gradually to `lucide-react`.
+- Preserve existing icon wrapper class names during icon migration unless a later cleanup stage explicitly removes them.
+- Do not remove `iconfont.css` until a dedicated cleanup stage confirms there are no remaining iconfont usages.
+- Lucide icon migration must not re-enable Tailwind startup integration.
 - Use Radix UI for interactive primitives such as Dialog, AlertDialog, DropdownMenu, Toast, Tooltip, Slider, Progress, and Popover.
 - Do not install the `radix-ui` umbrella package during the UI refresh.
 - Add Radix primitives only when a stage actually uses them, using specific packages such as `@radix-ui/react-dialog`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-tooltip`, `@radix-ui/react-toast`, `@radix-ui/react-popover`, `@radix-ui/react-slider`, or `@radix-ui/react-progress`.
