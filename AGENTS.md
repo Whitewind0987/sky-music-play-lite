@@ -31,6 +31,8 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Do not keep unused UI dependencies in `package.json` because they can increase install, build, and dev startup cost.
 - Use Tailwind CSS for new UI styling, but preserve existing CSS during the gradual migration.
 - During the early migration, do not use the full `@import "tailwindcss";` in the existing app styles. Use the no-Preflight Tailwind import until the user explicitly approves enabling Preflight.
+- During early Alpha UI Refresh stages, Tailwind files and foundation components may exist without enabling the Tailwind Vite plugin in the active app startup path. Only enable the Tailwind Vite plugin when a stage actually migrates visible UI to Tailwind and the startup cost is accepted by the user.
+- If enabling a UI tool noticeably slows startup compared with the stable version, prefer deferring active integration until the tool is actually used by visible UI.
 - New shared UI building blocks should live in `src/components/ui/`.
 - Shared className helpers should live in `src/lib/cn.ts`.
 - Do not use `clsx`, `tailwind-merge`, or new styling dependencies unless the user explicitly approves them.

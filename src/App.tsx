@@ -59,7 +59,6 @@ import {
   type PlaybackShortcutNotices,
   type PlaybackShortcuts,
 } from "./types/playbackShortcuts";
-import "./tailwind.css";
 import "../font/iconfont.css";
 import "./App.css";
 
