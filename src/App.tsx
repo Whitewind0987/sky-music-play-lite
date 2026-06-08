@@ -470,7 +470,24 @@ function App() {
     );
   }
 
+  function ensureTargetWindowReadyForPlayback() {
+    if (
+      playbackOutput.mode !== "experimental-target-window" ||
+      experimentalInput.selectedWindowHwnd !== null
+    ) {
+      return true;
+    }
+
+    appendLog(text.logs.experimentalTargetWindowMissing);
+    showAppNotice(text.logs.experimentalTargetWindowMissing);
+    return false;
+  }
+
   function handlePlayLibraryItem(item: LibrarySongListItem) {
+    if (!ensureTargetWindowReadyForPlayback()) {
+      return;
+    }
+
     scoreLibrary.setSelectedSongId(item.librarySong.id);
     setPlaybackContextForLibraryItem(item);
     playbackQueue.replaceQueueWithCurrent(item.songIndex);
@@ -478,6 +495,10 @@ function App() {
   }
 
   function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    if (!ensureTargetWindowReadyForPlayback()) {
+      return;
+    }
+
     scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
     playbackOrder.clearPlaybackContext();
     startPlaybackFromSongIndex(queueItem.songIndex);
@@ -531,6 +552,10 @@ function App() {
   }
 
   function handleNextPlayback() {
+    if (!ensureTargetWindowReadyForPlayback()) {
+      return;
+    }
+
     const songs = scoreLibrary.importedSongsRef.current;
     const queuedItem = playbackQueue.consumeNextQueueItemAfterCurrent(
       songs.length,
@@ -569,6 +594,10 @@ function App() {
   }
 
   function handleBottomPlayerPlay() {
+    if (!ensureTargetWindowReadyForPlayback()) {
+      return;
+    }
+
     if (
       scoreLibrary.selectedSongId === null ||
       scoreLibrary.selectedSongIndex === null
@@ -617,6 +646,10 @@ function App() {
   }
 
   function startPlaybackFromSongIndex(songIndex: number) {
+    if (!ensureTargetWindowReadyForPlayback()) {
+      return;
+    }
+
     if (canStartQueueForCurrentOutput()) {
       playbackQueue.startQueuePlayback(songIndex);
     }

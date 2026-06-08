@@ -17,30 +17,66 @@ type PlayerIconProps = {
 function PlayerIconBase({
   Icon,
   className,
-}: PlayerIconProps & { Icon: LucideIcon }) {
+  fill,
+  strokeWidth,
+}: PlayerIconProps & {
+  fill?: string;
+  Icon: LucideIcon;
+  strokeWidth?: number;
+}) {
   return (
     <Icon
       aria-hidden="true"
       className={`player-icon${className ? ` ${className}` : ""}`}
+      fill={fill}
       focusable="false"
+      strokeWidth={strokeWidth}
     />
   );
 }
 
 export function PlayIcon(props: PlayerIconProps) {
-  return <PlayerIconBase {...props} Icon={Play} />;
+  return (
+    <PlayerIconBase
+      {...props}
+      Icon={Play}
+      fill="currentColor"
+      strokeWidth={0}
+    />
+  );
 }
 
 export function PauseIcon(props: PlayerIconProps) {
-  return <PlayerIconBase {...props} Icon={Pause} />;
+  return (
+    <PlayerIconBase
+      {...props}
+      Icon={Pause}
+      fill="currentColor"
+      strokeWidth={0}
+    />
+  );
 }
 
 export function StopIcon(props: PlayerIconProps) {
-  return <PlayerIconBase {...props} Icon={Square} />;
+  return (
+    <PlayerIconBase
+      {...props}
+      Icon={Square}
+      fill="currentColor"
+      strokeWidth={0}
+    />
+  );
 }
 
 export function NextIcon(props: PlayerIconProps) {
-  return <PlayerIconBase {...props} Icon={SkipForward} />;
+  return (
+    <PlayerIconBase
+      {...props}
+      Icon={SkipForward}
+      fill="currentColor"
+      strokeWidth={2.8}
+    />
+  );
 }
 
 export function QueueIcon(props: PlayerIconProps) {
