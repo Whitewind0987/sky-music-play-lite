@@ -1042,10 +1042,8 @@ button {
 }
 
 .library-action-menu {
-  position: absolute;
+  position: relative;
   z-index: 40;
-  top: 28px;
-  right: 0;
   min-width: 190px;
   display: grid;
   gap: 2px;

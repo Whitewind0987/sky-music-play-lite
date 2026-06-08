@@ -9,7 +9,7 @@ import {
   Plus,
   SkipForward,
 } from "lucide-react";
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { UiText } from "../i18n/uiText";
@@ -402,94 +402,81 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
 }) {
-  function stopMenuPropagation(event: MouseEvent<HTMLElement>) {
-    event.stopPropagation();
-  }
-
-  function runAction(
-    event: MouseEvent<HTMLButtonElement>,
-    action: () => void,
-  ) {
+  function runAction(event: Event, action: () => void) {
     event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.blur();
     action();
     onClose();
   }
 
   return (
-    <div
+    <DropdownMenu.Content
       className="library-action-menu"
-      role="menu"
-      onClick={stopMenuPropagation}
-      onMouseDown={stopMenuPropagation}
-      onPointerDown={stopMenuPropagation}
+      align="end"
+      sideOffset={6}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onPlaySong(item))}
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) => runAction(event, () => onPlaySong(item))}
       >
-        {text.playAction}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onPlaySongNext(item.songIndex))}
+        <button type="button">{text.playAction}</button>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) =>
+          runAction(event, () => onPlaySongNext(item.songIndex))
+        }
       >
-        {text.playNextAction}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onAddToQueue(item.songIndex))}
+        <button type="button">{text.playNextAction}</button>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) => runAction(event, () => onAddToQueue(item.songIndex))}
       >
-        {text.addToQueueAction}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onOpenCollectDialog(item))}
+        <button type="button">{text.addToQueueAction}</button>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) => runAction(event, () => onOpenCollectDialog(item))}
       >
-        {text.addToPlaylist}
-      </button>
+        <button type="button">{text.addToPlaylist}</button>
+      </DropdownMenu.Item>
       {selectedCategory === "liked" ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={(event) =>
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
             runAction(event, () => onRemoveFromLiked(item.librarySong.id))
           }
         >
-          {text.removeFromLiked}
-        </button>
+          <button type="button">{text.removeFromLiked}</button>
+        </DropdownMenu.Item>
       ) : null}
       {selectedCategory === "playlists" && selectedPlaylist ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={(event) =>
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
             runAction(event, () =>
               onRemoveSongFromPlaylist(selectedPlaylist.id, item.librarySong.id),
             )
           }
         >
-          {text.removeFromPlaylist}
-        </button>
+          <button type="button">{text.removeFromPlaylist}</button>
+        </DropdownMenu.Item>
       ) : null}
       {item.librarySong.source === "local-import" ? (
-        <button
-          className="is-danger"
-          type="button"
-          role="menuitem"
-          onClick={(event) =>
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
             runAction(event, () => onDeleteLocalSong(item.songIndex))
           }
         >
-          {text.deleteFromLocalImports}
-        </button>
+          <button className="is-danger" type="button">
+            {text.deleteFromLocalImports}
+          </button>
+        </DropdownMenu.Item>
       ) : null}
-    </div>
+    </DropdownMenu.Content>
   );
 }
 
@@ -654,39 +641,53 @@ function LibrarySongTable({
                   >
                     <LibraryCollectIcon />
                   </button>
-                  <span
-                    className="library-action-menu-anchor"
-                    data-library-menu-root="true"
-                  >
-                    <button
-                      className="library-title-icon-button"
-                      type="button"
-                      aria-label={text.moreActions}
-                      title={text.moreActions}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        event.currentTarget.blur();
-                        onOpenActionMenu(librarySong.id);
+                  <span className="library-action-menu-anchor">
+                    <DropdownMenu.Root
+                      open={openActionMenuSongId === librarySong.id}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          onOpenActionMenu(librarySong.id);
+                        } else {
+                          onCloseActionMenu();
+                        }
                       }}
                     >
-                      <LibraryMoreIcon />
-                    </button>
-                    {openActionMenuSongId === librarySong.id ? (
-                      <LibraryActionMenu
-                        item={item}
-                        onAddToQueue={onAddToQueue}
-                        onClose={onCloseActionMenu}
-                        onDeleteLocalSong={onDeleteLocalSong}
-                        onOpenCollectDialog={onOpenCollectDialog}
-                        onPlaySong={onPlaySong}
-                        onPlaySongNext={onPlaySongNext}
-                        onRemoveFromLiked={onRemoveFromLiked}
-                        onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
-                        selectedCategory={selectedCategory}
-                        selectedPlaylist={selectedPlaylist}
-                        text={text}
-                      />
-                    ) : null}
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          className="library-title-icon-button"
+                          type="button"
+                          aria-label={text.moreActions}
+                          title={text.moreActions}
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onMouseDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                          }}
+                        >
+                          <LibraryMoreIcon />
+                        </button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <LibraryActionMenu
+                          item={item}
+                          onAddToQueue={onAddToQueue}
+                          onClose={onCloseActionMenu}
+                          onDeleteLocalSong={onDeleteLocalSong}
+                          onOpenCollectDialog={onOpenCollectDialog}
+                          onPlaySong={onPlaySong}
+                          onPlaySongNext={onPlaySongNext}
+                          onRemoveFromLiked={onRemoveFromLiked}
+                          onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
+                          selectedCategory={selectedCategory}
+                          selectedPlaylist={selectedPlaylist}
+                          text={text}
+                        />
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                   </span>
                 </span>
                 {isSelected ? (
@@ -781,8 +782,6 @@ export function LibraryPanel({
     selectedCategory,
     text,
   });
-  const hasOpenActionMenu = openActionMenuSongId !== null;
-
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -796,33 +795,6 @@ export function LibraryPanel({
 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-
-  useEffect(() => {
-    if (!hasOpenActionMenu) {
-      return;
-    }
-
-    function handlePointerDown(event: Event) {
-      const target = event.target;
-
-      if (
-        target instanceof Element &&
-        target.closest("[data-library-menu-root='true']")
-      ) {
-        return;
-      }
-
-      setOpenActionMenuSongId(null);
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("mousedown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("mousedown", handlePointerDown);
-    };
-  }, [hasOpenActionMenu]);
 
   return (
     <section className="library-panel" aria-label={text.aria}>
@@ -896,11 +868,7 @@ export function LibraryPanel({
             onAddToQueue={onAddToQueue}
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
-            onOpenActionMenu={(songId) =>
-              setOpenActionMenuSongId((currentSongId) =>
-                currentSongId === songId ? null : songId,
-              )
-            }
+            onOpenActionMenu={(songId) => setOpenActionMenuSongId(songId)}
             onOpenCollectDialog={(item) => {
               setOpenActionMenuSongId(null);
               setCollectingSongItem(item);
