@@ -26,6 +26,9 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Do not add new font icon dependencies.
 - Do not add new handwritten inline SVG icons unless there is no suitable `lucide-react` icon and the user approves it.
 - Use Radix UI for interactive primitives such as Dialog, AlertDialog, DropdownMenu, Toast, Tooltip, Slider, Progress, and Popover.
+- Do not install the `radix-ui` umbrella package during the UI refresh.
+- Add Radix primitives only when a stage actually uses them, using specific packages such as `@radix-ui/react-dialog`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-tooltip`, `@radix-ui/react-toast`, `@radix-ui/react-popover`, `@radix-ui/react-slider`, or `@radix-ui/react-progress`.
+- Do not keep unused UI dependencies in `package.json` because they can increase install, build, and dev startup cost.
 - Use Tailwind CSS for new UI styling, but preserve existing CSS during the gradual migration.
 - During the early migration, do not use the full `@import "tailwindcss";` in the existing app styles. Use the no-Preflight Tailwind import until the user explicitly approves enabling Preflight.
 - New shared UI building blocks should live in `src/components/ui/`.

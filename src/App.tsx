@@ -83,6 +83,13 @@ function App() {
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.info("[startup] App mounted", `${performance.now().toFixed(1)}ms`);
+    }
+  }, []);
+
   const { appendLog, logEntries } = usePlaybackLog([
     uiText[defaultLanguage].logs.appReady,
   ]);
