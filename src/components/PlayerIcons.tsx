@@ -17,10 +17,10 @@ type PlayerIconProps = {
 function PlayerIconBase({
   Icon,
   className,
-  fill,
-  strokeWidth,
+  filled = false,
+  strokeWidth = 2,
 }: PlayerIconProps & {
-  fill?: string;
+  filled?: boolean;
   Icon: LucideIcon;
   strokeWidth?: number;
 }) {
@@ -28,7 +28,7 @@ function PlayerIconBase({
     <Icon
       aria-hidden="true"
       className={`player-icon${className ? ` ${className}` : ""}`}
-      fill={fill}
+      fill={filled ? "currentColor" : "none"}
       focusable="false"
       strokeWidth={strokeWidth}
     />
@@ -40,7 +40,7 @@ export function PlayIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={Play}
-      fill="currentColor"
+      filled
       strokeWidth={0}
     />
   );
@@ -51,7 +51,7 @@ export function PauseIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={Pause}
-      fill="currentColor"
+      filled
       strokeWidth={0}
     />
   );
@@ -62,7 +62,7 @@ export function StopIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={Square}
-      fill="currentColor"
+      filled
       strokeWidth={0}
     />
   );
@@ -73,14 +73,14 @@ export function NextIcon(props: PlayerIconProps) {
     <PlayerIconBase
       {...props}
       Icon={SkipForward}
-      fill="currentColor"
+      filled
       strokeWidth={2.8}
     />
   );
 }
 
 export function QueueIcon(props: PlayerIconProps) {
-  return <PlayerIconBase {...props} Icon={ListMusic} />;
+  return <PlayerIconBase {...props} Icon={ListMusic} strokeWidth={2} />;
 }
 
 export function RepeatIcon(props: PlayerIconProps) {
@@ -89,6 +89,7 @@ export function RepeatIcon(props: PlayerIconProps) {
       {...props}
       Icon={Repeat}
       className={`player-icon-repeat${props.className ? ` ${props.className}` : ""}`}
+      strokeWidth={1.8}
     />
   );
 }
@@ -99,10 +100,11 @@ export function RepeatOneIcon(props: PlayerIconProps) {
       {...props}
       Icon={Repeat1}
       className={`player-icon-repeat${props.className ? ` ${props.className}` : ""}`}
+      strokeWidth={1.8}
     />
   );
 }
 
 export function ShuffleIcon(props: PlayerIconProps) {
-  return <PlayerIconBase {...props} Icon={Shuffle} />;
+  return <PlayerIconBase {...props} Icon={Shuffle} strokeWidth={2} />;
 }

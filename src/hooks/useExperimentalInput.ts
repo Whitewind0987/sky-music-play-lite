@@ -297,6 +297,54 @@ export function useExperimentalInput({
     }
   }
 
+  async function ensureTargetWindowAvailableForPlayback() {
+    if (
+      !experimentalInputEnabled ||
+      experimentalInputMode !== "target-window-message"
+    ) {
+      return true;
+    }
+
+    if (selectedWindowHwnd === null) {
+      logMissingTargetWindow();
+      return false;
+    }
+
+    setLastError(null);
+
+    try {
+      const windows = await listCandidateWindows();
+      setCandidateWindows(windows);
+
+      const refreshedSelectedWindow = windows.find(
+        (window) => window.hwnd === selectedWindowHwnd,
+      );
+
+      if (refreshedSelectedWindow) {
+        setSelectedWindowSnapshot(
+          candidateWindowToSnapshot(refreshedSelectedWindow),
+        );
+        return true;
+      }
+
+      appendLog(text.logs.experimentalSavedTargetWindowUnavailable);
+      showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
+      setSelectedWindowHwnd(null);
+      setSelectedWindowSnapshot(undefined);
+      return false;
+    } catch (error) {
+      const errorMessage = String(error instanceof Error ? error.message : error);
+      const message = formatText(text.logs.experimentalWindowListFailed, {
+        error: errorMessage,
+      });
+
+      setLastError(errorMessage);
+      appendLog(message);
+      showNotice?.(message);
+      return false;
+    }
+  }
+
   function handleExperimentalInputEnabledChange(enabled: boolean) {
     if (!enabled) {
       stopExperimentalPlayback({ logStopped: false });
@@ -939,6 +987,7 @@ export function useExperimentalInput({
     foregroundPlaybackProgress: foregroundPlayback.foregroundPlaybackProgress,
     foregroundPlaybackState: foregroundPlayback.foregroundPlaybackState,
     handleDetectSkyWindow,
+    ensureTargetWindowAvailableForPlayback,
     handleExperimentalInputModeChange,
     handlePauseExperimentalPlayback,
     handlePauseForegroundPlayback:

@@ -470,21 +470,16 @@ function App() {
     );
   }
 
-  function ensureTargetWindowReadyForPlayback() {
-    if (
-      playbackOutput.mode !== "experimental-target-window" ||
-      experimentalInput.selectedWindowHwnd !== null
-    ) {
+  async function ensureTargetWindowReadyForPlayback() {
+    if (playbackOutput.mode !== "experimental-target-window") {
       return true;
     }
 
-    appendLog(text.logs.experimentalTargetWindowMissing);
-    showAppNotice(text.logs.experimentalTargetWindowMissing);
-    return false;
+    return experimentalInput.ensureTargetWindowAvailableForPlayback();
   }
 
-  function handlePlayLibraryItem(item: LibrarySongListItem) {
-    if (!ensureTargetWindowReadyForPlayback()) {
+  async function handlePlayLibraryItem(item: LibrarySongListItem) {
+    if (!(await ensureTargetWindowReadyForPlayback())) {
       return;
     }
 
@@ -494,14 +489,16 @@ function App() {
     playbackOutput.onPlaySong(item.songIndex);
   }
 
-  function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
-    if (!ensureTargetWindowReadyForPlayback()) {
+  async function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    if (!(await ensureTargetWindowReadyForPlayback())) {
       return;
     }
 
     scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
     playbackOrder.clearPlaybackContext();
-    startPlaybackFromSongIndex(queueItem.songIndex);
+    startPlaybackFromSongIndex(queueItem.songIndex, {
+      skipTargetWindowGuard: true,
+    });
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
@@ -551,8 +548,8 @@ function App() {
     }
   }
 
-  function handleNextPlayback() {
-    if (!ensureTargetWindowReadyForPlayback()) {
+  async function handleNextPlayback() {
+    if (!(await ensureTargetWindowReadyForPlayback())) {
       return;
     }
 
@@ -593,8 +590,8 @@ function App() {
     playbackOutput.onPlaySong(nextSongIndex);
   }
 
-  function handleBottomPlayerPlay() {
-    if (!ensureTargetWindowReadyForPlayback()) {
+  async function handleBottomPlayerPlay() {
+    if (!(await ensureTargetWindowReadyForPlayback())) {
       return;
     }
 
@@ -645,8 +642,14 @@ function App() {
     }
   }
 
-  function startPlaybackFromSongIndex(songIndex: number) {
-    if (!ensureTargetWindowReadyForPlayback()) {
+  async function startPlaybackFromSongIndex(
+    songIndex: number,
+    { skipTargetWindowGuard = false }: { skipTargetWindowGuard?: boolean } = {},
+  ) {
+    if (
+      !skipTargetWindowGuard &&
+      !(await ensureTargetWindowReadyForPlayback())
+    ) {
       return;
     }
 
