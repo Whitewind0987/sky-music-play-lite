@@ -890,9 +890,7 @@ button {
   transition: opacity 120ms ease;
 }
 
-.library-song-row:hover .library-row-title-actions,
-.library-song-row.has-open-menu .library-row-title-actions,
-.library-row-title-actions:focus-within {
+.library-song-row:hover .library-row-title-actions {
   opacity: 1;
   pointer-events: auto;
 }
