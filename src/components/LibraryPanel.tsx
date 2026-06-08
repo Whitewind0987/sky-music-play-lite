@@ -1,4 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BookmarkPlus,
   Heart,
@@ -215,41 +216,6 @@ function PlaylistHeader({
     setIsMoreMenuOpen(false);
   }, [selectedPlaylistId]);
 
-  useEffect(() => {
-    if (!isMoreMenuOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: Event) {
-      const target = event.target;
-
-      if (
-        target instanceof Element &&
-        target.closest("[data-playlist-menu-root='true']")
-      ) {
-        return;
-      }
-
-      setIsMoreMenuOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsMoreMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMoreMenuOpen]);
-
   if (!selectedPlaylist) {
     return null;
   }
@@ -284,33 +250,37 @@ function PlaylistHeader({
         >
           {text.renamePlaylist}
         </button>
-        <span className="playlist-more-anchor" data-playlist-menu-root="true">
-          <button
-            type="button"
-            aria-label={text.playlistMore}
-            onClick={(event) => {
-              event.stopPropagation();
-              event.currentTarget.blur();
-              setIsMoreMenuOpen((isOpen) => !isOpen);
-            }}
+        <span className="playlist-more-anchor">
+          <DropdownMenu.Root
+            open={isMoreMenuOpen}
+            onOpenChange={setIsMoreMenuOpen}
           >
-            {text.playlistMore}
-          </button>
-          {isMoreMenuOpen ? (
-            <div className="playlist-more-menu" role="menu">
-              <button
-                className="is-danger"
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsMoreMenuOpen(false);
-                  onDeletePlaylist(selectedPlaylist.id);
-                }}
-              >
-                {text.deletePlaylist}
+            <DropdownMenu.Trigger asChild>
+              <button type="button" aria-label={text.playlistMore}>
+                {text.playlistMore}
               </button>
-            </div>
-          ) : null}
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                className="playlist-more-menu"
+                align="end"
+                sideOffset={6}
+              >
+                <DropdownMenu.Item asChild>
+                  <button
+                    className="is-danger"
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      onDeletePlaylist(selectedPlaylist.id);
+                    }}
+                  >
+                    {text.deletePlaylist}
+                  </button>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </span>
       </div>
     </div>

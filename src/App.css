@@ -727,10 +727,8 @@ button {
 }
 
 .playlist-more-menu {
-  position: absolute;
+  position: relative;
   z-index: 40;
-  top: 34px;
-  right: 0;
   min-width: 160px;
   display: grid;
   padding: 6px;
