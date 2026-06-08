@@ -74,6 +74,9 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const appNoticeTimerRef = useRef<number | null>(null);
+  const globalStopShortcutOperationRef = useRef<Promise<void>>(
+    Promise.resolve(),
+  );
   const [appNotice, setAppNotice] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] =
     useState<PlaybackShortcutNotices>({});
@@ -82,6 +85,15 @@ function App() {
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
+
+  function enqueueGlobalStopShortcutOperation(operation: () => Promise<void>) {
+    const nextOperation = globalStopShortcutOperationRef.current
+      .catch(() => undefined)
+      .then(operation);
+
+    globalStopShortcutOperationRef.current = nextOperation;
+    return nextOperation;
+  }
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -317,7 +329,7 @@ function App() {
   }, [playbackShortcuts.next, playbackShortcuts.pauseResume]);
 
   useEffect(() => {
-    let isDisposed = false;
+    let isCancelled = false;
     const registeredAccelerators: string[] = [];
 
     async function registerGlobalStopHotkey() {
@@ -326,73 +338,101 @@ function App() {
       const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
 
       if (isUnsafeGlobalStopShortcut(shortcutCode)) {
-        setShortcutNotice({
+        setShortcutNotice((currentNotices) => ({
+          ...currentNotices,
           stop: text.settings.keyboardShortcutUnsafeGlobalStop,
-        });
+        }));
         return;
       }
 
       if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
-        setShortcutNotice({
+        setShortcutNotice((currentNotices) => ({
+          ...currentNotices,
           stop: text.settings.keyboardShortcutGlobalStopFailed,
-        });
+        }));
         return;
       }
 
-      for (const accelerator of acceleratorCandidates) {
-        try {
-          await register(accelerator, (event: ShortcutEvent) => {
-            if (event.state !== "Pressed") {
+      await enqueueGlobalStopShortcutOperation(async () => {
+        if (acceleratorCandidates.length > 0) {
+          await unregister(Array.from(new Set(acceleratorCandidates))).catch(
+            () => {},
+          );
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        for (const accelerator of acceleratorCandidates) {
+          try {
+            await register(accelerator, (event: ShortcutEvent) => {
+              if (event.state !== "Pressed") {
+                return;
+              }
+
+              playbackHotkeyControlsRef.current.stop();
+            });
+
+            if (isCancelled) {
+              await unregister(accelerator).catch(() => {});
               return;
             }
 
-            playbackHotkeyControlsRef.current.stop();
-          });
-
-          if (isDisposed) {
-            await unregister(accelerator).catch(() => {});
+            registeredAccelerators.push(accelerator);
+            setShortcutNotice((currentNotices) => {
+              const { stop: _stopNotice, ...nextNotices } = currentNotices;
+              return nextNotices;
+            });
             return;
+          } catch (error) {
+            const isLastCandidate =
+              accelerator ===
+              acceleratorCandidates[acceleratorCandidates.length - 1];
+
+            if (!isLastCandidate) {
+              continue;
+            }
+
+            const failureMessage =
+              text.settings.keyboardShortcutGlobalStopFailed;
+
+            console.warn(
+              "Failed to register global Stop hotkey.",
+              shortcutLabel,
+              error,
+            );
+            setShortcutNotice((currentNotices) => ({
+              ...currentNotices,
+              stop: failureMessage,
+            }));
+            showAppNotice(failureMessage);
+            appendLog(
+              formatText(text.logs.globalHotkeyRegisterFailed, {
+                shortcut: shortcutLabel,
+              }),
+            );
           }
-
-          registeredAccelerators.push(accelerator);
-          setShortcutNotice((currentNotices) => {
-            const { stop: _stopNotice, ...nextNotices } = currentNotices;
-            return nextNotices;
-          });
-          break;
-        } catch (error) {
-          const isLastCandidate =
-            accelerator ===
-            acceleratorCandidates[acceleratorCandidates.length - 1];
-
-          if (!isLastCandidate) {
-            continue;
-          }
-
-          console.warn(
-            "Failed to register global Stop hotkey.",
-            shortcutLabel,
-            error,
-          );
-          setShortcutNotice({
-            stop: text.settings.keyboardShortcutGlobalStopFailed,
-          });
         }
-      }
+      });
     }
 
     void registerGlobalStopHotkey();
 
     return () => {
-      isDisposed = true;
-      if (registeredAccelerators.length > 0) {
-        void unregister(Array.from(new Set(registeredAccelerators))).catch(
-          () => {},
-        );
-      }
+      isCancelled = true;
+
+      void enqueueGlobalStopShortcutOperation(async () => {
+        if (registeredAccelerators.length > 0) {
+          await unregister(Array.from(new Set(registeredAccelerators))).catch(
+            () => {},
+          );
+        }
+      });
     };
   }, [
     playbackShortcuts.stop,
+    text.logs.globalHotkeyRegisterFailed,
     text.settings.keyboardShortcutGlobalStopFailed,
     text.settings.keyboardShortcutUnsafeGlobalStop,
   ]);
