@@ -2779,15 +2779,13 @@ button {
   background: #fff1f3;
 }
 
-.player-icon-button-stop:not(:disabled) .player-icon-stop {
+.player-icon-button-stop .player-icon-stop {
   width: 17px;
   height: 17px;
-  color: #e05260;
 }
 
-.player-icon-button-stop:disabled .player-icon-stop {
-  width: 16px;
-  height: 16px;
+.player-icon-button-stop:not(:disabled) .player-icon-stop {
+  color: #e05260;
 }
 
 .player-icon-next {
