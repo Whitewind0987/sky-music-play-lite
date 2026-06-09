@@ -443,18 +443,12 @@ export function useScoreLibrary({
     setSelectedLibraryCategory("playlists");
   }
 
-  function handleRenamePlaylist(playlistId: string) {
+  function handleRenamePlaylist(playlistId: string, nextName: string) {
     const playlist = playlists.find(
       (currentPlaylist) => currentPlaylist.id === playlistId,
     );
 
     if (!playlist) {
-      return;
-    }
-
-    const nextName = window.prompt(text.library.renamePlaylistPrompt, playlist.name);
-
-    if (nextName === null) {
       return;
     }
 

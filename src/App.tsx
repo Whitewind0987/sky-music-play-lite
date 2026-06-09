@@ -18,6 +18,7 @@ import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
+import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import {
@@ -77,6 +78,11 @@ type PendingDeleteConfirmation =
       type: "local-song";
     };
 
+type PendingRenamePlaylist = {
+  playlistId: string;
+  playlistName: string;
+};
+
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
   const playbackHotkeyControlsRef = useRef<
@@ -102,6 +108,8 @@ function App() {
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [pendingDeleteConfirmation, setPendingDeleteConfirmation] =
     useState<PendingDeleteConfirmation | null>(null);
+  const [pendingRenamePlaylist, setPendingRenamePlaylist] =
+    useState<PendingRenamePlaylist | null>(null);
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
@@ -510,6 +518,37 @@ function App() {
     void scoreLibrary.handleImportScoreFiles(files);
   }
 
+  function handleRequestRenamePlaylist(playlistId: string) {
+    const playlist = scoreLibrary.playlists.find(
+      (currentPlaylist) => currentPlaylist.id === playlistId,
+    );
+
+    if (!playlist) {
+      return;
+    }
+
+    setPendingRenamePlaylist({
+      playlistId,
+      playlistName: playlist.name,
+    });
+  }
+
+  function handleCancelRenamePlaylist() {
+    setPendingRenamePlaylist(null);
+  }
+
+  function handleConfirmRenamePlaylist(nextName: string) {
+    if (pendingRenamePlaylist === null) {
+      return;
+    }
+
+    scoreLibrary.handleRenamePlaylist(
+      pendingRenamePlaylist.playlistId,
+      nextName,
+    );
+    setPendingRenamePlaylist(null);
+  }
+
   function handleRequestDeletePlaylist(playlistId: string) {
     const playlist = scoreLibrary.playlists.find(
       (currentPlaylist) => currentPlaylist.id === playlistId,
@@ -850,7 +889,7 @@ function App() {
           onPlaySongNext={playbackQueue.playNext}
           onRemoveFromLiked={handleRemoveFromLiked}
           onRemoveSongFromPlaylist={handleRemoveSongFromPlaylist}
-          onRenamePlaylist={scoreLibrary.handleRenamePlaylist}
+          onRenamePlaylist={handleRequestRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
           onToggleLiked={handleToggleLikedSong}
@@ -992,6 +1031,15 @@ function App() {
           }
         }}
       />
+
+      {pendingRenamePlaylist ? (
+        <RenamePlaylistDialog
+          initialName={pendingRenamePlaylist.playlistName}
+          onClose={handleCancelRenamePlaylist}
+          onRename={handleConfirmRenamePlaylist}
+          text={text.library}
+        />
+      ) : null}
 
       {isUpdateDialogOpen && updateInfo !== null ? (
         <UpdateDialog
