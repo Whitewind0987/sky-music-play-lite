@@ -480,16 +480,6 @@ export function useScoreLibrary({
       return;
     }
 
-    if (
-      !window.confirm(
-        formatText(text.library.deletePlaylistConfirm, {
-          playlistName: playlist.name,
-        }),
-      )
-    ) {
-      return;
-    }
-
     setPlaylists((currentPlaylists) => {
       const deletedPlaylistIndex = currentPlaylists.findIndex(
         (currentPlaylist) => currentPlaylist.id === playlistId,
@@ -583,16 +573,6 @@ export function useScoreLibrary({
     const librarySong = librarySongsRef.current[songIndex];
 
     if (!librarySong || librarySong.source !== "local-import") {
-      return;
-    }
-
-    if (
-      !window.confirm(
-        formatText(text.library.deleteLocalSongConfirm, {
-          songName: librarySong.song.name,
-        }),
-      )
-    ) {
       return;
     }
 

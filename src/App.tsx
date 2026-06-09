@@ -13,6 +13,7 @@ import {
 } from "./components/AppShell";
 import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
@@ -63,6 +64,19 @@ import {
 import "../font/iconfont.css";
 import "./App.css";
 
+type PendingDeleteConfirmation =
+  | {
+      playlistId: string;
+      playlistName: string;
+      type: "playlist";
+    }
+  | {
+      songId: LibrarySongId;
+      songIndex: number;
+      songName: string;
+      type: "local-song";
+    };
+
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
   const playbackHotkeyControlsRef = useRef<
@@ -86,6 +100,8 @@ function App() {
     useState<PlaybackShortcutNotices>({});
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [pendingDeleteConfirmation, setPendingDeleteConfirmation] =
+    useState<PendingDeleteConfirmation | null>(null);
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const text = uiText[language];
@@ -494,14 +510,96 @@ function App() {
     void scoreLibrary.handleImportScoreFiles(files);
   }
 
-  function handleDeleteLocalSong(songIndex: number) {
-    scoreLibrary.handleDeleteLocalSong(
-      songIndex,
-      (deletedSongIndex, deletedSongId) => {
-        playbackQueue.removeSongIndex(deletedSongIndex);
-        playbackOrder.removeSongFromPlaybackContext(deletedSongId);
-      },
+  function handleRequestDeletePlaylist(playlistId: string) {
+    const playlist = scoreLibrary.playlists.find(
+      (currentPlaylist) => currentPlaylist.id === playlistId,
     );
+
+    if (!playlist) {
+      return;
+    }
+
+    setPendingDeleteConfirmation({
+      playlistId,
+      playlistName: playlist.name,
+      type: "playlist",
+    });
+  }
+
+  function handleRequestDeleteLocalSong(songIndex: number) {
+    const librarySong = scoreLibrary.librarySongs[songIndex];
+
+    if (!librarySong || librarySong.source !== "local-import") {
+      return;
+    }
+
+    setPendingDeleteConfirmation({
+      songId: librarySong.id,
+      songIndex,
+      songName: librarySong.song.name,
+      type: "local-song",
+    });
+  }
+
+  function handleConfirmPendingDelete() {
+    if (pendingDeleteConfirmation === null) {
+      return;
+    }
+
+    if (pendingDeleteConfirmation.type === "playlist") {
+      scoreLibrary.handleDeletePlaylist(pendingDeleteConfirmation.playlistId);
+      setPendingDeleteConfirmation(null);
+      return;
+    }
+
+    const currentSongIndex =
+      scoreLibrary.librarySongs[pendingDeleteConfirmation.songIndex]?.id ===
+      pendingDeleteConfirmation.songId
+        ? pendingDeleteConfirmation.songIndex
+        : scoreLibrary.librarySongs.findIndex(
+            (librarySong) =>
+              librarySong.id === pendingDeleteConfirmation.songId,
+          );
+
+    if (currentSongIndex >= 0) {
+      scoreLibrary.handleDeleteLocalSong(
+        currentSongIndex,
+        (deletedSongIndex, deletedSongId) => {
+          playbackQueue.removeSongIndex(deletedSongIndex);
+          playbackOrder.removeSongFromPlaybackContext(deletedSongId);
+        },
+      );
+    }
+
+    setPendingDeleteConfirmation(null);
+  }
+
+  function handleCancelPendingDelete() {
+    setPendingDeleteConfirmation(null);
+  }
+
+  function getPendingDeleteDialogDescription() {
+    if (pendingDeleteConfirmation === null) {
+      return "";
+    }
+
+    if (pendingDeleteConfirmation.type === "playlist") {
+      return formatText(text.library.deletePlaylistConfirm, {
+        playlistName: pendingDeleteConfirmation.playlistName,
+      });
+    }
+
+    return formatText(text.library.deleteLocalSongConfirm, {
+      songName: pendingDeleteConfirmation.songName,
+    });
+  }
+
+  function getPendingDeleteDialogTitle() {
+    if (pendingDeleteConfirmation?.type === "playlist") {
+      return text.library.deletePlaylist;
+    }
+
+    return text.library.deleteLocalSong;
   }
 
   async function ensureTargetWindowReadyForPlayback() {
@@ -745,8 +843,8 @@ function App() {
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
-          onDeleteLocalSong={handleDeleteLocalSong}
-          onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
+          onDeleteLocalSong={handleRequestDeleteLocalSong}
+          onDeletePlaylist={handleRequestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onPlaySong={handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
@@ -877,6 +975,22 @@ function App() {
         noticeKey={appNotice?.id ?? 0}
         open={isAppNoticeOpen}
         onOpenChange={setIsAppNoticeOpen}
+      />
+
+      <ConfirmDialog
+        cancelLabel={text.library.cancelDelete}
+        confirmLabel={text.library.confirmDelete}
+        description={getPendingDeleteDialogDescription()}
+        open={pendingDeleteConfirmation !== null}
+        title={getPendingDeleteDialogTitle()}
+        variant="danger"
+        onCancel={handleCancelPendingDelete}
+        onConfirm={handleConfirmPendingDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCancelPendingDelete();
+          }
+        }}
       />
 
       {isUpdateDialogOpen && updateInfo !== null ? (
