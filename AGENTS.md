@@ -51,6 +51,14 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
 - Every stage must run `npm run build` and `cargo check` before completion.
 
+## Testing Rules
+
+- Pure logic tests should use Vitest.
+- Test files should use `.test.ts`.
+- Prefer testing pure functions before changing app orchestration logic.
+- Every feature or fix stage should run `npm run test`, `npm run build`, and `cd src-tauri && cargo check && cd ..`.
+- Do not add UI or end-to-end tests unless a stage explicitly asks for them.
+
 ## Development Style
 
 - Build the project in small, phase-by-phase steps.
