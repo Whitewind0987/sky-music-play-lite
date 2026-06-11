@@ -25,7 +25,7 @@ mod windows_input {
     };
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         LoadKeyboardLayoutW, MapVirtualKeyW, SendInput, VkKeyScanW, INPUT, INPUT_0, INPUT_KEYBOARD,
-        KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KLF_ACTIVATE, MAPVK_VK_TO_VSC, VK_BACK,
+        KEYBDINPUT, KEYEVENTF_KEYUP, KLF_ACTIVATE, MAPVK_VK_TO_VSC, VK_BACK,
         VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_INSERT, VK_LEFT,
         VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD, VK_OEM_PLUS,
         VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SPACE, VK_TAB, VK_UP,
@@ -96,102 +96,6 @@ mod windows_input {
         }
 
         Ok(Some(build_candidate_window(hwnd)))
-    }
-
-    pub fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
-        send_key_to_window_message(hwnd, key, TARGET_MESSAGE_METHOD_POST.to_string())
-    }
-
-    pub fn send_key_to_window_message(
-        hwnd: String,
-        key: String,
-        method: String,
-    ) -> Result<String, String> {
-        let input = build_window_message_key_input(hwnd, key, method)?;
-        let key_down_lparam = build_key_down_lparam(input.scan_code);
-        let key_up_lparam = build_key_up_lparam(input.scan_code);
-
-        match input.method.as_str() {
-            TARGET_MESSAGE_METHOD_POST => {
-                post_window_key_message(&input, WM_KEYDOWN, key_down_lparam, "down")?;
-                thread::sleep(Duration::from_millis(40));
-                post_window_key_message(&input, WM_KEYUP, key_up_lparam, "up")?;
-
-                Ok(format!(
-                    "Posted key down/up messages to hwnd {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}",
-                    input.hwnd_text, input.key, input.virtual_key, input.scan_code, input.method
-                ))
-            }
-            TARGET_MESSAGE_METHOD_SEND => {
-                let key_down_result = unsafe {
-                    SendMessageW(
-                        input.hwnd,
-                        WM_KEYDOWN,
-                        input.virtual_key as usize,
-                        key_down_lparam,
-                    )
-                };
-
-                thread::sleep(Duration::from_millis(40));
-
-                let key_up_result = unsafe {
-                    SendMessageW(
-                        input.hwnd,
-                        WM_KEYUP,
-                        input.virtual_key as usize,
-                        key_up_lparam,
-                    )
-                };
-
-                Ok(format!(
-                    "Sent key down/up messages to hwnd {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; key down result: {}; key up result: {}",
-                    input.hwnd_text,
-                    input.key,
-                    input.virtual_key,
-                    input.scan_code,
-                    input.method,
-                    key_down_result,
-                    key_up_result
-                ))
-            }
-            _ => Err(format!(
-                "Unsupported target window message method: {}. Supported methods: {}, {}.",
-                input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
-            )),
-        }
-    }
-
-    pub fn activate_target_window_message(hwnd: String, method: String) -> Result<String, String> {
-        let target = build_window_message_target(
-            hwnd.clone(),
-            method.clone(),
-            TARGET_PROFILE_STANDARD.to_string(),
-        )
-        .map_err(|error| {
-            format!(
-                "Target window activation preflight failed. hwnd: {hwnd}; method: {method}; error: {error}"
-            )
-        })?;
-        let result = send_target_window_activation_message(
-            target.hwnd,
-            &target.hwnd_text,
-            &target.method,
-            "preflight",
-            "preflight: true",
-        )
-        .map_err(|error| {
-            format!(
-                "Target window activation preflight failed. hwnd: {}; method: {}; error: {error}",
-                target.hwnd_text, target.method
-            )
-        })?;
-
-        Ok(format!(
-            "Target window activation preflight sent. hwnd: {}; method: {}; send-message result: {}",
-            target.hwnd_text,
-            target.method,
-            format_optional_message_result(result)
-        ))
     }
 
     pub fn send_key_group_to_window_message(
@@ -287,60 +191,6 @@ mod windows_input {
         Ok(format!(
             "Sent {} key(s) to the current foreground window.",
             keys.len()
-        ))
-    }
-
-    pub fn send_foreground_test_key(key: String) -> Result<String, String> {
-        let virtual_key = mapped_key_to_virtual_key(&key)
-            .ok_or_else(|| format!("Unsupported mapped key for foreground input: {key}"))?;
-        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
-        let key_down_input = build_keyboard_input(virtual_key, scan_code as u16, 0);
-        let key_up_input = build_keyboard_input(virtual_key, scan_code as u16, KEYEVENTF_KEYUP);
-        let inputs = [key_down_input, key_up_input];
-        let expected_count = inputs.len() as u32;
-        let sent_count =
-            unsafe { SendInput(expected_count, inputs.as_ptr(), size_of::<INPUT>() as i32) };
-
-        if sent_count != expected_count {
-            let error = std::io::Error::last_os_error();
-            return Err(format!(
-                "Foreground SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; SendInput returned count: {sent_count}; expected count: {expected_count}; last OS error: {error}"
-            ));
-        }
-
-        Ok(format!(
-            "Foreground SendInput posted one key down/up pair. mapped key: {key}; virtual key: {virtual_key}; sent count: {sent_count}; expected count: {expected_count}"
-        ))
-    }
-
-    pub fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
-        let virtual_key = mapped_key_to_virtual_key(&key)
-            .ok_or_else(|| format!("Unsupported mapped key for foreground input: {key}"))?;
-        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
-
-        if scan_code == 0 {
-            return Err(format!(
-                "Foreground scan-code SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; scan code could not be resolved."
-            ));
-        }
-
-        let key_down_input = build_keyboard_input(0, scan_code as u16, KEYEVENTF_SCANCODE);
-        let key_up_input =
-            build_keyboard_input(0, scan_code as u16, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
-        let inputs = [key_down_input, key_up_input];
-        let expected_count = inputs.len() as u32;
-        let sent_count =
-            unsafe { SendInput(expected_count, inputs.as_ptr(), size_of::<INPUT>() as i32) };
-
-        if sent_count != expected_count {
-            let error = std::io::Error::last_os_error();
-            return Err(format!(
-                "Foreground scan-code SendInput test failed. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; sent count: {sent_count}; expected count: {expected_count}; last OS error: {error}"
-            ));
-        }
-
-        Ok(format!(
-            "Foreground scan-code SendInput posted one key down/up pair. mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; sent count: {sent_count}; expected count: {expected_count}"
         ))
     }
 
@@ -518,53 +368,6 @@ mod windows_input {
         }
 
         Ok(())
-    }
-
-    fn build_window_message_key_input(
-        hwnd: String,
-        key: String,
-        method: String,
-    ) -> Result<WindowMessageKeyInput, String> {
-        let method = method.trim().to_string();
-
-        if method != TARGET_MESSAGE_METHOD_POST && method != TARGET_MESSAGE_METHOD_SEND {
-            return Err(format!(
-                "Unsupported target window message method: {method}. Supported methods: {TARGET_MESSAGE_METHOD_POST}, {TARGET_MESSAGE_METHOD_SEND}."
-            ));
-        }
-
-        let hwnd_text = hwnd.clone();
-        let hwnd = parse_hwnd(&hwnd_text)?;
-
-        if unsafe { IsWindow(hwnd) } == 0 {
-            return Err(format!(
-                "Selected target window is no longer available. hwnd: {hwnd_text}; mapped key: {key}; method: {method}"
-            ));
-        }
-
-        let virtual_key = mapped_key_to_virtual_key(&key).ok_or_else(|| {
-            format!(
-                "Unsupported mapped key for target-window message input. hwnd: {hwnd_text}; mapped key: {key}; method: {method}"
-            )
-        })?;
-        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
-
-        if scan_code == 0 {
-            let error = std::io::Error::last_os_error();
-            return Err(format!(
-                "Failed to resolve scan code for target-window message input. hwnd: {hwnd_text}; mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; method: {method}; last OS error: {error}"
-            ));
-        }
-
-        Ok(WindowMessageKeyInput {
-            hwnd,
-            hwnd_text,
-            key,
-            method,
-            compatibility_profile: TARGET_PROFILE_STANDARD.to_string(),
-            scan_code,
-            virtual_key,
-        })
     }
 
     fn build_window_message_target(
@@ -932,25 +735,6 @@ mod windows_input {
         Err("Experimental window detection is only available on Windows.".to_string())
     }
 
-    pub fn send_test_key_to_window(_hwnd: String, _key: String) -> Result<String, String> {
-        Err("Experimental input is only available on Windows.".to_string())
-    }
-
-    pub fn send_key_to_window_message(
-        _hwnd: String,
-        _key: String,
-        _method: String,
-    ) -> Result<String, String> {
-        Err("Experimental target-window input is only available on Windows.".to_string())
-    }
-
-    pub fn activate_target_window_message(
-        _hwnd: String,
-        _method: String,
-    ) -> Result<String, String> {
-        Err("Experimental target-window input is only available on Windows.".to_string())
-    }
-
     pub fn send_key_group_to_window_message(
         _hwnd: String,
         _keys: Vec<String>,
@@ -965,13 +749,6 @@ mod windows_input {
         Err("Experimental foreground input is only available on Windows.".to_string())
     }
 
-    pub fn send_foreground_test_key(_key: String) -> Result<String, String> {
-        Err("Experimental foreground input is only available on Windows.".to_string())
-    }
-
-    pub fn send_foreground_test_key_scancode(_key: String) -> Result<String, String> {
-        Err("Experimental foreground input is only available on Windows.".to_string())
-    }
 }
 
 pub fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
@@ -980,22 +757,6 @@ pub fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
 
 pub fn find_sky_window() -> Result<Option<CandidateWindow>, String> {
     windows_input::find_sky_window()
-}
-
-pub fn send_test_key_to_window(hwnd: String, key: String) -> Result<String, String> {
-    windows_input::send_test_key_to_window(hwnd, key)
-}
-
-pub fn send_key_to_window_message(
-    hwnd: String,
-    key: String,
-    method: String,
-) -> Result<String, String> {
-    windows_input::send_key_to_window_message(hwnd, key, method)
-}
-
-pub fn activate_target_window_message(hwnd: String, method: String) -> Result<String, String> {
-    windows_input::activate_target_window_message(hwnd, method)
 }
 
 pub fn send_key_group_to_window_message(
@@ -1016,12 +777,4 @@ pub fn send_key_group_to_window_message(
 
 pub fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
     windows_input::send_foreground_key_group(keys)
-}
-
-pub fn send_foreground_test_key(key: String) -> Result<String, String> {
-    windows_input::send_foreground_test_key(key)
-}
-
-pub fn send_foreground_test_key_scancode(key: String) -> Result<String, String> {
-    windows_input::send_foreground_test_key_scancode(key)
 }

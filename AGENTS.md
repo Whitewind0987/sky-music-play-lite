@@ -129,6 +129,8 @@ Library rename/delete dialog state lives in `useLibraryDialogs`; do not reintrod
 
 Playback coordination between score library, queue, playback order, playback output, and experimental input lives in `usePlaybackCoordinator`; `App.tsx` should wire controllers and components, not own playback coordination logic.
 
+Tauri commands should only be exposed when used by current runtime UI or intentionally documented as internal/debug; search frontend invoke usage before adding or keeping command registrations.
+
 Avoid adding to `App.tsx` when the new code is:
 
 - more than about 20 lines of feature logic

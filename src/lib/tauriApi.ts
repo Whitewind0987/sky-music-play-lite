@@ -22,28 +22,6 @@ export function findSkyWindow(): Promise<CandidateWindow | null> {
   return invoke<CandidateWindow | null>("find_sky_window");
 }
 
-export function sendTestKeyToWindow(
-  hwnd: string,
-  key: string,
-): Promise<string> {
-  return invoke<string>("send_test_key_to_window", { hwnd, key });
-}
-
-export function sendKeyToWindowMessage(
-  hwnd: string,
-  key: string,
-  method: TargetWindowMessageMethod,
-): Promise<string> {
-  return invoke<string>("send_key_to_window_message", { hwnd, key, method });
-}
-
-export function activateTargetWindowMessage(
-  hwnd: string,
-  method: TargetWindowMessageMethod,
-): Promise<string> {
-  return invoke<string>("activate_target_window_message", { hwnd, method });
-}
-
 export function sendKeyGroupToWindowMessage({
   compatibilityProfile,
   hwnd,
@@ -64,13 +42,6 @@ export function sendKeyGroupToWindowMessage({
     keys,
     method,
   });
-}
-
-export function sendMappedKeyToWindow(
-  hwnd: string,
-  key: string,
-): Promise<string> {
-  return sendTestKeyToWindow(hwnd, key);
 }
 
 export function sendForegroundKeyGroup(keys: string[]): Promise<string> {
