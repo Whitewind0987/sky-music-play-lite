@@ -1,4 +1,3 @@
-import { getVersion } from "@tauri-apps/api/app";
 import {
   register,
   unregister,
@@ -21,11 +20,7 @@ import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
-import {
-  ALLOWED_RELEASE_URL_PREFIX,
-  UPDATE_MANIFEST_URL,
-  USER_MANUAL_URL,
-} from "./config/update";
+import { USER_MANUAL_URL } from "./config/update";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
@@ -38,6 +33,7 @@ import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
+import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import {
   defaultLanguage,
   uiText,
@@ -49,11 +45,6 @@ import {
   isUnsafeGlobalStopShortcut,
   toGlobalShortcutAccelerators,
 } from "./lib/playbackShortcuts";
-import {
-  checkForUpdate,
-  type UpdateInfo,
-} from "./lib/updateCheck";
-import { ignoreUpdate, isUpdateIgnored } from "./lib/updateIgnore";
 import type { LibrarySongId, LibrarySongListItem } from "./types/library";
 import type { PlaybackQueueItem } from "./types/playbackQueue";
 import {
@@ -104,14 +95,13 @@ function App() {
   const [isAppNoticeOpen, setIsAppNoticeOpen] = useState(false);
   const [shortcutNotice, setShortcutNotice] =
     useState<PlaybackShortcutNotices>({});
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [pendingDeleteConfirmation, setPendingDeleteConfirmation] =
     useState<PendingDeleteConfirmation | null>(null);
   const [pendingRenamePlaylist, setPendingRenamePlaylist] =
     useState<PendingRenamePlaylist | null>(null);
   const [playbackShortcuts, setPlaybackShortcuts] =
     useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
+  const updateCheck = useUpdateCheck();
   const text = uiText[language];
 
   function enqueueGlobalStopShortcutOperation(operation: () => Promise<void>) {
@@ -254,37 +244,6 @@ function App() {
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function loadUpdateInfo() {
-      try {
-        const currentVersion = await getVersion();
-        const nextUpdateInfo = await checkForUpdate({
-          allowedReleaseUrlPrefix: ALLOWED_RELEASE_URL_PREFIX,
-          currentVersion,
-          manifestUrl: UPDATE_MANIFEST_URL,
-        });
-
-        if (
-          !isCancelled &&
-          nextUpdateInfo !== null &&
-          !isUpdateIgnored(nextUpdateInfo)
-        ) {
-          setUpdateInfo(nextUpdateInfo);
-        }
-      } catch (error) {
-        console.warn("[update-check] startup check failed", error);
-      }
-    }
-
-    void loadUpdateInfo();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     playbackHotkeyControlsRef.current = {
@@ -471,34 +430,6 @@ function App() {
       message,
     }));
     setIsAppNoticeOpen(true);
-  }
-
-  function handleOpenUpdateDialog() {
-    if (updateInfo !== null) {
-      setIsUpdateDialogOpen(true);
-    }
-  }
-
-  async function handleOpenUpdateReleasePage() {
-    if (updateInfo === null) {
-      return;
-    }
-
-    try {
-      await openUrl(updateInfo.releaseUrl);
-    } catch (error) {
-      console.warn("Failed to open release page.", error);
-    }
-  }
-
-  function handleIgnoreUpdate() {
-    if (updateInfo === null || updateInfo.updateKind !== "alpha") {
-      return;
-    }
-
-    ignoreUpdate(updateInfo);
-    setIsUpdateDialogOpen(false);
-    setUpdateInfo(null);
   }
 
   async function handleOpenUserManual() {
@@ -991,12 +922,12 @@ function App() {
         onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
         onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
         onSectionChange={setActiveSection}
-        onUpdateClick={handleOpenUpdateDialog}
+        onUpdateClick={updateCheck.openUpdateDialog}
         playlists={scoreLibrary.playlists}
         selectedLibraryCategory={scoreLibrary.selectedLibraryCategory}
         selectedPlaylistId={scoreLibrary.selectedPlaylistId}
         text={text}
-        updateInfo={updateInfo}
+        updateInfo={updateCheck.updateInfo}
       />
 
       <section className="workspace-shell" aria-label={text.app.contentAria}>
@@ -1046,13 +977,13 @@ function App() {
         />
       ) : null}
 
-      {isUpdateDialogOpen && updateInfo !== null ? (
+      {updateCheck.isUpdateDialogOpen && updateCheck.updateInfo !== null ? (
         <UpdateDialog
-          onClose={() => setIsUpdateDialogOpen(false)}
-          onDownload={handleOpenUpdateReleasePage}
-          onIgnore={handleIgnoreUpdate}
+          onClose={updateCheck.closeUpdateDialog}
+          onDownload={updateCheck.openUpdateReleasePage}
+          onIgnore={updateCheck.ignoreCurrentUpdate}
           text={text.updateDialog}
-          updateInfo={updateInfo}
+          updateInfo={updateCheck.updateInfo}
         />
       ) : null}
 

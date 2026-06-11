@@ -121,6 +121,8 @@ Keep feature boundaries clear:
 
 Before adding new logic to `App.tsx`, check whether it belongs in a hook, component, type file, or library helper.
 
+Prefer small focused hook extractions for standalone orchestration before broad `App.tsx` rewrites.
+
 Avoid adding to `App.tsx` when the new code is:
 
 - more than about 20 lines of feature logic
