@@ -123,6 +123,8 @@ Before adding new logic to `App.tsx`, check whether it belongs in a hook, compon
 
 Prefer small focused hook extractions for standalone orchestration before broad `App.tsx` rewrites.
 
+Playback shortcut registration lives in `usePlaybackShortcuts`; keep global shortcut register/unregister serialized and do not wire it directly in `App.tsx`.
+
 Avoid adding to `App.tsx` when the new code is:
 
 - more than about 20 lines of feature logic
