@@ -125,6 +125,10 @@ Prefer small focused hook extractions for standalone orchestration before broad 
 
 Playback shortcut registration lives in `usePlaybackShortcuts`; keep global shortcut register/unregister serialized and do not wire it directly in `App.tsx`.
 
+Library rename/delete dialog state lives in `useLibraryDialogs`; do not reintroduce native `window.confirm` or `window.prompt`, and deleting unrelated local songs must not stop current playback.
+
+Playback coordination between score library, queue, playback order, playback output, and experimental input lives in `usePlaybackCoordinator`; `App.tsx` should wire controllers and components, not own playback coordination logic.
+
 Avoid adding to `App.tsx` when the new code is:
 
 - more than about 20 lines of feature logic
