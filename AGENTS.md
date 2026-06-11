@@ -59,6 +59,11 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Every feature or fix stage should run `npm run test`, `npm run build`, and `cd src-tauri && cargo check && cd ..`.
 - Do not add UI or end-to-end tests unless a stage explicitly asks for them.
 
+## Persistence Safety
+
+- App data writes should avoid direct `fs::write` to the final app data file.
+- Prefer writing to a same-directory temporary file, syncing it, then replacing the final file.
+
 ## Development Style
 
 - Build the project in small, phase-by-phase steps.
