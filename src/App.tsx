@@ -599,6 +599,8 @@ function App() {
             (librarySong) =>
               librarySong.id === pendingDeleteConfirmation.songId,
           );
+    const isDeletingCurrentSong =
+      scoreLibrary.selectedSongId === pendingDeleteConfirmation.songId;
 
     if (currentSongIndex >= 0) {
       scoreLibrary.handleDeleteLocalSong(
@@ -606,6 +608,9 @@ function App() {
         (deletedSongIndex, deletedSongId) => {
           playbackQueue.removeSongIndex(deletedSongIndex);
           playbackOrder.removeSongFromPlaybackContext(deletedSongId);
+        },
+        {
+          stopPlaybackBeforeDelete: isDeletingCurrentSong,
         },
       );
     }

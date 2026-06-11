@@ -50,6 +50,10 @@ type UseScoreLibraryOptions = {
   text: UiText;
 };
 
+type DeleteLocalSongOptions = {
+  stopPlaybackBeforeDelete?: boolean;
+};
+
 const BUILT_IN_PAGE_SIZE = 100;
 
 export function useScoreLibrary({
@@ -563,6 +567,7 @@ export function useScoreLibrary({
   function handleDeleteLocalSong(
     songIndex: number,
     onDeleted?: (deletedSongIndex: number, deletedSongId: LibrarySongId) => void,
+    options: DeleteLocalSongOptions = {},
   ) {
     const librarySong = librarySongsRef.current[songIndex];
 
@@ -570,7 +575,10 @@ export function useScoreLibrary({
       return;
     }
 
-    onBeforeLibraryMutation();
+    if (options.stopPlaybackBeforeDelete === true) {
+      onBeforeLibraryMutation();
+    }
+
     onDeleted?.(songIndex, librarySong.id);
 
     const removedCollections = removeSongFromAllCollections({
