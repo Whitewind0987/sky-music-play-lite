@@ -58,6 +58,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Prefer testing pure functions before changing app orchestration logic.
 - Every feature or fix stage should run `npm run test`, `npm run build`, and `cd src-tauri && cargo check && cd ..`.
 - Do not add UI or end-to-end tests unless a stage explicitly asks for them.
+- App data migrations, sanitizers, and new persisted fields should have Vitest coverage.
 
 ## Persistence Safety
 
