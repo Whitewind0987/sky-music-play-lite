@@ -42,6 +42,7 @@ import "./App.css";
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
   const isClosingAfterConfirmRef = useRef(false);
+  const closeRequestedUnlistenRef = useRef<(() => void) | null>(null);
   const fileLogContextRef = useRef<Record<string, unknown>>({});
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
@@ -54,6 +55,11 @@ function App() {
   const updateCheck = useUpdateCheck();
   const text = uiText[language];
   const appFileLogger = useAppFileLogger(language);
+  const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
+
+  useEffect(() => {
+    appendDetailedLogRef.current = appFileLogger.appendDetailedLog;
+  }, [appFileLogger.appendDetailedLog]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -207,7 +213,7 @@ function App() {
     experimentalInput.isExperimentalPlaybackRunning;
 
   useEffect(() => {
-    let unlisten: (() => void) | null = null;
+    let isMounted = true;
 
     void getCurrentWindow()
       .onCloseRequested((event) => {
@@ -217,17 +223,22 @@ function App() {
 
         event.preventDefault();
         setIsCloseConfirmOpen(true);
-        appFileLogger.appendDetailedLog({
+        appendDetailedLogRef.current({
           details: fileLogContextRef.current,
           message: "Native close requested; confirmation dialog opened",
           source: "window",
         });
       })
       .then((unlistenCloseRequested) => {
-        unlisten = unlistenCloseRequested;
+        if (!isMounted) {
+          unlistenCloseRequested();
+          return;
+        }
+
+        closeRequestedUnlistenRef.current = unlistenCloseRequested;
       })
       .catch((error) => {
-        appFileLogger.appendDetailedLog({
+        appendDetailedLogRef.current({
           details: { error: String(error instanceof Error ? error.message : error) },
           level: "warn",
           message: "Failed to register close confirmation handler",
@@ -236,9 +247,11 @@ function App() {
       });
 
     return () => {
-      unlisten?.();
+      isMounted = false;
+      closeRequestedUnlistenRef.current?.();
+      closeRequestedUnlistenRef.current = null;
     };
-  }, [appFileLogger.appendDetailedLog]);
+  }, []);
 
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
@@ -312,7 +325,7 @@ function App() {
     void scoreLibrary.handleImportScoreFiles(files);
   }
 
-  function handleConfirmAppClose() {
+  async function handleConfirmAppClose() {
     isClosingAfterConfirmRef.current = true;
     setIsCloseConfirmOpen(false);
     appFileLogger.appendDetailedLog({
@@ -321,7 +334,11 @@ function App() {
       source: "window",
     });
 
-    void getCurrentWindow().close().catch((error) => {
+    try {
+      closeRequestedUnlistenRef.current?.();
+      closeRequestedUnlistenRef.current = null;
+      await getCurrentWindow().close();
+    } catch (error) {
       isClosingAfterConfirmRef.current = false;
       appFileLogger.appendDetailedLog({
         details: { error: String(error instanceof Error ? error.message : error) },
@@ -330,7 +347,7 @@ function App() {
         source: "window",
       });
       setIsCloseConfirmOpen(true);
-    });
+    }
   }
 
   function renderActiveSection() {
@@ -506,7 +523,9 @@ function App() {
         onCancel={() => setIsCloseConfirmOpen(false)}
         onConfirm={handleConfirmAppClose}
         onOpenChange={(open) => {
-          setIsCloseConfirmOpen(open);
+          if (!open) {
+            setIsCloseConfirmOpen(false);
+          }
         }}
       />
 
