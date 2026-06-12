@@ -67,6 +67,18 @@ Do not replace this stack unless the human user explicitly changes the project d
 - App data writes should avoid direct `fs::write` to the final app data file.
 - Prefer writing to a same-directory temporary file, syncing it, then replacing the final file.
 
+## Project Hardening Rules
+
+- Do not expose unused Tauri commands; command registrations must match current runtime UI or be explicitly documented as internal.
+- Keep experimental input Rust code split by responsibility; do not collapse it back into one large module.
+- Keep `App.tsx` wiring-focused.
+- Playback coordination belongs in `usePlaybackCoordinator`.
+- Global shortcut registration belongs in `usePlaybackShortcuts` and must remain serialized.
+- Library rename/delete dialog state belongs in `useLibraryDialogs`.
+- Update check orchestration belongs in `useUpdateCheck`.
+- App data migrations and sanitizers should have Vitest coverage.
+- UI polish should not change playback, persistence, update, or experimental input behavior unless explicitly requested.
+
 ## Development Style
 
 - Build the project in small, phase-by-phase steps.
