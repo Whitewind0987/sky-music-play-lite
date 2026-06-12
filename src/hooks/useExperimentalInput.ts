@@ -562,6 +562,17 @@ export function useExperimentalInput({
     appendLog(text.logs.experimentalPlaybackResumed);
   }
 
+  function handleSeekExperimentalPlayback(timeMs: number) {
+    if (
+      experimentalPlaybackState !== "playing" &&
+      experimentalPlaybackState !== "paused"
+    ) {
+      return;
+    }
+
+    experimentalPlaybackControllerRef.current?.seekTo(timeMs);
+  }
+
   async function handleStartExperimentalPlayback() {
     if (!canAttemptExperimentalPlayback || selectedSongIndex === null) {
       return;
@@ -904,6 +915,9 @@ export function useExperimentalInput({
     handleResumeExperimentalPlayback,
     handleResumeForegroundPlayback:
       foregroundPlayback.handleResumeForegroundPlayback,
+    handleSeekExperimentalPlayback,
+    handleSeekForegroundPlayback:
+      foregroundPlayback.handleSeekForegroundPlayback,
     handleStartExperimentalPlayback,
     handleStartForegroundPlayback:
       foregroundPlayback.handleStartForegroundPlayback,

@@ -426,6 +426,7 @@ function App() {
 
       <BottomPlayer
         canPlay={playbackOutput.canPlay}
+        canSeek={playbackOutput.canSeek}
         currentSong={scoreLibrary.currentSelectedSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
@@ -443,6 +444,7 @@ function App() {
         onQueueClose={() => setQueueOpen(false)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
         onResume={playbackOutput.onResume}
+        onSeek={playbackOutput.onSeek}
         onShuffleToggle={playbackOutput.onShuffleToggle}
         onStop={playbackOutput.onStop}
         outputModeLabel={playbackOutput.outputModeLabel}

@@ -212,6 +212,17 @@ export function useForegroundPlayback({
     appendLog(text.logs.foregroundPlaybackResumed);
   }
 
+  function handleSeekForegroundPlayback(timeMs: number) {
+    if (
+      foregroundPlaybackState !== "playing" &&
+      foregroundPlaybackState !== "paused"
+    ) {
+      return;
+    }
+
+    controllerRef.current?.seekTo(timeMs);
+  }
+
   function handleStartForegroundPlayback() {
     if (!canStartForegroundPlayback || selectedSongIndex === null) {
       return;
@@ -436,6 +447,7 @@ export function useForegroundPlayback({
     handlePauseForegroundPlayback,
     handlePlayForegroundSong,
     handleResumeForegroundPlayback,
+    handleSeekForegroundPlayback,
     handleStartForegroundPlayback,
     handleStopForegroundPlayback,
     isForegroundPlaybackActive,

@@ -152,4 +152,109 @@ describe("schedulePreviewPlayback", () => {
       { time: 1000, key: "Key1" },
     ]);
   });
+
+  it("seeks while playing and skips note groups before the target", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+
+    const controller = schedulePreviewPlayback(notes, onNoteGroup, onFinish, {
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    vi.advanceTimersByTime(0);
+    expect(onNoteGroup).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(100);
+    controller.seekTo(750);
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 750,
+      percent: 75,
+      totalMs: 1000,
+    });
+
+    vi.advanceTimersByTime(249);
+    expect(onNoteGroup).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1);
+    expect(onNoteGroup).toHaveBeenCalledTimes(2);
+    expect(onNoteGroup.mock.calls[1]?.[0]).toEqual([
+      { time: 1000, key: "Key3" },
+    ]);
+    expect(
+      onNoteGroup.mock.calls.some((call) =>
+        call[0].some(
+          (note: Note) => note.key === "Key1" || note.key === "Key2",
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("seeks while paused without emitting notes until resume", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+
+    const controller = schedulePreviewPlayback(notes, onNoteGroup, onFinish, {
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    vi.advanceTimersByTime(0);
+    expect(onNoteGroup).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(100);
+    controller.pause();
+    controller.seekTo(750);
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 750,
+      percent: 75,
+      totalMs: 1000,
+    });
+
+    vi.advanceTimersByTime(500);
+    expect(onNoteGroup).toHaveBeenCalledTimes(1);
+
+    controller.resume();
+    vi.advanceTimersByTime(249);
+    expect(onNoteGroup).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1);
+    expect(onNoteGroup).toHaveBeenCalledTimes(2);
+    expect(onNoteGroup.mock.calls[1]?.[0]).toEqual([
+      { time: 1000, key: "Key3" },
+    ]);
+  });
+
+  it("clamps seek targets to the playback duration", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+
+    const controller = schedulePreviewPlayback(notes, onNoteGroup, onFinish, {
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    controller.seekTo(-100);
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 0,
+      percent: 0,
+      totalMs: 1000,
+    });
+
+    controller.seekTo(5000);
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 1000,
+      percent: 100,
+      totalMs: 1000,
+    });
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
 });

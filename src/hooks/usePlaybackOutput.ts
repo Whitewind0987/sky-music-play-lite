@@ -25,6 +25,7 @@ type UsePlaybackOutputOptions = {
 
 type PlaybackOutput = {
   canPlay: boolean;
+  canSeek: boolean;
   isRealInputOutput: boolean;
   isShuffleEnabled: boolean;
   mode: PlaybackOutputMode;
@@ -36,6 +37,7 @@ type PlaybackOutput = {
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onRepeatModeCycle: () => void;
   onResume: () => void;
+  onSeek: (timeMs: number) => void;
   onShuffleToggle: () => void;
   onStop: () => void;
   outputModeLabel: string;
@@ -62,15 +64,21 @@ export function usePlaybackOutput({
   };
 
   if (!experimentalInput.experimentalInputEnabled) {
+    const canSeek =
+      previewPlayback.playbackState === "playing" ||
+      previewPlayback.playbackState === "paused";
+
     return {
       ...sharedControls,
       canPlay: previewPlayback.canPlayPreview,
+      canSeek,
       isRealInputOutput: false,
       mode: "preview",
       onPause: previewPlayback.handlePausePreview,
       onPlay: previewPlayback.handlePlayPreview,
       onPlaySong: previewPlayback.handlePlayImportedSong,
       onResume: previewPlayback.handleResumePreview,
+      onSeek: previewPlayback.handleSeekPreview,
       onStop: previewPlayback.handleStopPreview,
       outputModeLabel: text.outputModes.preview,
       playbackState: previewPlayback.playbackState,
@@ -79,15 +87,21 @@ export function usePlaybackOutput({
   }
 
   if (experimentalInput.experimentalInputMode === "foreground") {
+    const canSeek =
+      experimentalInput.foregroundBottomPlaybackState === "playing" ||
+      experimentalInput.foregroundBottomPlaybackState === "paused";
+
     return {
       ...sharedControls,
       canPlay: experimentalInput.canStartForegroundPlayback,
+      canSeek,
       isRealInputOutput: true,
       mode: "experimental-foreground",
       onPause: experimentalInput.handlePauseForegroundPlayback,
       onPlay: experimentalInput.handleStartForegroundPlayback,
       onPlaySong: experimentalInput.handlePlayForegroundSong,
       onResume: experimentalInput.handleResumeForegroundPlayback,
+      onSeek: experimentalInput.handleSeekForegroundPlayback,
       onStop: experimentalInput.handleStopForegroundPlayback,
       outputModeLabel: text.outputModes.experimentalForeground,
       playbackState: experimentalInput.foregroundBottomPlaybackState,
@@ -95,15 +109,21 @@ export function usePlaybackOutput({
     };
   }
 
+  const canSeek =
+    experimentalInput.experimentalPlaybackState === "playing" ||
+    experimentalInput.experimentalPlaybackState === "paused";
+
   return {
     ...sharedControls,
     canPlay: experimentalInput.canAttemptExperimentalPlayback,
+    canSeek,
     isRealInputOutput: true,
     mode: "experimental-target-window",
     onPause: experimentalInput.handlePauseExperimentalPlayback,
     onPlay: experimentalInput.handleStartExperimentalPlayback,
     onPlaySong: experimentalInput.handlePlayExperimentalSong,
     onResume: experimentalInput.handleResumeExperimentalPlayback,
+    onSeek: experimentalInput.handleSeekExperimentalPlayback,
     onStop: experimentalInput.handleStopExperimentalPlayback,
     outputModeLabel: text.outputModes.experimentalTargetWindow,
     playbackState: experimentalInput.experimentalPlaybackState,

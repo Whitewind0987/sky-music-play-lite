@@ -2541,22 +2541,102 @@ button {
   outline-offset: 2px;
 }
 
+.bottom-player-progress {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  height: 18px;
+  cursor: pointer;
+}
+
+.bottom-player-progress.is-disabled {
+  cursor: default;
+}
+
 .bottom-player-progress-track {
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
-  height: 4px;
-  overflow: hidden;
-  background: #e3e9f1;
+  height: 3px;
+  overflow: visible;
+  background: #d8dee6;
+  transition: height 120ms ease, background 120ms ease;
+}
+
+.bottom-player-progress:not(.is-disabled):hover .bottom-player-progress-track,
+.bottom-player-progress.is-hovering .bottom-player-progress-track,
+.bottom-player-progress.is-dragging .bottom-player-progress-track {
+  height: 6px;
 }
 
 .bottom-player-progress-value {
   height: 100%;
   display: block;
-  background: #2f80ed;
-  box-shadow: 0 0 8px rgba(47, 128, 237, 0.35);
-  transition: none;
+  background: var(--app-primary);
+  box-shadow: none;
+  transition: width 80ms linear;
+}
+
+.bottom-player-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(var(--app-primary-rgb), 0.28);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.92);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.bottom-player-progress:not(.is-disabled):hover .bottom-player-progress-thumb,
+.bottom-player-progress.is-hovering .bottom-player-progress-thumb,
+.bottom-player-progress.is-dragging .bottom-player-progress-thumb {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.bottom-player-progress-tooltip {
+  position: absolute;
+  top: -30px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #1f2933;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.bottom-player-progress:not(.is-disabled):hover .bottom-player-progress-tooltip,
+.bottom-player-progress.is-hovering .bottom-player-progress-tooltip,
+.bottom-player-progress.is-dragging .bottom-player-progress-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.bottom-player-progress:focus-visible {
+  outline: none;
+}
+
+.bottom-player-progress:focus-visible .bottom-player-progress-track {
+  box-shadow: 0 0 0 2px rgba(var(--app-primary-rgb), 0.22);
 }
 
 .bottom-player-body {

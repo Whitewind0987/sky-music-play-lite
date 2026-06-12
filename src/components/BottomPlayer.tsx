@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
@@ -27,6 +33,7 @@ import {
 
 type BottomPlayerProps = {
   canPlay: boolean;
+  canSeek: boolean;
   currentSong: Song | null;
   isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
@@ -44,6 +51,7 @@ type BottomPlayerProps = {
   onQueueToggle: () => void;
   onRepeatModeCycle: () => void;
   onResume: () => void;
+  onSeek: (timeMs: number) => void;
   onShuffleToggle: () => void;
   onStop: () => void;
   outputModeLabel: string;
@@ -63,6 +71,22 @@ function formatPlaybackTime(timeMs: number) {
   const seconds = totalSeconds % 60;
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatProgressTooltipTime(timeMs: number) {
+  const totalSeconds = Math.floor(Math.max(timeMs, 0) / 1000);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+
+  return `${minutes}:${seconds}`;
+}
+
+function clampProgressTime(timeMs: number, totalMs: number) {
+  if (!Number.isFinite(timeMs)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(timeMs, 0), Math.max(totalMs, 0));
 }
 
 function formatNumberInputValue(value: number) {
@@ -170,6 +194,7 @@ function PlayerStepper({
 
 export function BottomPlayer({
   canPlay,
+  canSeek,
   currentSong,
   isCurrentSongLoading,
   isShuffleEnabled,
@@ -187,6 +212,7 @@ export function BottomPlayer({
   onQueueToggle,
   onRepeatModeCycle,
   onResume,
+  onSeek,
   onShuffleToggle,
   onStop,
   outputModeLabel,
@@ -199,8 +225,12 @@ export function BottomPlayer({
   songs,
   text,
 }: BottomPlayerProps) {
+  const progressRef = useRef<HTMLDivElement | null>(null);
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
   const queuePanelRef = useRef<HTMLDivElement | null>(null);
+  const [dragTimeMs, setDragTimeMs] = useState<number | null>(null);
+  const [isProgressDragging, setIsProgressDragging] = useState(false);
+  const [isProgressHovering, setIsProgressHovering] = useState(false);
   const canPause = playbackState === "playing";
   const canResume = playbackState === "paused";
   const canStop = playbackState === "playing" || playbackState === "paused";
@@ -221,10 +251,112 @@ export function BottomPlayer({
           label: playbackState === "paused" ? text.resume : text.play,
           onClick: playbackState === "paused" ? onResume : onPlay,
         };
-  const progressPercent = Math.min(Math.max(progress.percent, 0), 100);
+  const totalProgressMs = Math.max(progress.totalMs, 0);
+  const currentProgressMs = clampProgressTime(
+    progress.currentMs,
+    totalProgressMs,
+  );
+  const canUseProgressSeek = canSeek && totalProgressMs > 0;
+  const displayMs =
+    dragTimeMs === null
+      ? currentProgressMs
+      : clampProgressTime(dragTimeMs, totalProgressMs);
+  const displayPercent =
+    totalProgressMs > 0 ? Math.min(Math.max((displayMs / totalProgressMs) * 100, 0), 100) : 0;
+  const tooltipText = `${formatProgressTooltipTime(
+    displayMs,
+  )} / ${formatProgressTooltipTime(totalProgressMs)}`;
   const isRepeatActive = playbackMode !== "sequence";
   const RepeatModeIcon =
     playbackMode === "repeat-one" ? RepeatOneIcon : RepeatIcon;
+
+  function getProgressTimeFromClientX(clientX: number) {
+    const rect = progressRef.current?.getBoundingClientRect();
+
+    if (!rect || rect.width <= 0 || totalProgressMs <= 0) {
+      return 0;
+    }
+
+    const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+
+    return ratio * totalProgressMs;
+  }
+
+  function handleProgressPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!canUseProgressSeek || event.button !== 0) {
+      return;
+    }
+
+    const targetMs = getProgressTimeFromClientX(event.clientX);
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsProgressDragging(true);
+    setIsProgressHovering(true);
+    setDragTimeMs(targetMs);
+  }
+
+  function handleProgressPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!isProgressDragging || !canUseProgressSeek) {
+      return;
+    }
+
+    setDragTimeMs(getProgressTimeFromClientX(event.clientX));
+  }
+
+  function commitProgressSeek(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!isProgressDragging || !canUseProgressSeek) {
+      return;
+    }
+
+    const targetMs = clampProgressTime(
+      dragTimeMs ?? getProgressTimeFromClientX(event.clientX),
+      totalProgressMs,
+    );
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    setIsProgressDragging(false);
+    setDragTimeMs(null);
+    onSeek(targetMs);
+  }
+
+  function cancelProgressSeek(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    setIsProgressDragging(false);
+    setDragTimeMs(null);
+  }
+
+  function handleProgressKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!canUseProgressSeek) {
+      return;
+    }
+
+    const seekStepMs = 5000;
+    let nextTimeMs: number | null = null;
+
+    if (event.key === "ArrowLeft") {
+      nextTimeMs = currentProgressMs - seekStepMs;
+    } else if (event.key === "ArrowRight") {
+      nextTimeMs = currentProgressMs + seekStepMs;
+    } else if (event.key === "Home") {
+      nextTimeMs = 0;
+    } else if (event.key === "End") {
+      nextTimeMs = totalProgressMs;
+    }
+
+    if (nextTimeMs === null) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    onSeek(clampProgressTime(nextTimeMs, totalProgressMs));
+  }
 
   useEffect(() => {
     if (!queueOpen) {
@@ -263,6 +395,16 @@ export function BottomPlayer({
     };
   }, [onQueueClose, queueOpen]);
 
+  useEffect(() => {
+    if (canUseProgressSeek) {
+      return;
+    }
+
+    setDragTimeMs(null);
+    setIsProgressDragging(false);
+    setIsProgressHovering(false);
+  }, [canUseProgressSeek]);
+
   return (
     <footer className="bottom-player" aria-label={text.aria}>
       {queueOpen ? (
@@ -279,17 +421,51 @@ export function BottomPlayer({
       ) : null}
 
       <div
-        className="bottom-player-progress-track"
+        className={`bottom-player-progress${
+          canUseProgressSeek && isProgressHovering ? " is-hovering" : ""
+        }${canUseProgressSeek && isProgressDragging ? " is-dragging" : ""}${
+          !canUseProgressSeek ? " is-disabled" : ""
+        }`}
         aria-label={text.progress}
-        aria-valuemax={progress.totalMs}
+        aria-valuemax={Math.round(totalProgressMs)}
         aria-valuemin={0}
-        aria-valuenow={Math.min(progress.currentMs, progress.totalMs)}
-        role="progressbar"
+        aria-valuenow={Math.round(displayMs)}
+        aria-valuetext={tooltipText}
+        ref={progressRef}
+        role="slider"
+        tabIndex={canUseProgressSeek ? 0 : -1}
+        onKeyDown={handleProgressKeyDown}
+        onPointerCancel={cancelProgressSeek}
+        onPointerDown={handleProgressPointerDown}
+        onPointerEnter={() => {
+          if (canUseProgressSeek) {
+            setIsProgressHovering(true);
+          }
+        }}
+        onPointerLeave={() => {
+          if (!isProgressDragging) {
+            setIsProgressHovering(false);
+          }
+        }}
+        onPointerMove={handleProgressPointerMove}
+        onPointerUp={commitProgressSeek}
       >
+        <div className="bottom-player-progress-track">
+          <span
+            className="bottom-player-progress-value"
+            style={{ width: `${displayPercent}%` }}
+          />
+          <span
+            className="bottom-player-progress-thumb"
+            style={{ left: `${displayPercent}%` }}
+          />
+        </div>
         <span
-          className="bottom-player-progress-value"
-          style={{ width: `${progressPercent}%` }}
-        />
+          className="bottom-player-progress-tooltip"
+          style={{ left: `${displayPercent}%` }}
+        >
+          {tooltipText}
+        </span>
       </div>
 
       <div className="bottom-player-body">

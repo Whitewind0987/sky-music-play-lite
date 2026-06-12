@@ -292,6 +292,14 @@ export function usePreviewPlayback({
     appendLog(text.logs.previewStopped);
   }
 
+  function handleSeekPreview(timeMs: number) {
+    if (playbackState !== "playing" && playbackState !== "paused") {
+      return;
+    }
+
+    playbackControllerRef.current?.seekTo(timeMs);
+  }
+
   function handleShuffleToggle() {
     setIsShuffleEnabled((currentValue) => {
       const nextValue = !currentValue;
@@ -381,6 +389,7 @@ export function usePreviewPlayback({
     handlePlayPreview,
     handleRepeatModeCycle,
     handleResumePreview,
+    handleSeekPreview,
     handleShuffleToggle,
     handleStopPreview,
     isShuffleEnabled,
