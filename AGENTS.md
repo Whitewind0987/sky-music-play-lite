@@ -49,6 +49,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Search input and other text inputs must support Chinese IME correctly.
 - Do not change playback, queue, experimental input, or score import logic during UI-only stages.
 - Sidebar playlist lists should scroll internally and must not push lower navigation items out of view.
+- Do not set Tauri `security.csp` back to null; CSP changes must be tested in dev and avoid broad wildcards unless justified by a concrete violation.
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
 - Every stage must run `npm run build` and `cargo check` before completion.
 
