@@ -151,8 +151,12 @@ button {
 }
 
 .sidebar-nav {
-  display: grid;
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .sidebar-link {
@@ -207,10 +211,14 @@ button {
 }
 
 .sidebar-library {
-  display: grid;
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 8px;
   margin-top: 2px;
   padding: 0 0 4px;
+  overflow: hidden;
 }
 
 .sidebar-nav-divider {
@@ -227,13 +235,25 @@ button {
 }
 
 .sidebar-subnav {
-  display: grid;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
+  overflow: hidden;
 }
 
 .sidebar-subnav-group {
   display: grid;
+  flex: 0 0 auto;
   gap: 3px;
+  min-height: 0;
+}
+
+.sidebar-subnav-group.is-playlists {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .sidebar-subnav-row {
@@ -297,9 +317,29 @@ button {
 }
 
 .sidebar-playlist-list {
+  min-height: 0;
+  max-height: clamp(96px, 30vh, 240px);
   display: grid;
   gap: 2px;
   padding-left: 14px;
+  padding-right: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.sidebar-playlist-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-playlist-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.sidebar-playlist-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .sidebar-playlist-link {

@@ -123,7 +123,12 @@ export function AppSidebar({
           <p className="sidebar-subnav-heading">{text.library.categoriesTitle}</p>
           <div className="sidebar-subnav">
             {libraryCategories.map((category) => (
-              <div className="sidebar-subnav-group" key={category.id}>
+              <div
+                className={`sidebar-subnav-group${
+                  category.id === "playlists" ? " is-playlists" : ""
+                }`}
+                key={category.id}
+              >
                 <div className="sidebar-subnav-row">
                   <button
                     className={`sidebar-subnav-link${
