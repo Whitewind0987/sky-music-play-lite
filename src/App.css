@@ -31,11 +31,58 @@ button {
   font: inherit;
 }
 
+.sidebar-playlist-list,
+.library-table-body,
+.library-collect-list,
+.queue-panel-list,
+.log-group-list,
+.log-list,
+.app-layout,
+.experimental-window-list {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.sidebar-playlist-list::-webkit-scrollbar,
+.library-table-body::-webkit-scrollbar,
+.library-collect-list::-webkit-scrollbar,
+.queue-panel-list::-webkit-scrollbar,
+.log-group-list::-webkit-scrollbar,
+.log-list::-webkit-scrollbar,
+.app-layout::-webkit-scrollbar,
+.experimental-window-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.sidebar-playlist-list::-webkit-scrollbar-thumb,
+.library-table-body::-webkit-scrollbar-thumb,
+.library-collect-list::-webkit-scrollbar-thumb,
+.queue-panel-list::-webkit-scrollbar-thumb,
+.log-group-list::-webkit-scrollbar-thumb,
+.log-list::-webkit-scrollbar-thumb,
+.app-layout::-webkit-scrollbar-thumb,
+.experimental-window-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.sidebar-playlist-list::-webkit-scrollbar-track,
+.library-table-body::-webkit-scrollbar-track,
+.library-collect-list::-webkit-scrollbar-track,
+.queue-panel-list::-webkit-scrollbar-track,
+.log-group-list::-webkit-scrollbar-track,
+.log-list::-webkit-scrollbar-track,
+.app-layout::-webkit-scrollbar-track,
+.experimental-window-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .app-shell {
   width: 100%;
   height: 100vh;
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) 84px;
   grid-template-areas:
     "sidebar workspace"
@@ -62,7 +109,7 @@ button {
   border-radius: 8px;
   color: #1e3a8a;
   background: rgba(239, 246, 255, 0.98);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
   font-size: 14px;
   line-height: 1.4;
 }
@@ -73,10 +120,10 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px 8px;
+  gap: 16px;
+  padding: 20px 10px;
   color: #111827;
-  background: #f5f5f5;
+  background: #f7f8fa;
   border-right: 1px solid #d7d7d7;
   overflow: hidden;
 }
@@ -115,7 +162,7 @@ button {
 
 .brand-title {
   margin: 0;
-  max-width: 112px;
+  max-width: 132px;
   font-size: 16px;
   line-height: 1.2;
   word-break: normal;
@@ -168,22 +215,24 @@ button {
   width: 100%;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #111827;
   background: transparent;
   cursor: pointer;
   text-align: left;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .sidebar-link:hover,
 .sidebar-link.is-active {
   border-color: #c4def8;
   color: #111827;
-  background: #d8ebff;
+  background: #e7f2ff;
 }
 
 .sidebar-link.is-active {
   font-weight: 700;
+  box-shadow: inset 3px 0 0 #2f80ed;
 }
 
 .sidebar-icon {
@@ -273,12 +322,13 @@ button {
   gap: 8px;
   padding: 0 10px 0 18px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 7px;
   color: #52616f;
   background: transparent;
   cursor: pointer;
   font-size: 14px;
   text-align: left;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .sidebar-subnav-link:hover,
@@ -286,7 +336,7 @@ button {
 .sidebar-playlist-link:hover,
 .sidebar-playlist-link.is-active {
   color: #111827;
-  background: #edf5ff;
+  background: #edf6ff;
 }
 
 .sidebar-subnav-link.is-active,
@@ -318,15 +368,16 @@ button {
 
 .sidebar-playlist-list {
   min-height: 0;
-  max-height: clamp(96px, 30vh, 240px);
+  max-height: clamp(120px, 34vh, 280px);
   display: grid;
-  gap: 2px;
-  padding-left: 14px;
-  padding-right: 2px;
+  gap: 3px;
+  padding-left: 10px;
+  padding-right: 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 .sidebar-playlist-list::-webkit-scrollbar {
@@ -344,12 +395,12 @@ button {
 
 .sidebar-playlist-link {
   min-width: 0;
-  min-height: 30px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 8px 0 14px;
+  padding: 0 8px 0 12px;
   border: 1px solid transparent;
   border-radius: 6px;
   color: #52616f;
@@ -357,6 +408,7 @@ button {
   cursor: pointer;
   font-size: 13px;
   text-align: left;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .sidebar-playlist-link span:first-child {
@@ -367,7 +419,7 @@ button {
 }
 
 .sidebar-subnav-count {
-  min-width: 22px;
+  min-width: 24px;
   min-height: 18px;
   display: inline-grid;
   place-items: center;
@@ -399,7 +451,7 @@ button {
   gap: 16px;
   padding: 0 22px;
   border-bottom: 1px solid #d7d7d7;
-  background: #f5f5f5;
+  background: #f7f8fa;
 }
 
 .workspace-header h2,
@@ -438,17 +490,18 @@ button {
 }
 
 .icon-action {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .icon-action:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: #e8edf3;
 }
 
 .icon-action .iconfont {
@@ -480,12 +533,12 @@ button {
   min-height: 0;
   flex: 1;
   display: grid;
-  padding: 12px 12px 12px;
+  padding: 16px 18px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
   grid-template-areas:
     "score keyboard"
     "log log";
-  gap: 16px;
+  gap: 14px;
   align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
@@ -545,7 +598,7 @@ button {
 
 .library-panel {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .library-import-area {
@@ -554,7 +607,7 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 16px 18px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #ffffff;
@@ -629,10 +682,11 @@ button {
 
 .library-content {
   min-width: 0;
-  padding: 16px;
+  padding: 16px 18px 18px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
-  background: #ffffff;
+  background: #fbfcfe;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .library-content {
@@ -660,10 +714,10 @@ button {
 
 .library-search input {
   width: 100%;
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 12px;
   border: 1px solid #c7d0dc;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #1f2933;
   background: #ffffff;
 }
@@ -782,7 +836,7 @@ button {
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
 }
 
 .playlist-more-menu button {
@@ -812,7 +866,9 @@ button {
 .library-table-header {
   min-height: 34px;
   padding: 0 12px;
+  border-radius: 6px;
   color: #7a8794;
+  background: #f7f9fc;
   font-size: 12px;
   font-weight: 700;
 }
@@ -820,33 +876,36 @@ button {
 .library-table-body {
   display: grid;
   gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 .library-song-row {
-  min-height: 46px;
+  min-height: 50px;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52616f;
   background: transparent;
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .library-song-row:hover,
 .library-song-row:focus-visible {
-  border-color: transparent;
-  background: #f1f5f9;
+  border-color: #e2e8f0;
+  background: #f7fbff;
   outline: none;
 }
 
 .library-song-row.is-selected {
-  border-color: transparent;
-  background: transparent;
+  border-color: #bdd7f5;
+  background: #eef6ff;
 }
 
 .library-song-row.is-selected:hover,
 .library-song-row.is-selected:focus-visible {
-  background: #f1f5f9;
+  background: #e7f2ff;
 }
 
 .library-song-index {
@@ -937,7 +996,8 @@ button {
   transition: opacity 120ms ease;
 }
 
-.library-song-row:hover .library-row-title-actions {
+.library-song-row:hover .library-row-title-actions,
+.library-song-row:focus-within .library-row-title-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1096,7 +1156,7 @@ button {
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
 }
 
 .library-action-menu button {
@@ -1132,7 +1192,8 @@ button {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.22);
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(4px);
 }
 
 .library-collect-dialog,
@@ -1140,23 +1201,23 @@ button {
   width: min(420px, 100%);
   display: grid;
   gap: 12px;
-  padding: 16px;
+  padding: 18px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.22);
 }
 
 .confirm-dialog-card {
   width: min(420px, 100%);
   display: grid;
   gap: 12px;
-  padding: 16px;
+  padding: 18px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   color: #1f2933;
   background: #ffffff;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.22);
 }
 
 .confirm-dialog-header {
@@ -1186,7 +1247,7 @@ button {
 .confirm-dialog-primary {
   min-height: 36px;
   padding: 0 14px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 800;
 }
@@ -1234,7 +1295,7 @@ button {
   border: 1px solid rgba(148, 163, 184, 0.55);
   border-radius: 8px;
   color: #1f2933;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.24);
 }
 
 .update-dialog-card.is-alpha {
@@ -1404,12 +1465,16 @@ button {
   align-items: center;
   gap: 8px;
   text-align: left;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
   padding: 0 12px;
 }
 
 .library-collect-list {
+  max-height: min(320px, 50vh);
   display: grid;
   gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .library-collect-row {
@@ -2073,6 +2138,7 @@ button {
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   overflow-wrap: anywhere;
 }
 
@@ -2106,7 +2172,7 @@ button {
 .parse-button {
   min-height: 44px;
   border: 1px solid #9bb1c9;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #1f2933;
   background: #e7eef6;
   cursor: pointer;
@@ -2121,7 +2187,7 @@ button {
   gap: 8px;
   padding: 12px;
   border: 1px dashed #9bb1c9;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52616f;
   background: #fbfcfd;
 }
@@ -2187,7 +2253,7 @@ button {
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid #d8dee6;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52616f;
   background: #fbfcfd;
   cursor: pointer;
@@ -2255,7 +2321,7 @@ button {
   gap: 10px;
   padding: 12px;
   border: 1px solid #d8dee6;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fbfcfd;
 }
 
@@ -2296,7 +2362,7 @@ button {
   min-width: 0;
   min-height: 44px;
   border: 1px solid #c7d0dc;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52616f;
   background: #f3f6f9;
 }
@@ -2345,9 +2411,10 @@ button {
   min-width: 0;
   min-height: 0;
   display: block;
-  padding: 14px 18px 10px;
+  padding: 14px 20px 10px;
   border-top: 1px solid #d7d7d7;
-  background: #f5f5f5;
+  background: #f8fafc;
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.05);
 }
 
 .bottom-player,
@@ -2373,9 +2440,9 @@ button {
   top: 0;
   right: 0;
   left: 0;
-  height: 3px;
+  height: 4px;
   overflow: hidden;
-  background: #e1e6ed;
+  background: #e3e9f1;
 }
 
 .bottom-player-progress-value {
@@ -2391,7 +2458,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: clamp(12px, 2vw, 24px);
+  gap: clamp(14px, 2vw, 26px);
 }
 
 .bottom-player-score {
@@ -2470,7 +2537,7 @@ button {
   border: 1px solid #d7dce3;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.16);
+  box-shadow: 0 18px 42px rgba(17, 24, 39, 0.18);
 }
 
 .queue-panel-header {
@@ -2530,6 +2597,8 @@ button {
   margin: 0;
   padding: 0;
   list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 .queue-panel-item {
@@ -2540,7 +2609,7 @@ button {
   padding: 8px;
   border: 1px solid #edf0f4;
   border-radius: 6px;
-  background: #f8fafc;
+  background: #fbfcfe;
 }
 
 .queue-panel-index {
@@ -2700,6 +2769,7 @@ button {
   border-radius: 999px;
   color: #1f2933;
   background: #ffffff;
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
 .player-stepper:focus-within {
@@ -2780,9 +2850,10 @@ button {
   place-items: center;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52616f;
   background: transparent;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 .player-icon-button:not(:disabled) {
@@ -2792,7 +2863,7 @@ button {
 }
 
 .player-icon-button:not(:disabled):hover {
-  background: #e5e7eb;
+  background: #e8edf3;
 }
 
 .player-icon-button:disabled {

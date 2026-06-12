@@ -34,6 +34,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Add Radix primitives only when a stage actually uses them, using specific packages such as `@radix-ui/react-dialog`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-tooltip`, `@radix-ui/react-toast`, `@radix-ui/react-popover`, `@radix-ui/react-slider`, or `@radix-ui/react-progress`.
 - Do not keep unused UI dependencies in `package.json` because they can increase install, build, and dev startup cost.
 - Use Tailwind CSS for new UI styling, but preserve existing CSS during the gradual migration.
+- UI polish should prefer `App.css` and existing class-level changes before component rewrites.
 - During the early migration, do not use the full `@import "tailwindcss";` in the existing app styles. Use the no-Preflight Tailwind import until the user explicitly approves enabling Preflight.
 - During early Alpha UI Refresh stages, Tailwind files and foundation components may exist without enabling the Tailwind Vite plugin in the active app startup path. Only enable the Tailwind Vite plugin when a stage actually migrates visible UI to Tailwind and the startup cost is accepted by the user.
 - If enabling a UI tool noticeably slows startup compared with the stable version, prefer deferring active integration until the tool is actually used by visible UI.
