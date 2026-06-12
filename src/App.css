@@ -1791,11 +1791,17 @@ button {
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
 }
 
 .settings-panel {
   min-height: 300px;
+}
+
+.settings-system-panel,
+.settings-app-info-panel {
+  min-height: 0;
 }
 
 .setting-placeholder-list {
@@ -1885,14 +1891,58 @@ button {
   color: #1f2933;
 }
 
-.settings-path-value {
-  min-width: 0;
+.settings-plain-row-list {
+  display: grid;
+  gap: 0;
+  border-radius: 8px;
   overflow: hidden;
-  color: #52616f;
-  font-size: 12px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.settings-plain-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid #edf0f4;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.settings-plain-row:last-child {
+  border-bottom: 0;
+}
+
+button.settings-plain-row {
+  cursor: pointer;
+}
+
+button.settings-plain-row:hover,
+button.settings-plain-row:focus-visible {
+  color: #0b5db3;
+  outline: none;
+}
+
+button.settings-plain-row:disabled {
+  color: #8a97a5;
+  cursor: not-allowed;
+}
+
+.settings-row-chevron {
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+}
+
+.settings-version-value {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .fake-select,

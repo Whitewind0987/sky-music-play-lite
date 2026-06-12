@@ -14,7 +14,6 @@ export type TargetWindowCompatibilityProfile =
   | "legacy-vkscan-zero-lparam"
   | "legacy-vkscan-scan-lparam"
   | "grouped-legacy"
-  // Legacy persisted value. Runtime playback normalizes this to "grouped-legacy".
   | "legacy-activate-scan-lparam";
 
 export type ForegroundPlaybackState =

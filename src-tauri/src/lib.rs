@@ -1,5 +1,6 @@
 mod app_data;
 mod app_log;
+mod app_window;
 mod experimental_input;
 use experimental_input::CandidateWindow;
 
@@ -47,6 +48,7 @@ pub fn run() {
             app_log::append_app_log,
             app_log::get_app_runtime_info,
             app_log::open_log_directory,
+            app_window::force_close_app,
             list_candidate_windows,
             app_data::save_app_data,
             send_foreground_key_group,

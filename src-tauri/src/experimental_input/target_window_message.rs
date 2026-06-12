@@ -16,6 +16,8 @@ const TARGET_PROFILE_LEGACY_ZERO_LPARAM: &str = "legacy-vkscan-zero-lparam";
 const TARGET_PROFILE_LEGACY_SCAN_LPARAM: &str = "legacy-vkscan-scan-lparam";
 const TARGET_PROFILE_GROUPED_LEGACY: &str = "grouped-legacy";
 const TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM: &str = "legacy-activate-scan-lparam";
+const WM_ACTIVATE: u32 = 0x0006;
+const WA_ACTIVE: usize = 1;
 const TARGET_KEY_HOLD_MIN_MS: u64 = 10;
 const TARGET_KEY_HOLD_MAX_MS: u64 = 200;
 
@@ -66,10 +68,13 @@ pub fn send_key_group_to_window_message(
         .map(|key| build_profile_window_message_key_input(&target, key))
         .collect::<Result<Vec<_>, _>>()?;
     let grouped = is_grouped_target_compatibility_profile(&target.compatibility_profile);
+    let soft_activation =
+        target.compatibility_profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM;
     let mut send_results = Vec::<TargetWindowKeyMessageResult>::new();
 
     if grouped {
         for input in inputs.iter() {
+            activate_target_window_for_profile(input, "before key down")?;
             let key_down_lparam = build_profile_key_down_lparam(input);
             let down_result =
                 send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
@@ -82,6 +87,7 @@ pub fn send_key_group_to_window_message(
         thread::sleep(Duration::from_millis(key_hold_ms));
 
         for (index, input) in inputs.iter().enumerate() {
+            activate_target_window_for_profile(input, "before key up")?;
             let key_up_lparam = build_profile_key_up_lparam(input);
             let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
 
@@ -91,10 +97,12 @@ pub fn send_key_group_to_window_message(
         }
     } else {
         for input in inputs.iter() {
+            activate_target_window_for_profile(input, "before key down")?;
             let key_down_lparam = build_profile_key_down_lparam(input);
             let down_result =
                 send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
             thread::sleep(Duration::from_millis(key_hold_ms));
+            activate_target_window_for_profile(input, "before key up")?;
             let key_up_lparam = build_profile_key_up_lparam(input);
             let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
 
@@ -106,13 +114,14 @@ pub fn send_key_group_to_window_message(
     }
 
     Ok(format!(
-        "Target-window key group messages sent. hwnd: {}; key count: {}; method: {}; profile: {}; hold: {}ms; grouped: {}; send-message results: {}",
+        "Target-window key group messages sent. hwnd: {}; key count: {}; method: {}; profile: {}; hold: {}ms; grouped: {}; softActivation: {}; foregroundApi: false; send-message results: {}",
         target.hwnd_text,
         inputs.len(),
         target.method,
         target.compatibility_profile,
         key_hold_ms,
         grouped,
+        soft_activation,
         format_send_message_results(&send_results)
     ))
 }
@@ -130,7 +139,7 @@ fn build_window_message_target(
         ));
     }
 
-    let compatibility_profile = normalize_target_profile(compatibility_profile.trim()).to_string();
+    let compatibility_profile = compatibility_profile.trim().to_string();
 
     if !is_supported_target_compatibility_profile(&compatibility_profile) {
         return Err(format!(
@@ -222,15 +231,10 @@ fn is_supported_target_compatibility_profile(profile: &str) -> bool {
 }
 
 fn is_grouped_target_compatibility_profile(profile: &str) -> bool {
-    profile == TARGET_PROFILE_GROUPED_LEGACY
-}
-
-fn normalize_target_profile(profile: &str) -> &str {
-    if profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM {
-        TARGET_PROFILE_GROUPED_LEGACY
-    } else {
-        profile
-    }
+    matches!(
+        profile,
+        TARGET_PROFILE_GROUPED_LEGACY | TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM
+    )
 }
 
 fn build_profile_key_down_lparam(input: &WindowMessageKeyInput) -> LPARAM {
@@ -244,8 +248,50 @@ fn build_profile_key_down_lparam(input: &WindowMessageKeyInput) -> LPARAM {
 fn build_profile_key_up_lparam(input: &WindowMessageKeyInput) -> LPARAM {
     if input.scan_code == 0 {
         0
+    } else if input.compatibility_profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM {
+        ((input.scan_code as isize) << 16) | 0xC0000001u32 as isize
     } else {
         build_key_up_lparam(input.scan_code)
+    }
+}
+
+fn activate_target_window_for_profile(
+    input: &WindowMessageKeyInput,
+    activation_stage: &str,
+) -> Result<Option<isize>, String> {
+    if input.compatibility_profile != TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM {
+        return Ok(None);
+    }
+
+    send_target_window_activate(input, activation_stage)
+}
+
+fn send_target_window_activate(
+    input: &WindowMessageKeyInput,
+    activation_stage: &str,
+) -> Result<Option<isize>, String> {
+    match input.method.as_str() {
+        TARGET_MESSAGE_METHOD_POST => {
+            let sent = unsafe { PostMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+
+            if sent == 0 {
+                let error = std::io::Error::last_os_error();
+                return Err(format!(
+                    "Failed to post target-window activation message. hwnd: {}; mapped key: {}; stage: {activation_stage}; method: {}; profile: {}; last OS error: {error}",
+                    input.hwnd_text, input.key, input.method, input.compatibility_profile
+                ));
+            }
+
+            Ok(None)
+        }
+        TARGET_MESSAGE_METHOD_SEND => {
+            let result = unsafe { SendMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+            Ok(Some(result))
+        }
+        _ => Err(format!(
+            "Unsupported target window message method: {}. Supported methods: {}, {}.",
+            input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
+        )),
     }
 }
 

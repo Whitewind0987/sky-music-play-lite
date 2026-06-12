@@ -76,3 +76,7 @@ export function appendAppLog(entry: AppLogEntry): Promise<void> {
 export function openLogDirectory(): Promise<void> {
   return invoke<void>("open_log_directory");
 }
+
+export function forceCloseApp(): Promise<void> {
+  return invoke<void>("force_close_app");
+}

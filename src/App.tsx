@@ -36,6 +36,7 @@ import {
   uiText,
   type LanguageCode,
 } from "./i18n/uiText";
+import { forceCloseApp } from "./lib/tauriApi";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -335,18 +336,33 @@ function App() {
     });
 
     try {
-      closeRequestedUnlistenRef.current?.();
-      closeRequestedUnlistenRef.current = null;
-      await getCurrentWindow().close();
+      await forceCloseApp();
     } catch (error) {
-      isClosingAfterConfirmRef.current = false;
       appFileLogger.appendDetailedLog({
         details: { error: String(error instanceof Error ? error.message : error) },
-        level: "error",
-        message: "Failed to close window after confirmation",
+        level: "warn",
+        message: "Force-close command failed; trying window close fallback",
         source: "window",
       });
-      setIsCloseConfirmOpen(true);
+
+      try {
+        await getCurrentWindow().close();
+      } catch (fallbackError) {
+        isClosingAfterConfirmRef.current = false;
+        appFileLogger.appendDetailedLog({
+          details: {
+            error: String(
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : fallbackError,
+            ),
+          },
+          level: "error",
+          message: "Failed to close app after confirmation",
+          source: "window",
+        });
+        setIsCloseConfirmOpen(true);
+      }
     }
   }
 
@@ -449,7 +465,6 @@ function App() {
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
           appRuntimeInfo={appFileLogger.runtimeInfo}
-          appRuntimeInfoError={appFileLogger.runtimeInfoError}
           onOpenLogDirectory={appFileLogger.openLogDirectory}
           onPlaybackShortcutsChange={(nextShortcuts) => {
             playbackShortcutsController.clearShortcutNotice();

@@ -52,7 +52,8 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Sidebar playlist lists should scroll internally and must not push lower navigation items out of view.
 - Do not set Tauri `security.csp` back to null; CSP changes must be tested in dev and avoid broad wildcards unless justified by a concrete violation.
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
-- Target-window experimental playback must not activate, focus, or foreground the target window; legacy activation profiles are compatibility-only persisted values and must be normalized before runtime use.
+- Do not reintroduce frontend target-window activation preflight. `legacy-activate-scan-lparam` is an explicit compatibility profile that may send `WM_ACTIVATE` window messages, but it must never call `SetForegroundWindow`; non-activating profiles must remain available.
+- Close confirmation must use the Rust force-close command when JavaScript `close()` would re-enter `onCloseRequested`.
 - Every stage must run `npm run build` and `cargo check` before completion.
 
 ## Testing Rules

@@ -346,7 +346,7 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。",
+        "目标窗口播放已开始：{songName} -> {target}；mode=target-window-message；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；softActivation={softActivation}；foregroundApi=false。",
       experimentalPlaybackPaused: "实验性播放已暂停。",
       experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
@@ -402,12 +402,8 @@ export const uiText = {
       aria: "设置占位页",
       systemTitle: "系统设置",
       appInfoTitle: "应用信息",
-      currentVersion: "当前版本",
       logDirectory: "日志目录",
-      currentLogFile: "当前日志文件",
-      openLogDirectory: "打开日志目录",
-      logDirectoryFallbackNote:
-        "程序目录不可写，日志已保存到用户数据目录。",
+      appVersion: "SkyMusicPlay Lite 版本",
       language: "语言",
       theme: "主题",
       systemTheme: "跟随系统",
@@ -455,11 +451,11 @@ export const uiText = {
         standard: "基础消息模式",
         "legacy-vkscan-zero-lparam": "简化键码模式",
         "legacy-vkscan-scan-lparam": "扫描码兼容模式",
-        "grouped-legacy": "组合按键兼容模式",
-        "legacy-activate-scan-lparam": "激活消息兼容模式",
+        "grouped-legacy": "分组 Legacy",
+        "legacy-activate-scan-lparam": "Legacy 激活兼容（推荐）",
       },
       experimentalTargetWindowCompatibilityHint:
-        "默认使用组合按键兼容模式，不会激活或聚焦目标窗口。",
+        "后台播放无效时优先使用 Legacy 激活兼容。它不会调用前台切换 API，但会向目标窗口发送激活消息，少数情况下可能影响焦点。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
@@ -852,7 +848,7 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}.",
+        "Target-window playback started: {songName} -> {target}; mode=target-window-message; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; softActivation={softActivation}; foregroundApi=false.",
       experimentalPlaybackPaused: "Experimental playback paused.",
       experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
@@ -913,13 +909,9 @@ export const uiText = {
     settings: {
       aria: "Settings placeholder",
       systemTitle: "System settings",
-      appInfoTitle: "App info",
-      currentVersion: "Current version",
-      logDirectory: "Log directory",
-      currentLogFile: "Current log file",
-      openLogDirectory: "Open log folder",
-      logDirectoryFallbackNote:
-        "The install directory is not writable, so logs are saved to the user data directory.",
+      appInfoTitle: "App Info",
+      logDirectory: "Log Directory",
+      appVersion: "SkyMusicPlay Lite Version",
       language: "Language",
       theme: "Theme",
       systemTheme: "System",
@@ -969,11 +961,12 @@ export const uiText = {
         standard: "Basic Message Mode",
         "legacy-vkscan-zero-lparam": "Simplified Key Code Mode",
         "legacy-vkscan-scan-lparam": "Scan Code Compatibility Mode",
-        "grouped-legacy": "Grouped Key Compatibility Mode",
-        "legacy-activate-scan-lparam": "Activation Message Compatibility Mode",
+        "grouped-legacy": "Grouped legacy",
+        "legacy-activate-scan-lparam":
+          "Legacy activate compatibility (recommended)",
       },
       experimentalTargetWindowCompatibilityHint:
-        "Default: grouped key compatibility mode. It does not activate or focus the target window.",
+        "If background playback does not work, try Legacy activate compatibility first. It does not call foreground switching APIs, but sends activation messages to the target window and may affect focus in some cases.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:

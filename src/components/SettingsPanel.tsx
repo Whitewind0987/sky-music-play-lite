@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   languageOptions,
@@ -70,7 +71,6 @@ type ExperimentalInputPanelState = {
 
 type SettingsPlaceholderProps = {
   appRuntimeInfo: AppRuntimeInfo | null;
-  appRuntimeInfoError: string | null;
   experimentalInput: ExperimentalInputPanelState;
   keyMapping: KeyMapping;
   language: LanguageCode;
@@ -87,7 +87,6 @@ type SettingsPlaceholderProps = {
 
 export function SettingsPlaceholder({
   appRuntimeInfo,
-  appRuntimeInfoError,
   experimentalInput,
   keyMapping,
   language,
@@ -309,10 +308,11 @@ export function SettingsPlaceholder({
               <div className="language-options">
                 {(
                   [
-                    "standard",
-                    "legacy-vkscan-zero-lparam",
-                    "legacy-vkscan-scan-lparam",
+                    "legacy-activate-scan-lparam",
                     "grouped-legacy",
+                    "legacy-vkscan-scan-lparam",
+                    "legacy-vkscan-zero-lparam",
+                    "standard",
                   ] as TargetWindowCompatibilityProfile[]
                 ).map((profile) => (
                   <button
@@ -546,40 +546,25 @@ export function SettingsPlaceholder({
           id="settings-app-info-title"
           title={text.appInfoTitle}
         />
-        <div className="setting-placeholder-list">
-          <div className="setting-row">
-            <span>{text.currentVersion}</span>
-            <span className="settings-path-value">
-              {appRuntimeInfo?.version ?? "--"}
-            </span>
-          </div>
-          <div className="setting-row">
+        <div className="settings-plain-row-list">
+          <button
+            className="settings-plain-row settings-plain-row-action"
+            type="button"
+            disabled={appRuntimeInfo === null}
+            title={appRuntimeInfo?.logDirectory}
+            onClick={onOpenLogDirectory}
+          >
             <span>{text.logDirectory}</span>
-            <span className="settings-path-value">
-              {appRuntimeInfo?.logDirectory ?? appRuntimeInfoError ?? "--"}
+            <ChevronRight
+              className="settings-row-chevron"
+              aria-hidden="true"
+            />
+          </button>
+          <div className="settings-plain-row">
+            <span>{text.appVersion}</span>
+            <span className="settings-version-value">
+              {formatAppVersion(appRuntimeInfo?.version)}
             </span>
-          </div>
-          <div className="setting-row">
-            <span>{text.currentLogFile}</span>
-            <span className="settings-path-value">
-              {appRuntimeInfo?.logFile ?? "--"}
-            </span>
-          </div>
-          {appRuntimeInfo?.logDirectoryFallbackUsed ? (
-            <p className="experimental-setting-description">
-              {text.logDirectoryFallbackNote}
-            </p>
-          ) : null}
-          <div className="setting-row">
-            <span>{text.openLogDirectory}</span>
-            <button
-              className="language-option"
-              type="button"
-              disabled={appRuntimeInfo === null}
-              onClick={onOpenLogDirectory}
-            >
-              {text.openLogDirectory}
-            </button>
           </div>
         </div>
       </article>
@@ -665,6 +650,14 @@ export function SettingsPlaceholder({
       </article>
     </section>
   );
+}
+
+function formatAppVersion(version: string | undefined) {
+  if (!version) {
+    return "v--";
+  }
+
+  return version.startsWith("v") ? version : `v${version}`;
 }
 
 function getRestoredTargetLabel(
