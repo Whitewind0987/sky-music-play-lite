@@ -225,7 +225,8 @@ export function BottomPlayer({
   songs,
   text,
 }: BottomPlayerProps) {
-  const progressRef = useRef<HTMLDivElement | null>(null);
+  const progressTrackRef = useRef<HTMLDivElement | null>(null);
+  const dragPreviewClearFrameRef = useRef<number | null>(null);
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
   const queuePanelRef = useRef<HTMLDivElement | null>(null);
   const [dragTimeMs, setDragTimeMs] = useState<number | null>(null);
@@ -271,7 +272,7 @@ export function BottomPlayer({
     playbackMode === "repeat-one" ? RepeatOneIcon : RepeatIcon;
 
   function getProgressTimeFromClientX(clientX: number) {
-    const rect = progressRef.current?.getBoundingClientRect();
+    const rect = progressTrackRef.current?.getBoundingClientRect();
 
     if (!rect || rect.width <= 0 || totalProgressMs <= 0) {
       return 0;
@@ -289,6 +290,7 @@ export function BottomPlayer({
 
     const targetMs = getProgressTimeFromClientX(event.clientX);
 
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsProgressDragging(true);
     setIsProgressHovering(true);
@@ -300,6 +302,7 @@ export function BottomPlayer({
       return;
     }
 
+    event.preventDefault();
     setDragTimeMs(getProgressTimeFromClientX(event.clientX));
   }
 
@@ -309,7 +312,7 @@ export function BottomPlayer({
     }
 
     const targetMs = clampProgressTime(
-      dragTimeMs ?? getProgressTimeFromClientX(event.clientX),
+      getProgressTimeFromClientX(event.clientX),
       totalProgressMs,
     );
 
@@ -317,9 +320,19 @@ export function BottomPlayer({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
+    event.preventDefault();
     setIsProgressDragging(false);
-    setDragTimeMs(null);
+    setDragTimeMs(targetMs);
     onSeek(targetMs);
+
+    if (dragPreviewClearFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragPreviewClearFrameRef.current);
+    }
+
+    dragPreviewClearFrameRef.current = window.requestAnimationFrame(() => {
+      dragPreviewClearFrameRef.current = null;
+      setDragTimeMs(null);
+    });
   }
 
   function cancelProgressSeek(event: ReactPointerEvent<HTMLDivElement>) {
@@ -405,6 +418,14 @@ export function BottomPlayer({
     setIsProgressHovering(false);
   }, [canUseProgressSeek]);
 
+  useEffect(() => {
+    return () => {
+      if (dragPreviewClearFrameRef.current !== null) {
+        window.cancelAnimationFrame(dragPreviewClearFrameRef.current);
+      }
+    };
+  }, []);
+
   return (
     <footer className="bottom-player" aria-label={text.aria}>
       {queueOpen ? (
@@ -431,7 +452,6 @@ export function BottomPlayer({
         aria-valuemin={0}
         aria-valuenow={Math.round(displayMs)}
         aria-valuetext={tooltipText}
-        ref={progressRef}
         role="slider"
         tabIndex={canUseProgressSeek ? 0 : -1}
         onKeyDown={handleProgressKeyDown}
@@ -450,7 +470,7 @@ export function BottomPlayer({
         onPointerMove={handleProgressPointerMove}
         onPointerUp={commitProgressSeek}
       >
-        <div className="bottom-player-progress-track">
+        <div className="bottom-player-progress-track" ref={progressTrackRef}>
           <span
             className="bottom-player-progress-value"
             style={{ width: `${displayPercent}%` }}

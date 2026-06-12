@@ -6,6 +6,23 @@ import type {
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 
+export type AppRuntimeInfo = {
+  productName: string;
+  version: string;
+  logDirectory: string;
+  logFile: string;
+  logDirectoryFallbackUsed: boolean;
+};
+
+export type AppLogLevel = "debug" | "info" | "warn" | "error";
+
+export type AppLogEntry = {
+  details?: unknown;
+  level: AppLogLevel;
+  message: string;
+  source: string;
+};
+
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");
 }
@@ -46,4 +63,16 @@ export function sendKeyGroupToWindowMessage({
 
 export function sendForegroundKeyGroup(keys: string[]): Promise<string> {
   return invoke<string>("send_foreground_key_group", { keys });
+}
+
+export function getAppRuntimeInfo(): Promise<AppRuntimeInfo> {
+  return invoke<AppRuntimeInfo>("get_app_runtime_info");
+}
+
+export function appendAppLog(entry: AppLogEntry): Promise<void> {
+  return invoke<void>("append_app_log", { entry });
+}
+
+export function openLogDirectory(): Promise<void> {
+  return invoke<void>("open_log_directory");
 }

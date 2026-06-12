@@ -215,8 +215,20 @@ export function useForegroundPlayback({
   function handleSeekForegroundPlayback(timeMs: number) {
     if (
       foregroundPlaybackState !== "playing" &&
-      foregroundPlaybackState !== "paused"
+      foregroundPlaybackState !== "paused" &&
+      foregroundPlaybackState !== "finished"
     ) {
+      return;
+    }
+
+    if (foregroundPlaybackState === "finished") {
+      if (selectedSongIndex !== null) {
+        onBeforeStart();
+        void startForegroundPlaybackForSong(selectedSongIndex, {
+          initialSeekMs: timeMs,
+          withCountdown: false,
+        });
+      }
       return;
     }
 
@@ -245,7 +257,10 @@ export function useForegroundPlayback({
 
   async function startForegroundPlaybackForSong(
     songIndex: number,
-    { withCountdown }: { withCountdown: boolean },
+    {
+      initialSeekMs,
+      withCountdown,
+    }: { initialSeekMs?: number; withCountdown: boolean },
   ) {
     ignoreNextCurrentSongChangeRef.current = selectedSongIndex !== songIndex;
     const song = await resolveSongForPlayback(songIndex);
@@ -279,7 +294,7 @@ export function useForegroundPlayback({
     });
 
     if (!withCountdown) {
-      startForegroundPlayback(runId, songIndex, song);
+      startForegroundPlayback(runId, songIndex, song, { initialSeekMs });
       return;
     }
 
@@ -316,7 +331,12 @@ export function useForegroundPlayback({
     }, COUNTDOWN_TICK_MS);
   }
 
-  function startForegroundPlayback(runId: number, songIndex: number, song: Song) {
+  function startForegroundPlayback(
+    runId: number,
+    songIndex: number,
+    song: Song,
+    options: { initialSeekMs?: number } = {},
+  ) {
     setForegroundPlaybackState("playing");
     appendLog(
       formatText(text.logs.foregroundPlaybackStarted, {
@@ -337,6 +357,7 @@ export function useForegroundPlayback({
         handleForegroundPlaybackFinished(songIndex, song);
       },
       {
+        initialProgressMs: options.initialSeekMs,
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         onProgress: setForegroundPlaybackProgress,
         playbackSpeed: playbackSpeedRef.current,

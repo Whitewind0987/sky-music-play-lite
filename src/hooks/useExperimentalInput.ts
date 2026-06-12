@@ -63,7 +63,7 @@ type UseExperimentalInputOptions = {
 };
 
 const defaultTargetWindowCompatibilityProfile: TargetWindowCompatibilityProfile =
-  "legacy-activate-scan-lparam";
+  "grouped-legacy";
 const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
 const targetWindowKeyHoldMaxMs = 200;
@@ -424,16 +424,20 @@ export function useExperimentalInput({
   function handleTargetWindowCompatibilityProfileChange(
     profile: TargetWindowCompatibilityProfile,
   ) {
-    if (profile === targetWindowCompatibilityProfileRef.current) {
+    const normalizedProfile = normalizeTargetWindowCompatibilityProfile(profile);
+
+    if (normalizedProfile === targetWindowCompatibilityProfileRef.current) {
       return;
     }
 
-    targetWindowCompatibilityProfileRef.current = profile;
-    setTargetWindowCompatibilityProfile(profile);
+    targetWindowCompatibilityProfileRef.current = normalizedProfile;
+    setTargetWindowCompatibilityProfile(normalizedProfile);
     appendLog(
       formatText(text.logs.experimentalTargetWindowProfileSelected, {
         profile:
-          text.settings.experimentalTargetWindowCompatibilityProfiles[profile],
+          text.settings.experimentalTargetWindowCompatibilityProfiles[
+            normalizedProfile
+          ],
       }),
     );
   }
@@ -486,8 +490,13 @@ export function useExperimentalInput({
 
     targetWindowMessageMethodRef.current =
       preferences.targetWindowMessageMethod;
+    const normalizedCompatibilityProfile =
+      normalizeTargetWindowCompatibilityProfile(
+        preferences.targetWindowCompatibilityProfile,
+      );
+
     targetWindowCompatibilityProfileRef.current =
-      preferences.targetWindowCompatibilityProfile;
+      normalizedCompatibilityProfile;
     targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
     setExperimentalInputEnabled(preferences.experimentalInputEnabled);
     setSelectedWindowHwnd(preferences.selectedWindowHwnd);
@@ -495,7 +504,7 @@ export function useExperimentalInput({
     setExperimentalInputMode(preferences.experimentalInputMode);
     setTargetWindowMessageMethod(preferences.targetWindowMessageMethod);
     setTargetWindowCompatibilityProfile(
-      preferences.targetWindowCompatibilityProfile,
+      normalizedCompatibilityProfile,
     );
     setTargetWindowKeyHoldMs(clampedKeyHoldMs);
     appendLog(text.logs.experimentalInputPreferencesRestored);
@@ -565,8 +574,18 @@ export function useExperimentalInput({
   function handleSeekExperimentalPlayback(timeMs: number) {
     if (
       experimentalPlaybackState !== "playing" &&
-      experimentalPlaybackState !== "paused"
+      experimentalPlaybackState !== "paused" &&
+      experimentalPlaybackState !== "finished"
     ) {
+      return;
+    }
+
+    if (experimentalPlaybackState === "finished") {
+      if (selectedSongIndex !== null) {
+        void startExperimentalPlaybackWithPreflight(selectedSongIndex, {
+          initialSeekMs: timeMs,
+        });
+      }
       return;
     }
 
@@ -607,8 +626,9 @@ export function useExperimentalInput({
   async function startExperimentalPlaybackWithPreflight(
     songIndex: number,
     {
+      initialSeekMs,
       stopExistingBeforeResolve = false,
-    }: { stopExistingBeforeResolve?: boolean } = {},
+    }: { initialSeekMs?: number; stopExistingBeforeResolve?: boolean } = {},
   ) {
     if (!isTargetWindowReadyForPlayback()) {
       logMissingTargetWindow();
@@ -656,7 +676,7 @@ export function useExperimentalInput({
     }
 
     setIsStartingExperimentalPlayback(false);
-    startExperimentalPlaybackForSong(songIndex, song);
+    startExperimentalPlaybackForSong(songIndex, song, { initialSeekMs });
   }
 
   function isTargetWindowReadyForPlayback() {
@@ -672,6 +692,7 @@ export function useExperimentalInput({
   async function startExperimentalPlaybackForSong(
     songIndex: number,
     resolvedSong?: Song,
+    options: { initialSeekMs?: number } = {},
   ) {
     if (selectedWindowHwnd === null) {
       return;
@@ -702,17 +723,16 @@ export function useExperimentalInput({
       selectedWindowSnapshot?.className ||
       targetWindowHwnd;
     const method = targetWindowMessageMethodRef.current;
-    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+    const compatibilityProfile = normalizeTargetWindowCompatibilityProfile(
+      targetWindowCompatibilityProfileRef.current,
+    );
+    targetWindowCompatibilityProfileRef.current = compatibilityProfile;
+    setTargetWindowCompatibilityProfile(compatibilityProfile);
     const keyHoldMs = targetWindowKeyHoldMsRef.current;
     const grouped =
       isGroupedTargetWindowProfile(compatibilityProfile)
         ? text.logs.experimentalPlaybackGroupedYes
         : text.logs.experimentalPlaybackGroupedNo;
-    const activationNotice =
-      compatibilityProfile === "legacy-activate-scan-lparam"
-        ? text.logs.experimentalPlaybackLegacyActivationEnabled
-        : "";
-
     experimentalPlaybackRunIdRef.current = runId;
     setExperimentalPlaybackState("playing");
     setLastError(null);
@@ -728,7 +748,6 @@ export function useExperimentalInput({
       formatText(text.logs.experimentalPlaybackStarted, {
         grouped,
         holdMs: keyHoldMs,
-        activationNotice,
         method: text.settings.experimentalTargetWindowMessageMethods[method],
         profile:
           text.settings.experimentalTargetWindowCompatibilityProfiles[
@@ -757,6 +776,7 @@ export function useExperimentalInput({
         handleExperimentalPlaybackFinished(songIndex, song);
       },
       {
+        initialProgressMs: options.initialSeekMs,
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         onProgress: setExperimentalPlaybackProgress,
         playbackSpeed: playbackSpeedRef.current,
@@ -839,7 +859,9 @@ export function useExperimentalInput({
       }
 
       await sendKeyGroupToWindowMessage({
-        compatibilityProfile: targetWindowCompatibilityProfileRef.current,
+        compatibilityProfile: normalizeTargetWindowCompatibilityProfile(
+          targetWindowCompatibilityProfileRef.current,
+        ),
         hwnd: targetWindowHwnd,
         keyHoldMs: targetWindowKeyHoldMsRef.current,
         keys: mappedKeys,
@@ -858,7 +880,9 @@ export function useExperimentalInput({
           : selectedWindow === null && selectedWindowSnapshot !== undefined
             ? text.logs.experimentalRestoredTargetWindowSendFailed
             : text.logs.experimentalPlaybackCommandFailed;
-      const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
+      const compatibilityProfile = normalizeTargetWindowCompatibilityProfile(
+        targetWindowCompatibilityProfileRef.current,
+      );
       const grouped =
         isGroupedTargetWindowProfile(compatibilityProfile)
           ? text.logs.experimentalPlaybackGroupedYes
@@ -964,10 +988,15 @@ function clampTargetWindowKeyHoldMs(keyHoldMs: number) {
 function isGroupedTargetWindowProfile(
   profile: TargetWindowCompatibilityProfile,
 ) {
-  return (
-    profile === "grouped-legacy" ||
-    profile === "legacy-activate-scan-lparam"
-  );
+  return normalizeTargetWindowCompatibilityProfile(profile) === "grouped-legacy";
+}
+
+function normalizeTargetWindowCompatibilityProfile(
+  profile: TargetWindowCompatibilityProfile,
+): TargetWindowCompatibilityProfile {
+  return profile === "legacy-activate-scan-lparam"
+    ? "grouped-legacy"
+    : profile;
 }
 
 function candidateWindowToSnapshot(

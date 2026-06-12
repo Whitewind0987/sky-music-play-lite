@@ -39,6 +39,7 @@ export type PreviewPlaybackController = {
 };
 
 export type PreviewPlaybackOptions = {
+  initialProgressMs?: number;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onProgress?: (progress: PreviewPlaybackProgress) => void;
   playbackSpeed: PlaybackSpeed;
@@ -414,9 +415,48 @@ export function schedulePreviewPlayback(
     scheduleTask(scheduledTask, remainingDelayMs);
   }
 
-  emitProgress(0);
-  startProgressTimer();
-  scheduleTask(scheduledTask, scheduledDelayMs);
+  function initializeFromProgress(timeMs: number) {
+    const targetProgressMs = Math.min(Math.max(timeMs, 0), totalMs);
+
+    currentProgressMs = targetProgressMs;
+
+    if (targetProgressMs >= totalMs) {
+      currentGroupIndex = noteGroups.length;
+      scheduledTask = "finish";
+      scheduledDelayMs = 0;
+      remainingDelayMs = 0;
+      return;
+    }
+
+    currentGroupIndex = findNextGroupIndexFromProgressMs(
+      targetProgressMs,
+      liveOptions,
+    );
+
+    if (currentGroupIndex >= noteGroups.length) {
+      scheduledTask = "finish";
+      scheduledDelayMs = Math.max(0, totalMs - targetProgressMs);
+    } else {
+      scheduledTask = "note";
+      scheduledDelayMs = getDelayFromProgressToGroup(
+        targetProgressMs,
+        currentGroupIndex,
+        liveOptions,
+      );
+    }
+
+    remainingDelayMs = scheduledDelayMs;
+  }
+
+  initializeFromProgress(liveOptions.initialProgressMs ?? 0);
+  emitProgress(currentProgressMs);
+
+  if (currentProgressMs >= totalMs) {
+    scheduleTask("finish", 0);
+  } else {
+    startProgressTimer();
+    scheduleTask(scheduledTask, scheduledDelayMs);
+  }
 
   return {
     pause() {

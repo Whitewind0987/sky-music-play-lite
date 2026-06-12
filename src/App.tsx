@@ -1,4 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState } from "react";
 import {
   AppSidebar,
@@ -16,6 +17,7 @@ import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
+import { useAppFileLogger } from "./hooks/useAppFileLogger";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
@@ -39,8 +41,11 @@ import "./App.css";
 
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
+  const isClosingAfterConfirmRef = useRef(false);
+  const fileLogContextRef = useRef<Record<string, unknown>>({});
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [appNotice, setAppNotice] = useState<{
     id: number;
     message: string;
@@ -48,6 +53,7 @@ function App() {
   const [isAppNoticeOpen, setIsAppNoticeOpen] = useState(false);
   const updateCheck = useUpdateCheck();
   const text = uiText[language];
+  const appFileLogger = useAppFileLogger(language);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -55,9 +61,18 @@ function App() {
     }
   }, []);
 
-  const { appendLog, logEntries } = usePlaybackLog([
-    uiText[defaultLanguage].logs.appReady,
-  ]);
+  const { appendLog, logEntries } = usePlaybackLog(
+    [uiText[defaultLanguage].logs.appReady],
+    {
+      onAppend: (entry) => {
+        appFileLogger.appendDetailedLog({
+          details: fileLogContextRef.current,
+          message: entry,
+          source: "ui-log",
+        });
+      },
+    },
+  );
   const playbackShortcutsController = usePlaybackShortcuts({
     appendLog,
     showNotice: showAppNotice,
@@ -190,9 +205,62 @@ function App() {
     experimentalInput.foregroundPlaybackState === "playing" ||
     experimentalInput.foregroundPlaybackState === "paused" ||
     experimentalInput.isExperimentalPlaybackRunning;
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (isClosingAfterConfirmRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        setIsCloseConfirmOpen(true);
+        appFileLogger.appendDetailedLog({
+          details: fileLogContextRef.current,
+          message: "Native close requested; confirmation dialog opened",
+          source: "window",
+        });
+      })
+      .then((unlistenCloseRequested) => {
+        unlisten = unlistenCloseRequested;
+      })
+      .catch((error) => {
+        appFileLogger.appendDetailedLog({
+          details: { error: String(error instanceof Error ? error.message : error) },
+          level: "warn",
+          message: "Failed to register close confirmation handler",
+          source: "window",
+        });
+      });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [appFileLogger.appendDetailedLog]);
+
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
+
+  useEffect(() => {
+    fileLogContextRef.current = {
+      activeSection,
+      isExperimentalInputEnabled: experimentalInput.experimentalInputEnabled,
+      language,
+      noteIntervalDelayMs: playbackOutput.noteIntervalDelayMs,
+      outputMode: playbackOutput.mode,
+      playbackMode: playbackOutput.playbackMode,
+      playbackSpeed: playbackOutput.playbackSpeed,
+      playbackState: playbackOutput.playbackState,
+      selectedSongIndex: scoreLibrary.selectedSongIndex,
+      selectedSongName: scoreLibrary.currentSelectedSong?.name ?? null,
+      targetWindowCompatibilityProfile:
+        experimentalInput.targetWindowCompatibilityProfile,
+      targetWindowHwnd: experimentalInput.selectedWindowHwnd,
+    };
+  });
 
   useEffect(() => {
     playbackShortcutsController.setPlaybackHotkeyControls({
@@ -242,6 +310,27 @@ function App() {
     }
 
     void scoreLibrary.handleImportScoreFiles(files);
+  }
+
+  function handleConfirmAppClose() {
+    isClosingAfterConfirmRef.current = true;
+    setIsCloseConfirmOpen(false);
+    appFileLogger.appendDetailedLog({
+      details: fileLogContextRef.current,
+      message: "Close confirmed",
+      source: "window",
+    });
+
+    void getCurrentWindow().close().catch((error) => {
+      isClosingAfterConfirmRef.current = false;
+      appFileLogger.appendDetailedLog({
+        details: { error: String(error instanceof Error ? error.message : error) },
+        level: "error",
+        message: "Failed to close window after confirmation",
+        source: "window",
+      });
+      setIsCloseConfirmOpen(true);
+    });
   }
 
   function renderActiveSection() {
@@ -342,6 +431,9 @@ function App() {
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
+          appRuntimeInfo={appFileLogger.runtimeInfo}
+          appRuntimeInfoError={appFileLogger.runtimeInfoError}
+          onOpenLogDirectory={appFileLogger.openLogDirectory}
           onPlaybackShortcutsChange={(nextShortcuts) => {
             playbackShortcutsController.clearShortcutNotice();
             playbackShortcutsController.setPlaybackShortcuts(nextShortcuts);
@@ -405,6 +497,19 @@ function App() {
         }}
       />
 
+      <ConfirmDialog
+        cancelLabel={text.closeConfirm.cancel}
+        confirmLabel={text.closeConfirm.confirm}
+        description={text.closeConfirm.description}
+        open={isCloseConfirmOpen}
+        title={text.closeConfirm.title}
+        onCancel={() => setIsCloseConfirmOpen(false)}
+        onConfirm={handleConfirmAppClose}
+        onOpenChange={(open) => {
+          setIsCloseConfirmOpen(open);
+        }}
+      />
+
       {libraryDialogs.pendingRenamePlaylist ? (
         <RenamePlaylistDialog
           initialName={libraryDialogs.pendingRenamePlaylist.playlistName}
@@ -444,7 +549,20 @@ function App() {
         onQueueClose={() => setQueueOpen(false)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
         onResume={playbackOutput.onResume}
-        onSeek={playbackOutput.onSeek}
+        onSeek={(timeMs) => {
+          appFileLogger.appendDetailedLog({
+            details: {
+              ...fileLogContextRef.current,
+              seekTargetMs: Math.round(timeMs),
+            },
+            message:
+              playbackOutput.playbackState === "finished"
+                ? "Progress seek requested after finish"
+                : "Progress seek requested",
+            source: "playback",
+          });
+          playbackOutput.onSeek(timeMs);
+        }}
         onShuffleToggle={playbackOutput.onShuffleToggle}
         onStop={playbackOutput.onStop}
         outputModeLabel={playbackOutput.outputModeLabel}

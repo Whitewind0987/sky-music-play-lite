@@ -24,7 +24,7 @@ export const uiText = {
     },
     navigation: {
       Library: "曲库",
-      Playback: "播放",
+      Playback: "预览",
       Logs: "日志",
       Settings: "设置",
     },
@@ -34,8 +34,8 @@ export const uiText = {
         status: "本次运行的曲谱",
       },
       Playback: {
-        title: "播放预览",
-        status: "仅界面预览",
+        title: "预览",
+        status: "键盘预览",
       },
       Logs: {
         title: "运行日志",
@@ -67,15 +67,21 @@ export const uiText = {
       ignore: "忽略此版本",
       close: "关闭更新提示",
     },
+    closeConfirm: {
+      title: "关闭 SkyMusicPlay Lite？",
+      description: "关闭后当前播放会停止，未保存的操作可能会丢失。",
+      cancel: "取消",
+      confirm: "关闭",
+    },
     workspace: {
       aria: "工作区概览",
       scoreTitle: "曲谱",
       parsedNotes: "已解析音符",
       scoreDescription: "在曲谱页面导入曲谱文件，然后选择要预览的曲谱。",
-      playbackTitle: "播放",
+      playbackTitle: "预览",
       previewRunning: "预览播放中",
       previewIdle: "预览空闲",
-      playbackDescription: "在播放页面预览琴键高亮。",
+      playbackDescription: "在预览页面查看琴键高亮。",
       logsTitle: "日志",
       logEntries: "条日志",
       logsDescription: "在日志页面查看运行消息。",
@@ -340,7 +346,7 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。{activationNotice}",
+        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。",
       experimentalPlaybackPaused: "实验性播放已暂停。",
       experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
@@ -348,12 +354,10 @@ export const uiText = {
       experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
       experimentalPlaybackGroupedYes: "是",
       experimentalPlaybackGroupedNo: "否",
-      experimentalPlaybackLegacyActivationEnabled:
-        "激活窗口消息已启用。",
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
       experimentalPlaybackCommandFailed:
-        "目标窗口消息发送失败。目标窗口可能拒绝 WM_ACTIVATE 或按键消息，或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
+        "目标窗口按键消息发送失败。目标窗口可能拒绝按键消息，或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
       experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
       experimentalTargetWindowMethodSelected:
         "目标窗口消息投递方式已切换：{method}",
@@ -397,6 +401,13 @@ export const uiText = {
     settings: {
       aria: "设置占位页",
       systemTitle: "系统设置",
+      appInfoTitle: "应用信息",
+      currentVersion: "当前版本",
+      logDirectory: "日志目录",
+      currentLogFile: "当前日志文件",
+      openLogDirectory: "打开日志目录",
+      logDirectoryFallbackNote:
+        "程序目录不可写，日志已保存到用户数据目录。",
       language: "语言",
       theme: "主题",
       systemTheme: "跟随系统",
@@ -448,7 +459,7 @@ export const uiText = {
         "legacy-activate-scan-lparam": "激活消息兼容模式",
       },
       experimentalTargetWindowCompatibilityHint:
-        "默认使用激活消息兼容模式。",
+        "默认使用组合按键兼容模式，不会激活或聚焦目标窗口。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
@@ -506,7 +517,7 @@ export const uiText = {
     },
     navigation: {
       Library: "Library",
-      Playback: "Playback",
+      Playback: "Preview",
       Logs: "Logs",
       Settings: "Settings",
     },
@@ -516,8 +527,8 @@ export const uiText = {
         status: "Current session scores",
       },
       Playback: {
-        title: "Playback preview",
-        status: "UI preview only",
+        title: "Preview",
+        status: "Keyboard preview",
       },
       Logs: {
         title: "Runtime log",
@@ -549,15 +560,22 @@ export const uiText = {
       ignore: "Ignore this version",
       close: "Close update notice",
     },
+    closeConfirm: {
+      title: "Close SkyMusicPlay Lite?",
+      description:
+        "Current playback will stop after closing. Unsaved actions may be lost.",
+      cancel: "Cancel",
+      confirm: "Close",
+    },
     workspace: {
       aria: "Workspace overview",
       scoreTitle: "Score",
       parsedNotes: "parsed notes",
       scoreDescription: "Use the Score section to import and select a score file.",
-      playbackTitle: "Playback",
+      playbackTitle: "Preview",
       previewRunning: "Preview running",
       previewIdle: "Preview idle",
-      playbackDescription: "Use the Playback section to preview highlighted keys.",
+      playbackDescription: "Use the Preview section to preview highlighted keys.",
       logsTitle: "Logs",
       logEntries: "log entries",
       logsDescription: "Use the Logs section to inspect runtime messages.",
@@ -834,7 +852,7 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}. {activationNotice}",
+        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}.",
       experimentalPlaybackPaused: "Experimental playback paused.",
       experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
@@ -842,12 +860,10 @@ export const uiText = {
       experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
       experimentalPlaybackGroupedYes: "yes",
       experimentalPlaybackGroupedNo: "no",
-      experimentalPlaybackLegacyActivationEnabled:
-        "Activation messages enabled.",
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
-        "Target window message failed. The target window may reject WM_ACTIVATE or key messages, or may require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
+        "Target window key message failed. The target window may reject key messages, or may require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
       experimentalInputModeSelected: "Experimental input mode selected: {mode}",
       experimentalTargetWindowMethodSelected:
         "Target-window message method selected: {method}",
@@ -897,6 +913,13 @@ export const uiText = {
     settings: {
       aria: "Settings placeholder",
       systemTitle: "System settings",
+      appInfoTitle: "App info",
+      currentVersion: "Current version",
+      logDirectory: "Log directory",
+      currentLogFile: "Current log file",
+      openLogDirectory: "Open log folder",
+      logDirectoryFallbackNote:
+        "The install directory is not writable, so logs are saved to the user data directory.",
       language: "Language",
       theme: "Theme",
       systemTheme: "System",
@@ -950,7 +973,7 @@ export const uiText = {
         "legacy-activate-scan-lparam": "Activation Message Compatibility Mode",
       },
       experimentalTargetWindowCompatibilityHint:
-        "Default: activated message compatibility mode.",
+        "Default: grouped key compatibility mode. It does not activate or focus the target window.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:

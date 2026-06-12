@@ -64,9 +64,7 @@ export function usePlaybackOutput({
   };
 
   if (!experimentalInput.experimentalInputEnabled) {
-    const canSeek =
-      previewPlayback.playbackState === "playing" ||
-      previewPlayback.playbackState === "paused";
+    const canSeek = isSeekablePlaybackState(previewPlayback.playbackState);
 
     return {
       ...sharedControls,
@@ -87,9 +85,9 @@ export function usePlaybackOutput({
   }
 
   if (experimentalInput.experimentalInputMode === "foreground") {
-    const canSeek =
-      experimentalInput.foregroundBottomPlaybackState === "playing" ||
-      experimentalInput.foregroundBottomPlaybackState === "paused";
+    const canSeek = isSeekablePlaybackState(
+      experimentalInput.foregroundBottomPlaybackState,
+    );
 
     return {
       ...sharedControls,
@@ -110,8 +108,8 @@ export function usePlaybackOutput({
   }
 
   const canSeek =
-    experimentalInput.experimentalPlaybackState === "playing" ||
-    experimentalInput.experimentalPlaybackState === "paused";
+    experimentalInput.selectedWindowHwnd !== null &&
+    isSeekablePlaybackState(experimentalInput.experimentalPlaybackState);
 
   return {
     ...sharedControls,
@@ -129,4 +127,12 @@ export function usePlaybackOutput({
     playbackState: experimentalInput.experimentalPlaybackState,
     progress: experimentalInput.experimentalPlaybackProgress,
   };
+}
+
+function isSeekablePlaybackState(playbackState: PlaybackState) {
+  return (
+    playbackState === "playing" ||
+    playbackState === "paused" ||
+    playbackState === "finished"
+  );
 }

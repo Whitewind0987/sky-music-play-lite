@@ -153,6 +153,77 @@ describe("schedulePreviewPlayback", () => {
     ]);
   });
 
+  it("starts from an initial progress and skips earlier note groups", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+
+    schedulePreviewPlayback(notes, onNoteGroup, onFinish, {
+      initialProgressMs: 750,
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 750,
+      percent: 75,
+      totalMs: 1000,
+    });
+
+    vi.advanceTimersByTime(249);
+    expect(onNoteGroup).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(onNoteGroup).toHaveBeenCalledTimes(1);
+    expect(onNoteGroup.mock.calls[0]?.[0]).toEqual([
+      { time: 1000, key: "Key3" },
+    ]);
+    expect(
+      onNoteGroup.mock.calls.some((call) =>
+        call[0].some(
+          (note: Note) =>
+            note.key === "Key0" || note.key === "Key1" || note.key === "Key2",
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("clamps initial progress and finishes safely at the end", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+
+    schedulePreviewPlayback(notes, onNoteGroup, onFinish, {
+      initialProgressMs: -100,
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 0,
+      percent: 0,
+      totalMs: 1000,
+    });
+
+    schedulePreviewPlayback(notes, onNoteGroup, onFinish, {
+      initialProgressMs: 5000,
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 1000,
+      percent: 100,
+      totalMs: 1000,
+    });
+
+    vi.advanceTimersByTime(0);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
   it("seeks while playing and skips note groups before the target", () => {
     const onNoteGroup = vi.fn();
     const onFinish = vi.fn();

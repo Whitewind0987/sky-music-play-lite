@@ -5,6 +5,7 @@ import {
   type UiText,
 } from "../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
   formatShortcutCode,
   isUnsafeGlobalStopShortcut,
@@ -68,6 +69,8 @@ type ExperimentalInputPanelState = {
 };
 
 type SettingsPlaceholderProps = {
+  appRuntimeInfo: AppRuntimeInfo | null;
+  appRuntimeInfoError: string | null;
   experimentalInput: ExperimentalInputPanelState;
   keyMapping: KeyMapping;
   language: LanguageCode;
@@ -75,6 +78,7 @@ type SettingsPlaceholderProps = {
   onShortcutNoticeClear: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onLanguageChange: (language: LanguageCode) => void;
+  onOpenLogDirectory: () => void;
   onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
   playbackShortcuts: PlaybackShortcuts;
   shortcutNotice: PlaybackShortcutNotices;
@@ -82,6 +86,8 @@ type SettingsPlaceholderProps = {
 };
 
 export function SettingsPlaceholder({
+  appRuntimeInfo,
+  appRuntimeInfoError,
   experimentalInput,
   keyMapping,
   language,
@@ -89,6 +95,7 @@ export function SettingsPlaceholder({
   onShortcutNoticeClear,
   onKeyMappingListenStart,
   onLanguageChange,
+  onOpenLogDirectory,
   onPlaybackShortcutsChange,
   playbackShortcuts,
   shortcutNotice,
@@ -306,7 +313,6 @@ export function SettingsPlaceholder({
                     "legacy-vkscan-zero-lparam",
                     "legacy-vkscan-scan-lparam",
                     "grouped-legacy",
-                    "legacy-activate-scan-lparam",
                   ] as TargetWindowCompatibilityProfile[]
                 ).map((profile) => (
                   <button
@@ -531,6 +537,49 @@ export function SettingsPlaceholder({
           <div className="setting-row">
             <span>{text.defaultPage}</span>
             <span className="fake-select">{text.home}</span>
+          </div>
+        </div>
+      </article>
+
+      <article className="panel settings-panel settings-app-info-panel">
+        <PanelHeader
+          id="settings-app-info-title"
+          title={text.appInfoTitle}
+        />
+        <div className="setting-placeholder-list">
+          <div className="setting-row">
+            <span>{text.currentVersion}</span>
+            <span className="settings-path-value">
+              {appRuntimeInfo?.version ?? "--"}
+            </span>
+          </div>
+          <div className="setting-row">
+            <span>{text.logDirectory}</span>
+            <span className="settings-path-value">
+              {appRuntimeInfo?.logDirectory ?? appRuntimeInfoError ?? "--"}
+            </span>
+          </div>
+          <div className="setting-row">
+            <span>{text.currentLogFile}</span>
+            <span className="settings-path-value">
+              {appRuntimeInfo?.logFile ?? "--"}
+            </span>
+          </div>
+          {appRuntimeInfo?.logDirectoryFallbackUsed ? (
+            <p className="experimental-setting-description">
+              {text.logDirectoryFallbackNote}
+            </p>
+          ) : null}
+          <div className="setting-row">
+            <span>{text.openLogDirectory}</span>
+            <button
+              className="language-option"
+              type="button"
+              disabled={appRuntimeInfo === null}
+              onClick={onOpenLogDirectory}
+            >
+              {text.openLogDirectory}
+            </button>
           </div>
         </div>
       </article>

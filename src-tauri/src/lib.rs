@@ -1,4 +1,5 @@
 mod app_data;
+mod app_log;
 mod experimental_input;
 use experimental_input::CandidateWindow;
 
@@ -43,6 +44,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             find_sky_window,
             app_data::load_app_data,
+            app_log::append_app_log,
+            app_log::get_app_runtime_info,
+            app_log::open_log_directory,
             list_candidate_windows,
             app_data::save_app_data,
             send_foreground_key_group,
