@@ -134,7 +134,7 @@ export const uiText = {
       playlistEmptyTitle: "歌单为空",
       playlistEmptyDescription: "点击曲谱的收藏按钮，把曲谱添加到这个歌单。",
       noPlaylistsTitle: "还没有歌单",
-      noPlaylistsDescription: "点击左侧歌单旁边的加号，创建一个歌单。",
+      noPlaylistsDescription: "在曲库页的歌单区域点击新建歌单，创建一个歌单。",
       noSearchResultsTitle: "没有找到匹配的曲谱",
       noSearchResultsDescription: "换个关键词试试。",
       placeholderEyebrow: "占位分类",
@@ -619,7 +619,7 @@ export const uiText = {
         "Use the collect button on a score to add it to this playlist.",
       noPlaylistsTitle: "No playlists yet",
       noPlaylistsDescription:
-        "Click the plus button next to Playlists in the sidebar to create one.",
+        "Use the Create Playlist button in the Library page playlist area to create one.",
       noSearchResultsTitle: "No matching scores found",
       noSearchResultsDescription: "Try a different keyword.",
       placeholderEyebrow: "Placeholder category",

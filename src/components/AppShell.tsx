@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
-import type { UserPlaylist } from "../types/library";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
@@ -29,47 +28,19 @@ export type AppSection =
 
 type AppSidebarProps = {
   activeSection: AppSection;
-  localImportCount: number;
-  onCreatePlaylistRequest: () => void;
-  onLibraryCategoryChange: (category: LibraryCategoryId) => void;
-  onPlaylistSelect: (playlistId: string) => void;
   onSectionChange: (section: AppSection) => void;
   onUpdateClick: () => void;
-  playlists: UserPlaylist[];
-  selectedLibraryCategory: LibraryCategoryId;
-  selectedPlaylistId: string | null;
   text: UiText;
   updateInfo: UpdateInfo | null;
 };
 
 export function AppSidebar({
   activeSection,
-  localImportCount,
-  onCreatePlaylistRequest,
-  onLibraryCategoryChange,
-  onPlaylistSelect,
   onSectionChange,
   onUpdateClick,
-  playlists,
-  selectedLibraryCategory,
-  selectedPlaylistId,
   text,
   updateInfo,
 }: AppSidebarProps) {
-  const libraryCategories: Array<{
-    count?: number;
-    id: LibraryCategoryId;
-    label: string;
-  }> = [
-    { id: "built-in", label: text.library.categoryBuiltIn },
-    {
-      count: localImportCount,
-      id: "local-imports",
-      label: text.library.categoryLocalImports,
-    },
-    { id: "liked", label: text.library.categoryLiked },
-    { id: "playlists", label: text.library.categoryPlaylists },
-  ];
   const renderSidebarItem = (item: {
     Icon: LucideIcon;
     section: AppSection;
@@ -118,78 +89,6 @@ export function AppSidebar({
 
       <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
         {renderSidebarItem(librarySidebarItem)}
-
-        <div className="sidebar-library" aria-label={text.library.categoriesTitle}>
-          <p className="sidebar-subnav-heading">{text.library.categoriesTitle}</p>
-          <div className="sidebar-subnav">
-            {libraryCategories.map((category) => (
-              <div
-                className={`sidebar-subnav-group${
-                  category.id === "playlists" ? " is-playlists" : ""
-                }`}
-                key={category.id}
-              >
-                <div className="sidebar-subnav-row">
-                  <button
-                    className={`sidebar-subnav-link${
-                      selectedLibraryCategory === category.id ? " is-active" : ""
-                    }`}
-                    type="button"
-                    onClick={() => {
-                      onLibraryCategoryChange(category.id);
-                      onSectionChange("Library");
-                    }}
-                  >
-                    <span>{category.label}</span>
-                    {typeof category.count === "number" ? (
-                      <span className="sidebar-subnav-count">{category.count}</span>
-                    ) : null}
-                  </button>
-                  {category.id === "playlists" ? (
-                    <button
-                      className="sidebar-playlist-add"
-                      type="button"
-                      aria-label={text.library.createPlaylist}
-                      title={text.library.createPlaylist}
-                      onClick={() => {
-                        onCreatePlaylistRequest();
-                        onSectionChange("Library");
-                      }}
-                    >
-                      +
-                    </button>
-                  ) : null}
-                </div>
-                {category.id === "playlists" && playlists.length > 0 ? (
-                  <div className="sidebar-playlist-list">
-                    {playlists.map((playlist) => (
-                      <button
-                        className={`sidebar-playlist-link${
-                          selectedLibraryCategory === "playlists" &&
-                          selectedPlaylistId === playlist.id
-                            ? " is-active"
-                            : ""
-                        }`}
-                        key={playlist.id}
-                        type="button"
-                        onClick={() => {
-                          onLibraryCategoryChange("playlists");
-                          onPlaylistSelect(playlist.id);
-                          onSectionChange("Library");
-                        }}
-                      >
-                        <span>{playlist.name}</span>
-                        <span className="sidebar-subnav-count">
-                          {playlist.songIds.length}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
 
         <div className="sidebar-nav-divider" />
 

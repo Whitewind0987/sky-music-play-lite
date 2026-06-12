@@ -36,6 +36,7 @@ type LibraryPanelProps = {
   importDisabled: boolean;
   importError: string;
   items: LibrarySongListItem[];
+  localImportCount: number;
   onAddSongToPlaylist: (
     playlistId: string,
     songIndex: number,
@@ -45,11 +46,14 @@ type LibraryPanelProps = {
     songIndex: number,
     playlistName?: string,
   ) => void;
+  onCreatePlaylistRequest: () => void;
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
+  onLibraryCategoryChange: (category: LibraryCategoryId) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
+  onPlaylistSelect: (playlistId: string) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   onRenamePlaylist: (playlistId: string) => void;
@@ -187,6 +191,116 @@ function LibraryImportArea({
         />
       </label>
       {importError ? <p className="parse-error">{importError}</p> : null}
+    </section>
+  );
+}
+
+function LibraryCategoryTabs({
+  localImportCount,
+  onLibraryCategoryChange,
+  playlists,
+  selectedCategory,
+  text,
+}: Pick<
+  LibraryPanelProps,
+  | "localImportCount"
+  | "onLibraryCategoryChange"
+  | "playlists"
+  | "selectedCategory"
+  | "text"
+>) {
+  const categories: Array<{
+    count?: number;
+    id: LibraryCategoryId;
+    label: string;
+  }> = [
+    { id: "built-in", label: text.categoryBuiltIn },
+    {
+      count: localImportCount,
+      id: "local-imports",
+      label: text.categoryLocalImports,
+    },
+    { id: "liked", label: text.categoryLiked },
+    {
+      count: playlists.length,
+      id: "playlists",
+      label: text.categoryPlaylists,
+    },
+  ];
+
+  return (
+    <nav className="library-category-tabs" aria-label={text.categoriesTitle}>
+      {categories.map((category) => (
+        <button
+          className={`library-category-tab${
+            selectedCategory === category.id ? " is-active" : ""
+          }`}
+          key={category.id}
+          type="button"
+          onClick={() => onLibraryCategoryChange(category.id)}
+        >
+          <span>{category.label}</span>
+          {typeof category.count === "number" ? (
+            <span className="library-category-count">{category.count}</span>
+          ) : null}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function PlaylistSelector({
+  onCreatePlaylistRequest,
+  onLibraryCategoryChange,
+  onPlaylistSelect,
+  playlists,
+  selectedPlaylistId,
+  text,
+}: Pick<
+  LibraryPanelProps,
+  | "onCreatePlaylistRequest"
+  | "onLibraryCategoryChange"
+  | "onPlaylistSelect"
+  | "playlists"
+  | "selectedPlaylistId"
+  | "text"
+>) {
+  return (
+    <section className="library-playlist-selector" aria-label={text.playlistsTitle}>
+      <div className="library-playlist-selector-header">
+        <div>
+          <p className="eyebrow">{text.categoryPlaylists}</p>
+          <h3>{text.playlistsTitle}</h3>
+        </div>
+        <button type="button" onClick={onCreatePlaylistRequest}>
+          <LibraryPlusIcon />
+          <span>{text.createPlaylist}</span>
+        </button>
+      </div>
+      {playlists.length === 0 ? (
+        <p className="library-playlist-selector-empty">{text.noPlaylists}</p>
+      ) : (
+        <div className="library-playlist-list" role="list">
+          {playlists.map((playlist) => (
+            <button
+              className={`library-playlist-card${
+                selectedPlaylistId === playlist.id ? " is-active" : ""
+              }`}
+              key={playlist.id}
+              type="button"
+              onClick={() => {
+                onLibraryCategoryChange("playlists");
+                onPlaylistSelect(playlist.id);
+              }}
+            >
+              <span>{playlist.name}</span>
+              <small>
+                {playlist.songIds.length} {text.playlistSongCount}
+              </small>
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -738,14 +852,18 @@ export function LibraryPanel({
   importDisabled,
   importError,
   items,
+  localImportCount,
   onAddSongToPlaylist,
   onAddToQueue,
   onCreatePlaylistWithSong,
+  onCreatePlaylistRequest,
   onDeleteLocalSong,
   onDeletePlaylist,
   onImportFiles,
+  onLibraryCategoryChange,
   onPlaySong,
   onPlaySongNext,
+  onPlaylistSelect,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onRenamePlaylist,
@@ -798,11 +916,28 @@ export function LibraryPanel({
 
   return (
     <section className="library-panel" aria-label={text.aria}>
+      <LibraryCategoryTabs
+        localImportCount={localImportCount}
+        onLibraryCategoryChange={onLibraryCategoryChange}
+        playlists={playlists}
+        selectedCategory={selectedCategory}
+        text={text}
+      />
       {isLocalImports ? (
         <LibraryImportArea
           importDisabled={importDisabled}
           importError={importError}
           onImportFiles={onImportFiles}
+          text={text}
+        />
+      ) : null}
+      {isPlaylists ? (
+        <PlaylistSelector
+          onCreatePlaylistRequest={onCreatePlaylistRequest}
+          onLibraryCategoryChange={onLibraryCategoryChange}
+          onPlaylistSelect={onPlaylistSelect}
+          playlists={playlists}
+          selectedPlaylistId={selectedPlaylistId}
           text={text}
         />
       ) : null}
@@ -858,6 +993,15 @@ export function LibraryPanel({
                 ? text.noPlaylistsDescription
                 : text.playlistEmptyDescription}
             </p>
+            {playlists.length === 0 ? (
+              <button
+                className="library-empty-action"
+                type="button"
+                onClick={onCreatePlaylistRequest}
+              >
+                {text.createPlaylist}
+              </button>
+            ) : null}
           </div>
         ) : (
           <LibrarySongTable
