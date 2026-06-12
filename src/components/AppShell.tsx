@@ -42,8 +42,8 @@ type AppSidebarProps = {
   updateInfo: UpdateInfo | null;
 };
 
-const MIN_RIPPLE_VISIBLE_MS = 160;
-const RIPPLE_REMOVE_MS = 480;
+const MIN_RIPPLE_VISIBLE_MS = 240;
+const RIPPLE_REMOVE_MS = 640;
 
 type RippleState = {
   id: number;
