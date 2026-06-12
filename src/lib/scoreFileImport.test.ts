@@ -6,6 +6,23 @@ import {
   type ScoreFileImportErrorCode,
 } from "./scoreFileImport";
 
+const TEST_SHEET_DECRYPT_KEY = "TB,R&Q}-ULFXF7={nU7v?fy#Khr9Mhuu";
+const TEST_SHEET_DECRYPT_SIGNATURE = "ztB_kaFeQe/wa8Kq{r_jz!r=P])hQL(f";
+
+function encryptSongNotesForTest(notes: unknown, includeSignature = true) {
+  const plaintext = `${JSON.stringify(notes)}${
+    includeSignature ? TEST_SHEET_DECRYPT_SIGNATURE : ""
+  }`;
+
+  return Array.from(plaintext).map((character, index) => {
+    const keyCharCode = TEST_SHEET_DECRYPT_KEY.charCodeAt(
+      index % TEST_SHEET_DECRYPT_KEY.length,
+    );
+
+    return character.charCodeAt(0) + keyCharCode - 100;
+  });
+}
+
 function createRawSong(overrides: Record<string, unknown> = {}) {
   return {
     name: "Test Song",
@@ -102,6 +119,59 @@ describe("parseScoreFileContent success cases", () => {
       isComposed: false,
     });
   });
+
+  it("imports encrypted numeric songNotes", () => {
+    const encryptedNotes = encryptSongNotesForTest([
+      { time: 0, key: "Key0" },
+      { time: 500, key: "Key1" },
+    ]);
+    const songs = parseScoreFileContent(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: true,
+          name: "Encrypted test",
+          songNotes: encryptedNotes,
+        }),
+      ]),
+    );
+
+    expect(songs).toHaveLength(1);
+    expect(songs[0]?.songNotes).toEqual([
+      { time: 0, key: "Key0" },
+      { time: 500, key: "Key1" },
+    ]);
+  });
+
+  it("imports numeric songNotes when isEncrypted is missing", () => {
+    const songs = parseScoreFileContent(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: undefined,
+          songNotes: encryptSongNotesForTest([
+            { time: 250, key: "Key2" },
+          ]),
+        }),
+      ]),
+    );
+
+    expect(songs[0]?.songNotes).toEqual([{ time: 250, key: "Key2" }]);
+  });
+
+  it("imports encrypted songNotes without a signature when JSON is valid", () => {
+    const songs = parseScoreFileContent(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: true,
+          songNotes: encryptSongNotesForTest(
+            [{ time: 125, key: "Key3" }],
+            false,
+          ),
+        }),
+      ]),
+    );
+
+    expect(songs[0]?.songNotes).toEqual([{ time: 125, key: "Key3" }]);
+  });
 });
 
 describe("parseScoreFileContent error cases", () => {
@@ -136,10 +206,48 @@ describe("parseScoreFileContent error cases", () => {
     );
   });
 
-  it("rejects numeric songNotes arrays as unsupported encrypted notes", () => {
+  it("rejects invalid encrypted numeric notes with a controlled error", () => {
     expectImportError(
       JSON.stringify([createRawSong({ songNotes: [1, 2, 3] })]),
-      "encryptedSongNotesUnsupported",
+      "encryptedSongNotesDecryptFailed",
+    );
+  });
+
+  it("rejects non-numeric songNotes marked as encrypted", () => {
+    expectImportError(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: true,
+          songNotes: [{ time: 0, key: "Key0" }],
+        }),
+      ]),
+      "encryptedSongNotesDecryptFailed",
+    );
+  });
+
+  it("rejects decrypted songNotes that are not an array", () => {
+    expectImportError(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: true,
+          songNotes: encryptSongNotesForTest({ time: 0, key: "Key0" }),
+        }),
+      ]),
+      "decryptedSongNotesInvalid",
+    );
+  });
+
+  it("validates notes after decrypting songNotes", () => {
+    expectImportError(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: true,
+          songNotes: encryptSongNotesForTest([
+            { time: "bad", key: "Key0" },
+          ]),
+        }),
+      ]),
+      "noteTimeInvalid",
     );
   });
 

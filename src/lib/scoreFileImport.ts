@@ -1,10 +1,15 @@
 import type { Note, Song } from "../types/score";
+import {
+  decryptEncryptedSongNotes,
+  SheetDecryptError,
+} from "./sheetDecrypt";
 
 const SUPPORTED_SCORE_EXTENSIONS = [".json", ".txt"];
 
 export type ScoreFileImportErrorCode =
   | "emptyFile"
-  | "encryptedSongNotesUnsupported"
+  | "encryptedSongNotesDecryptFailed"
+  | "decryptedSongNotesInvalid"
   | "invalidJson"
   | "topLevelNotArray"
   | "emptySongArray"
@@ -81,17 +86,7 @@ function validateSong(value: unknown, songIndex: number): Song {
     false,
     songIndex,
   );
-  const songNotes = value.songNotes;
-
-  if (!Array.isArray(songNotes)) {
-    throw new ScoreFileImportError("songNotesInvalid", { songName: name });
-  }
-
-  if (isNumericSongNotes(songNotes)) {
-    throw new ScoreFileImportError("encryptedSongNotesUnsupported", {
-      songName: name,
-    });
-  }
+  const songNotes = resolveSongNotes(value, name);
 
   return {
     name,
@@ -103,6 +98,51 @@ function validateSong(value: unknown, songIndex: number): Song {
       validateNote(note, name, noteIndex),
     ),
   };
+}
+
+function resolveSongNotes(
+  value: Record<string, unknown>,
+  songName: string,
+): unknown[] {
+  const rawSongNotes = value.songNotes;
+
+  if (!Array.isArray(rawSongNotes)) {
+    throw new ScoreFileImportError("songNotesInvalid", { songName });
+  }
+
+  const isEncrypted = value.isEncrypted === true;
+
+  if (!isNumericSongNotes(rawSongNotes)) {
+    if (isEncrypted) {
+      throw new ScoreFileImportError("encryptedSongNotesDecryptFailed", {
+        reason: "encryptedSongNotesMustBeNumeric",
+        songName,
+      });
+    }
+
+    return rawSongNotes;
+  }
+
+  let decryptedSongNotes: unknown;
+
+  try {
+    decryptedSongNotes = decryptEncryptedSongNotes(rawSongNotes);
+  } catch (error) {
+    if (error instanceof SheetDecryptError) {
+      throw new ScoreFileImportError("encryptedSongNotesDecryptFailed", {
+        reason: error.code,
+        songName,
+      });
+    }
+
+    throw error;
+  }
+
+  if (!Array.isArray(decryptedSongNotes)) {
+    throw new ScoreFileImportError("decryptedSongNotesInvalid", { songName });
+  }
+
+  return decryptedSongNotes;
 }
 
 function validateNote(value: unknown, songName: string, noteIndex: number): Note {
@@ -234,8 +274,12 @@ function readFlexibleNoteTime(
   throw new ScoreFileImportError("noteTimeInvalid", { noteIndex, songName });
 }
 
-function isNumericSongNotes(value: unknown) {
-  return Array.isArray(value) && typeof value[0] === "number";
+function isNumericSongNotes(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === "number")
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
