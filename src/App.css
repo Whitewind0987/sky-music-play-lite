@@ -209,6 +209,73 @@ button {
   overflow: hidden;
 }
 
+.app-drag-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.app-drag-import-card {
+  min-width: min(380px, 82vw);
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 28px 30px;
+  border: 1px solid rgba(var(--app-primary-rgb), 0.22);
+  border-radius: 8px;
+  color: #1f2937;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+  text-align: center;
+}
+
+.app-drag-import-icon {
+  width: 58px;
+  height: 58px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--app-primary);
+  background: rgba(var(--app-primary-rgb), 0.12);
+}
+
+.app-drag-import-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.8;
+}
+
+.app-drag-import-card strong {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.app-drag-import-card span:not(.app-drag-import-icon) {
+  color: #52616f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.app-drag-import-overlay.is-disabled {
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.app-drag-import-overlay.is-disabled .app-drag-import-card {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.app-drag-import-overlay.is-disabled .app-drag-import-icon {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+}
+
 .sidebar-link {
   position: relative;
   isolation: isolate;
@@ -3016,7 +3083,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .bottom-player-center {
@@ -3034,16 +3101,16 @@ button {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 4px;
 }
 
 .player-option {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   color: #52616f;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.1;
 }
 
@@ -3053,7 +3120,7 @@ button {
 }
 
 .player-stepper {
-  height: 28px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   overflow: hidden;
@@ -3071,7 +3138,7 @@ button {
 }
 
 .player-stepper-button {
-  width: 26px;
+  width: 22px;
   height: 100%;
   display: grid;
   place-items: center;
@@ -3080,6 +3147,7 @@ button {
   color: #52616f;
   background: transparent;
   font: inherit;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -3092,17 +3160,17 @@ button {
 }
 
 .player-stepper-value {
-  min-width: 54px;
+  min-width: 46px;
   height: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 0 4px;
+  gap: 2px;
+  padding: 0 3px;
 }
 
 .player-stepper-input {
-  width: 30px;
+  width: 26px;
   min-width: 0;
   height: 100%;
   padding: 0;
@@ -3110,6 +3178,7 @@ button {
   color: #1f2933;
   background: transparent;
   font: inherit;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-align: center;
@@ -3130,7 +3199,7 @@ button {
 
 .player-stepper-unit {
   color: #7a8794;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
   white-space: nowrap;
 }
@@ -3219,6 +3288,28 @@ button {
   position: relative;
 }
 
+.bottom-player-center
+  .player-icon-button-secondary:not(.player-icon-button-stop),
+.bottom-player-queue-button {
+  width: 32px;
+  height: 32px;
+}
+
+.bottom-player-center
+  .player-icon-button-secondary:not(.player-icon-button-stop)
+  .player-icon,
+.bottom-player-queue-button .player-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.bottom-player-center
+  .player-icon-button-secondary:not(.player-icon-button-stop)
+  .player-icon-next {
+  width: 18px;
+  height: 18px;
+}
+
 .bottom-player-queue-button.is-active,
 .bottom-player-queue-button.is-active:not(:disabled) {
   color: #2f80ed;
@@ -3227,17 +3318,17 @@ button {
 
 .bottom-player-queue-count {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 15px;
-  height: 15px;
+  top: 1px;
+  right: 1px;
+  min-width: 13px;
+  height: 13px;
   display: inline-grid;
   place-items: center;
   padding: 0 3px;
   border-radius: 999px;
   color: #ffffff;
   background: #2f80ed;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   line-height: 1;
 }
@@ -3503,11 +3594,11 @@ button {
   }
 
   .player-stepper-button {
-    width: 24px;
+    width: 22px;
   }
 
   .player-stepper-input {
-    width: 28px;
+    width: 26px;
   }
 
   .player-icon-button {

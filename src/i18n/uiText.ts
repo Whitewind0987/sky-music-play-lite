@@ -73,6 +73,11 @@ export const uiText = {
       cancel: "取消",
       confirm: "关闭",
     },
+    dragImport: {
+      title: "拖放曲谱到这里",
+      description: "松开鼠标即可导入本地曲谱，支持 .json / .txt。",
+      disabledDescription: "播放中不能导入曲谱，请先停止播放。",
+    },
     workspace: {
       aria: "工作区概览",
       scoreTitle: "曲谱",
@@ -564,6 +569,13 @@ export const uiText = {
         "Current playback will stop after closing. Unsaved actions may be lost.",
       cancel: "Cancel",
       confirm: "Close",
+    },
+    dragImport: {
+      title: "Drop scores here",
+      description:
+        "Release to import local score files. Supports .json / .txt.",
+      disabledDescription:
+        "Score import is disabled during playback. Stop playback first.",
     },
     workspace: {
       aria: "Workspace overview",

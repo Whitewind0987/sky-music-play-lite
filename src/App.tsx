@@ -1,6 +1,12 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useRef, useState } from "react";
+import { CircleAlert, FileUp } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+} from "react";
 import {
   AppSidebar,
   WorkspaceHeader,
@@ -45,9 +51,11 @@ function App() {
   const isClosingAfterConfirmRef = useRef(false);
   const closeRequestedUnlistenRef = useRef<(() => void) | null>(null);
   const fileLogContextRef = useRef<Record<string, unknown>>({});
+  const dragDepthRef = useRef(0);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [isDraggingScoreFiles, setIsDraggingScoreFiles] = useState(false);
   const [appNotice, setAppNotice] = useState<{
     id: number;
     message: string;
@@ -326,6 +334,61 @@ function App() {
     void scoreLibrary.handleImportScoreFiles(files);
   }
 
+  function handleAppDragEnter(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingScoreFiles(true);
+  }
+
+  function handleAppDragOver(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = isAnyPlaybackActive ? "none" : "copy";
+  }
+
+  function handleAppDragLeave(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+
+    if (dragDepthRef.current === 0) {
+      setIsDraggingScoreFiles(false);
+    }
+  }
+
+  function handleAppDrop(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingScoreFiles(false);
+
+    const files = Array.from(event.dataTransfer.files);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    if (!isAnyPlaybackActive) {
+      setActiveSection("Library");
+      scoreLibrary.handleLibraryCategoryChange("local-imports");
+    }
+
+    handleImportScoreFiles(files);
+  }
+
   async function handleConfirmAppClose() {
     isClosingAfterConfirmRef.current = true;
     setIsCloseConfirmOpen(false);
@@ -482,7 +545,13 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main
+      className="app-shell"
+      onDragEnter={handleAppDragEnter}
+      onDragLeave={handleAppDragLeave}
+      onDragOver={handleAppDragOver}
+      onDrop={handleAppDrop}
+    >
       <AppSidebar
         activeSection={activeSection}
         onSectionChange={setActiveSection}
@@ -512,6 +581,27 @@ function App() {
         open={isAppNoticeOpen}
         onOpenChange={setIsAppNoticeOpen}
       />
+
+      {isDraggingScoreFiles ? (
+        <div
+          className={`app-drag-import-overlay${
+            isAnyPlaybackActive ? " is-disabled" : ""
+          }`}
+          aria-hidden="true"
+        >
+          <div className="app-drag-import-card">
+            <span className="app-drag-import-icon" aria-hidden="true">
+              {isAnyPlaybackActive ? <CircleAlert /> : <FileUp />}
+            </span>
+            <strong>{text.dragImport.title}</strong>
+            <span>
+              {isAnyPlaybackActive
+                ? text.dragImport.disabledDescription
+                : text.dragImport.description}
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         cancelLabel={text.library.cancelDelete}
@@ -622,6 +712,10 @@ function App() {
       ) : null}
     </main>
   );
+}
+
+function hasDraggedFiles(event: ReactDragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes("Files");
 }
 
 export default App;

@@ -48,6 +48,8 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Do not manually build input text from keydown events.
 - Do not block IME composition events.
 - Search input and other text inputs must support Chinese IME correctly.
+- Drag-and-drop score import must reuse `handleImportScoreFiles`; do not duplicate parsing, decryption, or import logic in drag handlers, and do not add recursive directory import unless explicitly requested.
+- The bottom player primary play/pause button remains the visual anchor; use the stop button as the reference size for secondary controls.
 - Do not change playback, queue, experimental input, or score import logic during UI-only stages.
 - Sidebar playlist lists should scroll internally and must not push lower navigation items out of view.
 - Do not set Tauri `security.csp` back to null; CSP changes must be tested in dev and avoid broad wildcards unless justified by a concrete violation.
