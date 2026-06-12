@@ -6,6 +6,12 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import {
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
 
@@ -34,6 +40,103 @@ type AppSidebarProps = {
   updateInfo: UpdateInfo | null;
 };
 
+type RippleState = {
+  id: number;
+  size: number;
+  x: number;
+  y: number;
+};
+
+type SidebarNavButtonProps = {
+  Icon: LucideIcon;
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+  section: AppSection;
+};
+
+function SidebarNavButton({
+  Icon,
+  isActive,
+  label,
+  onClick,
+  section,
+}: SidebarNavButtonProps) {
+  const [ripples, setRipples] = useState<RippleState[]>([]);
+  const rippleIdRef = useRef(0);
+
+  function addRipple(button: HTMLButtonElement, x: number, y: number) {
+    const rect = button.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+    const id = rippleIdRef.current;
+
+    rippleIdRef.current += 1;
+    setRipples((currentRipples) => [...currentRipples, { id, size, x, y }]);
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    addRipple(
+      event.currentTarget,
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    );
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    addRipple(event.currentTarget, rect.width / 2, rect.height / 2);
+  }
+
+  return (
+    <button
+      className={`sidebar-link${isActive ? " is-active" : ""}`}
+      type="button"
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
+    >
+      <span className="sidebar-link-content">
+        <Icon
+          className={`sidebar-icon sidebar-icon-${section.toLowerCase()}`}
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span>{label}</span>
+      </span>
+      <span className="sidebar-ripple-layer" aria-hidden="true">
+        {ripples.map((ripple) => (
+          <span
+            className="sidebar-ripple"
+            key={ripple.id}
+            style={{
+              height: ripple.size,
+              left: ripple.x,
+              top: ripple.y,
+              width: ripple.size,
+            }}
+            onAnimationEnd={() => {
+              setRipples((currentRipples) =>
+                currentRipples.filter((item) => item.id !== ripple.id),
+              );
+            }}
+          />
+        ))}
+      </span>
+    </button>
+  );
+}
+
 export function AppSidebar({
   activeSection,
   onSectionChange,
@@ -44,27 +147,16 @@ export function AppSidebar({
   const renderSidebarItem = (item: {
     Icon: LucideIcon;
     section: AppSection;
-  }) => {
-    const { Icon } = item;
-
-    return (
-      <button
-        className={`sidebar-link${
-          activeSection === item.section ? " is-active" : ""
-        }`}
-        key={item.section}
-        type="button"
-        onClick={() => onSectionChange(item.section)}
-      >
-        <Icon
-          className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()}`}
-          aria-hidden="true"
-          focusable="false"
-        />
-        <span>{text.navigation[item.section]}</span>
-      </button>
-    );
-  };
+  }) => (
+    <SidebarNavButton
+      Icon={item.Icon}
+      isActive={activeSection === item.section}
+      key={item.section}
+      label={text.navigation[item.section]}
+      section={item.section}
+      onClick={() => onSectionChange(item.section)}
+    />
+  );
 
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
