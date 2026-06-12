@@ -42,15 +42,12 @@ type AppSidebarProps = {
   updateInfo: UpdateInfo | null;
 };
 
-const MIN_RIPPLE_VISIBLE_MS = 360;
-const RIPPLE_REMOVE_MS = 820;
+const RIPPLE_EXIT_MS = 320;
 
 type RippleState = {
   id: number;
-  isReleasing: boolean;
-  releaseDelayMs: number;
+  phase: "enter" | "hold" | "exit";
   size: number;
-  startedAt: number;
   x: number;
   y: number;
 };
@@ -70,81 +67,90 @@ function SidebarNavButton({
   onClick,
   section,
 }: SidebarNavButtonProps) {
-  const [ripples, setRipples] = useState<RippleState[]>([]);
+  const [ripple, setRipple] = useState<RippleState | null>(null);
   const [isPressing, setIsPressing] = useState(false);
-  const activeRippleIdRef = useRef<number | null>(null);
-  const activeRippleStartedAtRef = useRef(0);
-  const cleanupTimersRef = useRef<number[]>([]);
+  const cleanupTimerRef = useRef<number | null>(null);
+  const holdFrameRef = useRef<number | null>(null);
   const rippleIdRef = useRef(0);
 
   useEffect(
     () => () => {
-      cleanupTimersRef.current.forEach((timerId) => {
-        window.clearTimeout(timerId);
-      });
+      if (cleanupTimerRef.current !== null) {
+        window.clearTimeout(cleanupTimerRef.current);
+      }
+
+      if (holdFrameRef.current !== null) {
+        window.cancelAnimationFrame(holdFrameRef.current);
+      }
     },
     [],
   );
+
+  function clearRippleCleanupTimer() {
+    if (cleanupTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(cleanupTimerRef.current);
+    cleanupTimerRef.current = null;
+  }
+
+  function clearRippleHoldFrame() {
+    if (holdFrameRef.current === null) {
+      return;
+    }
+
+    window.cancelAnimationFrame(holdFrameRef.current);
+    holdFrameRef.current = null;
+  }
 
   function addRipple(button: HTMLButtonElement, x: number, y: number) {
     const rect = button.getBoundingClientRect();
     const size = Math.hypot(rect.width, rect.height) * 2;
     const id = rippleIdRef.current;
-    const startedAt = performance.now();
 
     rippleIdRef.current += 1;
-    activeRippleIdRef.current = id;
-    activeRippleStartedAtRef.current = startedAt;
+    clearRippleCleanupTimer();
+    clearRippleHoldFrame();
     setIsPressing(true);
-    setRipples((currentRipples) => [
-      ...currentRipples,
-      {
-        id,
-        isReleasing: false,
-        releaseDelayMs: 0,
-        size,
-        startedAt,
-        x,
-        y,
-      },
-    ]);
+    setRipple({
+      id,
+      phase: "enter",
+      size,
+      x,
+      y,
+    });
+
+    holdFrameRef.current = window.requestAnimationFrame(() => {
+      holdFrameRef.current = null;
+      setRipple((currentRipple) =>
+        currentRipple?.id === id
+          ? {
+              ...currentRipple,
+              phase: "hold",
+            }
+          : currentRipple,
+      );
+    });
   }
 
   function releaseRipple() {
-    const activeId = activeRippleIdRef.current;
-
-    if (activeId === null) {
-      setIsPressing(false);
-      return;
-    }
-
-    const elapsed = performance.now() - activeRippleStartedAtRef.current;
-    const releaseDelayMs = Math.max(0, MIN_RIPPLE_VISIBLE_MS - elapsed);
-
-    activeRippleIdRef.current = null;
     setIsPressing(false);
-    setRipples((currentRipples) =>
-      currentRipples.map((ripple) =>
-        ripple.id === activeId
-          ? {
-              ...ripple,
-              isReleasing: true,
-              releaseDelayMs,
-            }
-          : ripple,
-      ),
+    clearRippleHoldFrame();
+    setRipple((currentRipple) =>
+      currentRipple
+        ? {
+            ...currentRipple,
+            phase: "exit",
+          }
+        : currentRipple,
     );
 
-    const timerId = window.setTimeout(() => {
-      setRipples((currentRipples) =>
-        currentRipples.filter((ripple) => ripple.id !== activeId),
-      );
-      cleanupTimersRef.current = cleanupTimersRef.current.filter(
-        (item) => item !== timerId,
-      );
-    }, releaseDelayMs + RIPPLE_REMOVE_MS);
-
-    cleanupTimersRef.current.push(timerId);
+    clearRippleCleanupTimer();
+    cleanupTimerRef.current = window.setTimeout(() => {
+      setRipple(null);
+      cleanupTimerRef.current = null;
+    }, RIPPLE_EXIT_MS);
   }
 
   function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
@@ -203,25 +209,19 @@ function SidebarNavButton({
         <span>{label}</span>
       </span>
       <span className="sidebar-ripple-layer" aria-hidden="true">
-        {ripples.map((ripple) => (
+        {ripple ? (
           <span
-            className={`sidebar-ripple${
-              ripple.isReleasing ? " is-releasing" : ""
-            }`}
+            className={`sidebar-ripple is-${ripple.phase}`}
             key={ripple.id}
             style={
               {
-                height: ripple.size,
-                left: ripple.x,
-                top: ripple.y,
-                width: ripple.size,
-                "--sidebar-ripple-release-delay": `${ripple.releaseDelayMs}ms`,
+                "--sidebar-ripple-size": `${ripple.size}px`,
+                "--sidebar-ripple-x": `${ripple.x}px`,
+                "--sidebar-ripple-y": `${ripple.y}px`,
               } as CSSProperties
             }
-          >
-            <span className="sidebar-ripple-surface" />
-          </span>
-        ))}
+          />
+        ) : null}
       </span>
     </button>
   );
