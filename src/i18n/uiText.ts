@@ -448,14 +448,14 @@ export const uiText = {
         "默认即可。只有目标窗口播放失败、漏音或无响应时，再尝试切换投递方式。",
       experimentalTargetWindowCompatibilityProfile: "兼容配置",
       experimentalTargetWindowCompatibilityProfiles: {
-        standard: "基础消息模式",
-        "legacy-vkscan-zero-lparam": "简化键码模式",
-        "legacy-vkscan-scan-lparam": "扫描码兼容模式",
-        "grouped-legacy": "分组 Legacy",
-        "legacy-activate-scan-lparam": "Legacy 激活兼容（推荐）",
+        standard: "标准模式",
+        "legacy-vkscan-zero-lparam": "兼容模式 A",
+        "legacy-vkscan-scan-lparam": "兼容模式 B",
+        "grouped-legacy": "组合按键兼容",
+        "legacy-activate-scan-lparam": "后台播放增强（推荐）",
       },
       experimentalTargetWindowCompatibilityHint:
-        "后台播放无效时优先使用 Legacy 激活兼容。它不会调用前台切换 API，但会向目标窗口发送激活消息，少数情况下可能影响焦点。",
+        "后台播放无效时，优先使用“后台播放增强（推荐）”。如果出现焦点异常或输入不稳定，可以尝试其他兼容模式。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
       experimentalForegroundMode: "前台输入模式",
       experimentalForegroundModeDescription:
@@ -958,15 +958,15 @@ export const uiText = {
       experimentalTargetWindowCompatibilityProfile:
         "Compatibility profile",
       experimentalTargetWindowCompatibilityProfiles: {
-        standard: "Basic Message Mode",
-        "legacy-vkscan-zero-lparam": "Simplified Key Code Mode",
-        "legacy-vkscan-scan-lparam": "Scan Code Compatibility Mode",
-        "grouped-legacy": "Grouped legacy",
+        standard: "Standard",
+        "legacy-vkscan-zero-lparam": "Compatibility A",
+        "legacy-vkscan-scan-lparam": "Compatibility B",
+        "grouped-legacy": "Grouped key compatibility",
         "legacy-activate-scan-lparam":
-          "Legacy activate compatibility (recommended)",
+          "Background playback boost (recommended)",
       },
       experimentalTargetWindowCompatibilityHint:
-        "If background playback does not work, try Legacy activate compatibility first. It does not call foreground switching APIs, but sends activation messages to the target window and may affect focus in some cases.",
+        "If background playback does not work, try “Background playback boost (recommended)” first. If focus or input becomes unstable, try another compatibility mode.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
       experimentalForegroundMode: "Foreground Input Mode",
       experimentalForegroundModeDescription:

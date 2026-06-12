@@ -1893,7 +1893,7 @@ button {
 
 .settings-plain-row-list {
   display: grid;
-  gap: 0;
+  gap: 4px;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1906,29 +1906,35 @@ button {
   gap: 14px;
   padding: 0 2px;
   border: 0;
-  border-bottom: 1px solid #edf0f4;
   color: #111827;
   background: transparent;
   font: inherit;
   text-align: left;
 }
 
-.settings-plain-row:last-child {
-  border-bottom: 0;
-}
-
 button.settings-plain-row {
+  border-radius: 6px;
   cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
-button.settings-plain-row:hover,
+button.settings-plain-row:hover {
+  color: #111827;
+  background: rgba(15, 23, 42, 0.06);
+}
+
 button.settings-plain-row:focus-visible {
-  color: #0b5db3;
   outline: none;
+  color: #111827;
+  background: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.18);
 }
 
 button.settings-plain-row:disabled {
   color: #8a97a5;
+  background: transparent;
   cursor: not-allowed;
 }
 
