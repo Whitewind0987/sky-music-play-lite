@@ -7,8 +7,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
@@ -40,9 +42,15 @@ type AppSidebarProps = {
   updateInfo: UpdateInfo | null;
 };
 
+const MIN_RIPPLE_VISIBLE_MS = 160;
+const RIPPLE_REMOVE_MS = 480;
+
 type RippleState = {
   id: number;
+  isReleasing: boolean;
+  releaseDelayMs: number;
   size: number;
+  startedAt: number;
   x: number;
   y: number;
 };
@@ -63,15 +71,80 @@ function SidebarNavButton({
   section,
 }: SidebarNavButtonProps) {
   const [ripples, setRipples] = useState<RippleState[]>([]);
+  const [isPressing, setIsPressing] = useState(false);
+  const activeRippleIdRef = useRef<number | null>(null);
+  const activeRippleStartedAtRef = useRef(0);
+  const cleanupTimersRef = useRef<number[]>([]);
   const rippleIdRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      cleanupTimersRef.current.forEach((timerId) => {
+        window.clearTimeout(timerId);
+      });
+    },
+    [],
+  );
 
   function addRipple(button: HTMLButtonElement, x: number, y: number) {
     const rect = button.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) * 2;
+    const size = Math.max(rect.width, rect.height) * 2.4;
     const id = rippleIdRef.current;
+    const startedAt = performance.now();
 
     rippleIdRef.current += 1;
-    setRipples((currentRipples) => [...currentRipples, { id, size, x, y }]);
+    activeRippleIdRef.current = id;
+    activeRippleStartedAtRef.current = startedAt;
+    setIsPressing(true);
+    setRipples((currentRipples) => [
+      ...currentRipples,
+      {
+        id,
+        isReleasing: false,
+        releaseDelayMs: 0,
+        size,
+        startedAt,
+        x,
+        y,
+      },
+    ]);
+  }
+
+  function releaseRipple() {
+    const activeId = activeRippleIdRef.current;
+
+    if (activeId === null) {
+      setIsPressing(false);
+      return;
+    }
+
+    const elapsed = performance.now() - activeRippleStartedAtRef.current;
+    const releaseDelayMs = Math.max(0, MIN_RIPPLE_VISIBLE_MS - elapsed);
+
+    activeRippleIdRef.current = null;
+    setIsPressing(false);
+    setRipples((currentRipples) =>
+      currentRipples.map((ripple) =>
+        ripple.id === activeId
+          ? {
+              ...ripple,
+              isReleasing: true,
+              releaseDelayMs,
+            }
+          : ripple,
+      ),
+    );
+
+    const timerId = window.setTimeout(() => {
+      setRipples((currentRipples) =>
+        currentRipples.filter((ripple) => ripple.id !== activeId),
+      );
+      cleanupTimersRef.current = cleanupTimersRef.current.filter(
+        (item) => item !== timerId,
+      );
+    }, releaseDelayMs + RIPPLE_REMOVE_MS);
+
+    cleanupTimersRef.current.push(timerId);
   }
 
   function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
@@ -98,13 +171,28 @@ function SidebarNavButton({
     addRipple(event.currentTarget, rect.width / 2, rect.height / 2);
   }
 
+  function handleKeyUp(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    releaseRipple();
+  }
+
   return (
     <button
-      className={`sidebar-link${isActive ? " is-active" : ""}`}
+      className={`sidebar-link${isActive ? " is-active" : ""}${
+        isPressing ? " is-pressing" : ""
+      }`}
       type="button"
+      onBlur={releaseRipple}
       onClick={onClick}
       onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
+      onPointerCancel={releaseRipple}
       onPointerDown={handlePointerDown}
+      onPointerLeave={releaseRipple}
+      onPointerUp={releaseRipple}
     >
       <span className="sidebar-link-content">
         <Icon
@@ -117,20 +205,22 @@ function SidebarNavButton({
       <span className="sidebar-ripple-layer" aria-hidden="true">
         {ripples.map((ripple) => (
           <span
-            className="sidebar-ripple"
+            className={`sidebar-ripple${
+              ripple.isReleasing ? " is-releasing" : ""
+            }`}
             key={ripple.id}
-            style={{
-              height: ripple.size,
-              left: ripple.x,
-              top: ripple.y,
-              width: ripple.size,
-            }}
-            onAnimationEnd={() => {
-              setRipples((currentRipples) =>
-                currentRipples.filter((item) => item.id !== ripple.id),
-              );
-            }}
-          />
+            style={
+              {
+                height: ripple.size,
+                left: ripple.x,
+                top: ripple.y,
+                width: ripple.size,
+                "--sidebar-ripple-release-delay": `${ripple.releaseDelayMs}ms`,
+              } as CSSProperties
+            }
+          >
+            <span className="sidebar-ripple-surface" />
+          </span>
         ))}
       </span>
     </button>

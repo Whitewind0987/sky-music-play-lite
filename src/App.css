@@ -216,7 +216,7 @@ button {
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 8px;
-  color: #52616f;
+  color: #4b5563;
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -227,21 +227,29 @@ button {
     transform 80ms ease;
 }
 
+.sidebar-link.is-pressing .sidebar-link-content,
 .sidebar-link:active .sidebar-link-content {
   transform: scale(0.985);
 }
 
-.sidebar-link:hover,
-.sidebar-link.is-active {
-  border-color: #c4def8;
+.sidebar-link:hover {
   color: #111827;
-  background: #e7f2ff;
+  background: rgba(17, 24, 39, 0.055);
 }
 
 .sidebar-link.is-active {
-  color: #0b5db3;
+  color: #111827;
+  background: rgba(17, 24, 39, 0.075);
+}
+
+.sidebar-link.is-active {
   font-weight: 700;
-  box-shadow: inset 3px 0 0 #2f80ed;
+  box-shadow: none;
+}
+
+.sidebar-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.14);
 }
 
 .sidebar-link-content {
@@ -271,23 +279,39 @@ button {
   border-radius: 999px;
   pointer-events: none;
   transform: translate(-50%, -50%) scale(0);
-  opacity: 0.24;
+  animation: sidebar-ripple-enter 360ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.sidebar-ripple-surface {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
   background: currentColor;
-  animation: sidebar-ripple 520ms cubic-bezier(0.2, 0, 0, 1);
+  opacity: 0.11;
 }
 
-.sidebar-link.is-active .sidebar-ripple {
-  opacity: 0.28;
+.sidebar-ripple.is-releasing .sidebar-ripple-surface {
+  animation: sidebar-ripple-release 420ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: var(--sidebar-ripple-release-delay, 0ms);
 }
 
-@keyframes sidebar-ripple {
+@keyframes sidebar-ripple-enter {
   from {
     transform: translate(-50%, -50%) scale(0);
-    opacity: 0.22;
   }
 
   to {
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes sidebar-ripple-release {
+  from {
+    opacity: 0.11;
+  }
+
+  to {
     opacity: 0;
   }
 }
@@ -3309,7 +3333,8 @@ button {
     transition: none;
   }
 
-  .sidebar-ripple {
+  .sidebar-ripple,
+  .sidebar-ripple.is-releasing .sidebar-ripple-surface {
     animation-duration: 1ms;
   }
 }
