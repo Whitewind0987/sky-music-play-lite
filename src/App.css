@@ -1891,20 +1891,21 @@ button {
   color: #1f2933;
 }
 
-.settings-plain-row-list {
+.settings-app-info-panel .settings-plain-row-list {
   display: grid;
-  gap: 4px;
-  border-radius: 8px;
-  overflow: hidden;
+  gap: 0;
+  margin-inline: -8px;
+  border-radius: 0;
+  overflow: visible;
 }
 
-.settings-plain-row {
-  min-height: 48px;
+.settings-app-info-panel .settings-plain-row {
+  min-height: 46px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  padding: 0 2px;
+  padding: 0 18px;
   border: 0;
   color: #111827;
   background: transparent;
@@ -1912,39 +1913,42 @@ button {
   text-align: left;
 }
 
-button.settings-plain-row {
-  border-radius: 6px;
+.settings-app-info-panel button.settings-plain-row {
+  width: 100%;
+  border-radius: 0;
   cursor: pointer;
-  transition:
-    background 140ms ease,
-    color 140ms ease;
+  transition: background 120ms ease;
 }
 
-button.settings-plain-row:hover {
+.settings-app-info-panel button.settings-plain-row:hover {
   color: #111827;
-  background: rgba(15, 23, 42, 0.06);
+  background: #f3f3f3;
 }
 
-button.settings-plain-row:focus-visible {
+.settings-app-info-panel button.settings-plain-row:focus-visible {
   outline: none;
   color: #111827;
-  background: rgba(15, 23, 42, 0.08);
-  box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.18);
+  background: #eeeeee;
+  box-shadow: inset 0 0 0 2px rgba(47, 128, 237, 0.18);
 }
 
-button.settings-plain-row:disabled {
+.settings-app-info-panel button.settings-plain-row:active {
+  background: #e9e9e9;
+}
+
+.settings-app-info-panel button.settings-plain-row:disabled {
   color: #8a97a5;
   background: transparent;
   cursor: not-allowed;
 }
 
-.settings-row-chevron {
+.settings-app-info-panel .settings-row-chevron {
   width: 18px;
   height: 18px;
-  color: currentColor;
+  color: #111827;
 }
 
-.settings-version-value {
+.settings-app-info-panel .settings-version-value {
   color: #111827;
   font-size: 15px;
   font-weight: 500;
