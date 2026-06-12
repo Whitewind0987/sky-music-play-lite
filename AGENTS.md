@@ -70,6 +70,12 @@ Do not replace this stack unless the human user explicitly changes the project d
 - App data writes should avoid direct `fs::write` to the final app data file.
 - Prefer writing to a same-directory temporary file, syncing it, then replacing the final file.
 
+## Score Import Safety
+
+- Score import decryption lives in `src/lib/sheetDecrypt.ts`; keep it pure and covered by tests.
+- Do not add runtime dependencies for score decryption.
+- Do not log decrypted score contents, encrypted numeric arrays, decrypt keys, or signatures.
+
 ## Project Hardening Rules
 
 - Do not expose unused Tauri commands; command registrations must match current runtime UI or be explicitly documented as internal.

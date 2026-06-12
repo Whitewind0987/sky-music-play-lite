@@ -216,8 +216,10 @@ export const uiText = {
       unsupportedFile: "只支持 .json 和 .txt 曲谱文件。",
       importErrors: {
         emptyFile: "曲谱文件是空的。",
-        encryptedSongNotesUnsupported:
-          "曲谱“{songName}”使用了加密或编码后的数字音符格式，当前版本暂不支持。请使用未加密导出的 JSON 曲谱，或先转换为 { time, key } 音符格式。",
+        encryptedSongNotesDecryptFailed:
+          "加密曲谱解密失败，请确认文件是否完整。",
+        decryptedSongNotesInvalid:
+          "加密曲谱内容无效，解密后没有找到有效音符。",
         invalidJson: "曲谱文件不是有效的 JSON。详细信息：{jsonError}",
         topLevelNotArray: "曲谱文件最外层必须是曲谱数组。",
         emptySongArray: "曲谱文件里没有任何曲谱。",
@@ -710,8 +712,10 @@ export const uiText = {
       unsupportedFile: "Only .json and .txt score files are supported.",
       importErrors: {
         emptyFile: "Score file is empty.",
-        encryptedSongNotesUnsupported:
-          'Score "{songName}" uses an encrypted or encoded numeric note format, which is not supported yet. Please use an unencrypted JSON export or convert it to { time, key } note objects first.',
+        encryptedSongNotesDecryptFailed:
+          "Failed to decrypt the encrypted score. Please check whether the file is complete.",
+        decryptedSongNotesInvalid:
+          "Invalid encrypted score content. No valid notes were found after decryption.",
         invalidJson: "Score file is not valid JSON. Details: {jsonError}",
         topLevelNotArray: "Score file must contain a JSON array of songs.",
         emptySongArray: "Score file does not contain any songs.",
