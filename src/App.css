@@ -210,10 +210,6 @@ button {
 }
 
 .sidebar-link {
-  --sidebar-ripple-bg: rgba(var(--app-primary-rgb), 0.42);
-  --sidebar-ripple-start-opacity: 0.26;
-  --sidebar-ripple-mid-opacity: 0.2;
-  --sidebar-ripple-hold-opacity: 0.18;
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -234,6 +230,22 @@ button {
     transform 120ms ease;
 }
 
+.sidebar-link::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: rgba(var(--app-primary-rgb), 0);
+  pointer-events: none;
+  transition: background 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-link.is-pressing::before,
+.sidebar-link:active::before {
+  background: rgba(var(--app-primary-rgb), 0.08);
+}
+
 .sidebar-link.is-pressing .sidebar-link-content,
 .sidebar-link:active .sidebar-link-content {
   transform: scale(0.985);
@@ -245,13 +257,9 @@ button {
 }
 
 .sidebar-link.is-active {
-  --sidebar-ripple-bg: rgba(var(--app-primary-rgb), 0.48);
-  --sidebar-ripple-start-opacity: 0.28;
-  --sidebar-ripple-mid-opacity: 0.24;
-  --sidebar-ripple-hold-opacity: 0.22;
   border-color: transparent;
   color: #1f2937;
-  background: rgba(var(--app-primary-rgb), 0.16);
+  background: rgba(var(--app-primary-rgb), 0.15);
 }
 
 .sidebar-link.is-active {
@@ -260,7 +268,7 @@ button {
 }
 
 .sidebar-link.is-active:hover {
-  background: rgba(var(--app-primary-rgb), 0.2);
+  background: rgba(var(--app-primary-rgb), 0.19);
 }
 
 .sidebar-link.is-pressing,
@@ -270,12 +278,12 @@ button {
 
 .sidebar-link:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(var(--app-primary-rgb), 0.2);
+  box-shadow: 0 0 0 2px rgba(var(--app-primary-rgb), 0.22);
 }
 
 .sidebar-link-content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   min-width: 0;
   min-height: 46px;
   display: grid;
@@ -289,7 +297,7 @@ button {
 .sidebar-ripple-layer {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
   border-radius: inherit;
@@ -299,8 +307,8 @@ button {
   position: absolute;
   border-radius: 999px;
   pointer-events: none;
-  transform: translate(-50%, -50%) scale(0.04);
-  animation: sidebar-ripple-enter 760ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform: translate(-50%, -50%) scale(0);
+  animation: sidebar-ripple-enter 780ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform;
 }
 
@@ -309,26 +317,32 @@ button {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: var(--sidebar-ripple-bg);
-  opacity: var(--sidebar-ripple-start-opacity);
-  animation: sidebar-ripple-surface-enter 760ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  background: rgba(var(--app-primary-rgb), 0.55);
+  opacity: 0.26;
   will-change: opacity;
 }
 
+.sidebar-link.is-active .sidebar-ripple-surface {
+  background: rgba(var(--app-primary-rgb), 0.62);
+  opacity: 0.3;
+}
+
 .sidebar-ripple.is-releasing .sidebar-ripple-surface {
-  animation:
-    sidebar-ripple-surface-enter 760ms cubic-bezier(0.16, 1, 0.3, 1) forwards,
-    sidebar-ripple-release 720ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  animation-delay: 0ms, var(--sidebar-ripple-release-delay, 0ms);
+  animation: sidebar-ripple-release 820ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: var(--sidebar-ripple-release-delay, 0ms);
 }
 
 @keyframes sidebar-ripple-enter {
   0% {
-    transform: translate(-50%, -50%) scale(0.04);
+    transform: translate(-50%, -50%) scale(0.02);
   }
 
-  55% {
-    transform: translate(-50%, -50%) scale(0.82);
+  35% {
+    transform: translate(-50%, -50%) scale(0.58);
+  }
+
+  70% {
+    transform: translate(-50%, -50%) scale(0.88);
   }
 
   100% {
@@ -336,26 +350,12 @@ button {
   }
 }
 
-@keyframes sidebar-ripple-surface-enter {
+@keyframes sidebar-ripple-release {
   0% {
-    opacity: var(--sidebar-ripple-start-opacity);
-  }
-
-  45% {
-    opacity: var(--sidebar-ripple-mid-opacity);
+    opacity: 0.26;
   }
 
   100% {
-    opacity: var(--sidebar-ripple-hold-opacity);
-  }
-}
-
-@keyframes sidebar-ripple-release {
-  from {
-    opacity: var(--sidebar-ripple-hold-opacity);
-  }
-
-  to {
     opacity: 0;
   }
 }
@@ -3373,6 +3373,7 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-link,
+  .sidebar-link::before,
   .sidebar-link-content {
     transition: none;
   }

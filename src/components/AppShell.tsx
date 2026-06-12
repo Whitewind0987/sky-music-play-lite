@@ -42,8 +42,8 @@ type AppSidebarProps = {
   updateInfo: UpdateInfo | null;
 };
 
-const MIN_RIPPLE_VISIBLE_MS = 320;
-const RIPPLE_REMOVE_MS = 760;
+const MIN_RIPPLE_VISIBLE_MS = 360;
+const RIPPLE_REMOVE_MS = 820;
 
 type RippleState = {
   id: number;
@@ -88,7 +88,7 @@ function SidebarNavButton({
 
   function addRipple(button: HTMLButtonElement, x: number, y: number) {
     const rect = button.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) * 2.4;
+    const size = Math.hypot(rect.width, rect.height) * 2;
     const id = rippleIdRef.current;
     const startedAt = performance.now();
 
