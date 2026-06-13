@@ -112,6 +112,10 @@ function App() {
     showNotice: showAppNotice,
     text: text.logs,
   });
+  function handlePlaybackSongIndexChange(songIndex: number | null) {
+    scoreLibrary.setPlaybackSongIndex(songIndex);
+    scoreLibrary.setSelectedSongIndex(songIndex);
+  }
   const previewPlayback = usePreviewPlayback({
     appendLog,
     consumeNextQueueItemAfterCurrent:
@@ -125,7 +129,7 @@ function App() {
     importedSongsRef: scoreLibrary.importedSongsRef,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
-    setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    setSelectedSongIndex: handlePlaybackSongIndexChange,
     startQueuePlayback: playbackQueue.startQueuePlayback,
     text,
   });
@@ -147,7 +151,7 @@ function App() {
     playbackSpeed: previewPlayback.playbackSpeed,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
-    setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    setSelectedSongIndex: handlePlaybackSongIndexChange,
     showNotice: showAppNotice,
     startQueuePlayback: playbackQueue.startQueuePlayback,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
@@ -666,7 +670,7 @@ function App() {
       <BottomPlayer
         canPlay={playbackOutput.canPlay}
         canSeek={playbackOutput.canSeek}
-        currentSong={scoreLibrary.currentSelectedSong}
+        currentSong={scoreLibrary.currentPlaybackSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}

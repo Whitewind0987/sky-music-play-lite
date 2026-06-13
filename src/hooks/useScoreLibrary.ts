@@ -88,6 +88,9 @@ export function useScoreLibrary({
   const [selectedSongId, setSelectedSongId] = useState<LibrarySongId | null>(
     null,
   );
+  const [playbackSongId, setPlaybackSongId] = useState<LibrarySongId | null>(
+  null,
+  );
   const [locateScoreRequest, setLocateScoreRequest] =
     useState<LocateScoreRequest | null>(null);
   const [selectedLibraryCategory, setSelectedLibraryCategory] =
@@ -107,13 +110,29 @@ export function useScoreLibrary({
 
     return index >= 0 ? index : null;
   }, [librarySongs, selectedSongId]);
+  const playbackSongIndex = useMemo(() => {
+  if (playbackSongId === null) {
+    return null;
+  }
+
+  const index = librarySongs.findIndex(
+    (librarySong) => librarySong.id === playbackSongId,
+  );
+
+  return index >= 0 ? index : null;
+  }, [librarySongs, playbackSongId]);
   const importedSongs = useMemo(
     () => librarySongs.map((librarySong) => librarySong.song),
     [librarySongs],
   );
   const currentSelectedSong =
     selectedSongIndex === null ? null : importedSongs[selectedSongIndex] ?? null;
-  const selectedPlaylist =
+  const currentPlaybackSong =
+  playbackSongIndex === null ? null : importedSongs[playbackSongIndex] ?? null;
+
+  const currentPlaybackLibrarySong =
+  playbackSongIndex === null ? null : librarySongs[playbackSongIndex] ?? null;
+    const selectedPlaylist =
     selectedPlaylistId === null
       ? null
       : playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? null;
@@ -407,7 +426,14 @@ export function useScoreLibrary({
   function setSelectedSongIndex(songIndex: number | null) {
     selectSongByIndex(songIndex);
   }
+  function setPlaybackSongIndex(songIndex: number | null) {
+  if (songIndex === null) {
+    setPlaybackSongId(null);
+    return;
+  }
 
+  setPlaybackSongId(librarySongsRef.current[songIndex]?.id ?? null);
+  }
   function handleLibraryCategoryChange(category: LibraryCategoryId) {
     startTransition(() => {
       setSelectedLibraryCategory(category);
@@ -646,6 +672,9 @@ export function useScoreLibrary({
     if (selectedSongId === librarySong.id) {
       setSelectedSongId(null);
     }
+    if (playbackSongId === librarySong.id) {
+      setPlaybackSongId(null);
+    }
   }
 
   function applyScoreLibrary(library: PersistedAppData["library"]) {
@@ -809,5 +838,10 @@ export function useScoreLibrary({
     setSelectedSongIndex,
     validCollectionSongIds,
     visibleLibraryItems,
+    currentPlaybackLibrarySong,
+    currentPlaybackSong,
+    playbackSongIndex,
+    setPlaybackSongId,
+    setPlaybackSongIndex,
   };
 }

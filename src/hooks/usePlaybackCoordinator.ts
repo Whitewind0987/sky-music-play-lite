@@ -36,15 +36,12 @@ export function usePlaybackCoordinator({
   scoreLibrary,
   text,
 }: UsePlaybackCoordinatorOptions) {
-  const selectedLibrarySong =
-    scoreLibrary.selectedSongIndex === null
-      ? null
-      : (scoreLibrary.librarySongs[scoreLibrary.selectedSongIndex] ?? null);
+  const currentPlaybackLibrarySong = scoreLibrary.currentPlaybackLibrarySong;
   const isCurrentSongLoading =
-    selectedLibrarySong !== null &&
-    selectedLibrarySong.source === "built-in" &&
-    !selectedLibrarySong.isBuiltInLoaded &&
-    scoreLibrary.isBuiltInSongLoading(selectedLibrarySong.id);
+  currentPlaybackLibrarySong !== null &&
+  currentPlaybackLibrarySong.source === "built-in" &&
+  !currentPlaybackLibrarySong.isBuiltInLoaded &&
+  scoreLibrary.isBuiltInSongLoading(currentPlaybackLibrarySong.id);
 
   async function ensureTargetWindowReadyForPlayback() {
     if (playbackOutput.mode !== "experimental-target-window") {
