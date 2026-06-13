@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { ExperimentalInputPreferences } from "../types/appData";
+import {
+  defaultTargetWindowCompatibilityProfile,
+  normalizeExperimentalInputPreferences,
+  normalizeTargetWindowCompatibilityProfile,
+  normalizeTargetWindowMessageMethod,
+} from "../lib/experimentalInputPreferences";
 import { formatText } from "../lib/formatText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
@@ -9,7 +15,7 @@ import {
   type PreviewPlaybackController,
   type PreviewPlaybackProgress,
 } from "../lib/playbackScheduler";
-import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
+import { prepareMappedKeyboardKeyGroups } from "../lib/scoreKeyMapping";
 import {
   findSkyWindow,
   listCandidateWindows,
@@ -29,7 +35,7 @@ import type {
   PlaybackMode,
   PlaybackSpeed,
 } from "../types/playbackOptions";
-import type { Note, Song } from "../types/score";
+import type { Song } from "../types/score";
 import { useForegroundPlayback } from "./useForegroundPlayback";
 
 type SelectedWindowSnapshot = NonNullable<
@@ -62,11 +68,10 @@ type UseExperimentalInputOptions = {
   text: UiText;
 };
 
-const defaultTargetWindowCompatibilityProfile: TargetWindowCompatibilityProfile =
-  "legacy-activate-scan-lparam";
 const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
 const targetWindowKeyHoldMaxMs = 200;
+const REAL_PLAYBACK_PROGRESS_TICK_MS = 100;
 
 export function useExperimentalInput({
   appendLog,
@@ -365,6 +370,18 @@ export function useExperimentalInput({
 
     stopExperimentalPlayback({ logStopped: false });
     foregroundPlayback.handleStopForegroundPlayback();
+
+    if (mode === "target-window-message") {
+      const normalizedProfile = normalizeTargetWindowCompatibilityProfile(
+        targetWindowCompatibilityProfileRef.current,
+      );
+
+      targetWindowMessageMethodRef.current = "post-message";
+      targetWindowCompatibilityProfileRef.current = normalizedProfile;
+      setTargetWindowMessageMethod("post-message");
+      setTargetWindowCompatibilityProfile(normalizedProfile);
+    }
+
     setExperimentalInputMode(mode);
     appendLog(
       formatText(text.logs.experimentalInputModeSelected, {
@@ -405,46 +422,25 @@ export function useExperimentalInput({
     stopExperimentalPlayback({ logStopped: true });
   }
 
-  function handleTargetWindowMessageMethodChange(
-    method: TargetWindowMessageMethod,
-  ) {
-    if (method === targetWindowMessageMethodRef.current) {
-      return;
-    }
-
-    targetWindowMessageMethodRef.current = method;
-    setTargetWindowMessageMethod(method);
-    appendLog(
-      formatText(text.logs.experimentalTargetWindowMethodSelected, {
-        method: text.settings.experimentalTargetWindowMessageMethods[method],
-      }),
-    );
-  }
-
   function handleTargetWindowCompatibilityProfileChange(
     profile: TargetWindowCompatibilityProfile,
   ) {
-    if (profile === targetWindowCompatibilityProfileRef.current) {
+    const normalizedProfile = normalizeTargetWindowCompatibilityProfile(profile);
+
+    if (normalizedProfile === targetWindowCompatibilityProfileRef.current) {
       return;
     }
 
-    targetWindowCompatibilityProfileRef.current = profile;
-    setTargetWindowCompatibilityProfile(profile);
+    targetWindowCompatibilityProfileRef.current = normalizedProfile;
+    setTargetWindowCompatibilityProfile(normalizedProfile);
     appendLog(
       formatText(text.logs.experimentalTargetWindowProfileSelected, {
         profile:
           text.settings.experimentalTargetWindowCompatibilityProfiles[
-            profile
+            normalizedProfile
           ],
       }),
     );
-  }
-
-  function handleTargetWindowKeyHoldMsChange(nextKeyHoldMs: number) {
-    const clampedKeyHoldMs = clampTargetWindowKeyHoldMs(nextKeyHoldMs);
-
-    targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
-    setTargetWindowKeyHoldMs(clampedKeyHoldMs);
   }
 
   function handleSelectedWindowChange(hwnd: string) {
@@ -482,32 +478,35 @@ export function useExperimentalInput({
       return;
     }
 
+    const normalizedPreferences =
+      normalizeExperimentalInputPreferences(preferences);
+
     const clampedKeyHoldMs = clampTargetWindowKeyHoldMs(
-      preferences.targetWindowKeyHoldMs,
+      normalizedPreferences.targetWindowKeyHoldMs,
     );
 
     targetWindowMessageMethodRef.current =
-      preferences.targetWindowMessageMethod;
+      normalizedPreferences.targetWindowMessageMethod;
     targetWindowCompatibilityProfileRef.current =
-      preferences.targetWindowCompatibilityProfile;
+      normalizedPreferences.targetWindowCompatibilityProfile;
     targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
-    setExperimentalInputEnabled(preferences.experimentalInputEnabled);
-    setSelectedWindowHwnd(preferences.selectedWindowHwnd);
-    setSelectedWindowSnapshot(preferences.selectedWindowSnapshot);
-    setExperimentalInputMode(preferences.experimentalInputMode);
-    setTargetWindowMessageMethod(preferences.targetWindowMessageMethod);
+    setExperimentalInputEnabled(normalizedPreferences.experimentalInputEnabled);
+    setSelectedWindowHwnd(normalizedPreferences.selectedWindowHwnd);
+    setSelectedWindowSnapshot(normalizedPreferences.selectedWindowSnapshot);
+    setExperimentalInputMode(normalizedPreferences.experimentalInputMode);
+    setTargetWindowMessageMethod(normalizedPreferences.targetWindowMessageMethod);
     setTargetWindowCompatibilityProfile(
-      preferences.targetWindowCompatibilityProfile,
+      normalizedPreferences.targetWindowCompatibilityProfile,
     );
     setTargetWindowKeyHoldMs(clampedKeyHoldMs);
     appendLog(text.logs.experimentalInputPreferencesRestored);
 
-    if (preferences.selectedWindowHwnd !== null) {
+    if (normalizedPreferences.selectedWindowHwnd !== null) {
       appendLog(
         formatText(text.logs.experimentalRestoredTargetWindow, {
           target: getTargetLabelFromSnapshot(
-            preferences.selectedWindowSnapshot,
-            preferences.selectedWindowHwnd,
+            normalizedPreferences.selectedWindowSnapshot,
+            normalizedPreferences.selectedWindowHwnd,
           ),
         }),
       );
@@ -515,7 +514,7 @@ export function useExperimentalInput({
       if (!hasAutoRefreshedRestoredWindowRef.current) {
         hasAutoRefreshedRestoredWindowRef.current = true;
         void refreshCandidateWindowsForRestoredTarget(
-          preferences.selectedWindowHwnd,
+          normalizedPreferences.selectedWindowHwnd,
         );
       }
     }
@@ -707,6 +706,22 @@ export function useExperimentalInput({
       return;
     }
 
+    let mappedKeyGroups: Map<number, string[]>;
+
+    try {
+      mappedKeyGroups = prepareMappedKeyboardKeyGroups(
+        song.songNotes,
+        keyMapping,
+      );
+    } catch (error) {
+      const errorMessage = String(error);
+
+      setLastError(errorMessage);
+      appendLog(errorMessage);
+      showNotice?.(errorMessage);
+      return;
+    }
+
     const runId = experimentalPlaybackRunIdRef.current + 1;
     const targetWindowHwnd = selectedWindowHwnd;
     const targetWindowTitle =
@@ -715,13 +730,14 @@ export function useExperimentalInput({
       selectedWindow?.class_name ||
       selectedWindowSnapshot?.className ||
       targetWindowHwnd;
-    const method = targetWindowMessageMethodRef.current;
-    const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
-    const keyHoldMs = targetWindowKeyHoldMsRef.current;
-    const grouped =
-      isGroupedTargetWindowProfile(compatibilityProfile)
-        ? text.logs.experimentalPlaybackGroupedYes
-        : text.logs.experimentalPlaybackGroupedNo;
+    const method = normalizeTargetWindowMessageMethod(
+      targetWindowMessageMethodRef.current,
+    );
+    const compatibilityProfile = normalizeTargetWindowCompatibilityProfile(
+      targetWindowCompatibilityProfileRef.current,
+    );
+    targetWindowMessageMethodRef.current = method;
+    targetWindowCompatibilityProfileRef.current = compatibilityProfile;
     experimentalPlaybackRunIdRef.current = runId;
     setExperimentalPlaybackState("playing");
     setLastError(null);
@@ -735,31 +751,23 @@ export function useExperimentalInput({
     });
     appendLog(
       formatText(text.logs.experimentalPlaybackStarted, {
-        grouped,
-        holdMs: keyHoldMs,
-        method: text.settings.experimentalTargetWindowMessageMethods[method],
-        profile:
-          text.settings.experimentalTargetWindowCompatibilityProfiles[
-            compatibilityProfile
-          ],
-        softActivation:
-          compatibilityProfile === "legacy-activate-scan-lparam"
-            ? "true"
-            : "false",
         songName: song.name,
         target: targetWindowTitle,
-        targetHwnd: targetWindowHwnd,
       }),
     );
 
     experimentalPlaybackControllerRef.current = schedulePreviewPlayback(
       song.songNotes,
       (noteGroup) => {
-        void sendExperimentalNoteGroup({
-          noteGroup,
-          runId,
-          targetWindowHwnd,
-        });
+        const mappedKeys = mappedKeyGroups.get(noteGroup[0]?.time ?? -1);
+
+        if (mappedKeys) {
+          void sendExperimentalNoteGroup({
+            mappedKeys,
+            runId,
+            targetWindowHwnd,
+          });
+        }
       },
       () => {
         if (experimentalPlaybackRunIdRef.current !== runId) {
@@ -773,6 +781,7 @@ export function useExperimentalInput({
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         onProgress: setExperimentalPlaybackProgress,
         playbackSpeed: playbackSpeedRef.current,
+        progressTickMs: REAL_PLAYBACK_PROGRESS_TICK_MS,
       },
     );
   }
@@ -834,19 +843,15 @@ export function useExperimentalInput({
   }
 
   async function sendExperimentalNoteGroup({
-    noteGroup,
+    mappedKeys,
     runId,
     targetWindowHwnd,
   }: {
-    noteGroup: Note[];
+    mappedKeys: string[];
     runId: number;
     targetWindowHwnd: string;
   }) {
     try {
-      const mappedKeys = noteGroup.map((note) =>
-        mapScoreNoteToKeyboardKey(note, keyMapping),
-      );
-
       if (experimentalPlaybackRunIdRef.current !== runId) {
         return;
       }
@@ -856,7 +861,7 @@ export function useExperimentalInput({
         hwnd: targetWindowHwnd,
         keyHoldMs: targetWindowKeyHoldMsRef.current,
         keys: mappedKeys,
-        method: targetWindowMessageMethodRef.current,
+        method: "post-message",
       });
     } catch (error) {
       if (experimentalPlaybackRunIdRef.current !== runId) {
@@ -871,30 +876,14 @@ export function useExperimentalInput({
           : selectedWindow === null && selectedWindowSnapshot !== undefined
             ? text.logs.experimentalRestoredTargetWindowSendFailed
             : text.logs.experimentalPlaybackCommandFailed;
-      const compatibilityProfile = targetWindowCompatibilityProfileRef.current;
-      const grouped =
-        isGroupedTargetWindowProfile(compatibilityProfile)
-          ? text.logs.experimentalPlaybackGroupedYes
-          : text.logs.experimentalPlaybackGroupedNo;
 
-      setLastError(errorMessage);
-      appendLog(
-        formatText(logTemplate, {
-          error: errorMessage,
-          grouped,
-          holdMs: targetWindowKeyHoldMsRef.current,
-          inputMode: text.settings.experimentalTargetWindowMode,
-          method:
-            text.settings.experimentalTargetWindowMessageMethods[
-              targetWindowMessageMethodRef.current
-            ],
-          profile:
-            text.settings.experimentalTargetWindowCompatibilityProfiles[
-              compatibilityProfile
-            ],
-          targetHwnd: targetWindowHwnd,
-        }),
-      );
+      console.warn("[real-playback] background key send failed", {
+        error,
+        profile: targetWindowCompatibilityProfileRef.current,
+        targetWindowHwnd,
+      });
+      setLastError(logTemplate);
+      appendLog(logTemplate);
       if (isInvalidTargetWindow) {
         showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
       }
@@ -951,8 +940,6 @@ export function useExperimentalInput({
     setSelectedWindowHwnd: handleSelectedWindowChange,
     setTargetWindowCompatibilityProfile:
       handleTargetWindowCompatibilityProfileChange,
-    setTargetWindowKeyHoldMs: handleTargetWindowKeyHoldMsChange,
-    setTargetWindowMessageMethod: handleTargetWindowMessageMethodChange,
     targetWindowCompatibilityProfile,
     targetWindowKeyHoldMs,
     targetWindowMessageMethod,
@@ -971,15 +958,6 @@ function clampTargetWindowKeyHoldMs(keyHoldMs: number) {
   return Math.min(
     targetWindowKeyHoldMaxMs,
     Math.max(targetWindowKeyHoldMinMs, Math.round(keyHoldMs)),
-  );
-}
-
-function isGroupedTargetWindowProfile(
-  profile: TargetWindowCompatibilityProfile,
-) {
-  return (
-    profile === "grouped-legacy" ||
-    profile === "legacy-activate-scan-lparam"
   );
 }
 

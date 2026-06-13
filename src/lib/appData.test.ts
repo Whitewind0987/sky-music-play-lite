@@ -247,7 +247,7 @@ describe("sanitizePersistedAppData legacy v1 migration", () => {
 });
 
 describe("sanitizePersistedAppData experimental input preferences", () => {
-  it("preserves valid experimental input preferences", () => {
+  it("migrates legacy experimental input preferences", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
       library: {},
@@ -277,9 +277,9 @@ describe("sanitizePersistedAppData experimental input preferences", () => {
         className: "GameWindow",
         processName: "Sky.exe",
       },
-      targetWindowCompatibilityProfile: "standard",
+      targetWindowCompatibilityProfile: "legacy-activate-scan-lparam",
       targetWindowKeyHoldMs: 40,
-      targetWindowMessageMethod: "send-message",
+      targetWindowMessageMethod: "post-message",
     });
   });
 

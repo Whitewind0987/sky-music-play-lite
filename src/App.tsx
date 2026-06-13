@@ -507,17 +507,10 @@ function App() {
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
             onTargetWindowCompatibilityProfileChange:
               experimentalInput.setTargetWindowCompatibilityProfile,
-            onTargetWindowKeyHoldMsChange:
-              experimentalInput.setTargetWindowKeyHoldMs,
-            onTargetWindowMessageMethodChange:
-              experimentalInput.setTargetWindowMessageMethod,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
             selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
             targetWindowCompatibilityProfile:
               experimentalInput.targetWindowCompatibilityProfile,
-            targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
-            targetWindowMessageMethod:
-              experimentalInput.targetWindowMessageMethod,
             experimentalInputMode: experimentalInput.experimentalInputMode,
             foregroundCountdown: experimentalInput.foregroundCountdown,
             foregroundPlaybackState: experimentalInput.foregroundPlaybackState,

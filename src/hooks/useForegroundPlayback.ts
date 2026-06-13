@@ -8,7 +8,7 @@ import {
   type PreviewPlaybackController,
   type PreviewPlaybackProgress,
 } from "../lib/playbackScheduler";
-import { mapScoreNoteToKeyboardKey } from "../lib/scoreKeyMapping";
+import { prepareMappedKeyboardKeyGroups } from "../lib/scoreKeyMapping";
 import { sendForegroundKeyGroup } from "../lib/tauriApi";
 import type { ForegroundPlaybackState } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
@@ -19,7 +19,7 @@ import type {
   PlaybackMode,
   PlaybackSpeed,
 } from "../types/playbackOptions";
-import type { Note, Song } from "../types/score";
+import type { Song } from "../types/score";
 
 type UseForegroundPlaybackOptions = {
   appendLog: (message: string) => void;
@@ -49,6 +49,7 @@ type UseForegroundPlaybackOptions = {
 
 const COUNTDOWN_START_SECONDS = 3;
 const COUNTDOWN_TICK_MS = 1000;
+const REAL_PLAYBACK_PROGRESS_TICK_MS = 100;
 
 export function useForegroundPlayback({
   appendLog,
@@ -278,6 +279,22 @@ export function useForegroundPlayback({
       return;
     }
 
+    let mappedKeyGroups: Map<number, string[]>;
+
+    try {
+      mappedKeyGroups = prepareMappedKeyboardKeyGroups(
+        song.songNotes,
+        keyMapping,
+      );
+    } catch (error) {
+      appendLog(
+        formatText(text.logs.foregroundPlaybackKeySendFailed, {
+          error: String(error),
+        }),
+      );
+      return;
+    }
+
     clearCountdownTimer();
     controllerRef.current?.stop();
     controllerRef.current = null;
@@ -294,7 +311,9 @@ export function useForegroundPlayback({
     });
 
     if (!withCountdown) {
-      startForegroundPlayback(runId, songIndex, song, { initialSeekMs });
+      startForegroundPlayback(runId, songIndex, song, mappedKeyGroups, {
+        initialSeekMs,
+      });
       return;
     }
 
@@ -302,7 +321,13 @@ export function useForegroundPlayback({
     setForegroundCountdown(COUNTDOWN_START_SECONDS);
     appendLog(text.logs.foregroundPlaybackFocusReminder);
     appendLog(text.logs.foregroundPlaybackCountdownStarted);
-    scheduleCountdownTick(runId, COUNTDOWN_START_SECONDS, songIndex, song);
+    scheduleCountdownTick(
+      runId,
+      COUNTDOWN_START_SECONDS,
+      songIndex,
+      song,
+      mappedKeyGroups,
+    );
   }
 
   function scheduleCountdownTick(
@@ -310,6 +335,7 @@ export function useForegroundPlayback({
     currentCountdown: number,
     songIndex: number,
     song: Song,
+    mappedKeyGroups: Map<number, string[]>,
   ) {
     clearCountdownTimer();
 
@@ -322,12 +348,18 @@ export function useForegroundPlayback({
 
       if (nextCountdown <= 0) {
         setForegroundCountdown(null);
-        startForegroundPlayback(runId, songIndex, song);
+        startForegroundPlayback(runId, songIndex, song, mappedKeyGroups);
         return;
       }
 
       setForegroundCountdown(nextCountdown);
-      scheduleCountdownTick(runId, nextCountdown, songIndex, song);
+      scheduleCountdownTick(
+        runId,
+        nextCountdown,
+        songIndex,
+        song,
+        mappedKeyGroups,
+      );
     }, COUNTDOWN_TICK_MS);
   }
 
@@ -335,6 +367,7 @@ export function useForegroundPlayback({
     runId: number,
     songIndex: number,
     song: Song,
+    mappedKeyGroups: Map<number, string[]>,
     options: { initialSeekMs?: number } = {},
   ) {
     setForegroundPlaybackState("playing");
@@ -347,7 +380,11 @@ export function useForegroundPlayback({
     controllerRef.current = schedulePreviewPlayback(
       song.songNotes,
       (noteGroup) => {
-        void sendForegroundNoteGroup({ noteGroup, runId });
+        const mappedKeys = mappedKeyGroups.get(noteGroup[0]?.time ?? -1);
+
+        if (mappedKeys) {
+          void sendForegroundNoteGroup({ mappedKeys, runId });
+        }
       },
       () => {
         if (runIdRef.current !== runId) {
@@ -361,6 +398,7 @@ export function useForegroundPlayback({
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         onProgress: setForegroundPlaybackProgress,
         playbackSpeed: playbackSpeedRef.current,
+        progressTickMs: REAL_PLAYBACK_PROGRESS_TICK_MS,
       },
     );
   }
@@ -424,17 +462,13 @@ export function useForegroundPlayback({
   }
 
   async function sendForegroundNoteGroup({
-    noteGroup,
+    mappedKeys,
     runId,
   }: {
-    noteGroup: Note[];
+    mappedKeys: string[];
     runId: number;
   }) {
     try {
-      const mappedKeys = noteGroup.map((note) =>
-        mapScoreNoteToKeyboardKey(note, keyMapping),
-      );
-
       if (runIdRef.current !== runId) {
         return;
       }

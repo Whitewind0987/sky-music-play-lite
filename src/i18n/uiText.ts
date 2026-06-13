@@ -368,7 +368,7 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "目标窗口播放已开始：{songName} -> {target}；mode=target-window-message；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；softActivation={softActivation}；foregroundApi=false。",
+        "后台播放已开始：{songName} -> {target}。",
       experimentalPlaybackPaused: "实验性播放已暂停。",
       experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
@@ -379,8 +379,8 @@ export const uiText = {
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
       experimentalPlaybackCommandFailed:
-        "目标窗口按键消息发送失败。目标窗口可能拒绝按键消息，或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
-      experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
+        "后台播放发送失败。请重新选择游戏窗口，或尝试前台播放。",
+      experimentalInputModeSelected: "真实播放方式已切换：{mode}",
       experimentalTargetWindowMethodSelected:
         "目标窗口消息投递方式已切换：{method}",
       experimentalTargetWindowProfileSelected:
@@ -402,7 +402,7 @@ export const uiText = {
       experimentalRestoredTargetWindowMissing:
         "刷新窗口列表后未找到上次目标窗口：{target}",
       experimentalRestoredTargetWindowSendFailed:
-        "恢复的目标窗口发送失败，请重新检测或手动选择窗口：{error}",
+        "已保存的游戏窗口无法接收按键，请重新检测或手动选择窗口。",
       globalHotkeyRegisterFailed: "全局快捷键注册失败：{shortcut}",
       globalHotkeyUnavailable:
         "快捷键 {shortcut} 可能已被系统或其他软件占用，请换一个按键。",
@@ -435,15 +435,18 @@ export const uiText = {
       keyMappingClickHint: "点击后按键盘",
       keyMappingListening: "等待按键...",
       keyMappingTitle: "键位映射",
-      experimentalInputTitle: "实验性输入",
-      experimentalInputDescription: "检测目标窗口并提供实验性播放控制。",
+      experimentalInputTitle: "真实播放",
+      experimentalInputDescription: "将曲谱按键发送到游戏，或仅在软件内预览。",
       experimentalInputWarning:
-        "实验性功能，仅用于个人测试。建议保持默认设置。",
+        "部分游戏或窗口可能不接受后台输入。某些情况下可能需要管理员权限，请遵守游戏规则。",
       experimentalInputRefreshWindows: "刷新窗口列表",
       experimentalInputRefreshing: "正在刷新...",
       experimentalInputDetectSkyWindow: "检测光遇窗口",
       experimentalInputDetecting: "正在检测...",
-      experimentalInputEnable: "启用实验性输入",
+      experimentalInputEnable: "真实播放",
+      experimentalInputOffDescription: "关闭时，只在软件内预览按键。",
+      experimentalInputOnDescription: "开启后，将按键发送到游戏窗口。",
+      experimentalPlaybackMethod: "播放方式",
       experimentalInputNoWindows: "暂无候选窗口。",
       experimentalCurrentTargetWindowLabel: "当前可用目标窗口",
       experimentalSavedTargetWindowLabel: "已保存目标窗口",
@@ -456,11 +459,11 @@ export const uiText = {
       experimentalPlaybackStatusLabel: "实验性播放",
       experimentalPlaybackIdle: "空闲",
       experimentalPlaybackRunning: "发送中",
-      experimentalTargetWindowMode: "目标窗口消息模式",
+      experimentalTargetWindowMode: "后台播放（推荐）",
       experimentalTargetWindowModeDescription:
-        "向已选择的游戏窗口发送按键消息。",
+        "选择光遇窗口后，软件会尝试把按键发送到该窗口。",
       experimentalTargetWindowModeHelp:
-        "默认即可，失败再切换。",
+        "适合大多数情况。未找到窗口时，请刷新或检测。",
       experimentalTargetWindowMessageMethod: "消息投递方式",
       experimentalTargetWindowMessageMethods: {
         "post-message": "PostMessage（默认推荐）",
@@ -477,11 +480,13 @@ export const uiText = {
         "legacy-activate-scan-lparam": "后台播放增强（推荐）",
       },
       experimentalTargetWindowCompatibilityHint:
-        "后台播放无效时，优先使用“后台播放增强（推荐）”。如果出现焦点异常或输入不稳定，可以尝试其他兼容模式。",
+        "如果和弦或多个按键同时弹奏不稳定，可以尝试“组合按键兼容”。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
-      experimentalForegroundMode: "前台输入模式",
+      experimentalForegroundMode: "前台播放（备用）",
       experimentalForegroundModeDescription:
-        "向当前前台窗口发送模拟键盘输入。",
+        "需要把游戏放在前台，使用普通模拟键盘输入。",
+      experimentalForegroundModeHelp:
+        "播放开始前会倒计时，请在倒计时结束前切换到游戏窗口。",
       experimentalForegroundStatusLabel: "前台播放",
       experimentalForegroundStates: {
         idle: "空闲",
@@ -894,7 +899,7 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Target-window playback started: {songName} -> {target}; mode=target-window-message; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; softActivation={softActivation}; foregroundApi=false.",
+        "Background playback started: {songName} -> {target}.",
       experimentalPlaybackPaused: "Experimental playback paused.",
       experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
@@ -905,8 +910,8 @@ export const uiText = {
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
-        "Target window key message failed. The target window may reject key messages, or may require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
-      experimentalInputModeSelected: "Experimental input mode selected: {mode}",
+        "Background playback failed. Select the game window again or try foreground playback.",
+      experimentalInputModeSelected: "Real playback method selected: {mode}",
       experimentalTargetWindowMethodSelected:
         "Target-window message method selected: {method}",
       experimentalTargetWindowProfileSelected:
@@ -930,7 +935,7 @@ export const uiText = {
       experimentalRestoredTargetWindowMissing:
         "Previous target window was not found after refreshing windows: {target}",
       experimentalRestoredTargetWindowSendFailed:
-        "Sending to the restored target window failed. Please detect or select the window again: {error}",
+        "The saved game window cannot receive keys. Detect or select the window again.",
       globalHotkeyRegisterFailed:
         "Failed to register global hotkey: {shortcut}",
       globalHotkeyUnavailable:
@@ -967,16 +972,21 @@ export const uiText = {
       keyMappingClickHint: "Click, then press a key",
       keyMappingListening: "Waiting for key...",
       keyMappingTitle: "Key mapping",
-      experimentalInputTitle: "Experimental input",
+      experimentalInputTitle: "Real playback",
       experimentalInputDescription:
-        "Detect a target window and provide experimental playback controls.",
+        "Send score keys to the game, or preview them only inside the app.",
       experimentalInputWarning:
-        "Experimental feature for personal testing only. Keep defaults unless playback fails.",
+        "Some games or windows may reject background input. Administrator permission may be required. Follow the game rules.",
       experimentalInputRefreshWindows: "Refresh Windows",
       experimentalInputRefreshing: "Refreshing...",
       experimentalInputDetectSkyWindow: "Detect Sky Window",
       experimentalInputDetecting: "Detecting...",
-      experimentalInputEnable: "Enable Experimental Input",
+      experimentalInputEnable: "Real playback",
+      experimentalInputOffDescription:
+        "When off, keys are previewed only inside the app.",
+      experimentalInputOnDescription:
+        "When on, keys are sent to the game window.",
+      experimentalPlaybackMethod: "Playback method",
       experimentalInputNoWindows: "No candidate windows yet.",
       experimentalCurrentTargetWindowLabel: "Current available target window",
       experimentalSavedTargetWindowLabel: "Saved target window",
@@ -989,11 +999,11 @@ export const uiText = {
       experimentalPlaybackStatusLabel: "Experimental playback",
       experimentalPlaybackIdle: "Idle",
       experimentalPlaybackRunning: "Sending",
-      experimentalTargetWindowMode: "Target Window Message Mode",
+      experimentalTargetWindowMode: "Background playback (recommended)",
       experimentalTargetWindowModeDescription:
-        "Send key messages to the selected game window.",
+        "Select the Sky window and the app will try to send keys to it.",
       experimentalTargetWindowModeHelp:
-        "Keep the default. Switch only if playback fails.",
+        "Works for most cases. Refresh or detect if the window is missing.",
       experimentalTargetWindowMessageMethod: "Message delivery method",
       experimentalTargetWindowMessageMethods: {
         "post-message": "PostMessage (default)",
@@ -1012,11 +1022,13 @@ export const uiText = {
           "Background playback boost (recommended)",
       },
       experimentalTargetWindowCompatibilityHint:
-        "If background playback does not work, try “Background playback boost (recommended)” first. If focus or input becomes unstable, try another compatibility mode.",
+        "Try grouped key compatibility if chords or simultaneous keys are unstable.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
-      experimentalForegroundMode: "Foreground Input Mode",
+      experimentalForegroundMode: "Foreground playback (fallback)",
       experimentalForegroundModeDescription:
-        "Send simulated keyboard input to the current foreground window.",
+        "Keep the game in front and use regular simulated keyboard input.",
+      experimentalForegroundModeHelp:
+        "A countdown starts before playback. Switch to the game before it ends.",
       experimentalForegroundStatusLabel: "Foreground playback",
       experimentalForegroundStates: {
         idle: "Idle",
