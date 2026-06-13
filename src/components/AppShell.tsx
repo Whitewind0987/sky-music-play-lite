@@ -296,7 +296,49 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [isCreatedPlaylistsOpen, setIsCreatedPlaylistsOpen] = useState(true);
   const [isSidebarScrollable, setIsSidebarScrollable] = useState(false);
+  const [isSidebarScrollHovered, setIsSidebarScrollHovered] = useState(false);
+  const [sidebarScrollThumb, setSidebarScrollThumb] = useState({
+    height: 0,
+    top: 0,
+  });
   const sidebarScrollAreaRef = useRef<HTMLDivElement | null>(null);
+
+  function updateSidebarScrollbar() {
+    const element = sidebarScrollAreaRef.current;
+
+    if (!element) {
+      setIsSidebarScrollable(false);
+      setSidebarScrollThumb({ height: 0, top: 0 });
+      return;
+    }
+
+    const { clientHeight, scrollHeight, scrollTop } = element;
+    const scrollable = scrollHeight > clientHeight + 1;
+
+    setIsSidebarScrollable(scrollable);
+
+    if (!scrollable) {
+      setSidebarScrollThumb({ height: 0, top: 0 });
+      return;
+    }
+
+    const minThumbHeight = 36;
+    const thumbHeight = Math.max(
+      minThumbHeight,
+      Math.round((clientHeight / scrollHeight) * clientHeight),
+    );
+    const maxScrollTop = scrollHeight - clientHeight;
+    const maxThumbTop = Math.max(0, clientHeight - thumbHeight);
+    const thumbTop =
+      maxScrollTop <= 0
+        ? 0
+        : Math.round((scrollTop / maxScrollTop) * maxThumbTop);
+
+    setSidebarScrollThumb({
+      height: thumbHeight,
+      top: thumbTop,
+    });
+  }
 
   useEffect(() => {
     const element = sidebarScrollAreaRef.current;
@@ -304,27 +346,19 @@ export function AppSidebar({
     if (!element) {
       return;
     }
-    const scrollElement = element;
-
-    function updateScrollableState() {
-      setIsSidebarScrollable(
-        scrollElement.scrollHeight > scrollElement.clientHeight + 1,
-      );
-    }
-
-    const frame = window.requestAnimationFrame(updateScrollableState);
-    window.addEventListener("resize", updateScrollableState);
+    const frame = window.requestAnimationFrame(updateSidebarScrollbar);
+    window.addEventListener("resize", updateSidebarScrollbar);
 
     const resizeObserver =
       "ResizeObserver" in window
-        ? new ResizeObserver(updateScrollableState)
+        ? new ResizeObserver(updateSidebarScrollbar)
         : null;
 
-    resizeObserver?.observe(scrollElement);
+    resizeObserver?.observe(element);
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", updateScrollableState);
+      window.removeEventListener("resize", updateSidebarScrollbar);
       resizeObserver?.disconnect();
     };
   }, [activeSection, isCreatedPlaylistsOpen, playlists.length]);
@@ -350,138 +384,158 @@ export function AppSidebar({
         </div>
       </div>
 
-      <div
-        ref={sidebarScrollAreaRef}
-        className={`sidebar-scroll-area${
-          isSidebarScrollable ? " is-scrollable" : ""
-        }`}
-      >
-        <section className="sidebar-section sidebar-my-section">
-          <p className="sidebar-section-title">{text.sidebar.mySection}</p>
-          <SidebarCategoryButton
-            Icon={Library}
-            isActive={
-              activeSection === "Library" &&
-              selectedLibraryCategory === "built-in"
-            }
-            label={text.sidebar.builtIn}
-            onClick={() => onLibraryCategorySelect("built-in")}
-          />
-          <SidebarCategoryButton
-            Icon={FolderDown}
-            isActive={
-              activeSection === "Library" &&
-              selectedLibraryCategory === "local-imports"
-            }
-            label={text.sidebar.localImports}
-            onClick={() => onLibraryCategorySelect("local-imports")}
-          />
-          <SidebarCategoryButton
-            Icon={Heart}
-            isActive={
-              activeSection === "Library" &&
-              selectedLibraryCategory === "liked"
-            }
-            label={text.sidebar.liked}
-            onClick={() => onLibraryCategorySelect("liked")}
-          />
-        </section>
-
-        <section className="sidebar-created-playlists-section">
-          <div className="sidebar-playlist-header">
-            <button
-              className="sidebar-playlist-toggle"
-              type="button"
-              aria-expanded={isCreatedPlaylistsOpen}
-              aria-label={
-                isCreatedPlaylistsOpen
-                  ? text.sidebar.collapseCreatedPlaylists
-                  : text.sidebar.expandCreatedPlaylists
+      <div className="sidebar-scroll-frame">
+        <div
+          ref={sidebarScrollAreaRef}
+          className={`sidebar-scroll-area${
+            isSidebarScrollable ? " is-scrollable" : ""
+          }`}
+          onPointerEnter={() => {
+            setIsSidebarScrollHovered(true);
+            updateSidebarScrollbar();
+          }}
+          onPointerLeave={() => setIsSidebarScrollHovered(false)}
+          onScroll={updateSidebarScrollbar}
+        >
+          <section className="sidebar-section sidebar-my-section">
+            <p className="sidebar-section-title">{text.sidebar.mySection}</p>
+            <SidebarCategoryButton
+              Icon={Library}
+              isActive={
+                activeSection === "Library" &&
+                selectedLibraryCategory === "built-in"
               }
-              onClick={() =>
-                setIsCreatedPlaylistsOpen((currentValue) => !currentValue)
+              label={text.sidebar.builtIn}
+              onClick={() => onLibraryCategorySelect("built-in")}
+            />
+            <SidebarCategoryButton
+              Icon={FolderDown}
+              isActive={
+                activeSection === "Library" &&
+                selectedLibraryCategory === "local-imports"
               }
-            >
-              <span className="sidebar-playlist-toggle-label">
-                {text.sidebar.createdPlaylists}
-              </span>
-              <small className="sidebar-playlist-toggle-count">
-                {playlists.length}
-              </small>
-              {isCreatedPlaylistsOpen ? (
-                <ChevronDown
-                  className="sidebar-playlist-toggle-chevron"
-                  aria-hidden="true"
-                  focusable="false"
-                />
-              ) : (
-                <ChevronRight
-                  className="sidebar-playlist-toggle-chevron"
-                  aria-hidden="true"
-                  focusable="false"
-                />
-              )}
-            </button>
-            <button
-              className="sidebar-playlist-create"
-              type="button"
-              aria-label={text.sidebar.createPlaylist}
-              title={text.sidebar.createPlaylist}
-              onClick={onCreatePlaylistRequest}
-            >
-              <Plus aria-hidden="true" focusable="false" />
-            </button>
-          </div>
+              label={text.sidebar.localImports}
+              onClick={() => onLibraryCategorySelect("local-imports")}
+            />
+            <SidebarCategoryButton
+              Icon={Heart}
+              isActive={
+                activeSection === "Library" &&
+                selectedLibraryCategory === "liked"
+              }
+              label={text.sidebar.liked}
+              onClick={() => onLibraryCategorySelect("liked")}
+            />
+          </section>
 
-          {isCreatedPlaylistsOpen ? (
-            playlists.length > 0 ? (
-              <div className="sidebar-playlist-list" role="list">
-                {playlists.map((playlist) => {
-                  const isActive =
-                    activeSection === "Library" &&
-                    selectedLibraryCategory === "playlists" &&
-                    selectedPlaylistId === playlist.id;
+          <section className="sidebar-created-playlists-section">
+            <div className="sidebar-playlist-header">
+              <button
+                className="sidebar-playlist-toggle"
+                type="button"
+                aria-expanded={isCreatedPlaylistsOpen}
+                aria-label={
+                  isCreatedPlaylistsOpen
+                    ? text.sidebar.collapseCreatedPlaylists
+                    : text.sidebar.expandCreatedPlaylists
+                }
+                onClick={() =>
+                  setIsCreatedPlaylistsOpen((currentValue) => !currentValue)
+                }
+              >
+                <span className="sidebar-playlist-toggle-label">
+                  {text.sidebar.createdPlaylists}
+                </span>
+                <small className="sidebar-playlist-toggle-count">
+                  {playlists.length}
+                </small>
+                {isCreatedPlaylistsOpen ? (
+                  <ChevronDown
+                    className="sidebar-playlist-toggle-chevron"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                ) : (
+                  <ChevronRight
+                    className="sidebar-playlist-toggle-chevron"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                )}
+              </button>
+              <button
+                className="sidebar-playlist-create"
+                type="button"
+                aria-label={text.sidebar.createPlaylist}
+                title={text.sidebar.createPlaylist}
+                onClick={onCreatePlaylistRequest}
+              >
+                <Plus aria-hidden="true" focusable="false" />
+              </button>
+            </div>
 
-                  return (
-                    <SidebarRippleButton
-                      className={`sidebar-playlist-item${
-                        isActive ? " is-active" : ""
-                      }`}
-                      key={playlist.id}
-                      onClick={() => onPlaylistSelect(playlist.id)}
-                    >
-                      <span className="sidebar-playlist-item-content">
-                        <ListMusic
-                          className="sidebar-playlist-icon"
-                          aria-hidden="true"
-                          focusable="false"
-                        />
-                        <span className="sidebar-playlist-name">
-                          {playlist.name}
+            {isCreatedPlaylistsOpen ? (
+              playlists.length > 0 ? (
+                <div className="sidebar-playlist-list" role="list">
+                  {playlists.map((playlist) => {
+                    const isActive =
+                      activeSection === "Library" &&
+                      selectedLibraryCategory === "playlists" &&
+                      selectedPlaylistId === playlist.id;
+
+                    return (
+                      <SidebarRippleButton
+                        className={`sidebar-playlist-item${
+                          isActive ? " is-active" : ""
+                        }`}
+                        key={playlist.id}
+                        onClick={() => onPlaylistSelect(playlist.id)}
+                      >
+                        <span className="sidebar-playlist-item-content">
+                          <ListMusic
+                            className="sidebar-playlist-icon"
+                            aria-hidden="true"
+                            focusable="false"
+                          />
+                          <span className="sidebar-playlist-name">
+                            {playlist.name}
+                          </span>
                         </span>
-                      </span>
-                    </SidebarRippleButton>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="sidebar-playlist-empty">
-                {text.sidebar.noCreatedPlaylists}
-              </p>
-            )
-          ) : null}
-        </section>
+                      </SidebarRippleButton>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="sidebar-playlist-empty">
+                  {text.sidebar.noCreatedPlaylists}
+                </p>
+              )
+            ) : null}
+          </section>
 
-        <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
-          <SidebarNavButton
-            Icon={Eye}
-            isActive={activeSection === "Playback"}
-            isCompact
-            label={text.sidebar.preview}
-            section="Playback"
-            onClick={() => onSectionChange("Playback")}
-          />
-        </nav>
+          <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
+            <SidebarNavButton
+              Icon={Eye}
+              isActive={activeSection === "Playback"}
+              isCompact
+              label={text.sidebar.preview}
+              section="Playback"
+              onClick={() => onSectionChange("Playback")}
+            />
+          </nav>
+        </div>
+
+        {isSidebarScrollable && isSidebarScrollHovered ? (
+          <span className="sidebar-custom-scrollbar" aria-hidden="true">
+            <span
+              className="sidebar-custom-scrollbar-thumb"
+              style={{
+                height: `${sidebarScrollThumb.height}px`,
+                transform: `translateY(${sidebarScrollThumb.top}px)`,
+              }}
+            />
+          </span>
+        ) : null}
       </div>
     </aside>
   );

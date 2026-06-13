@@ -65,7 +65,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - When library categories are represented directly in the sidebar, do not also render a top-level Library item.
 - Logs and Settings belong in workspace header actions, not the sidebar.
 - Only existing user-created playlists may appear in the sidebar; do not fake collected or subscribed playlist data.
-- Hide the sidebar scrollbar by default and show it on hover only when the sidebar is scrollable.
+- Keep the native sidebar scrollbar hidden; show a visual-only custom thumb on hover only when the sidebar is scrollable, with a permanently reserved gutter so content does not shift.
 - Sidebar category and playlist names must use ellipsis when they overflow.
 - Do not set Tauri `security.csp` back to null; CSP changes must be tested in dev and avoid broad wildcards unless justified by a concrete violation.
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.

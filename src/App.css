@@ -114,6 +114,7 @@ button {
 }
 
 .app-sidebar {
+  position: relative;
   grid-area: sidebar;
   height: auto;
   min-height: 0;
@@ -203,29 +204,36 @@ button {
   gap: 4px;
 }
 
-.sidebar-scroll-area {
+.sidebar-scroll-frame {
+  position: relative;
   min-height: 0;
   flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.sidebar-scroll-area {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 2px;
+  padding-right: 12px;
   scrollbar-width: none;
   scrollbar-color: transparent transparent;
 }
 
 .sidebar-scroll-area::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  background: transparent;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 
 .sidebar-scroll-area::-webkit-scrollbar-track,
-.sidebar-scroll-area::-webkit-scrollbar-thumb,
-.sidebar-scroll-area::-webkit-scrollbar-corner {
-  background: transparent;
+.sidebar-scroll-area::-webkit-scrollbar-thumb {
+  background: transparent !important;
 }
 
 .sidebar-scroll-area::-webkit-scrollbar-button,
@@ -240,54 +248,37 @@ button {
 .sidebar-scroll-area::-webkit-scrollbar-button:horizontal:end,
 .sidebar-scroll-area::-webkit-scrollbar-button:horizontal:decrement,
 .sidebar-scroll-area::-webkit-scrollbar-button:horizontal:increment {
-  display: none;
-  width: 0;
-  height: 0;
-  background: transparent;
-  -webkit-appearance: none;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
 }
 
-.sidebar-scroll-area.is-scrollable:hover {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+.sidebar-scroll-area::-webkit-scrollbar-corner {
+  background: transparent !important;
 }
 
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar {
+.sidebar-custom-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  bottom: 0;
+  z-index: 5;
   width: 6px;
-  height: 6px;
-  background: transparent;
+  pointer-events: none;
 }
 
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-thumb {
+.sidebar-custom-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.55);
-}
-
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.62);
-}
-
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:single-button,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:start,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:end,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:decrement,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:increment,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:start,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:end,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:decrement,
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:increment {
-  display: none;
-  width: 0;
-  height: 0;
-  background: transparent;
-  -webkit-appearance: none;
+  background: rgba(148, 163, 184, 0.58);
+  transition:
+    background 120ms ease,
+    opacity 120ms ease;
 }
 
 .sidebar-section {
@@ -400,7 +391,7 @@ button {
   overflow: hidden;
   color: #4b5563;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -430,6 +421,11 @@ button {
   color: #111827;
   background: transparent;
   outline: none;
+}
+
+.sidebar-playlist-toggle:hover .sidebar-playlist-toggle-label,
+.sidebar-playlist-toggle:focus-visible .sidebar-playlist-toggle-label {
+  font-weight: 700;
 }
 
 .sidebar-playlist-create:hover,
@@ -496,12 +492,16 @@ button {
   min-width: 0;
   overflow: hidden;
   font-size: 13px;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .sidebar-playlist-item:hover .sidebar-playlist-name,
-.sidebar-playlist-item:focus-visible .sidebar-playlist-name,
+.sidebar-playlist-item:focus-visible .sidebar-playlist-name {
+  font-weight: 400;
+}
+
 .sidebar-playlist-item.is-active .sidebar-playlist-name {
   font-weight: 700;
 }
