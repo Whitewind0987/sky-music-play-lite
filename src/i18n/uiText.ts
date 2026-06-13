@@ -272,8 +272,8 @@ export const uiText = {
       },
       outputModes: {
         preview: "预览",
-        experimentalForeground: "前台输入",
-        experimentalTargetWindow: "目标窗口",
+        experimentalForeground: "前台播放",
+        experimentalTargetWindow: "后台播放",
       },
       realInputWarning: "将发送真实输入",
       loadingScore: "加载曲谱中...",
@@ -799,8 +799,8 @@ export const uiText = {
       },
       outputModes: {
         preview: "Preview",
-        experimentalForeground: "Foreground",
-        experimentalTargetWindow: "Target",
+        experimentalForeground: "Foreground playback",
+        experimentalTargetWindow: "Background playback",
       },
       realInputWarning: "Real input will be sent",
       loadingScore: "Loading score...",
