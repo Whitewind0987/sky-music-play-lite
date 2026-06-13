@@ -10,7 +10,7 @@ type PreviewNoteGroupHandler = (notes: Note[]) => void;
 type PreviewFinishHandler = () => void;
 
 const NOTE_HIGHLIGHT_MS = 300;
-const PROGRESS_TICK_MS = 50;
+const DEFAULT_PROGRESS_TICK_MS = 50;
 
 type PreviewNoteGroup = {
   notes: Note[];
@@ -43,6 +43,7 @@ export type PreviewPlaybackOptions = {
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onProgress?: (progress: PreviewPlaybackProgress) => void;
   playbackSpeed: PlaybackSpeed;
+  progressTickMs?: number;
 };
 
 export function schedulePreviewPlayback(
@@ -110,7 +111,7 @@ export function schedulePreviewPlayback(
     progressStartedAtMs = getClockMs();
     progressIntervalId = window.setInterval(
       updateProgressFromClock,
-      PROGRESS_TICK_MS,
+      liveOptions.progressTickMs ?? DEFAULT_PROGRESS_TICK_MS,
     );
     updateProgressFromClock();
   }

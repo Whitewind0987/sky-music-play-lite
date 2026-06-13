@@ -78,6 +78,12 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
 - Do not reintroduce frontend target-window activation preflight. `legacy-activate-scan-lparam` is an explicit compatibility profile that may send `WM_ACTIVATE` window messages, but it must never call `SetForegroundWindow`; non-activating profiles must remain available.
 - Close confirmation must use the Rust force-close command when JavaScript `close()` would re-enter `onCloseRequested`.
+- Stage 21 covers real playback simplification and lightweight stutter optimization only; Stage 22 library improvements remain postponed.
+- Normal UI must not expose SendMessage/PostMessage implementation choices; target-window playback uses PostMessage internally.
+- User-facing real playback methods are background playback (recommended) and foreground playback (fallback).
+- Target-window settings expose only `legacy-activate-scan-lparam` and `grouped-legacy`.
+- Persisted `send-message` values migrate to `post-message`; old target-window profiles migrate to `legacy-activate-scan-lparam` unless already `grouped-legacy`.
+- Avoid per-note UI log updates during real playback and avoid large playback architecture rewrites unless explicitly requested.
 - Every stage must run `npm run build` and `cargo check` before completion.
 
 ## Testing Rules

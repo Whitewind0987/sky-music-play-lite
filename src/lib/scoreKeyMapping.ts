@@ -22,6 +22,26 @@ export function mapScoreNoteToKeyboardKey(note: Note, keyMapping: KeyMapping) {
   return mappedKey;
 }
 
+export function prepareMappedKeyboardKeyGroups(
+  notes: Note[],
+  keyMapping: KeyMapping,
+) {
+  const mappedGroups = new Map<number, string[]>();
+
+  for (const note of notes) {
+    const mappedKey = mapScoreNoteToKeyboardKey(note, keyMapping);
+    const currentGroup = mappedGroups.get(note.time);
+
+    if (currentGroup) {
+      currentGroup.push(mappedKey);
+    } else {
+      mappedGroups.set(note.time, [mappedKey]);
+    }
+  }
+
+  return mappedGroups;
+}
+
 function isSkyKeyName(value: string): value is SkyKeyName {
   return skyKeyNames.some((skyKeyName) => skyKeyName === value);
 }

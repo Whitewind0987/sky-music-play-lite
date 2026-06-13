@@ -73,8 +73,11 @@ pub fn send_key_group_to_window_message(
     let mut send_results = Vec::<TargetWindowKeyMessageResult>::new();
 
     if grouped {
+        if let Some(first_input) = inputs.first() {
+            activate_target_window_for_profile(first_input, "before key group")?;
+        }
+
         for input in inputs.iter() {
-            activate_target_window_for_profile(input, "before key down")?;
             let key_down_lparam = build_profile_key_down_lparam(input);
             let down_result =
                 send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
@@ -87,7 +90,6 @@ pub fn send_key_group_to_window_message(
         thread::sleep(Duration::from_millis(key_hold_ms));
 
         for (index, input) in inputs.iter().enumerate() {
-            activate_target_window_for_profile(input, "before key up")?;
             let key_up_lparam = build_profile_key_up_lparam(input);
             let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
 

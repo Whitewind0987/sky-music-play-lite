@@ -16,7 +16,6 @@ import type {
   ExperimentalInputMode,
   ForegroundPlaybackState,
   TargetWindowCompatibilityProfile,
-  TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import {
   skyKeyNames,
@@ -51,10 +50,6 @@ type ExperimentalInputPanelState = {
   onTargetWindowCompatibilityProfileChange: (
     profile: TargetWindowCompatibilityProfile,
   ) => void;
-  onTargetWindowKeyHoldMsChange: (keyHoldMs: number) => void;
-  onTargetWindowMessageMethodChange: (
-    method: TargetWindowMessageMethod,
-  ) => void;
   selectedWindowHwnd: string | null;
   selectedWindowSnapshot:
     | {
@@ -65,8 +60,6 @@ type ExperimentalInputPanelState = {
       }
     | undefined;
   targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
-  targetWindowKeyHoldMs: number;
-  targetWindowMessageMethod: TargetWindowMessageMethod;
 };
 
 type SettingsPlaceholderProps = {
@@ -203,162 +196,6 @@ export function SettingsPlaceholder({
           title={text.experimentalInputTitle}
           description={text.experimentalInputDescription}
         />
-        <p className="experimental-warning">{text.experimentalInputWarning}</p>
-        <div className="experimental-mode-options">
-          <button
-            className={`experimental-mode-card${
-              experimentalInput.experimentalInputMode ===
-              "target-window-message"
-                ? " is-selected"
-                : ""
-            }`}
-            type="button"
-            aria-pressed={
-              experimentalInput.experimentalInputMode ===
-              "target-window-message"
-            }
-            onClick={() =>
-              experimentalInput.onExperimentalInputModeChange(
-                "target-window-message",
-              )
-            }
-          >
-            <strong>{text.experimentalTargetWindowMode}</strong>
-            <span>{text.experimentalTargetWindowModeDescription}</span>
-          </button>
-          <button
-            className={`experimental-mode-card${
-              experimentalInput.experimentalInputMode === "foreground"
-                ? " is-selected"
-                : ""
-            }`}
-            type="button"
-            aria-pressed={experimentalInput.experimentalInputMode === "foreground"}
-            onClick={() =>
-              experimentalInput.onExperimentalInputModeChange("foreground")
-            }
-          >
-            <strong>{text.experimentalForegroundMode}</strong>
-            <span>{text.experimentalForegroundModeDescription}</span>
-          </button>
-        </div>
-        <div className="experimental-input-actions">
-          <button
-            className="language-option"
-            type="button"
-            disabled={experimentalInput.isRefreshingWindows}
-            onClick={experimentalInput.onRefreshWindows}
-          >
-            {experimentalInput.isRefreshingWindows
-              ? text.experimentalInputRefreshing
-              : text.experimentalInputRefreshWindows}
-          </button>
-          <button
-            className="language-option"
-            type="button"
-            disabled={experimentalInput.isDetectingSkyWindow}
-            onClick={experimentalInput.onDetectSkyWindow}
-          >
-            {experimentalInput.isDetectingSkyWindow
-              ? text.experimentalInputDetecting
-              : text.experimentalInputDetectSkyWindow}
-          </button>
-        </div>
-        {experimentalInput.experimentalInputMode === "target-window-message" ? (
-          <>
-            <p className="experimental-setting-description">
-              {text.experimentalTargetWindowModeHelp}
-            </p>
-            <div className="setting-row">
-              <span>{text.experimentalTargetWindowMessageMethod}</span>
-              <div className="language-options">
-                {(
-                  [
-                    "post-message",
-                    "send-message",
-                  ] as TargetWindowMessageMethod[]
-                ).map((method) => (
-                  <button
-                    className={`language-option${
-                      experimentalInput.targetWindowMessageMethod === method
-                        ? " is-selected"
-                        : ""
-                    }`}
-                    key={method}
-                    type="button"
-                    aria-pressed={
-                      experimentalInput.targetWindowMessageMethod === method
-                    }
-                    onClick={() =>
-                      experimentalInput.onTargetWindowMessageMethodChange(
-                        method,
-                      )
-                    }
-                  >
-                    {text.experimentalTargetWindowMessageMethods[method]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="experimental-setting-description">
-              {text.experimentalTargetWindowMessageMethodHint}
-            </p>
-            <div className="setting-row">
-              <span>{text.experimentalTargetWindowCompatibilityProfile}</span>
-              <div className="language-options">
-                {(
-                  [
-                    "legacy-activate-scan-lparam",
-                    "grouped-legacy",
-                    "legacy-vkscan-scan-lparam",
-                    "legacy-vkscan-zero-lparam",
-                    "standard",
-                  ] as TargetWindowCompatibilityProfile[]
-                ).map((profile) => (
-                  <button
-                    className={`language-option${
-                      experimentalInput.targetWindowCompatibilityProfile ===
-                      profile
-                        ? " is-selected"
-                        : ""
-                    }`}
-                    key={profile}
-                    type="button"
-                    aria-pressed={
-                      experimentalInput.targetWindowCompatibilityProfile ===
-                      profile
-                    }
-                    onClick={() =>
-                      experimentalInput.onTargetWindowCompatibilityProfileChange(
-                        profile,
-                      )
-                    }
-                  >
-                    {text.experimentalTargetWindowCompatibilityProfiles[profile]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="experimental-setting-description">
-              {text.experimentalTargetWindowCompatibilityHint}
-            </p>
-            <div className="setting-row">
-              <span>{text.experimentalTargetWindowKeyHoldMs}</span>
-              <input
-                className="experimental-number-input"
-                type="number"
-                min={10}
-                max={200}
-                value={experimentalInput.targetWindowKeyHoldMs}
-                onChange={(event) =>
-                  experimentalInput.onTargetWindowKeyHoldMsChange(
-                    Number(event.target.value),
-                  )
-                }
-                />
-            </div>
-          </>
-        ) : null}
         <div className="setting-row">
           <span>{text.experimentalInputEnable}</span>
           <button
@@ -379,97 +216,235 @@ export function SettingsPlaceholder({
           </button>
         </div>
         <p className="experimental-setting-description">
-          {text.experimentalTargetWindowListHint}
+          {experimentalInput.experimentalInputEnabled
+            ? text.experimentalInputOnDescription
+            : text.experimentalInputOffDescription}
         </p>
-        <div className="experimental-window-list">
-          {restoredSelectedWindow !== null ? (
-            <button
-              className="experimental-window-row is-selected"
-              type="button"
-              aria-pressed
-              onClick={() =>
-                experimentalInput.onSelectedWindowChange(
-                  restoredSelectedWindow.hwnd,
-                )
-              }
-            >
-              <span className="experimental-window-title">
-                {text.experimentalSavedTargetWindowLabel}
-              </span>
-              <span className="experimental-window-meta">
-                {restoredSelectedWindow.label}
-              </span>
-              <span className="experimental-window-status">
-                {text.experimentalSavedTargetWindowMissingHint}
-              </span>
-            </button>
-          ) : null}
-          {experimentalInput.candidateWindows.length === 0 ? (
-            <p>{text.experimentalInputNoWindows}</p>
-          ) : (
-            experimentalInput.candidateWindows.map((window) => (
+        {experimentalInput.experimentalInputEnabled ? (
+          <>
+            <p className="experimental-warning">
+              {text.experimentalInputWarning}
+            </p>
+            <div className="setting-row">
+              <span>{text.experimentalPlaybackMethod}</span>
+            </div>
+            <div className="experimental-mode-options">
               <button
-                className={`experimental-window-row${
-                  experimentalInput.selectedWindowHwnd === window.hwnd
+                className={`experimental-mode-card${
+                  experimentalInput.experimentalInputMode ===
+                  "target-window-message"
                     ? " is-selected"
                     : ""
                 }`}
-                key={window.hwnd}
                 type="button"
                 aria-pressed={
-                  experimentalInput.selectedWindowHwnd === window.hwnd
+                  experimentalInput.experimentalInputMode ===
+                  "target-window-message"
                 }
                 onClick={() =>
-                  experimentalInput.onSelectedWindowChange(window.hwnd)
+                  experimentalInput.onExperimentalInputModeChange(
+                    "target-window-message",
+                  )
                 }
               >
-                <span className="experimental-window-title">
-                  {experimentalInput.selectedWindowHwnd === window.hwnd &&
-                  selectedWindowIsAvailable
-                    ? text.experimentalCurrentTargetWindowLabel
-                    : window.title || text.experimentalInputUntitledWindow}
-                </span>
-                <span className="experimental-window-meta">
-                  {experimentalInput.selectedWindowHwnd === window.hwnd &&
-                  selectedWindowIsAvailable
-                    ? `${window.title || text.experimentalInputUntitledWindow} / `
-                    : ""}
-                  {window.process_name ?? text.experimentalInputUnknownProcess}
-                  {" / "}
-                  {window.class_name || text.experimentalInputUnknownClass}
-                  {" / HWND "}
-                  {window.hwnd}
-                </span>
+                <strong>{text.experimentalTargetWindowMode}</strong>
+                <span>{text.experimentalTargetWindowModeDescription}</span>
               </button>
-            ))
-          )}
-        </div>
-        {experimentalInput.lastError !== null ? (
-          <p className="parse-error">{experimentalInput.lastError}</p>
+              <button
+                className={`experimental-mode-card${
+                  experimentalInput.experimentalInputMode === "foreground"
+                    ? " is-selected"
+                    : ""
+                }`}
+                type="button"
+                aria-pressed={
+                  experimentalInput.experimentalInputMode === "foreground"
+                }
+                onClick={() =>
+                  experimentalInput.onExperimentalInputModeChange("foreground")
+                }
+              >
+                <strong>{text.experimentalForegroundMode}</strong>
+                <span>{text.experimentalForegroundModeDescription}</span>
+              </button>
+            </div>
+            {experimentalInput.experimentalInputMode ===
+            "target-window-message" ? (
+              <>
+                <p className="experimental-setting-description">
+                  {text.experimentalTargetWindowModeHelp}
+                </p>
+                <div className="setting-row">
+                  <span>
+                    {text.experimentalTargetWindowCompatibilityProfile}
+                  </span>
+                  <div className="language-options">
+                    {(
+                      [
+                        "legacy-activate-scan-lparam",
+                        "grouped-legacy",
+                      ] as TargetWindowCompatibilityProfile[]
+                    ).map((profile) => (
+                      <button
+                        className={`language-option${
+                          experimentalInput.targetWindowCompatibilityProfile ===
+                          profile
+                            ? " is-selected"
+                            : ""
+                        }`}
+                        key={profile}
+                        type="button"
+                        aria-pressed={
+                          experimentalInput.targetWindowCompatibilityProfile ===
+                          profile
+                        }
+                        onClick={() =>
+                          experimentalInput.onTargetWindowCompatibilityProfileChange(
+                            profile,
+                          )
+                        }
+                      >
+                        {
+                          text.experimentalTargetWindowCompatibilityProfiles[
+                            profile
+                          ]
+                        }
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="experimental-setting-description">
+                  {text.experimentalTargetWindowCompatibilityHint}
+                </p>
+                <div className="experimental-input-actions">
+                  <button
+                    className="language-option"
+                    type="button"
+                    disabled={experimentalInput.isRefreshingWindows}
+                    onClick={experimentalInput.onRefreshWindows}
+                  >
+                    {experimentalInput.isRefreshingWindows
+                      ? text.experimentalInputRefreshing
+                      : text.experimentalInputRefreshWindows}
+                  </button>
+                  <button
+                    className="language-option"
+                    type="button"
+                    disabled={experimentalInput.isDetectingSkyWindow}
+                    onClick={experimentalInput.onDetectSkyWindow}
+                  >
+                    {experimentalInput.isDetectingSkyWindow
+                      ? text.experimentalInputDetecting
+                      : text.experimentalInputDetectSkyWindow}
+                  </button>
+                </div>
+                <p className="experimental-setting-description">
+                  {text.experimentalTargetWindowListHint}
+                </p>
+                <div className="experimental-window-list">
+                  {restoredSelectedWindow !== null ? (
+                    <button
+                      className="experimental-window-row is-selected"
+                      type="button"
+                      aria-pressed
+                      onClick={() =>
+                        experimentalInput.onSelectedWindowChange(
+                          restoredSelectedWindow.hwnd,
+                        )
+                      }
+                    >
+                      <span className="experimental-window-title">
+                        {text.experimentalSavedTargetWindowLabel}
+                      </span>
+                      <span className="experimental-window-meta">
+                        {restoredSelectedWindow.label}
+                      </span>
+                      <span className="experimental-window-status">
+                        {text.experimentalSavedTargetWindowMissingHint}
+                      </span>
+                    </button>
+                  ) : null}
+                  {experimentalInput.candidateWindows.length === 0 ? (
+                    <p>{text.experimentalInputNoWindows}</p>
+                  ) : (
+                    experimentalInput.candidateWindows.map((window) => (
+                      <button
+                        className={`experimental-window-row${
+                          experimentalInput.selectedWindowHwnd === window.hwnd
+                            ? " is-selected"
+                            : ""
+                        }`}
+                        key={window.hwnd}
+                        type="button"
+                        aria-pressed={
+                          experimentalInput.selectedWindowHwnd === window.hwnd
+                        }
+                        onClick={() =>
+                          experimentalInput.onSelectedWindowChange(window.hwnd)
+                        }
+                      >
+                        <span className="experimental-window-title">
+                          {experimentalInput.selectedWindowHwnd === window.hwnd &&
+                          selectedWindowIsAvailable
+                            ? text.experimentalCurrentTargetWindowLabel
+                            : window.title || text.experimentalInputUntitledWindow}
+                        </span>
+                        <span className="experimental-window-meta">
+                          {experimentalInput.selectedWindowHwnd === window.hwnd &&
+                          selectedWindowIsAvailable
+                            ? `${window.title || text.experimentalInputUntitledWindow} / `
+                            : ""}
+                          {window.process_name ??
+                            text.experimentalInputUnknownProcess}
+                          {" / "}
+                          {window.class_name ||
+                            text.experimentalInputUnknownClass}
+                          {" / HWND "}
+                          {window.hwnd}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+                <div className="experimental-playback-controls">
+                  <div className="experimental-target-summary">
+                    <span>{text.experimentalPlaybackStatusLabel}</span>
+                    <strong>
+                      {experimentalInput.isExperimentalPlaybackRunning
+                        ? text.experimentalPlaybackRunning
+                        : text.experimentalPlaybackIdle}
+                      {" / "}
+                      {experimentalPlaybackPercent}%
+                    </strong>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="experimental-setting-description">
+                  {text.experimentalForegroundModeHelp}
+                </p>
+                <div className="experimental-playback-controls">
+                  <div className="experimental-target-summary">
+                    <span>{text.experimentalForegroundStatusLabel}</span>
+                    <strong>
+                      {experimentalInput.foregroundPlaybackState ===
+                        "countdown" &&
+                      experimentalInput.foregroundCountdown !== null
+                        ? experimentalInput.foregroundCountdown
+                        : text.experimentalForegroundStates[
+                            experimentalInput.foregroundPlaybackState
+                          ]}
+                    </strong>
+                  </div>
+                </div>
+              </>
+            )}
+            {experimentalInput.lastError !== null ? (
+              <p className="parse-error">{experimentalInput.lastError}</p>
+            ) : null}
+          </>
         ) : null}
-        <div className="experimental-playback-controls">
-          <div className="experimental-target-summary">
-            <span>{text.experimentalPlaybackStatusLabel}</span>
-            <strong>
-              {experimentalInput.isExperimentalPlaybackRunning
-                ? text.experimentalPlaybackRunning
-                : text.experimentalPlaybackIdle}
-              {" / "}
-              {experimentalPlaybackPercent}%
-            </strong>
-          </div>
-          <div className="experimental-target-summary">
-            <span>{text.experimentalForegroundStatusLabel}</span>
-            <strong>
-              {experimentalInput.foregroundPlaybackState === "countdown" &&
-              experimentalInput.foregroundCountdown !== null
-                ? experimentalInput.foregroundCountdown
-                : text.experimentalForegroundStates[
-                    experimentalInput.foregroundPlaybackState
-                  ]}
-            </strong>
-          </div>
-        </div>
       </article>
 
       <article className="panel settings-panel key-mapping-panel">
