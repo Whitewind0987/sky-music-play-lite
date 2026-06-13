@@ -121,11 +121,12 @@ export function buildPlaybackOrderFromVisibleItems(
   clickedSongId: LibrarySongId,
   { usesSearch }: { usesSearch: boolean },
 ) {
+  const songIds = items.map((item) => item.librarySong.id);
+
   if (usesSearch) {
-    return [clickedSongId];
+    return songIds;
   }
 
-  const songIds = items.map((item) => item.librarySong.id);
   const clickedIndex = songIds.indexOf(clickedSongId);
 
   return clickedIndex < 0 ? songIds : songIds.slice(clickedIndex);

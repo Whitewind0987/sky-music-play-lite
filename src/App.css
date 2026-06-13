@@ -1193,10 +1193,11 @@ button {
 
 .library-song-title {
   min-width: 0;
-  display: inline-flex;
+  width: 100%;
+  display: flex;
   align-items: center;
   gap: 8px;
-  overflow: visible;
+  overflow: hidden;
   color: #111827;
   font-weight: 700;
 }
@@ -1215,8 +1216,13 @@ button {
   flex: 1 1 auto;
 }
 
-.library-row-title-actions {
+.library-row-title-actions,
+.library-selected-badge,
+.library-loading-badge {
   flex: 0 0 auto;
+}
+
+.library-row-title-actions {
   display: inline-flex;
   align-items: center;
   gap: 4px;
