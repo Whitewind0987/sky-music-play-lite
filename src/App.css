@@ -391,7 +391,7 @@ button {
   overflow: hidden;
   color: #4b5563;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -399,6 +399,7 @@ button {
 .sidebar-playlist-toggle-count {
   color: #8a97a5;
   font-size: 11px;
+  font-weight: 500;
 }
 
 .sidebar-playlist-toggle-chevron {
@@ -424,7 +425,9 @@ button {
 }
 
 .sidebar-playlist-toggle:hover .sidebar-playlist-toggle-label,
-.sidebar-playlist-toggle:focus-visible .sidebar-playlist-toggle-label {
+.sidebar-playlist-toggle:hover .sidebar-playlist-toggle-count,
+.sidebar-playlist-toggle:focus-visible .sidebar-playlist-toggle-label,
+.sidebar-playlist-toggle:focus-visible .sidebar-playlist-toggle-count {
   font-weight: 700;
 }
 

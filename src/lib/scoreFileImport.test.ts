@@ -1,3 +1,5 @@
+// @ts-expect-error Node built-ins are available in the Vitest runtime.
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   isSupportedScoreFileName,
@@ -38,6 +40,17 @@ function createRawSong(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+type BuiltInScoreIndex = {
+  entries: Array<{
+    durationMs: number;
+    fileName: string;
+    id: string;
+    noteCount: number;
+    songIndex: number;
+    title: string;
+  }>;
+};
 
 function expectImportError(content: string, code: ScoreFileImportErrorCode) {
   expect(() => parseScoreFileContent(content)).toThrow(ScoreFileImportError);
@@ -216,6 +229,76 @@ describe("parseScoreFileSongAtIndex", () => {
     );
 
     expect(song?.songNotes).toEqual([{ time: 125, key: "Key3" }]);
+  });
+
+  it("parses every indexed built-in score entry", async () => {
+    const indexUrl = new URL(
+      "../../public/builtin-scores/index.json",
+      import.meta.url,
+    );
+    const scoresDirectoryUrl = new URL(
+      "../../public/builtin-scores/scores/",
+      import.meta.url,
+    );
+    const index = JSON.parse(
+      await readFile(indexUrl, "utf8"),
+    ) as BuiltInScoreIndex;
+    const scoreFileCache = new Map<string, string>();
+    const failures: string[] = [];
+
+    for (const entry of index.entries) {
+      if (entry.noteCount <= 0) {
+        continue;
+      }
+
+      try {
+        const cachedRawScore = scoreFileCache.get(entry.fileName);
+        let rawScore: string;
+
+        if (cachedRawScore === undefined) {
+          rawScore = (await readFile(
+            new URL(encodeURIComponent(entry.fileName), scoresDirectoryUrl),
+            "utf8",
+          )) as string;
+          scoreFileCache.set(entry.fileName, rawScore);
+        } else {
+          rawScore = cachedRawScore;
+        }
+
+        const song = parseScoreFileSongAtIndex(rawScore, entry.songIndex);
+        const entryLabel = `${entry.title} / ${entry.id} / ${entry.fileName} / songIndex ${entry.songIndex}`;
+
+        if (song === null) {
+          failures.push(`${entryLabel}: returned null`);
+          continue;
+        }
+
+        if (song.songNotes.length === 0) {
+          failures.push(
+            `${entryLabel}: parsed 0 notes, index noteCount ${entry.noteCount}`,
+          );
+          continue;
+        }
+
+        if (song.songNotes.length !== entry.noteCount) {
+          failures.push(
+            `${entryLabel}: parsed ${song.songNotes.length} notes, index noteCount ${entry.noteCount}`,
+          );
+        }
+      } catch (error) {
+        const entryLabel = `${entry.title} / ${entry.id} / ${entry.fileName} / songIndex ${entry.songIndex}`;
+
+        if (error instanceof ScoreFileImportError) {
+          failures.push(
+            `${entryLabel}: ${error.code} ${JSON.stringify(error.details)}`,
+          );
+        } else {
+          failures.push(`${entryLabel}: ${String(error)}`);
+        }
+      }
+    }
+
+    expect(failures.slice(0, 30)).toEqual([]);
   });
 });
 

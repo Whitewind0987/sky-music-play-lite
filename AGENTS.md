@@ -49,6 +49,9 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Do not block IME composition events.
 - Search input and other text inputs must support Chinese IME correctly.
 - Drag-and-drop score import must reuse `handleImportScoreFiles`; do not duplicate parsing, decryption, or import logic in drag handlers, and do not add recursive directory import unless explicitly requested.
+- Built-in score parser changes must stay compatible with the index generator and must run a regression test that parses every entry in `public/builtin-scores/index.json` against its source file.
+- Built-in lazy loading must parse only the indexed song entry, and the runtime parser must accept the same legacy compatibility cases as the index generator.
+- Failed built-in score loads must remain retryable; do not permanently cache transient fetch or parse failures.
 - Locate-current-score behavior must use `librarySong.id`, not only an array index.
 - Trigger library DOM scrolling through explicit locate requests, not on every selection change; import auto-scroll must reuse the same locate request mechanism.
 - The library's main scroll container is `.app-layout`, not `window`.
@@ -67,6 +70,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Only existing user-created playlists may appear in the sidebar; do not fake collected or subscribed playlist data.
 - Keep the native sidebar scrollbar hidden; show a visual-only custom thumb on hover only when the sidebar is scrollable, with a permanently reserved gutter so content does not shift.
 - Sidebar category and playlist names must use ellipsis when they overflow.
+- The created-playlist header title and count use matching default and hover/focus weights; playlist row names must not become bold merely from hover.
 - Do not set Tauri `security.csp` back to null; CSP changes must be tested in dev and avoid broad wildcards unless justified by a concrete violation.
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
 - Do not reintroduce frontend target-window activation preflight. `legacy-activate-scan-lparam` is an explicit compatibility profile that may send `WM_ACTIVATE` window messages, but it must never call `SetForegroundWindow`; non-activating profiles must remain available.

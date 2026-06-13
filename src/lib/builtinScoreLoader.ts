@@ -17,6 +17,21 @@ export function loadBuiltInScoreById(scoreId: string): Promise<Song | null> {
   const loadingScore = loadBuiltInScore(scoreId);
 
   builtInScoreCache.set(scoreId, loadingScore);
+
+  // Cache successful loads, but let transient fetch or parse failures retry.
+  void loadingScore.then(
+    (song) => {
+      if (song === null && builtInScoreCache.get(scoreId) === loadingScore) {
+        builtInScoreCache.delete(scoreId);
+      }
+    },
+    () => {
+      if (builtInScoreCache.get(scoreId) === loadingScore) {
+        builtInScoreCache.delete(scoreId);
+      }
+    },
+  );
+
   return loadingScore;
 }
 
