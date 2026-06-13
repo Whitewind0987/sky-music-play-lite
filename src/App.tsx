@@ -439,6 +439,7 @@ function App() {
           hasSearchQuery={scoreLibrary.hasSearchQuery}
           items={scoreLibrary.pagedVisibleLibraryItems}
           localImportCount={scoreLibrary.localLibrarySongs.length}
+          locateScoreRequest={scoreLibrary.locateScoreRequest}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
@@ -447,6 +448,7 @@ function App() {
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
+          onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
           onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}

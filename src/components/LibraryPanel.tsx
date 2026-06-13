@@ -7,11 +7,13 @@ import {
   MoreHorizontal,
   Play,
   Plus,
+  LocateFixed,
   SkipForward,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
+import type { LocateScoreRequest } from "../hooks/useScoreLibrary";
 import type { UiText } from "../i18n/uiText";
 import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
 import type {
@@ -37,6 +39,7 @@ type LibraryPanelProps = {
   importError: string;
   items: LibrarySongListItem[];
   localImportCount: number;
+  locateScoreRequest: LocateScoreRequest | null;
   onAddSongToPlaylist: (
     playlistId: string,
     songIndex: number,
@@ -51,6 +54,7 @@ type LibraryPanelProps = {
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLibraryCategoryChange: (category: LibraryCategoryId) => void;
+  onLocateSelectedSong: () => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
   onPlaylistSelect: (playlistId: string) => void;
@@ -97,6 +101,16 @@ function LibraryRowPlayIcon() {
   return (
     <Play
       className="library-row-play-icon"
+      aria-hidden="true"
+      focusable="false"
+    />
+  );
+}
+
+function LibraryLocateIcon() {
+  return (
+    <LocateFixed
+      className="library-locate-floating-icon"
       aria-hidden="true"
       focusable="false"
     />
@@ -596,6 +610,7 @@ function LibraryActionMenu({
 
 function LibrarySongTable({
   items,
+  locateScoreRequest,
   onAddToQueue,
   onCloseActionMenu,
   onDeleteLocalSong,
@@ -618,6 +633,7 @@ function LibrarySongTable({
 }: Pick<
   LibraryPanelProps,
   | "items"
+  | "locateScoreRequest"
   | "onAddToQueue"
   | "onDeleteLocalSong"
   | "onPlaySong"
@@ -639,6 +655,48 @@ function LibrarySongTable({
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   openActionMenuSongId: LibrarySongId | null;
 }) {
+  const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
+  const handledLocateRequestIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (
+      !locateScoreRequest ||
+      handledLocateRequestIdRef.current === locateScoreRequest.requestId
+    ) {
+      return;
+    }
+
+    let flashTimeout: number | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const targetRow = rowRefs.current.get(locateScoreRequest.songId);
+
+      if (!targetRow) {
+        return;
+      }
+
+      handledLocateRequestIdRef.current = locateScoreRequest.requestId;
+      targetRow.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "center",
+      });
+      targetRow.classList.remove("is-locate-flash");
+      void targetRow.offsetWidth;
+      targetRow.classList.add("is-locate-flash");
+      flashTimeout = window.setTimeout(() => {
+        targetRow.classList.remove("is-locate-flash");
+      }, 900);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (flashTimeout !== undefined) {
+        window.clearTimeout(flashTimeout);
+      }
+    };
+  }, [items, locateScoreRequest]);
+
   if (items.length === 0) {
     return (
       <div className="library-empty">
@@ -680,6 +738,13 @@ function LibrarySongTable({
                 openActionMenuSongId === librarySong.id ? " has-open-menu" : ""
               }`}
               key={librarySong.id}
+              ref={(node) => {
+                if (node) {
+                  rowRefs.current.set(librarySong.id, node);
+                } else {
+                  rowRefs.current.delete(librarySong.id);
+                }
+              }}
               role="button"
               tabIndex={0}
               onClick={() => onSelectSong(songIndex)}
@@ -853,6 +918,7 @@ export function LibraryPanel({
   importError,
   items,
   localImportCount,
+  locateScoreRequest,
   onAddSongToPlaylist,
   onAddToQueue,
   onCreatePlaylistWithSong,
@@ -861,6 +927,7 @@ export function LibraryPanel({
   onDeletePlaylist,
   onImportFiles,
   onLibraryCategoryChange,
+  onLocateSelectedSong,
   onPlaySong,
   onPlaySongNext,
   onPlaylistSelect,
@@ -879,6 +946,8 @@ export function LibraryPanel({
   isBuiltInSongLoading,
   text,
 }: LibraryPanelProps) {
+  const panelRef = useRef<HTMLElement | null>(null);
+  const [showLocateButton, setShowLocateButton] = useState(false);
   const [collectingSongItem, setCollectingSongItem] =
     useState<LibrarySongListItem | null>(null);
   const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
@@ -914,8 +983,33 @@ export function LibraryPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    const scrollContainer = panelRef.current?.closest(".app-layout");
+
+    if (!(scrollContainer instanceof HTMLElement)) {
+      return;
+    }
+    const scrollElement = scrollContainer;
+
+    function updateLocateButtonVisibility() {
+      setShowLocateButton(scrollElement.scrollTop > 120);
+    }
+
+    updateLocateButtonVisibility();
+    scrollElement.addEventListener("scroll", updateLocateButtonVisibility, {
+      passive: true,
+    });
+
+    return () => {
+      scrollElement.removeEventListener(
+        "scroll",
+        updateLocateButtonVisibility,
+      );
+    };
+  }, []);
+
   return (
-    <section className="library-panel" aria-label={text.aria}>
+    <section ref={panelRef} className="library-panel" aria-label={text.aria}>
       <LibraryCategoryTabs
         localImportCount={localImportCount}
         onLibraryCategoryChange={onLibraryCategoryChange}
@@ -1008,6 +1102,7 @@ export function LibraryPanel({
             emptyDescription={listEmptyState.description}
             emptyTitle={listEmptyState.title}
             items={items}
+            locateScoreRequest={locateScoreRequest}
             isBuiltInSongLoading={isBuiltInSongLoading}
             onAddToQueue={onAddToQueue}
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
@@ -1071,6 +1166,17 @@ export function LibraryPanel({
           </div>
         ) : null}
       </div>
+      {showLocateButton && selectedSongIndex !== null ? (
+        <button
+          className="library-locate-floating-button"
+          type="button"
+          aria-label={text.locateCurrentScore}
+          title={text.locateCurrentScore}
+          onClick={onLocateSelectedSong}
+        >
+          <LibraryLocateIcon />
+        </button>
+      ) : null}
       {collectingSongItem ? (
         <AddToPlaylistPopup
           item={collectingSongItem}
