@@ -19,6 +19,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  type ReactNode,
 } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
@@ -61,6 +62,12 @@ type SidebarNavButtonProps = {
   section: AppSection;
 };
 
+type SidebarRippleButtonProps = {
+  children: ReactNode;
+  className: string;
+  onClick: () => void;
+};
+
 type SidebarCategoryButtonProps = {
   Icon: LucideIcon;
   isActive: boolean;
@@ -68,36 +75,11 @@ type SidebarCategoryButtonProps = {
   onClick: () => void;
 };
 
-function SidebarCategoryButton({
-  Icon,
-  isActive,
-  label,
+function SidebarRippleButton({
+  children,
+  className,
   onClick,
-}: SidebarCategoryButtonProps) {
-  return (
-    <button
-      className={`sidebar-category-item${isActive ? " is-active" : ""}`}
-      type="button"
-      onClick={onClick}
-    >
-      <Icon
-        className="sidebar-category-icon"
-        aria-hidden="true"
-        focusable="false"
-      />
-      <span className="sidebar-category-label">{label}</span>
-    </button>
-  );
-}
-
-function SidebarNavButton({
-  Icon,
-  isActive,
-  isCompact = false,
-  label,
-  onClick,
-  section,
-}: SidebarNavButtonProps) {
+}: SidebarRippleButtonProps) {
   const [ripple, setRipple] = useState<RippleState | null>(null);
   const [isPressing, setIsPressing] = useState(false);
   const cleanupTimerRef = useRef<number | null>(null);
@@ -218,11 +200,7 @@ function SidebarNavButton({
 
   return (
     <button
-      className={`sidebar-link${isCompact ? " is-compact" : ""}${
-        isActive ? " is-active" : ""
-      }${
-        isPressing ? " is-pressing" : ""
-      }`}
+      className={`${className}${isPressing ? " is-pressing" : ""}`}
       type="button"
       onBlur={releaseRipple}
       onClick={onClick}
@@ -233,14 +211,7 @@ function SidebarNavButton({
       onPointerLeave={releaseRipple}
       onPointerUp={releaseRipple}
     >
-      <span className="sidebar-link-content">
-        <Icon
-          className={`sidebar-icon sidebar-icon-${section.toLowerCase()}`}
-          aria-hidden="true"
-          focusable="false"
-        />
-        <span>{label}</span>
-      </span>
+      {children}
       <span className="sidebar-ripple-layer" aria-hidden="true">
         {ripple ? (
           <span
@@ -257,6 +228,56 @@ function SidebarNavButton({
         ) : null}
       </span>
     </button>
+  );
+}
+
+function SidebarCategoryButton({
+  Icon,
+  isActive,
+  label,
+  onClick,
+}: SidebarCategoryButtonProps) {
+  return (
+    <SidebarRippleButton
+      className={`sidebar-category-item${isActive ? " is-active" : ""}`}
+      onClick={onClick}
+    >
+      <span className="sidebar-category-item-content">
+        <Icon
+          className="sidebar-category-icon"
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span className="sidebar-category-label">{label}</span>
+      </span>
+    </SidebarRippleButton>
+  );
+}
+
+function SidebarNavButton({
+  Icon,
+  isActive,
+  isCompact = false,
+  label,
+  onClick,
+  section,
+}: SidebarNavButtonProps) {
+  return (
+    <SidebarRippleButton
+      className={`sidebar-link${isCompact ? " is-compact" : ""}${
+        isActive ? " is-active" : ""
+      }`}
+      onClick={onClick}
+    >
+      <span className="sidebar-link-content">
+        <Icon
+          className={`sidebar-icon sidebar-icon-${section.toLowerCase()}`}
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span>{label}</span>
+      </span>
+    </SidebarRippleButton>
   );
 }
 
@@ -422,23 +443,24 @@ export function AppSidebar({
                     selectedPlaylistId === playlist.id;
 
                   return (
-                    <button
+                    <SidebarRippleButton
                       className={`sidebar-playlist-item${
                         isActive ? " is-active" : ""
                       }`}
                       key={playlist.id}
-                      type="button"
                       onClick={() => onPlaylistSelect(playlist.id)}
                     >
-                      <ListMusic
-                        className="sidebar-playlist-icon"
-                        aria-hidden="true"
-                        focusable="false"
-                      />
-                      <span className="sidebar-playlist-name">
-                        {playlist.name}
+                      <span className="sidebar-playlist-item-content">
+                        <ListMusic
+                          className="sidebar-playlist-icon"
+                          aria-hidden="true"
+                          focusable="false"
+                        />
+                        <span className="sidebar-playlist-name">
+                          {playlist.name}
+                        </span>
                       </span>
-                    </button>
+                    </SidebarRippleButton>
                   );
                 })}
               </div>

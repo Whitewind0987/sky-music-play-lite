@@ -219,12 +219,32 @@ button {
 .sidebar-scroll-area::-webkit-scrollbar {
   width: 0;
   height: 0;
+  background: transparent;
 }
 
-.sidebar-scroll-area::-webkit-scrollbar-button {
+.sidebar-scroll-area::-webkit-scrollbar-track,
+.sidebar-scroll-area::-webkit-scrollbar-thumb,
+.sidebar-scroll-area::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar-button,
+.sidebar-scroll-area::-webkit-scrollbar-button:single-button,
+.sidebar-scroll-area::-webkit-scrollbar-button:vertical,
+.sidebar-scroll-area::-webkit-scrollbar-button:vertical:start,
+.sidebar-scroll-area::-webkit-scrollbar-button:vertical:end,
+.sidebar-scroll-area::-webkit-scrollbar-button:vertical:decrement,
+.sidebar-scroll-area::-webkit-scrollbar-button:vertical:increment,
+.sidebar-scroll-area::-webkit-scrollbar-button:horizontal,
+.sidebar-scroll-area::-webkit-scrollbar-button:horizontal:start,
+.sidebar-scroll-area::-webkit-scrollbar-button:horizontal:end,
+.sidebar-scroll-area::-webkit-scrollbar-button:horizontal:decrement,
+.sidebar-scroll-area::-webkit-scrollbar-button:horizontal:increment {
   display: none;
   width: 0;
   height: 0;
+  background: transparent;
+  -webkit-appearance: none;
 }
 
 .sidebar-scroll-area.is-scrollable:hover {
@@ -235,6 +255,7 @@ button {
 .sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar {
   width: 6px;
   height: 6px;
+  background: transparent;
 }
 
 .sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-thumb {
@@ -250,10 +271,23 @@ button {
   background: transparent;
 }
 
-.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button {
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:single-button,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:start,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:end,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:decrement,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:vertical:increment,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:start,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:end,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:decrement,
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button:horizontal:increment {
   display: none;
   width: 0;
   height: 0;
+  background: transparent;
+  -webkit-appearance: none;
 }
 
 .sidebar-section {
@@ -270,13 +304,13 @@ button {
 }
 
 .sidebar-category-item {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-width: 0;
   min-height: 36px;
   width: 100%;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  display: block;
   padding: 0 10px;
   border: 0;
   border-radius: 7px;
@@ -284,6 +318,17 @@ button {
   background: transparent;
   cursor: pointer;
   text-align: left;
+}
+
+.sidebar-category-item-content {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
 }
 
 .sidebar-category-item:hover,
@@ -354,7 +399,7 @@ button {
   min-width: 0;
   overflow: hidden;
   color: #4b5563;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -362,7 +407,7 @@ button {
 
 .sidebar-playlist-toggle-count {
   color: #8a97a5;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .sidebar-playlist-toggle-chevron {
@@ -400,15 +445,28 @@ button {
 }
 
 .sidebar-playlist-item {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 36px;
+  width: 100%;
+  display: block;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.sidebar-playlist-item-content {
+  position: relative;
+  z-index: 2;
   min-width: 0;
   min-height: 36px;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
-  border-radius: 7px;
-  text-align: left;
 }
 
 .sidebar-playlist-item:hover,
@@ -437,8 +495,15 @@ button {
 .sidebar-playlist-name {
   min-width: 0;
   overflow: hidden;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar-playlist-item:hover .sidebar-playlist-name,
+.sidebar-playlist-item:focus-visible .sidebar-playlist-name,
+.sidebar-playlist-item.is-active .sidebar-playlist-name {
+  font-weight: 700;
 }
 
 .sidebar-playlist-empty {
@@ -3054,9 +3119,7 @@ button {
 }
 
 .bottom-player-title {
-  flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
   overflow: hidden;
   color: #111827;
   font-size: 16px;
@@ -3070,7 +3133,6 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow: hidden;
 }
 
 .bottom-player-output-badge,
@@ -3218,21 +3280,22 @@ button {
   cursor: not-allowed;
 }
 
-.queue-panel-song strong,
-.queue-panel-song span {
+.queue-panel-song-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+}
+
+.queue-panel-song-name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.queue-panel-song strong {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-  color: #111827;
-  font-size: 13px;
 }
 
 .queue-current-badge {
@@ -3249,9 +3312,13 @@ button {
   white-space: nowrap;
 }
 
-.queue-panel-song span {
+.queue-panel-song-meta {
+  min-width: 0;
+  overflow: hidden;
   color: #52616f;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .queue-panel-remove {

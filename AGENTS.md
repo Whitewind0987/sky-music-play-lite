@@ -56,7 +56,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Long library titles must truncate before they push selected/loading badges or row actions out of view.
 - A NetEase-style sidebar may be used only as a layout reference; do not clone or add unrelated product sections.
 - Keep the sidebar brand fixed and scroll only navigation plus existing user-created playlists; do not fake collected or subscribed playlist data.
-- Sidebar playlist names and the bottom-player current title must truncate before pushing adjacent controls or badges out of view.
+- Sidebar playlist names and queue song titles must truncate before pushing adjacent controls, badges, or remove buttons out of view.
 - The locate-current-score button must not overlap the queue panel and should hide after scroll inactivity.
 - The bottom player primary play/pause button remains the visual anchor; use the stop button as the reference size for secondary controls.
 - Do not change playback, queue, experimental input, or score import logic during UI-only stages.
