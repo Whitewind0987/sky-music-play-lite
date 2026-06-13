@@ -19,6 +19,32 @@ export function createLibrarySong(song: Song, now = Date.now()): LibrarySong {
   };
 }
 
+export function getSongFingerprint(song: Song) {
+  return hashString(
+    JSON.stringify({
+      bpm: song.bpm,
+      bitsPerPage: song.bitsPerPage,
+      isComposed: song.isComposed,
+      name: song.name.trim().toLocaleLowerCase(),
+      noteCount: song.songNotes.length,
+      notes: song.songNotes.map((note) => `${note.time}:${note.key}`),
+      pitchLevel: song.pitchLevel,
+    }),
+  );
+}
+
+export function getLibrarySongFingerprint(librarySong: LibrarySong) {
+  return getSongFingerprint(librarySong.song);
+}
+
+export function hasReliableDuplicateFingerprint(librarySong: LibrarySong) {
+  if (librarySong.source === "local-import") {
+    return librarySong.song.songNotes.length > 0;
+  }
+
+  return librarySong.isBuiltInLoaded === true && librarySong.song.songNotes.length > 0;
+}
+
 export function ensureLibrarySongs(rawSongs: Song[]): LibrarySong[] {
   return rawSongs.map((song, index) => ({
     id: `legacy-${index}-${hashSong(song)}`,
@@ -137,6 +163,11 @@ function hashSong(song: Song) {
     noteCount: song.songNotes.length,
     pitchLevel: song.pitchLevel,
   });
+
+  return hashString(source);
+}
+
+function hashString(source: string) {
   let hash = 0;
 
   for (let index = 0; index < source.length; index += 1) {

@@ -13,7 +13,7 @@ export type BuiltInScoreIndexEntry = {
   title: string;
 };
 
-type BuiltInScoreIndex = {
+export type BuiltInScoreIndex = {
   entries: BuiltInScoreIndexEntry[];
   generatedAt: string;
   sourceName: string;
@@ -67,7 +67,7 @@ async function fetchBuiltInScoreIndex(): Promise<BuiltInScoreIndex> {
   }
 }
 
-function sanitizeBuiltInScoreIndex(rawIndex: unknown): BuiltInScoreIndex {
+export function sanitizeBuiltInScoreIndex(rawIndex: unknown): BuiltInScoreIndex {
   if (!isRecord(rawIndex) || !Array.isArray(rawIndex.entries)) {
     return {
       entries: [],
@@ -111,7 +111,7 @@ function sanitizeBuiltInScoreIndexEntry(
     typeof rawEntry.id !== "string" ||
     typeof rawEntry.title !== "string" ||
     typeof rawEntry.fileName !== "string" ||
-    !/^[a-z0-9_-]+\.(txt|json)$/.test(rawEntry.fileName) ||
+    !isSafeBuiltInScoreFileName(rawEntry.fileName) ||
     typeof rawEntry.bpm !== "number" ||
     typeof rawEntry.bitsPerPage !== "number" ||
     typeof rawEntry.durationMs !== "number" ||
@@ -135,6 +135,10 @@ function sanitizeBuiltInScoreIndexEntry(
     songIndex: rawEntry.songIndex,
     title: rawEntry.title,
   };
+}
+
+export function isSafeBuiltInScoreFileName(fileName: string) {
+  return /^[a-z0-9_-]+\.(txt|json)$/i.test(fileName);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

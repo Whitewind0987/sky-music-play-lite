@@ -21,6 +21,9 @@ import {
   createLibrarySong,
   createPlaylist,
   filterSongsByQuery,
+  getLibrarySongFingerprint,
+  getSongFingerprint,
+  hasReliableDuplicateFingerprint,
   isSongLiked,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
@@ -32,6 +35,7 @@ import {
 } from "../lib/scoreFileImport";
 import type { PersistedAppData } from "../types/appData";
 import type {
+  AddSongToPlaylistResult,
   LibrarySong,
   LibrarySongId,
   LikedSongEntry,
@@ -42,7 +46,17 @@ import type { Song } from "../types/score";
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
   onBeforeLibraryMutation: () => void;
+  showNotice?: (message: string) => void;
   text: UiText;
+};
+
+type DeleteLocalSongOptions = {
+  stopPlaybackBeforeDelete?: boolean;
+};
+
+export type LocateScoreRequest = {
+  requestId: number;
+  songId: LibrarySongId;
 };
 
 const BUILT_IN_PAGE_SIZE = 100;
@@ -50,6 +64,7 @@ const BUILT_IN_PAGE_SIZE = 100;
 export function useScoreLibrary({
   appendLog,
   onBeforeLibraryMutation,
+  showNotice,
   text,
 }: UseScoreLibraryOptions) {
   const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<LibrarySong[]>([]);
@@ -73,6 +88,11 @@ export function useScoreLibrary({
   const [selectedSongId, setSelectedSongId] = useState<LibrarySongId | null>(
     null,
   );
+  const [playbackSongId, setPlaybackSongId] = useState<LibrarySongId | null>(
+  null,
+  );
+  const [locateScoreRequest, setLocateScoreRequest] =
+    useState<LocateScoreRequest | null>(null);
   const [selectedLibraryCategory, setSelectedLibraryCategory] =
     useState<LibraryCategoryId>("local-imports");
   const librarySongs = useMemo(
@@ -90,13 +110,29 @@ export function useScoreLibrary({
 
     return index >= 0 ? index : null;
   }, [librarySongs, selectedSongId]);
+  const playbackSongIndex = useMemo(() => {
+  if (playbackSongId === null) {
+    return null;
+  }
+
+  const index = librarySongs.findIndex(
+    (librarySong) => librarySong.id === playbackSongId,
+  );
+
+  return index >= 0 ? index : null;
+  }, [librarySongs, playbackSongId]);
   const importedSongs = useMemo(
     () => librarySongs.map((librarySong) => librarySong.song),
     [librarySongs],
   );
   const currentSelectedSong =
     selectedSongIndex === null ? null : importedSongs[selectedSongIndex] ?? null;
-  const selectedPlaylist =
+  const currentPlaybackSong =
+  playbackSongIndex === null ? null : importedSongs[playbackSongIndex] ?? null;
+
+  const currentPlaybackLibrarySong =
+  playbackSongIndex === null ? null : librarySongs[playbackSongIndex] ?? null;
+    const selectedPlaylist =
     selectedPlaylistId === null
       ? null
       : playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? null;
@@ -236,10 +272,6 @@ export function useScoreLibrary({
   }, []);
 
   useEffect(() => {
-    setBuiltInPage(1);
-  }, [searchQuery, selectedLibraryCategory]);
-
-  useEffect(() => {
     importedSongsRef.current = importedSongs;
   }, [importedSongs]);
 
@@ -280,29 +312,84 @@ export function useScoreLibrary({
     }
 
     if (importedSongsFromFiles.length > 0) {
-      const shouldSelectFirstImportedSong = selectedSongId === null;
-      const nextLocalLibrarySongs = importedSongsFromFiles.map((song) =>
-        createLibrarySong(song),
+      const existingSongFingerprints = new Set(
+        librarySongsRef.current
+          .filter(hasReliableDuplicateFingerprint)
+          .map(getLibrarySongFingerprint),
       );
+      const uniqueImportedSongs: Song[] = [];
+      const skippedDuplicateSongs: Song[] = [];
 
-      setLocalLibrarySongs((currentSongs) => {
-        const nextSongs = [...currentSongs, ...nextLocalLibrarySongs];
+      importedSongsFromFiles.forEach((song) => {
+        const fingerprint = getSongFingerprint(song);
 
-        localLibrarySongsRef.current = nextSongs;
-        return nextSongs;
+        if (
+          song.songNotes.length > 0 &&
+          existingSongFingerprints.has(fingerprint)
+        ) {
+          skippedDuplicateSongs.push(song);
+          return;
+        }
+
+        uniqueImportedSongs.push(song);
+        if (song.songNotes.length > 0) {
+          existingSongFingerprints.add(fingerprint);
+        }
       });
 
-      if (shouldSelectFirstImportedSong) {
-        setSelectedSongId(nextLocalLibrarySongs[0]?.id ?? null);
+      skippedDuplicateSongs.forEach((song) => {
+        appendLog(
+          formatText(text.logs.duplicateImportSkipped, {
+            songName: song.name,
+          }),
+        );
+      });
+
+      if (skippedDuplicateSongs.length > 0) {
+        const skippedMessage =
+          skippedDuplicateSongs.length === 1
+            ? formatText(text.logs.duplicateImportSkipped, {
+                songName: skippedDuplicateSongs[0]?.name ?? "",
+              })
+            : formatText(text.logs.duplicateImportSkippedSummary, {
+                count: skippedDuplicateSongs.length,
+              });
+
+        showNotice?.(skippedMessage);
       }
 
-      setImportError("");
-      appendLog(
-        formatText(text.logs.importedScoresFromFiles, {
-          count: importedSongsFromFiles.length,
-          fileCount: successfulFileCount,
-        }),
-      );
+      if (uniqueImportedSongs.length === 0) {
+        if (failedImports.length === 0) {
+          setImportError("");
+        }
+      } else {
+        const nextLocalLibrarySongs = uniqueImportedSongs.map((song) =>
+          createLibrarySong(song),
+        );
+        const firstImportedLibrarySong = nextLocalLibrarySongs[0];
+
+        setLocalLibrarySongs((currentSongs) => {
+          const nextSongs = [...currentSongs, ...nextLocalLibrarySongs];
+
+          localLibrarySongsRef.current = nextSongs;
+          return nextSongs;
+        });
+
+        if (firstImportedLibrarySong) {
+          setSelectedSongId(firstImportedLibrarySong.id);
+          setSelectedLibraryCategory("local-imports");
+          setSearchQuery("");
+          requestLocateSong(firstImportedLibrarySong.id);
+        }
+
+        setImportError("");
+        appendLog(
+          formatText(text.logs.importedScoresFromFiles, {
+            count: uniqueImportedSongs.length,
+            fileCount: successfulFileCount,
+          }),
+        );
+      }
     }
 
     if (failedImports.length > 0) {
@@ -320,7 +407,6 @@ export function useScoreLibrary({
   }
 
   function handleSelectImportedSong(songIndex: number | null) {
-    onBeforeLibraryMutation();
     selectSongByIndex(songIndex);
 
     if (songIndex !== null) {
@@ -340,10 +426,18 @@ export function useScoreLibrary({
   function setSelectedSongIndex(songIndex: number | null) {
     selectSongByIndex(songIndex);
   }
+  function setPlaybackSongIndex(songIndex: number | null) {
+  if (songIndex === null) {
+    setPlaybackSongId(null);
+    return;
+  }
 
+  setPlaybackSongId(librarySongsRef.current[songIndex]?.id ?? null);
+  }
   function handleLibraryCategoryChange(category: LibraryCategoryId) {
     startTransition(() => {
       setSelectedLibraryCategory(category);
+      setBuiltInPage(1);
 
       if (category === "playlists" && selectedPlaylistId === null) {
         setSelectedPlaylistId(playlists[0]?.id ?? null);
@@ -353,6 +447,47 @@ export function useScoreLibrary({
 
   function handleSearchQueryChange(query: string) {
     setSearchQuery(query);
+    setBuiltInPage(1);
+  }
+
+  function requestLocateSong(songId: LibrarySongId) {
+    setLocateScoreRequest((currentRequest) => ({
+      requestId: (currentRequest?.requestId ?? 0) + 1,
+      songId,
+    }));
+  }
+
+  function handleLocateSelectedSong() {
+    if (selectedSongId === null) {
+      return;
+    }
+
+    const selectedLibrarySong = librarySongsRef.current.find(
+      (librarySong) => librarySong.id === selectedSongId,
+    );
+
+    if (!selectedLibrarySong) {
+      return;
+    }
+
+    setSearchQuery("");
+
+    if (selectedLibrarySong.source === "built-in") {
+      const builtInIndex = librarySongsRef.current
+        .filter((librarySong) => librarySong.source === "built-in")
+        .findIndex((librarySong) => librarySong.id === selectedLibrarySong.id);
+
+      setSelectedLibraryCategory("built-in");
+      setBuiltInPage(
+        builtInIndex >= 0
+          ? Math.floor(builtInIndex / BUILT_IN_PAGE_SIZE) + 1
+          : 1,
+      );
+    } else {
+      setSelectedLibraryCategory("local-imports");
+    }
+
+    requestLocateSong(selectedLibrarySong.id);
   }
 
   function handleToggleLikedSong(songIndex: number) {
@@ -385,18 +520,12 @@ export function useScoreLibrary({
     setSelectedLibraryCategory("playlists");
   }
 
-  function handleRenamePlaylist(playlistId: string) {
+  function handleRenamePlaylist(playlistId: string, nextName: string) {
     const playlist = playlists.find(
       (currentPlaylist) => currentPlaylist.id === playlistId,
     );
 
     if (!playlist) {
-      return;
-    }
-
-    const nextName = window.prompt(text.library.renamePlaylistPrompt, playlist.name);
-
-    if (nextName === null) {
       return;
     }
 
@@ -422,16 +551,6 @@ export function useScoreLibrary({
       return;
     }
 
-    if (
-      !window.confirm(
-        formatText(text.library.deletePlaylistConfirm, {
-          playlistName: playlist.name,
-        }),
-      )
-    ) {
-      return;
-    }
-
     setPlaylists((currentPlaylists) => {
       const deletedPlaylistIndex = currentPlaylists.findIndex(
         (currentPlaylist) => currentPlaylist.id === playlistId,
@@ -451,23 +570,27 @@ export function useScoreLibrary({
     });
   }
 
-  function handleAddSongToPlaylist(playlistId: string, songIndex: number) {
+  function handleAddSongToPlaylist(
+    playlistId: string,
+    songIndex: number,
+  ): AddSongToPlaylistResult {
     const librarySong = librarySongsRef.current[songIndex];
     const playlist = playlists.find(
       (currentPlaylist) => currentPlaylist.id === playlistId,
     );
 
     if (!librarySong || !playlist) {
-      return;
+      return { status: "missing" };
     }
 
     if (playlist.songIds.includes(librarySong.id)) {
-      appendLog(
-        formatText(text.logs.playlistSongAlreadyExists, {
-          songName: librarySong.song.name,
-        }),
-      );
-      return;
+      const message = formatText(text.logs.playlistSongAlreadyExists, {
+        songName: librarySong.song.name,
+      });
+
+      appendLog(message);
+      showNotice?.(message);
+      return { message, status: "duplicate" };
     }
 
     setPlaylists((currentPlaylists) =>
@@ -477,6 +600,8 @@ export function useScoreLibrary({
           : currentPlaylist,
       ),
     );
+
+    return { status: "added" };
   }
 
   function handleCreatePlaylistWithSong(
@@ -515,6 +640,7 @@ export function useScoreLibrary({
   function handleDeleteLocalSong(
     songIndex: number,
     onDeleted?: (deletedSongIndex: number, deletedSongId: LibrarySongId) => void,
+    options: DeleteLocalSongOptions = {},
   ) {
     const librarySong = librarySongsRef.current[songIndex];
 
@@ -522,17 +648,10 @@ export function useScoreLibrary({
       return;
     }
 
-    if (
-      !window.confirm(
-        formatText(text.library.deleteLocalSongConfirm, {
-          songName: librarySong.song.name,
-        }),
-      )
-    ) {
-      return;
+    if (options.stopPlaybackBeforeDelete === true) {
+      onBeforeLibraryMutation();
     }
 
-    onBeforeLibraryMutation();
     onDeleted?.(songIndex, librarySong.id);
 
     const removedCollections = removeSongFromAllCollections({
@@ -552,6 +671,9 @@ export function useScoreLibrary({
     });
     if (selectedSongId === librarySong.id) {
       setSelectedSongId(null);
+    }
+    if (playbackSongId === librarySong.id) {
+      setPlaybackSongId(null);
     }
   }
 
@@ -575,6 +697,7 @@ export function useScoreLibrary({
     setPlaylists(library.playlists);
     setSelectedPlaylistId(nextSelectedPlaylistId);
     setSelectedLibraryCategory(library.selectedLibraryCategory);
+    setBuiltInPage(1);
     setSelectedSongId(nextSelectedSongId);
     setImportError("");
     setSearchQuery("");
@@ -680,6 +803,7 @@ export function useScoreLibrary({
     handleDeletePlaylist,
     handleImportScoreFiles,
     handleLibraryCategoryChange,
+    handleLocateSelectedSong,
     handleRemoveFromLiked,
     handleRemoveSongFromPlaylist,
     handleRenamePlaylist,
@@ -695,6 +819,7 @@ export function useScoreLibrary({
     librarySongs,
     likedSongs,
     localLibrarySongs,
+    locateScoreRequest,
     pagedVisibleLibraryItems,
     persistedSelectedSongIndex,
     playlists,
@@ -713,5 +838,10 @@ export function useScoreLibrary({
     setSelectedSongIndex,
     validCollectionSongIds,
     visibleLibraryItems,
+    currentPlaybackLibrarySong,
+    currentPlaybackSong,
+    playbackSongIndex,
+    setPlaybackSongId,
+    setPlaybackSongIndex,
   };
 }

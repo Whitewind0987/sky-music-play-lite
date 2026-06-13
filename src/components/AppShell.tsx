@@ -1,29 +1,38 @@
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleHelp,
+  Eye,
+  FolderDown,
+  Heart,
+  Library,
+  ListMusic,
+  Plus,
+  ScrollText,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
 import type { UserPlaylist } from "../types/library";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
-const librarySidebarItem = {
-  iconClass: "icon-Homehomepagemenu",
-  section: "Library",
-} as const;
-
-const secondarySidebarItems = [
-  { iconClass: "icon-yulan", section: "Playback" },
-  { iconClass: "icon-rizhi", section: "Logs" },
-  { iconClass: "icon-shezhi", section: "Settings" },
-] as const;
-
-export type AppSection =
-  | typeof librarySidebarItem.section
-  | (typeof secondarySidebarItems)[number]["section"];
+export type AppSection = "Library" | "Playback" | "Logs" | "Settings";
 
 type AppSidebarProps = {
   activeSection: AppSection;
-  localImportCount: number;
   onCreatePlaylistRequest: () => void;
-  onLibraryCategoryChange: (category: LibraryCategoryId) => void;
+  onLibraryCategorySelect: (category: LibraryCategoryId) => void;
   onPlaylistSelect: (playlistId: string) => void;
   onSectionChange: (section: AppSection) => void;
   onUpdateClick: () => void;
@@ -34,11 +43,248 @@ type AppSidebarProps = {
   updateInfo: UpdateInfo | null;
 };
 
+const RIPPLE_EXIT_MS = 320;
+
+type RippleState = {
+  id: number;
+  phase: "enter" | "hold" | "exit";
+  size: number;
+  x: number;
+  y: number;
+};
+
+type SidebarNavButtonProps = {
+  Icon: LucideIcon;
+  isActive: boolean;
+  isCompact?: boolean;
+  label: string;
+  onClick: () => void;
+  section: AppSection;
+};
+
+type SidebarRippleButtonProps = {
+  children: ReactNode;
+  className: string;
+  onClick: () => void;
+};
+
+type SidebarCategoryButtonProps = {
+  Icon: LucideIcon;
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+};
+
+function SidebarRippleButton({
+  children,
+  className,
+  onClick,
+}: SidebarRippleButtonProps) {
+  const [ripple, setRipple] = useState<RippleState | null>(null);
+  const [isPressing, setIsPressing] = useState(false);
+  const cleanupTimerRef = useRef<number | null>(null);
+  const holdFrameRef = useRef<number | null>(null);
+  const rippleIdRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      if (cleanupTimerRef.current !== null) {
+        window.clearTimeout(cleanupTimerRef.current);
+      }
+
+      if (holdFrameRef.current !== null) {
+        window.cancelAnimationFrame(holdFrameRef.current);
+      }
+    },
+    [],
+  );
+
+  function clearRippleCleanupTimer() {
+    if (cleanupTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(cleanupTimerRef.current);
+    cleanupTimerRef.current = null;
+  }
+
+  function clearRippleHoldFrame() {
+    if (holdFrameRef.current === null) {
+      return;
+    }
+
+    window.cancelAnimationFrame(holdFrameRef.current);
+    holdFrameRef.current = null;
+  }
+
+  function addRipple(button: HTMLButtonElement, x: number, y: number) {
+    const rect = button.getBoundingClientRect();
+    const size = Math.hypot(rect.width, rect.height) * 2;
+    const id = rippleIdRef.current;
+
+    rippleIdRef.current += 1;
+    clearRippleCleanupTimer();
+    clearRippleHoldFrame();
+    setIsPressing(true);
+    setRipple({
+      id,
+      phase: "enter",
+      size,
+      x,
+      y,
+    });
+
+    holdFrameRef.current = window.requestAnimationFrame(() => {
+      holdFrameRef.current = null;
+      setRipple((currentRipple) =>
+        currentRipple?.id === id
+          ? {
+              ...currentRipple,
+              phase: "hold",
+            }
+          : currentRipple,
+      );
+    });
+  }
+
+  function releaseRipple() {
+    setIsPressing(false);
+    clearRippleHoldFrame();
+    setRipple((currentRipple) =>
+      currentRipple
+        ? {
+            ...currentRipple,
+            phase: "exit",
+          }
+        : currentRipple,
+    );
+
+    clearRippleCleanupTimer();
+    cleanupTimerRef.current = window.setTimeout(() => {
+      setRipple(null);
+      cleanupTimerRef.current = null;
+    }, RIPPLE_EXIT_MS);
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    addRipple(
+      event.currentTarget,
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    );
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.repeat || (event.key !== "Enter" && event.key !== " ")) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    addRipple(event.currentTarget, rect.width / 2, rect.height / 2);
+  }
+
+  function handleKeyUp(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    releaseRipple();
+  }
+
+  return (
+    <button
+      className={`${className}${isPressing ? " is-pressing" : ""}`}
+      type="button"
+      onBlur={releaseRipple}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
+      onPointerCancel={releaseRipple}
+      onPointerDown={handlePointerDown}
+      onPointerLeave={releaseRipple}
+      onPointerUp={releaseRipple}
+    >
+      {children}
+      <span className="sidebar-ripple-layer" aria-hidden="true">
+        {ripple ? (
+          <span
+            className={`sidebar-ripple is-${ripple.phase}`}
+            key={ripple.id}
+            style={
+              {
+                "--sidebar-ripple-size": `${ripple.size}px`,
+                "--sidebar-ripple-x": `${ripple.x}px`,
+                "--sidebar-ripple-y": `${ripple.y}px`,
+              } as CSSProperties
+            }
+          />
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function SidebarCategoryButton({
+  Icon,
+  isActive,
+  label,
+  onClick,
+}: SidebarCategoryButtonProps) {
+  return (
+    <SidebarRippleButton
+      className={`sidebar-category-item${isActive ? " is-active" : ""}`}
+      onClick={onClick}
+    >
+      <span className="sidebar-category-item-content">
+        <Icon
+          className="sidebar-category-icon"
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span className="sidebar-category-label">{label}</span>
+      </span>
+    </SidebarRippleButton>
+  );
+}
+
+function SidebarNavButton({
+  Icon,
+  isActive,
+  isCompact = false,
+  label,
+  onClick,
+  section,
+}: SidebarNavButtonProps) {
+  return (
+    <SidebarRippleButton
+      className={`sidebar-link${isCompact ? " is-compact" : ""}${
+        isActive ? " is-active" : ""
+      }`}
+      onClick={onClick}
+    >
+      <span className="sidebar-link-content">
+        <Icon
+          className={`sidebar-icon sidebar-icon-${section.toLowerCase()}`}
+          aria-hidden="true"
+          focusable="false"
+        />
+        <span>{label}</span>
+      </span>
+    </SidebarRippleButton>
+  );
+}
+
 export function AppSidebar({
   activeSection,
-  localImportCount,
   onCreatePlaylistRequest,
-  onLibraryCategoryChange,
+  onLibraryCategorySelect,
   onPlaylistSelect,
   onSectionChange,
   onUpdateClick,
@@ -48,39 +294,74 @@ export function AppSidebar({
   text,
   updateInfo,
 }: AppSidebarProps) {
-  const libraryCategories: Array<{
-    count?: number;
-    id: LibraryCategoryId;
-    label: string;
-  }> = [
-    { id: "built-in", label: text.library.categoryBuiltIn },
-    {
-      count: localImportCount,
-      id: "local-imports",
-      label: text.library.categoryLocalImports,
-    },
-    { id: "liked", label: text.library.categoryLiked },
-    { id: "playlists", label: text.library.categoryPlaylists },
-  ];
-  const renderSidebarItem = (item: {
-    iconClass: string;
-    section: AppSection;
-  }) => (
-    <button
-      className={`sidebar-link${
-        activeSection === item.section ? " is-active" : ""
-      }`}
-      key={item.section}
-      type="button"
-      onClick={() => onSectionChange(item.section)}
-    >
-      <span
-        className={`sidebar-icon sidebar-icon-${item.section.toLowerCase()} iconfont ${item.iconClass}`}
-        aria-hidden="true"
-      />
-      <span>{text.navigation[item.section]}</span>
-    </button>
-  );
+  const [isCreatedPlaylistsOpen, setIsCreatedPlaylistsOpen] = useState(true);
+  const [isSidebarScrollable, setIsSidebarScrollable] = useState(false);
+  const [isSidebarScrollHovered, setIsSidebarScrollHovered] = useState(false);
+  const [sidebarScrollThumb, setSidebarScrollThumb] = useState({
+    height: 0,
+    top: 0,
+  });
+  const sidebarScrollAreaRef = useRef<HTMLDivElement | null>(null);
+
+  function updateSidebarScrollbar() {
+    const element = sidebarScrollAreaRef.current;
+
+    if (!element) {
+      setIsSidebarScrollable(false);
+      setSidebarScrollThumb({ height: 0, top: 0 });
+      return;
+    }
+
+    const { clientHeight, scrollHeight, scrollTop } = element;
+    const scrollable = scrollHeight > clientHeight + 1;
+
+    setIsSidebarScrollable(scrollable);
+
+    if (!scrollable) {
+      setSidebarScrollThumb({ height: 0, top: 0 });
+      return;
+    }
+
+    const minThumbHeight = 36;
+    const thumbHeight = Math.max(
+      minThumbHeight,
+      Math.round((clientHeight / scrollHeight) * clientHeight),
+    );
+    const maxScrollTop = scrollHeight - clientHeight;
+    const maxThumbTop = Math.max(0, clientHeight - thumbHeight);
+    const thumbTop =
+      maxScrollTop <= 0
+        ? 0
+        : Math.round((scrollTop / maxScrollTop) * maxThumbTop);
+
+    setSidebarScrollThumb({
+      height: thumbHeight,
+      top: thumbTop,
+    });
+  }
+
+  useEffect(() => {
+    const element = sidebarScrollAreaRef.current;
+
+    if (!element) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(updateSidebarScrollbar);
+    window.addEventListener("resize", updateSidebarScrollbar);
+
+    const resizeObserver =
+      "ResizeObserver" in window
+        ? new ResizeObserver(updateSidebarScrollbar)
+        : null;
+
+    resizeObserver?.observe(element);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateSidebarScrollbar);
+      resizeObserver?.disconnect();
+    };
+  }, [activeSection, isCreatedPlaylistsOpen, playlists.length]);
 
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
@@ -103,86 +384,166 @@ export function AppSidebar({
         </div>
       </div>
 
-      <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
-        {renderSidebarItem(librarySidebarItem)}
+      <div className="sidebar-scroll-frame">
+        <div
+          ref={sidebarScrollAreaRef}
+          className={`sidebar-scroll-area${
+            isSidebarScrollable ? " is-scrollable" : ""
+          }`}
+          onPointerEnter={() => {
+            setIsSidebarScrollHovered(true);
+            updateSidebarScrollbar();
+          }}
+          onPointerLeave={() => setIsSidebarScrollHovered(false)}
+          onScroll={updateSidebarScrollbar}
+        >
+          <section className="sidebar-section sidebar-my-section">
+            <p className="sidebar-section-title">{text.sidebar.mySection}</p>
+            <SidebarCategoryButton
+              Icon={Library}
+              isActive={
+                activeSection === "Library" &&
+                selectedLibraryCategory === "built-in"
+              }
+              label={text.sidebar.builtIn}
+              onClick={() => onLibraryCategorySelect("built-in")}
+            />
+            <SidebarCategoryButton
+              Icon={FolderDown}
+              isActive={
+                activeSection === "Library" &&
+                selectedLibraryCategory === "local-imports"
+              }
+              label={text.sidebar.localImports}
+              onClick={() => onLibraryCategorySelect("local-imports")}
+            />
+            <SidebarCategoryButton
+              Icon={Heart}
+              isActive={
+                activeSection === "Library" &&
+                selectedLibraryCategory === "liked"
+              }
+              label={text.sidebar.liked}
+              onClick={() => onLibraryCategorySelect("liked")}
+            />
+          </section>
 
-        <div className="sidebar-library" aria-label={text.library.categoriesTitle}>
-          <p className="sidebar-subnav-heading">{text.library.categoriesTitle}</p>
-          <div className="sidebar-subnav">
-            {libraryCategories.map((category) => (
-              <div className="sidebar-subnav-group" key={category.id}>
-                <div className="sidebar-subnav-row">
-                  <button
-                    className={`sidebar-subnav-link${
-                      selectedLibraryCategory === category.id ? " is-active" : ""
-                    }`}
-                    type="button"
-                    onClick={() => {
-                      onLibraryCategoryChange(category.id);
-                      onSectionChange("Library");
-                    }}
-                  >
-                    <span>{category.label}</span>
-                    {typeof category.count === "number" ? (
-                      <span className="sidebar-subnav-count">{category.count}</span>
-                    ) : null}
-                  </button>
-                  {category.id === "playlists" ? (
-                    <button
-                      className="sidebar-playlist-add"
-                      type="button"
-                      aria-label={text.library.createPlaylist}
-                      title={text.library.createPlaylist}
-                      onClick={() => {
-                        onCreatePlaylistRequest();
-                        onSectionChange("Library");
-                      }}
-                    >
-                      +
-                    </button>
-                  ) : null}
-                </div>
-                {category.id === "playlists" && playlists.length > 0 ? (
-                  <div className="sidebar-playlist-list">
-                    {playlists.map((playlist) => (
-                      <button
-                        className={`sidebar-playlist-link${
-                          selectedLibraryCategory === "playlists" &&
-                          selectedPlaylistId === playlist.id
-                            ? " is-active"
-                            : ""
+          <section className="sidebar-created-playlists-section">
+            <div className="sidebar-playlist-header">
+              <button
+                className="sidebar-playlist-toggle"
+                type="button"
+                aria-expanded={isCreatedPlaylistsOpen}
+                aria-label={
+                  isCreatedPlaylistsOpen
+                    ? text.sidebar.collapseCreatedPlaylists
+                    : text.sidebar.expandCreatedPlaylists
+                }
+                onClick={() =>
+                  setIsCreatedPlaylistsOpen((currentValue) => !currentValue)
+                }
+              >
+                <span className="sidebar-playlist-toggle-label">
+                  {text.sidebar.createdPlaylists}
+                </span>
+                <small className="sidebar-playlist-toggle-count">
+                  {playlists.length}
+                </small>
+                {isCreatedPlaylistsOpen ? (
+                  <ChevronDown
+                    className="sidebar-playlist-toggle-chevron"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                ) : (
+                  <ChevronRight
+                    className="sidebar-playlist-toggle-chevron"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                )}
+              </button>
+              <button
+                className="sidebar-playlist-create"
+                type="button"
+                aria-label={text.sidebar.createPlaylist}
+                title={text.sidebar.createPlaylist}
+                onClick={onCreatePlaylistRequest}
+              >
+                <Plus aria-hidden="true" focusable="false" />
+              </button>
+            </div>
+
+            {isCreatedPlaylistsOpen ? (
+              playlists.length > 0 ? (
+                <div className="sidebar-playlist-list" role="list">
+                  {playlists.map((playlist) => {
+                    const isActive =
+                      activeSection === "Library" &&
+                      selectedLibraryCategory === "playlists" &&
+                      selectedPlaylistId === playlist.id;
+
+                    return (
+                      <SidebarRippleButton
+                        className={`sidebar-playlist-item${
+                          isActive ? " is-active" : ""
                         }`}
                         key={playlist.id}
-                        type="button"
-                        onClick={() => {
-                          onLibraryCategoryChange("playlists");
-                          onPlaylistSelect(playlist.id);
-                          onSectionChange("Library");
-                        }}
+                        onClick={() => onPlaylistSelect(playlist.id)}
                       >
-                        <span>{playlist.name}</span>
-                        <span className="sidebar-subnav-count">
-                          {playlist.songIds.length}
+                        <span className="sidebar-playlist-item-content">
+                          <ListMusic
+                            className="sidebar-playlist-icon"
+                            aria-hidden="true"
+                            focusable="false"
+                          />
+                          <span className="sidebar-playlist-name">
+                            {playlist.name}
+                          </span>
                         </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
+                      </SidebarRippleButton>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="sidebar-playlist-empty">
+                  {text.sidebar.noCreatedPlaylists}
+                </p>
+              )
+            ) : null}
+          </section>
+
+          <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
+            <SidebarNavButton
+              Icon={Eye}
+              isActive={activeSection === "Playback"}
+              isCompact
+              label={text.sidebar.preview}
+              section="Playback"
+              onClick={() => onSectionChange("Playback")}
+            />
+          </nav>
         </div>
 
-        <div className="sidebar-nav-divider" />
-
-        {secondarySidebarItems.map(renderSidebarItem)}
-      </nav>
+        {isSidebarScrollable && isSidebarScrollHovered ? (
+          <span className="sidebar-custom-scrollbar" aria-hidden="true">
+            <span
+              className="sidebar-custom-scrollbar-thumb"
+              style={{
+                height: `${sidebarScrollThumb.height}px`,
+                transform: `translateY(${sidebarScrollThumb.top}px)`,
+              }}
+            />
+          </span>
+        ) : null}
+      </div>
     </aside>
   );
 }
 
 type WorkspaceHeaderProps = {
   activeSection: AppSection;
+  onLogsClick: () => void;
   onSettingsClick: () => void;
   onUserManualClick: () => void;
   text: UiText;
@@ -190,6 +551,7 @@ type WorkspaceHeaderProps = {
 
 export function WorkspaceHeader({
   activeSection,
+  onLogsClick,
   onSettingsClick,
   onUserManualClick,
   text,
@@ -203,11 +565,20 @@ export function WorkspaceHeader({
         <button
           className="icon-action"
           type="button"
+          onClick={onLogsClick}
+          title={text.actions.logs}
+          aria-label={text.actions.logs}
+        >
+          <ScrollText aria-hidden="true" focusable="false" />
+        </button>
+        <button
+          className="icon-action"
+          type="button"
           onClick={onSettingsClick}
           title={text.actions.settings}
           aria-label={text.actions.settings}
         >
-          <span className="iconfont icon-shezhi" aria-hidden="true" />
+          <Settings aria-hidden="true" focusable="false" />
         </button>
         <button
           className="icon-action"
@@ -216,7 +587,7 @@ export function WorkspaceHeader({
           title={text.actions.userManual}
           aria-label={text.actions.userManual}
         >
-          <span className="iconfont icon-wenhao" aria-hidden="true" />
+          <CircleHelp aria-hidden="true" focusable="false" />
         </button>
       </div>
     </header>

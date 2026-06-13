@@ -1,9 +1,23 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import {
+  BookmarkPlus,
+  Heart,
+  ListPlus,
+  MoreHorizontal,
+  Play,
+  Plus,
+  LocateFixed,
+  SkipForward,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
+import type { LocateScoreRequest } from "../hooks/useScoreLibrary";
 import type { UiText } from "../i18n/uiText";
 import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
 import type {
+  AddSongToPlaylistResult,
   LibrarySongId,
   LibrarySongListItem,
   UserPlaylist,
@@ -23,16 +37,23 @@ type LibraryPanelProps = {
   hasSearchQuery: boolean;
   importDisabled: boolean;
   importError: string;
+  isQueueOpen: boolean;
   items: LibrarySongListItem[];
-  onAddSongToPlaylist: (playlistId: string, songIndex: number) => void;
+  locateScoreRequest: LocateScoreRequest | null;
+  onAddSongToPlaylist: (
+    playlistId: string,
+    songIndex: number,
+  ) => AddSongToPlaylistResult;
   onAddToQueue: (songIndex: number) => void;
   onCreatePlaylistWithSong: (
     songIndex: number,
     playlistName?: string,
   ) => void;
+  onCreatePlaylistRequest: () => void;
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
+  onLocateSelectedSong: () => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
@@ -65,124 +86,82 @@ function readFilesFromInput(fileList: FileList | null) {
 
 function HeartIcon({ isLiked }: { isLiked: boolean }) {
   return (
-    <svg
+    <Heart
       className="library-heart-icon"
-      viewBox="0 0 20 20"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M10 17.2 8.8 16.1C4.4 12.1 2 9.9 2 6.7 2 4.2 4 2.3 6.5 2.3c1.4 0 2.7.6 3.5 1.6.8-1 2.1-1.6 3.5-1.6C16 2.3 18 4.2 18 6.7c0 3.2-2.4 5.4-6.8 9.4L10 17.2Z"
-        fill={isLiked ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.7"
-      />
-    </svg>
+      fill={isLiked ? "currentColor" : "none"}
+    />
   );
 }
 
 function LibraryRowPlayIcon() {
   return (
-    <svg
+    <Play
       className="library-row-play-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path d="M5.2 3.4v9.2L12 8 5.2 3.4Z" fill="currentColor" />
-    </svg>
+    />
+  );
+}
+
+function LibraryLocateIcon() {
+  return (
+    <LocateFixed
+      className="library-locate-floating-icon"
+      aria-hidden="true"
+      focusable="false"
+    />
   );
 }
 
 function LibraryPlayNextIcon() {
   return (
-    <svg
+    <SkipForward
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M3 3.8v8.4l5.8-4.2L3 3.8Zm7 0h1.4v8.4H10V3.8Z"
-        fill="currentColor"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryAddToQueueIcon() {
   return (
-    <svg
+    <ListPlus
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M2.5 4h6.8v1.2H2.5V4Zm0 3.2h6.8v1.2H2.5V7.2Zm0 3.2h4.8v1.2H2.5v-1.2Zm9.2-2.9h1.2v2h2v1.2h-2v2h-1.2v-2h-2V9.5h2v-2Z"
-        fill="currentColor"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryCollectIcon() {
   return (
-    <svg
+    <BookmarkPlus
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M3 3.5h7.5a2 2 0 0 1 2 2v7.1l-4-2.2-4 2.2V5.5a2 2 0 0 1 2-2Z"
-        fill="none"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M8.5 6v3M7 7.5h3"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.3"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryMoreIcon() {
   return (
-    <svg
+    <MoreHorizontal
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M4 8a1.2 1.2 0 1 1-2.4 0A1.2 1.2 0 0 1 4 8Zm5.2 0a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Zm5.2 0a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z"
-        fill="currentColor"
-      />
-    </svg>
+    />
   );
 }
 
 function LibraryPlusIcon() {
   return (
-    <svg
+    <Plus
       className="library-title-icon"
-      viewBox="0 0 16 16"
       aria-hidden="true"
       focusable="false"
-    >
-      <path
-        d="M8 3v10M3 8h10"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </svg>
+    />
   );
 }
 
@@ -253,41 +232,6 @@ function PlaylistHeader({
     setIsMoreMenuOpen(false);
   }, [selectedPlaylistId]);
 
-  useEffect(() => {
-    if (!isMoreMenuOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: Event) {
-      const target = event.target;
-
-      if (
-        target instanceof Element &&
-        target.closest("[data-playlist-menu-root='true']")
-      ) {
-        return;
-      }
-
-      setIsMoreMenuOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsMoreMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMoreMenuOpen]);
-
   if (!selectedPlaylist) {
     return null;
   }
@@ -322,33 +266,37 @@ function PlaylistHeader({
         >
           {text.renamePlaylist}
         </button>
-        <span className="playlist-more-anchor" data-playlist-menu-root="true">
-          <button
-            type="button"
-            aria-label={text.playlistMore}
-            onClick={(event) => {
-              event.stopPropagation();
-              event.currentTarget.blur();
-              setIsMoreMenuOpen((isOpen) => !isOpen);
-            }}
+        <span className="playlist-more-anchor">
+          <DropdownMenu.Root
+            open={isMoreMenuOpen}
+            onOpenChange={setIsMoreMenuOpen}
           >
-            {text.playlistMore}
-          </button>
-          {isMoreMenuOpen ? (
-            <div className="playlist-more-menu" role="menu">
-              <button
-                className="is-danger"
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsMoreMenuOpen(false);
-                  onDeletePlaylist(selectedPlaylist.id);
-                }}
-              >
-                {text.deletePlaylist}
+            <DropdownMenu.Trigger asChild>
+              <button type="button" aria-label={text.playlistMore}>
+                {text.playlistMore}
               </button>
-            </div>
-          ) : null}
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                className="playlist-more-menu"
+                align="end"
+                sideOffset={6}
+              >
+                <DropdownMenu.Item asChild>
+                  <button
+                    className="is-danger"
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      onDeletePlaylist(selectedPlaylist.id);
+                    }}
+                  >
+                    {text.deletePlaylist}
+                  </button>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </span>
       </div>
     </div>
@@ -370,82 +318,74 @@ function AddToPlaylistPopup({
   onClose: () => void;
   onCreatePlaylist: () => void;
 }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div
-      className="library-dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) {
           onClose();
         }
       }}
     >
-      <div
-        className="library-collect-dialog"
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={text.addToPlaylistDialogTitle}
-      >
-        <div className="library-collect-dialog-header">
-          <h3>{text.addToPlaylistDialogTitle}</h3>
-          <button type="button" onClick={onClose} aria-label={text.closeDialog}>
-            {text.closeDialog}
-          </button>
-        </div>
-        <button
-          className="library-collect-create"
-          type="button"
-          onClick={onCreatePlaylist}
-        >
-          <LibraryPlusIcon />
-          {text.createPlaylistAndAdd}
-        </button>
-        {playlists.length === 0 ? (
-          <p className="library-empty-note">{text.noPlaylists}</p>
-        ) : (
-          <div className="library-collect-list">
-            {playlists.map((playlist) => (
-              <button
-                className="library-collect-row"
-                key={playlist.id}
-                type="button"
-                onClick={() => {
-                  const isAlreadyInPlaylist = playlist.songIds.includes(
-                    item.librarySong.id,
-                  );
+      <Dialog.Portal>
+        <Dialog.Overlay className="library-dialog-backdrop">
+          <Dialog.Content
+            className="library-collect-dialog"
+            aria-describedby={undefined}
+          >
+            <div className="library-collect-dialog-header">
+              <Dialog.Title asChild>
+                <h3>{text.addToPlaylistDialogTitle}</h3>
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <button type="button" aria-label={text.closeDialog}>
+                  {text.closeDialog}
+                </button>
+              </Dialog.Close>
+            </div>
+            <button
+              className="library-collect-create"
+              type="button"
+              onClick={onCreatePlaylist}
+            >
+              <LibraryPlusIcon />
+              {text.createPlaylistAndAdd}
+            </button>
+            {playlists.length === 0 ? (
+              <p className="library-empty-note">{text.noPlaylists}</p>
+            ) : (
+              <div className="library-collect-list">
+                {playlists.map((playlist) => (
+                  <button
+                    className="library-collect-row"
+                    key={playlist.id}
+                    type="button"
+                    onClick={() => {
+                      const result = onAddSongToPlaylist(
+                        playlist.id,
+                        item.songIndex,
+                      );
 
-                  onAddSongToPlaylist(playlist.id, item.songIndex);
-
-                  if (!isAlreadyInPlaylist) {
-                    onClose();
-                  }
-                }}
-              >
-                <span>{playlist.name}</span>
-                <small>
-                  {playlist.songIds.length} {text.playlistSongCount}
-                </small>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+                      if (
+                        result.status === "added" ||
+                        result.status === "duplicate"
+                      ) {
+                        onClose();
+                      }
+                    }}
+                  >
+                    <span>{playlist.name}</span>
+                    <small>
+                      {playlist.songIds.length} {text.playlistSongCount}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Overlay>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -478,99 +418,87 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
 }) {
-  function stopMenuPropagation(event: MouseEvent<HTMLElement>) {
-    event.stopPropagation();
-  }
-
-  function runAction(
-    event: MouseEvent<HTMLButtonElement>,
-    action: () => void,
-  ) {
+  function runAction(event: Event, action: () => void) {
     event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.blur();
     action();
     onClose();
   }
 
   return (
-    <div
+    <DropdownMenu.Content
       className="library-action-menu"
-      role="menu"
-      onClick={stopMenuPropagation}
-      onMouseDown={stopMenuPropagation}
-      onPointerDown={stopMenuPropagation}
+      align="end"
+      sideOffset={6}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onPlaySong(item))}
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) => runAction(event, () => onPlaySong(item))}
       >
-        {text.playAction}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onPlaySongNext(item.songIndex))}
+        <button type="button">{text.playAction}</button>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) =>
+          runAction(event, () => onPlaySongNext(item.songIndex))
+        }
       >
-        {text.playNextAction}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onAddToQueue(item.songIndex))}
+        <button type="button">{text.playNextAction}</button>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) => runAction(event, () => onAddToQueue(item.songIndex))}
       >
-        {text.addToQueueAction}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={(event) => runAction(event, () => onOpenCollectDialog(item))}
+        <button type="button">{text.addToQueueAction}</button>
+      </DropdownMenu.Item>
+      <DropdownMenu.Item
+        asChild
+        onSelect={(event) => runAction(event, () => onOpenCollectDialog(item))}
       >
-        {text.addToPlaylist}
-      </button>
+        <button type="button">{text.addToPlaylist}</button>
+      </DropdownMenu.Item>
       {selectedCategory === "liked" ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={(event) =>
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
             runAction(event, () => onRemoveFromLiked(item.librarySong.id))
           }
         >
-          {text.removeFromLiked}
-        </button>
+          <button type="button">{text.removeFromLiked}</button>
+        </DropdownMenu.Item>
       ) : null}
       {selectedCategory === "playlists" && selectedPlaylist ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={(event) =>
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
             runAction(event, () =>
               onRemoveSongFromPlaylist(selectedPlaylist.id, item.librarySong.id),
             )
           }
         >
-          {text.removeFromPlaylist}
-        </button>
+          <button type="button">{text.removeFromPlaylist}</button>
+        </DropdownMenu.Item>
       ) : null}
       {item.librarySong.source === "local-import" ? (
-        <button
-          className="is-danger"
-          type="button"
-          role="menuitem"
-          onClick={(event) =>
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
             runAction(event, () => onDeleteLocalSong(item.songIndex))
           }
         >
-          {text.deleteFromLocalImports}
-        </button>
+          <button className="is-danger" type="button">
+            {text.deleteFromLocalImports}
+          </button>
+        </DropdownMenu.Item>
       ) : null}
-    </div>
+    </DropdownMenu.Content>
   );
 }
 
 function LibrarySongTable({
   items,
+  locateScoreRequest,
   onAddToQueue,
   onCloseActionMenu,
   onDeleteLocalSong,
@@ -593,6 +521,7 @@ function LibrarySongTable({
 }: Pick<
   LibraryPanelProps,
   | "items"
+  | "locateScoreRequest"
   | "onAddToQueue"
   | "onDeleteLocalSong"
   | "onPlaySong"
@@ -614,6 +543,48 @@ function LibrarySongTable({
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   openActionMenuSongId: LibrarySongId | null;
 }) {
+  const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
+  const handledLocateRequestIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (
+      !locateScoreRequest ||
+      handledLocateRequestIdRef.current === locateScoreRequest.requestId
+    ) {
+      return;
+    }
+
+    let flashTimeout: number | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const targetRow = rowRefs.current.get(locateScoreRequest.songId);
+
+      if (!targetRow) {
+        return;
+      }
+
+      handledLocateRequestIdRef.current = locateScoreRequest.requestId;
+      targetRow.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "center",
+      });
+      targetRow.classList.remove("is-locate-flash");
+      void targetRow.offsetWidth;
+      targetRow.classList.add("is-locate-flash");
+      flashTimeout = window.setTimeout(() => {
+        targetRow.classList.remove("is-locate-flash");
+      }, 900);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (flashTimeout !== undefined) {
+        window.clearTimeout(flashTimeout);
+      }
+    };
+  }, [items, locateScoreRequest]);
+
   if (items.length === 0) {
     return (
       <div className="library-empty">
@@ -655,6 +626,13 @@ function LibrarySongTable({
                 openActionMenuSongId === librarySong.id ? " has-open-menu" : ""
               }`}
               key={librarySong.id}
+              ref={(node) => {
+                if (node) {
+                  rowRefs.current.set(librarySong.id, node);
+                } else {
+                  rowRefs.current.delete(librarySong.id);
+                }
+              }}
               role="button"
               tabIndex={0}
               onClick={() => onSelectSong(songIndex)}
@@ -730,39 +708,53 @@ function LibrarySongTable({
                   >
                     <LibraryCollectIcon />
                   </button>
-                  <span
-                    className="library-action-menu-anchor"
-                    data-library-menu-root="true"
-                  >
-                    <button
-                      className="library-title-icon-button"
-                      type="button"
-                      aria-label={text.moreActions}
-                      title={text.moreActions}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        event.currentTarget.blur();
-                        onOpenActionMenu(librarySong.id);
+                  <span className="library-action-menu-anchor">
+                    <DropdownMenu.Root
+                      open={openActionMenuSongId === librarySong.id}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          onOpenActionMenu(librarySong.id);
+                        } else {
+                          onCloseActionMenu();
+                        }
                       }}
                     >
-                      <LibraryMoreIcon />
-                    </button>
-                    {openActionMenuSongId === librarySong.id ? (
-                      <LibraryActionMenu
-                        item={item}
-                        onAddToQueue={onAddToQueue}
-                        onClose={onCloseActionMenu}
-                        onDeleteLocalSong={onDeleteLocalSong}
-                        onOpenCollectDialog={onOpenCollectDialog}
-                        onPlaySong={onPlaySong}
-                        onPlaySongNext={onPlaySongNext}
-                        onRemoveFromLiked={onRemoveFromLiked}
-                        onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
-                        selectedCategory={selectedCategory}
-                        selectedPlaylist={selectedPlaylist}
-                        text={text}
-                      />
-                    ) : null}
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          className="library-title-icon-button"
+                          type="button"
+                          aria-label={text.moreActions}
+                          title={text.moreActions}
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onMouseDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                          }}
+                        >
+                          <LibraryMoreIcon />
+                        </button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <LibraryActionMenu
+                          item={item}
+                          onAddToQueue={onAddToQueue}
+                          onClose={onCloseActionMenu}
+                          onDeleteLocalSong={onDeleteLocalSong}
+                          onOpenCollectDialog={onOpenCollectDialog}
+                          onPlaySong={onPlaySong}
+                          onPlaySongNext={onPlaySongNext}
+                          onRemoveFromLiked={onRemoveFromLiked}
+                          onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
+                          selectedCategory={selectedCategory}
+                          selectedPlaylist={selectedPlaylist}
+                          text={text}
+                        />
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                   </span>
                 </span>
                 {isSelected ? (
@@ -812,13 +804,17 @@ export function LibraryPanel({
   hasSearchQuery,
   importDisabled,
   importError,
+  isQueueOpen,
   items,
+  locateScoreRequest,
   onAddSongToPlaylist,
   onAddToQueue,
   onCreatePlaylistWithSong,
+  onCreatePlaylistRequest,
   onDeleteLocalSong,
   onDeletePlaylist,
   onImportFiles,
+  onLocateSelectedSong,
   onPlaySong,
   onPlaySongNext,
   onRemoveFromLiked,
@@ -836,6 +832,9 @@ export function LibraryPanel({
   isBuiltInSongLoading,
   text,
 }: LibraryPanelProps) {
+  const panelRef = useRef<HTMLElement | null>(null);
+  const [showLocateButton, setShowLocateButton] = useState(false);
+  const locateHideTimerRef = useRef<number | null>(null);
   const [collectingSongItem, setCollectingSongItem] =
     useState<LibrarySongListItem | null>(null);
   const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
@@ -857,8 +856,6 @@ export function LibraryPanel({
     selectedCategory,
     text,
   });
-  const hasOpenActionMenu = openActionMenuSongId !== null;
-
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -874,34 +871,54 @@ export function LibraryPanel({
   }, []);
 
   useEffect(() => {
-    if (!hasOpenActionMenu) {
+    function clearLocateHideTimer() {
+      if (locateHideTimerRef.current !== null) {
+        window.clearTimeout(locateHideTimerRef.current);
+        locateHideTimerRef.current = null;
+      }
+    }
+
+    clearLocateHideTimer();
+    setShowLocateButton(false);
+
+    if (isQueueOpen || selectedSongIndex === null) {
       return;
     }
 
-    function handlePointerDown(event: Event) {
-      const target = event.target;
+    const scrollContainer = panelRef.current?.closest(".app-layout");
 
-      if (
-        target instanceof Element &&
-        target.closest("[data-library-menu-root='true']")
-      ) {
+    if (!(scrollContainer instanceof HTMLElement)) {
+      return;
+    }
+    const scrollElement = scrollContainer;
+
+    function handleScroll() {
+      clearLocateHideTimer();
+
+      if (scrollElement.scrollTop <= 120) {
+        setShowLocateButton(false);
         return;
       }
 
-      setOpenActionMenuSongId(null);
+      setShowLocateButton(true);
+      locateHideTimerRef.current = window.setTimeout(() => {
+        setShowLocateButton(false);
+        locateHideTimerRef.current = null;
+      }, 3000);
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("mousedown", handlePointerDown);
+    scrollElement.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
 
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("mousedown", handlePointerDown);
+      scrollElement.removeEventListener("scroll", handleScroll);
+      clearLocateHideTimer();
     };
-  }, [hasOpenActionMenu]);
+  }, [isQueueOpen, selectedSongIndex]);
 
   return (
-    <section className="library-panel" aria-label={text.aria}>
+    <section ref={panelRef} className="library-panel" aria-label={text.aria}>
       {isLocalImports ? (
         <LibraryImportArea
           importDisabled={importDisabled}
@@ -962,21 +979,25 @@ export function LibraryPanel({
                 ? text.noPlaylistsDescription
                 : text.playlistEmptyDescription}
             </p>
+            <button
+              className="library-empty-action"
+              type="button"
+              onClick={onCreatePlaylistRequest}
+            >
+              {text.createPlaylist}
+            </button>
           </div>
         ) : (
           <LibrarySongTable
             emptyDescription={listEmptyState.description}
             emptyTitle={listEmptyState.title}
             items={items}
+            locateScoreRequest={locateScoreRequest}
             isBuiltInSongLoading={isBuiltInSongLoading}
             onAddToQueue={onAddToQueue}
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
-            onOpenActionMenu={(songId) =>
-              setOpenActionMenuSongId((currentSongId) =>
-                currentSongId === songId ? null : songId,
-              )
-            }
+            onOpenActionMenu={(songId) => setOpenActionMenuSongId(songId)}
             onOpenCollectDialog={(item) => {
               setOpenActionMenuSongId(null);
               setCollectingSongItem(item);
@@ -1035,6 +1056,17 @@ export function LibraryPanel({
           </div>
         ) : null}
       </div>
+      {showLocateButton && selectedSongIndex !== null && !isQueueOpen ? (
+        <button
+          className="library-locate-floating-button"
+          type="button"
+          aria-label={text.locateCurrentScore}
+          title={text.locateCurrentScore}
+          onClick={onLocateSelectedSong}
+        >
+          <LibraryLocateIcon />
+        </button>
+      ) : null}
       {collectingSongItem ? (
         <AddToPlaylistPopup
           item={collectingSongItem}

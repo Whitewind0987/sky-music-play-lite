@@ -5,11 +5,12 @@ import {
   type ExperimentalInputPreferences,
   type PersistedAppData,
 } from "../types/appData";
+import type { ExperimentalInputMode } from "../types/experimentalInput";
 import {
-  type ExperimentalInputMode,
-  type TargetWindowCompatibilityProfile,
-  type TargetWindowMessageMethod,
-} from "../types/experimentalInput";
+  normalizeExperimentalInputPreferences,
+  normalizeTargetWindowCompatibilityProfile,
+  normalizeTargetWindowMessageMethod,
+} from "./experimentalInputPreferences";
 import {
   defaultKeyMapping,
   skyKeyNames,
@@ -43,17 +44,6 @@ const libraryCategoryIds: LibraryCategoryId[] = [
 const experimentalInputModes: ExperimentalInputMode[] = [
   "target-window-message",
   "foreground",
-];
-const targetWindowMessageMethods: TargetWindowMessageMethod[] = [
-  "post-message",
-  "send-message",
-];
-const targetWindowCompatibilityProfiles: TargetWindowCompatibilityProfile[] = [
-  "standard",
-  "legacy-vkscan-zero-lparam",
-  "legacy-vkscan-scan-lparam",
-  "grouped-legacy",
-  "legacy-activate-scan-lparam",
 ];
 const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
@@ -159,7 +149,10 @@ export function buildPersistedAppData({
 
   return {
     appDataVersion,
-    experimentalInputPreferences,
+    experimentalInputPreferences:
+      experimentalInputPreferences === undefined
+        ? undefined
+        : normalizeExperimentalInputPreferences(experimentalInputPreferences),
     keyMapping: sanitizeKeyMapping(keyMapping),
     language,
     library: {
@@ -260,10 +253,8 @@ function sanitizeExperimentalInputPreferences(
     selectedWindowSnapshot: sanitizeSelectedWindowSnapshot(
       rawPreferences.selectedWindowSnapshot,
     ),
-    targetWindowCompatibilityProfile: sanitizeEnum(
+    targetWindowCompatibilityProfile: normalizeTargetWindowCompatibilityProfile(
       rawPreferences.targetWindowCompatibilityProfile,
-      targetWindowCompatibilityProfiles,
-      "legacy-activate-scan-lparam",
     ),
     targetWindowKeyHoldMs: clampNumber(
       Number(rawPreferences.targetWindowKeyHoldMs),
@@ -271,10 +262,8 @@ function sanitizeExperimentalInputPreferences(
       targetWindowKeyHoldMaxMs,
       defaultTargetWindowKeyHoldMs,
     ),
-    targetWindowMessageMethod: sanitizeEnum(
+    targetWindowMessageMethod: normalizeTargetWindowMessageMethod(
       rawPreferences.targetWindowMessageMethod,
-      targetWindowMessageMethods,
-      "post-message",
     ),
   };
 }

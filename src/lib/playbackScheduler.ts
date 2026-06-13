@@ -10,7 +10,7 @@ type PreviewNoteGroupHandler = (notes: Note[]) => void;
 type PreviewFinishHandler = () => void;
 
 const NOTE_HIGHLIGHT_MS = 300;
-const PROGRESS_TICK_MS = 50;
+const DEFAULT_PROGRESS_TICK_MS = 50;
 
 type PreviewNoteGroup = {
   notes: Note[];
@@ -28,6 +28,7 @@ export type PreviewPlaybackProgress = {
 export type PreviewPlaybackController = {
   pause: () => void;
   resume: () => void;
+  seekTo: (timeMs: number) => void;
   stop: () => void;
   updateOptions: (
     nextOptions: Pick<
@@ -38,9 +39,11 @@ export type PreviewPlaybackController = {
 };
 
 export type PreviewPlaybackOptions = {
+  initialProgressMs?: number;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onProgress?: (progress: PreviewPlaybackProgress) => void;
   playbackSpeed: PlaybackSpeed;
+  progressTickMs?: number;
 };
 
 export function schedulePreviewPlayback(
@@ -108,7 +111,7 @@ export function schedulePreviewPlayback(
     progressStartedAtMs = getClockMs();
     progressIntervalId = window.setInterval(
       updateProgressFromClock,
-      PROGRESS_TICK_MS,
+      liveOptions.progressTickMs ?? DEFAULT_PROGRESS_TICK_MS,
     );
     updateProgressFromClock();
   }
@@ -199,6 +202,68 @@ export function schedulePreviewPlayback(
     );
   }
 
+  function getGroupStartProgressMs(
+    groupIndex: number,
+    timingOptions: Pick<
+      PreviewPlaybackOptions,
+      "noteIntervalDelayMs" | "playbackSpeed"
+    >,
+  ) {
+    if (groupIndex < 0 || groupIndex >= noteGroups.length) {
+      return 0;
+    }
+
+    let progressMs = 0;
+
+    for (let index = 0; index <= groupIndex; index += 1) {
+      progressMs += getDelayToGroup(index, timingOptions);
+    }
+
+    return progressMs;
+  }
+
+  function findNextGroupIndexFromProgressMs(
+    progressMs: number,
+    timingOptions: Pick<
+      PreviewPlaybackOptions,
+      "noteIntervalDelayMs" | "playbackSpeed"
+    >,
+  ) {
+    const clampedProgressMs = Math.min(Math.max(progressMs, 0), totalMs);
+
+    for (let index = 0; index < noteGroups.length; index += 1) {
+      const groupStartProgressMs = getGroupStartProgressMs(index, timingOptions);
+
+      if (
+        clampedProgressMs <= 0
+          ? groupStartProgressMs >= clampedProgressMs
+          : groupStartProgressMs > clampedProgressMs
+      ) {
+        return index;
+      }
+    }
+
+    return noteGroups.length;
+  }
+
+  function getDelayFromProgressToGroup(
+    progressMs: number,
+    groupIndex: number,
+    timingOptions: Pick<
+      PreviewPlaybackOptions,
+      "noteIntervalDelayMs" | "playbackSpeed"
+    >,
+  ) {
+    if (groupIndex >= noteGroups.length) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      getGroupStartProgressMs(groupIndex, timingOptions) - progressMs,
+    );
+  }
+
   function getRemainingDurationFromGroup(
     groupIndex: number,
     firstDelayMs: number,
@@ -285,9 +350,114 @@ export function schedulePreviewPlayback(
     }
   }
 
-  emitProgress(0);
-  startProgressTimer();
-  scheduleTask(scheduledTask, scheduledDelayMs);
+  function finishFromSeek() {
+    isStopped = true;
+    isPaused = false;
+    currentGroupIndex = noteGroups.length;
+    scheduledTask = "finish";
+    scheduledDelayMs = 0;
+    remainingDelayMs = 0;
+    clearCurrentTimeout();
+    clearProgressTimer();
+    emitProgress(totalMs);
+    onFinish();
+  }
+
+  function seekToProgress(timeMs: number) {
+    if (isStopped) {
+      return;
+    }
+
+    const targetProgressMs = Math.min(Math.max(timeMs, 0), totalMs);
+
+    clearCurrentTimeout();
+    clearProgressTimer();
+    emitProgress(targetProgressMs);
+
+    if (targetProgressMs >= totalMs) {
+      finishFromSeek();
+      return;
+    }
+
+    currentGroupIndex = findNextGroupIndexFromProgressMs(
+      targetProgressMs,
+      liveOptions,
+    );
+
+    if (currentGroupIndex >= noteGroups.length) {
+      scheduledTask = "finish";
+      scheduledDelayMs = Math.max(0, totalMs - targetProgressMs);
+      remainingDelayMs = scheduledDelayMs;
+      scheduledAtMs = getClockMs();
+    } else {
+      scheduledTask = "note";
+      scheduledDelayMs = getDelayFromProgressToGroup(
+        targetProgressMs,
+        currentGroupIndex,
+        liveOptions,
+      );
+      remainingDelayMs = scheduledDelayMs;
+      scheduledAtMs = getClockMs();
+    }
+
+    updateTotalFromRemaining(
+      getRemainingDurationFromGroup(
+        currentGroupIndex,
+        remainingDelayMs,
+        liveOptions,
+      ),
+    );
+
+    if (isPaused) {
+      return;
+    }
+
+    startProgressTimer();
+    scheduleTask(scheduledTask, remainingDelayMs);
+  }
+
+  function initializeFromProgress(timeMs: number) {
+    const targetProgressMs = Math.min(Math.max(timeMs, 0), totalMs);
+
+    currentProgressMs = targetProgressMs;
+
+    if (targetProgressMs >= totalMs) {
+      currentGroupIndex = noteGroups.length;
+      scheduledTask = "finish";
+      scheduledDelayMs = 0;
+      remainingDelayMs = 0;
+      return;
+    }
+
+    currentGroupIndex = findNextGroupIndexFromProgressMs(
+      targetProgressMs,
+      liveOptions,
+    );
+
+    if (currentGroupIndex >= noteGroups.length) {
+      scheduledTask = "finish";
+      scheduledDelayMs = Math.max(0, totalMs - targetProgressMs);
+    } else {
+      scheduledTask = "note";
+      scheduledDelayMs = getDelayFromProgressToGroup(
+        targetProgressMs,
+        currentGroupIndex,
+        liveOptions,
+      );
+    }
+
+    remainingDelayMs = scheduledDelayMs;
+  }
+
+  initializeFromProgress(liveOptions.initialProgressMs ?? 0);
+  emitProgress(currentProgressMs);
+
+  if (currentProgressMs >= totalMs) {
+    scheduleTask("finish", 0);
+  } else {
+    startProgressTimer();
+    scheduleTask(scheduledTask, scheduledDelayMs);
+  }
 
   return {
     pause() {
@@ -309,6 +479,9 @@ export function schedulePreviewPlayback(
       isPaused = false;
       startProgressTimer();
       scheduleTask(scheduledTask, remainingDelayMs);
+    },
+    seekTo(timeMs) {
+      seekToProgress(timeMs);
     },
     stop() {
       isStopped = true;

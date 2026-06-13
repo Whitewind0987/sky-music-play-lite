@@ -1,0 +1,37 @@
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct CandidateWindow {
+    hwnd: String,
+    title: String,
+    class_name: String,
+    process_name: Option<String>,
+}
+
+#[cfg(windows)]
+mod foreground_input;
+#[cfg(windows)]
+mod key_mapping;
+#[cfg(not(windows))]
+mod stubs;
+#[cfg(windows)]
+mod target_window_message;
+#[cfg(windows)]
+mod window;
+
+#[cfg(windows)]
+pub use foreground_input::send_foreground_key_group;
+#[cfg(not(windows))]
+pub use stubs::{
+    find_sky_window, list_candidate_windows, send_foreground_key_group,
+    send_key_group_to_window_message,
+};
+#[cfg(windows)]
+pub use target_window_message::send_key_group_to_window_message;
+#[cfg(windows)]
+pub use window::{find_sky_window, list_candidate_windows};
+
+#[cfg(windows)]
+pub(crate) fn to_wide_null(value: &str) -> Vec<u16> {
+    value.encode_utf16().chain(std::iter::once(0)).collect()
+}

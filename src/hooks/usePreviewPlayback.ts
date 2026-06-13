@@ -130,7 +130,10 @@ export function usePreviewPlayback({
     resetPlaybackProgress();
   }
 
-  async function startPreviewForSong(songIndex: number) {
+  async function startPreviewForSong(
+    songIndex: number,
+    options: { initialSeekMs?: number } = {},
+  ) {
     try {
       const song = await resolveSongForPlayback(songIndex);
 
@@ -154,7 +157,11 @@ export function usePreviewPlayback({
       }
 
       setPlaybackState("playing");
-      resetPlaybackProgress();
+      setPlaybackProgress({
+        currentMs: options.initialSeekMs ?? 0,
+        percent: 0,
+        totalMs: getAdjustedPreviewDurationMs(notes, currentTimingOptions),
+      });
       appendLog(
         formatText(text.logs.previewStartedWithOptions, {
           delayMs: currentTimingOptions.noteIntervalDelayMs,
@@ -232,6 +239,7 @@ export function usePreviewPlayback({
           appendLog(text.logs.previewFinished);
         },
         {
+          initialProgressMs: options.initialSeekMs,
           noteIntervalDelayMs: currentTimingOptions.noteIntervalDelayMs,
           onProgress: setPlaybackProgress,
           playbackSpeed: currentTimingOptions.playbackSpeed,
@@ -290,6 +298,26 @@ export function usePreviewPlayback({
 
     stopCurrentPreview();
     appendLog(text.logs.previewStopped);
+  }
+
+  function handleSeekPreview(timeMs: number) {
+    if (
+      playbackState !== "playing" &&
+      playbackState !== "paused" &&
+      playbackState !== "finished"
+    ) {
+      return;
+    }
+
+    if (playbackState === "finished") {
+      if (selectedSongIndex !== null) {
+        stopCurrentPreview();
+        void startPreviewForSong(selectedSongIndex, { initialSeekMs: timeMs });
+      }
+      return;
+    }
+
+    playbackControllerRef.current?.seekTo(timeMs);
   }
 
   function handleShuffleToggle() {
@@ -381,6 +409,7 @@ export function usePreviewPlayback({
     handlePlayPreview,
     handleRepeatModeCycle,
     handleResumePreview,
+    handleSeekPreview,
     handleShuffleToggle,
     handleStopPreview,
     isShuffleEnabled,

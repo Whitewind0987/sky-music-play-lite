@@ -24,9 +24,21 @@ export const uiText = {
     },
     navigation: {
       Library: "曲库",
-      Playback: "播放",
+      Playback: "预览",
       Logs: "日志",
       Settings: "设置",
+    },
+    sidebar: {
+      builtIn: "系统自带",
+      collapseCreatedPlaylists: "收起创建的歌单",
+      createPlaylist: "新建歌单",
+      createdPlaylists: "创建的歌单",
+      expandCreatedPlaylists: "展开创建的歌单",
+      liked: "我喜欢",
+      localImports: "本地导入",
+      mySection: "我的",
+      noCreatedPlaylists: "暂无歌单",
+      preview: "预览",
     },
     sections: {
       Library: {
@@ -34,8 +46,8 @@ export const uiText = {
         status: "本次运行的曲谱",
       },
       Playback: {
-        title: "播放预览",
-        status: "仅界面预览",
+        title: "预览",
+        status: "键盘预览",
       },
       Logs: {
         title: "运行日志",
@@ -47,6 +59,7 @@ export const uiText = {
       },
     },
     actions: {
+      logs: "日志",
       openReleasePage: "打开发布页面",
       settings: "设置",
       updateAvailable: "发现新版本",
@@ -67,15 +80,26 @@ export const uiText = {
       ignore: "忽略此版本",
       close: "关闭更新提示",
     },
+    closeConfirm: {
+      title: "关闭 SkyMusicPlay Lite？",
+      description: "关闭后当前播放会停止，未保存的操作可能会丢失。",
+      cancel: "取消",
+      confirm: "关闭",
+    },
+    dragImport: {
+      title: "拖放曲谱到这里",
+      description: "松开鼠标即可导入本地曲谱，支持 .json / .txt。",
+      disabledDescription: "播放中不能导入曲谱，请先停止播放。",
+    },
     workspace: {
       aria: "工作区概览",
       scoreTitle: "曲谱",
       parsedNotes: "已解析音符",
       scoreDescription: "在曲谱页面导入曲谱文件，然后选择要预览的曲谱。",
-      playbackTitle: "播放",
+      playbackTitle: "预览",
       previewRunning: "预览播放中",
       previewIdle: "预览空闲",
-      playbackDescription: "在播放页面预览琴键高亮。",
+      playbackDescription: "在预览页面查看琴键高亮。",
       logsTitle: "日志",
       logEntries: "条日志",
       logsDescription: "在日志页面查看运行消息。",
@@ -102,6 +126,8 @@ export const uiText = {
         "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件。",
       importLabel: "导入 .json / .txt",
       searchPlaceholder: "搜索曲谱",
+      locateCurrentScore: "定位当前曲谱",
+      locateCurrentScoreUnavailable: "当前没有选中的曲谱",
       categoriesTitle: "分类",
       categoryBuiltIn: "系统自带",
       categoryLocalImports: "本地导入",
@@ -134,7 +160,7 @@ export const uiText = {
       playlistEmptyTitle: "歌单为空",
       playlistEmptyDescription: "点击曲谱的收藏按钮，把曲谱添加到这个歌单。",
       noPlaylistsTitle: "还没有歌单",
-      noPlaylistsDescription: "点击左侧歌单旁边的加号，创建一个歌单。",
+      noPlaylistsDescription: "使用侧栏创建歌单按钮，新建一个歌单。",
       noSearchResultsTitle: "没有找到匹配的曲谱",
       noSearchResultsDescription: "换个关键词试试。",
       placeholderEyebrow: "占位分类",
@@ -168,7 +194,12 @@ export const uiText = {
       renamePlaylist: "重命名",
       playlistMore: "更多",
       renamePlaylistPrompt: "输入新的歌单名称",
+      renamePlaylistDialogTitle: "重命名歌单",
+      renamePlaylistConfirm: "保存",
+      renamePlaylistNameLabel: "歌单名称",
       deletePlaylist: "删除歌单",
+      cancelDelete: "取消",
+      confirmDelete: "删除",
       noPlaylists: "还没有歌单。",
       closeDialog: "关闭",
       closeMenu: "关闭菜单",
@@ -205,8 +236,10 @@ export const uiText = {
       unsupportedFile: "只支持 .json 和 .txt 曲谱文件。",
       importErrors: {
         emptyFile: "曲谱文件是空的。",
-        encryptedSongNotesUnsupported:
-          "曲谱“{songName}”使用了加密或编码后的数字音符格式，当前版本暂不支持。请使用未加密导出的 JSON 曲谱，或先转换为 { time, key } 音符格式。",
+        encryptedSongNotesDecryptFailed:
+          "加密曲谱解密失败，请确认文件是否完整。",
+        decryptedSongNotesInvalid:
+          "加密曲谱内容无效，解密后没有找到有效音符。",
         invalidJson: "曲谱文件不是有效的 JSON。详细信息：{jsonError}",
         topLevelNotArray: "曲谱文件最外层必须是曲谱数组。",
         emptySongArray: "曲谱文件里没有任何曲谱。",
@@ -239,8 +272,8 @@ export const uiText = {
       },
       outputModes: {
         preview: "预览",
-        experimentalForeground: "前台输入",
-        experimentalTargetWindow: "目标窗口",
+        experimentalForeground: "前台播放",
+        experimentalTargetWindow: "后台播放",
       },
       realInputWarning: "将发送真实输入",
       loadingScore: "加载曲谱中...",
@@ -314,6 +347,8 @@ export const uiText = {
       queueUnknownSong: "未知曲目",
       queueItemAlreadyExists: "该曲谱已在播放队列中",
       playlistSongAlreadyExists: "歌单中已存在：{songName}",
+      duplicateImportSkipped: "已跳过重复曲谱：{songName}",
+      duplicateImportSkippedSummary: "已跳过 {count} 首已存在的曲谱。",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
       selectedSongNotInCurrentView:
@@ -333,7 +368,7 @@ export const uiText = {
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
-        "目标窗口播放已开始：{songName} -> {target}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}。{activationNotice}",
+        "后台播放已开始：{songName} -> {target}。",
       experimentalPlaybackPaused: "实验性播放已暂停。",
       experimentalPlaybackResumed: "实验性播放已继续。",
       experimentalPlaybackStopped: "实验性播放已停止。",
@@ -341,13 +376,11 @@ export const uiText = {
       experimentalPlaybackSentKeys: "实验性播放已发送按键：{keys}",
       experimentalPlaybackGroupedYes: "是",
       experimentalPlaybackGroupedNo: "否",
-      experimentalPlaybackLegacyActivationEnabled:
-        "激活窗口消息已启用。",
       experimentalPlaybackTargetInvalid:
         "实验性播放已停止，目标窗口不可用：{error}",
       experimentalPlaybackCommandFailed:
-        "目标窗口消息发送失败。目标窗口可能拒绝 WM_ACTIVATE 或按键消息，或需要匹配权限。输入模式={inputMode}；HWND={targetHwnd}；方式={method}；兼容={profile}；按住={holdMs}ms；组合={grouped}；错误={error}",
-      experimentalInputModeSelected: "实验性输入模式已切换：{mode}",
+        "后台播放发送失败。请重新选择游戏窗口，或尝试前台播放。",
+      experimentalInputModeSelected: "真实播放方式已切换：{mode}",
       experimentalTargetWindowMethodSelected:
         "目标窗口消息投递方式已切换：{method}",
       experimentalTargetWindowProfileSelected:
@@ -369,7 +402,7 @@ export const uiText = {
       experimentalRestoredTargetWindowMissing:
         "刷新窗口列表后未找到上次目标窗口：{target}",
       experimentalRestoredTargetWindowSendFailed:
-        "恢复的目标窗口发送失败，请重新检测或手动选择窗口：{error}",
+        "已保存的游戏窗口无法接收按键，请重新检测或手动选择窗口。",
       globalHotkeyRegisterFailed: "全局快捷键注册失败：{shortcut}",
       globalHotkeyUnavailable:
         "快捷键 {shortcut} 可能已被系统或其他软件占用，请换一个按键。",
@@ -390,6 +423,9 @@ export const uiText = {
     settings: {
       aria: "设置占位页",
       systemTitle: "系统设置",
+      appInfoTitle: "应用信息",
+      logDirectory: "日志目录",
+      appVersion: "SkyMusicPlay Lite 版本",
       language: "语言",
       theme: "主题",
       systemTheme: "跟随系统",
@@ -399,15 +435,18 @@ export const uiText = {
       keyMappingClickHint: "点击后按键盘",
       keyMappingListening: "等待按键...",
       keyMappingTitle: "键位映射",
-      experimentalInputTitle: "实验性输入",
-      experimentalInputDescription: "检测目标窗口并提供实验性播放控制。",
+      experimentalInputTitle: "真实播放",
+      experimentalInputDescription: "将曲谱按键发送到游戏，或仅在软件内预览。",
       experimentalInputWarning:
-        "实验性功能，仅用于个人测试。建议保持默认设置。",
+        "部分游戏或窗口可能不接受后台输入。某些情况下可能需要管理员权限，请遵守游戏规则。",
       experimentalInputRefreshWindows: "刷新窗口列表",
       experimentalInputRefreshing: "正在刷新...",
       experimentalInputDetectSkyWindow: "检测光遇窗口",
       experimentalInputDetecting: "正在检测...",
-      experimentalInputEnable: "启用实验性输入",
+      experimentalInputEnable: "真实播放",
+      experimentalInputOffDescription: "关闭时，只在软件内预览按键。",
+      experimentalInputOnDescription: "开启后，将按键发送到游戏窗口。",
+      experimentalPlaybackMethod: "播放方式",
       experimentalInputNoWindows: "暂无候选窗口。",
       experimentalCurrentTargetWindowLabel: "当前可用目标窗口",
       experimentalSavedTargetWindowLabel: "已保存目标窗口",
@@ -420,11 +459,11 @@ export const uiText = {
       experimentalPlaybackStatusLabel: "实验性播放",
       experimentalPlaybackIdle: "空闲",
       experimentalPlaybackRunning: "发送中",
-      experimentalTargetWindowMode: "目标窗口消息模式",
+      experimentalTargetWindowMode: "后台播放（推荐）",
       experimentalTargetWindowModeDescription:
-        "向已选择的游戏窗口发送按键消息。",
+        "选择光遇窗口后，软件会尝试把按键发送到该窗口。",
       experimentalTargetWindowModeHelp:
-        "默认即可，失败再切换。",
+        "适合大多数情况。未找到窗口时，请刷新或检测。",
       experimentalTargetWindowMessageMethod: "消息投递方式",
       experimentalTargetWindowMessageMethods: {
         "post-message": "PostMessage（默认推荐）",
@@ -434,18 +473,20 @@ export const uiText = {
         "默认即可。只有目标窗口播放失败、漏音或无响应时，再尝试切换投递方式。",
       experimentalTargetWindowCompatibilityProfile: "兼容配置",
       experimentalTargetWindowCompatibilityProfiles: {
-        standard: "基础消息模式",
-        "legacy-vkscan-zero-lparam": "简化键码模式",
-        "legacy-vkscan-scan-lparam": "扫描码兼容模式",
-        "grouped-legacy": "组合按键兼容模式",
-        "legacy-activate-scan-lparam": "激活消息兼容模式",
+        standard: "标准模式",
+        "legacy-vkscan-zero-lparam": "兼容模式 A",
+        "legacy-vkscan-scan-lparam": "兼容模式 B",
+        "grouped-legacy": "组合按键兼容",
+        "legacy-activate-scan-lparam": "后台播放增强（推荐）",
       },
       experimentalTargetWindowCompatibilityHint:
-        "默认使用激活消息兼容模式。",
+        "如果和弦或多个按键同时弹奏不稳定，可以尝试“组合按键兼容”。",
       experimentalTargetWindowKeyHoldMs: "按键按住时间（ms）",
-      experimentalForegroundMode: "前台输入模式",
+      experimentalForegroundMode: "前台播放（备用）",
       experimentalForegroundModeDescription:
-        "向当前前台窗口发送模拟键盘输入。",
+        "需要把游戏放在前台，使用普通模拟键盘输入。",
+      experimentalForegroundModeHelp:
+        "播放开始前会倒计时，请在倒计时结束前切换到游戏窗口。",
       experimentalForegroundStatusLabel: "前台播放",
       experimentalForegroundStates: {
         idle: "空闲",
@@ -499,9 +540,21 @@ export const uiText = {
     },
     navigation: {
       Library: "Library",
-      Playback: "Playback",
+      Playback: "Preview",
       Logs: "Logs",
       Settings: "Settings",
+    },
+    sidebar: {
+      builtIn: "Built-in",
+      collapseCreatedPlaylists: "Collapse created playlists",
+      createPlaylist: "Create playlist",
+      createdPlaylists: "Created Playlists",
+      expandCreatedPlaylists: "Expand created playlists",
+      liked: "Liked",
+      localImports: "Local Imports",
+      mySection: "My",
+      noCreatedPlaylists: "No playlists yet",
+      preview: "Preview",
     },
     sections: {
       Library: {
@@ -509,8 +562,8 @@ export const uiText = {
         status: "Current session scores",
       },
       Playback: {
-        title: "Playback preview",
-        status: "UI preview only",
+        title: "Preview",
+        status: "Keyboard preview",
       },
       Logs: {
         title: "Runtime log",
@@ -522,6 +575,7 @@ export const uiText = {
       },
     },
     actions: {
+      logs: "Logs",
       openReleasePage: "Open release page",
       settings: "Settings",
       updateAvailable: "Update available",
@@ -542,15 +596,29 @@ export const uiText = {
       ignore: "Ignore this version",
       close: "Close update notice",
     },
+    closeConfirm: {
+      title: "Close SkyMusicPlay Lite?",
+      description:
+        "Current playback will stop after closing. Unsaved actions may be lost.",
+      cancel: "Cancel",
+      confirm: "Close",
+    },
+    dragImport: {
+      title: "Drop scores here",
+      description:
+        "Release to import local score files. Supports .json / .txt.",
+      disabledDescription:
+        "Score import is disabled during playback. Stop playback first.",
+    },
     workspace: {
       aria: "Workspace overview",
       scoreTitle: "Score",
       parsedNotes: "parsed notes",
       scoreDescription: "Use the Score section to import and select a score file.",
-      playbackTitle: "Playback",
+      playbackTitle: "Preview",
       previewRunning: "Preview running",
       previewIdle: "Preview idle",
-      playbackDescription: "Use the Playback section to preview highlighted keys.",
+      playbackDescription: "Use the Preview section to preview highlighted keys.",
       logsTitle: "Logs",
       logEntries: "log entries",
       logsDescription: "Use the Logs section to inspect runtime messages.",
@@ -578,6 +646,8 @@ export const uiText = {
         "Import one or more SkyStudio-style JSON / TXT score files.",
       importLabel: "Import .json / .txt",
       searchPlaceholder: "Search scores",
+      locateCurrentScore: "Locate current score",
+      locateCurrentScoreUnavailable: "No score is currently selected",
       categoriesTitle: "Categories",
       categoryBuiltIn: "Built-in",
       categoryLocalImports: "Local Imports",
@@ -612,7 +682,7 @@ export const uiText = {
         "Use the collect button on a score to add it to this playlist.",
       noPlaylistsTitle: "No playlists yet",
       noPlaylistsDescription:
-        "Click the plus button next to Playlists in the sidebar to create one.",
+        "Use the create playlist button in the sidebar to create one.",
       noSearchResultsTitle: "No matching scores found",
       noSearchResultsDescription: "Try a different keyword.",
       placeholderEyebrow: "Placeholder category",
@@ -646,7 +716,12 @@ export const uiText = {
       renamePlaylist: "Rename",
       playlistMore: "More",
       renamePlaylistPrompt: "Enter a new playlist name",
+      renamePlaylistDialogTitle: "Rename Playlist",
+      renamePlaylistConfirm: "Save",
+      renamePlaylistNameLabel: "Playlist name",
       deletePlaylist: "Delete Playlist",
+      cancelDelete: "Cancel",
+      confirmDelete: "Delete",
       noPlaylists: "No playlists yet.",
       closeDialog: "Close",
       closeMenu: "Close menu",
@@ -684,8 +759,10 @@ export const uiText = {
       unsupportedFile: "Only .json and .txt score files are supported.",
       importErrors: {
         emptyFile: "Score file is empty.",
-        encryptedSongNotesUnsupported:
-          'Score "{songName}" uses an encrypted or encoded numeric note format, which is not supported yet. Please use an unencrypted JSON export or convert it to { time, key } note objects first.',
+        encryptedSongNotesDecryptFailed:
+          "Failed to decrypt the encrypted score. Please check whether the file is complete.",
+        decryptedSongNotesInvalid:
+          "Invalid encrypted score content. No valid notes were found after decryption.",
         invalidJson: "Score file is not valid JSON. Details: {jsonError}",
         topLevelNotArray: "Score file must contain a JSON array of songs.",
         emptySongArray: "Score file does not contain any songs.",
@@ -722,8 +799,8 @@ export const uiText = {
       },
       outputModes: {
         preview: "Preview",
-        experimentalForeground: "Foreground",
-        experimentalTargetWindow: "Target",
+        experimentalForeground: "Foreground playback",
+        experimentalTargetWindow: "Background playback",
       },
       realInputWarning: "Real input will be sent",
       loadingScore: "Loading score...",
@@ -799,6 +876,8 @@ export const uiText = {
       queueUnknownSong: "Unknown score",
       queueItemAlreadyExists: "This score is already in the playback queue",
       playlistSongAlreadyExists: "Already in playlist: {songName}",
+      duplicateImportSkipped: "Skipped duplicate score: {songName}",
+      duplicateImportSkippedSummary: "Skipped {count} existing score(s).",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
       selectedSongNotInCurrentView:
@@ -820,7 +899,7 @@ export const uiText = {
       experimentalInputEnabled: "Experimental input enabled.",
       experimentalInputDisabled: "Experimental input disabled.",
       experimentalPlaybackStarted:
-        "Target-window playback started: {songName} -> {target}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}. {activationNotice}",
+        "Background playback started: {songName} -> {target}.",
       experimentalPlaybackPaused: "Experimental playback paused.",
       experimentalPlaybackResumed: "Experimental playback resumed.",
       experimentalPlaybackStopped: "Experimental playback stopped.",
@@ -828,13 +907,11 @@ export const uiText = {
       experimentalPlaybackSentKeys: "Experimental playback sent keys: {keys}",
       experimentalPlaybackGroupedYes: "yes",
       experimentalPlaybackGroupedNo: "no",
-      experimentalPlaybackLegacyActivationEnabled:
-        "Activation messages enabled.",
       experimentalPlaybackTargetInvalid:
         "Experimental playback stopped because the target window is unavailable: {error}",
       experimentalPlaybackCommandFailed:
-        "Target window message failed. The target window may reject WM_ACTIVATE or key messages, or may require matching permissions. input mode={inputMode}; hwnd={targetHwnd}; method={method}; profile={profile}; hold={holdMs}ms; grouped={grouped}; error={error}",
-      experimentalInputModeSelected: "Experimental input mode selected: {mode}",
+        "Background playback failed. Select the game window again or try foreground playback.",
+      experimentalInputModeSelected: "Real playback method selected: {mode}",
       experimentalTargetWindowMethodSelected:
         "Target-window message method selected: {method}",
       experimentalTargetWindowProfileSelected:
@@ -858,7 +935,7 @@ export const uiText = {
       experimentalRestoredTargetWindowMissing:
         "Previous target window was not found after refreshing windows: {target}",
       experimentalRestoredTargetWindowSendFailed:
-        "Sending to the restored target window failed. Please detect or select the window again: {error}",
+        "The saved game window cannot receive keys. Detect or select the window again.",
       globalHotkeyRegisterFailed:
         "Failed to register global hotkey: {shortcut}",
       globalHotkeyUnavailable:
@@ -883,6 +960,9 @@ export const uiText = {
     settings: {
       aria: "Settings placeholder",
       systemTitle: "System settings",
+      appInfoTitle: "App Info",
+      logDirectory: "Log Directory",
+      appVersion: "SkyMusicPlay Lite Version",
       language: "Language",
       theme: "Theme",
       systemTheme: "System",
@@ -892,16 +972,21 @@ export const uiText = {
       keyMappingClickHint: "Click, then press a key",
       keyMappingListening: "Waiting for key...",
       keyMappingTitle: "Key mapping",
-      experimentalInputTitle: "Experimental input",
+      experimentalInputTitle: "Real playback",
       experimentalInputDescription:
-        "Detect a target window and provide experimental playback controls.",
+        "Send score keys to the game, or preview them only inside the app.",
       experimentalInputWarning:
-        "Experimental feature for personal testing only. Keep defaults unless playback fails.",
+        "Some games or windows may reject background input. Administrator permission may be required. Follow the game rules.",
       experimentalInputRefreshWindows: "Refresh Windows",
       experimentalInputRefreshing: "Refreshing...",
       experimentalInputDetectSkyWindow: "Detect Sky Window",
       experimentalInputDetecting: "Detecting...",
-      experimentalInputEnable: "Enable Experimental Input",
+      experimentalInputEnable: "Real playback",
+      experimentalInputOffDescription:
+        "When off, keys are previewed only inside the app.",
+      experimentalInputOnDescription:
+        "When on, keys are sent to the game window.",
+      experimentalPlaybackMethod: "Playback method",
       experimentalInputNoWindows: "No candidate windows yet.",
       experimentalCurrentTargetWindowLabel: "Current available target window",
       experimentalSavedTargetWindowLabel: "Saved target window",
@@ -914,11 +999,11 @@ export const uiText = {
       experimentalPlaybackStatusLabel: "Experimental playback",
       experimentalPlaybackIdle: "Idle",
       experimentalPlaybackRunning: "Sending",
-      experimentalTargetWindowMode: "Target Window Message Mode",
+      experimentalTargetWindowMode: "Background playback (recommended)",
       experimentalTargetWindowModeDescription:
-        "Send key messages to the selected game window.",
+        "Select the Sky window and the app will try to send keys to it.",
       experimentalTargetWindowModeHelp:
-        "Keep the default. Switch only if playback fails.",
+        "Works for most cases. Refresh or detect if the window is missing.",
       experimentalTargetWindowMessageMethod: "Message delivery method",
       experimentalTargetWindowMessageMethods: {
         "post-message": "PostMessage (default)",
@@ -929,18 +1014,21 @@ export const uiText = {
       experimentalTargetWindowCompatibilityProfile:
         "Compatibility profile",
       experimentalTargetWindowCompatibilityProfiles: {
-        standard: "Basic Message Mode",
-        "legacy-vkscan-zero-lparam": "Simplified Key Code Mode",
-        "legacy-vkscan-scan-lparam": "Scan Code Compatibility Mode",
-        "grouped-legacy": "Grouped Key Compatibility Mode",
-        "legacy-activate-scan-lparam": "Activation Message Compatibility Mode",
+        standard: "Standard",
+        "legacy-vkscan-zero-lparam": "Compatibility A",
+        "legacy-vkscan-scan-lparam": "Compatibility B",
+        "grouped-legacy": "Grouped key compatibility",
+        "legacy-activate-scan-lparam":
+          "Background playback boost (recommended)",
       },
       experimentalTargetWindowCompatibilityHint:
-        "Default: activated message compatibility mode.",
+        "Try grouped key compatibility if chords or simultaneous keys are unstable.",
       experimentalTargetWindowKeyHoldMs: "Key hold duration (ms)",
-      experimentalForegroundMode: "Foreground Input Mode",
+      experimentalForegroundMode: "Foreground playback (fallback)",
       experimentalForegroundModeDescription:
-        "Send simulated keyboard input to the current foreground window.",
+        "Keep the game in front and use regular simulated keyboard input.",
+      experimentalForegroundModeHelp:
+        "A countdown starts before playback. Switch to the game before it ends.",
       experimentalForegroundStatusLabel: "Foreground playback",
       experimentalForegroundStates: {
         idle: "Idle",

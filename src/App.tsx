@@ -1,90 +1,98 @@
-import { getVersion } from "@tauri-apps/api/app";
-import {
-  register,
-  unregister,
-  type ShortcutEvent,
-} from "@tauri-apps/plugin-global-shortcut";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { CircleAlert, FileUp } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+} from "react";
 import {
   AppSidebar,
   WorkspaceHeader,
   type AppSection,
 } from "./components/AppShell";
+import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
+import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
-import {
-  ALLOWED_RELEASE_URL_PREFIX,
-  UPDATE_MANIFEST_URL,
-  USER_MANUAL_URL,
-} from "./config/update";
+import { USER_MANUAL_URL } from "./config/update";
+import { useAppFileLogger } from "./hooks/useAppFileLogger";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
+import { useLibraryDialogs } from "./hooks/useLibraryDialogs";
 import { usePlaybackLog } from "./hooks/usePlaybackLog";
-import {
-  buildPlaybackOrderFromVisibleItems,
-  usePlaybackOrder,
-} from "./hooks/usePlaybackOrder";
+import { usePlaybackCoordinator } from "./hooks/usePlaybackCoordinator";
+import { usePlaybackOrder } from "./hooks/usePlaybackOrder";
 import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
+import { usePlaybackShortcuts } from "./hooks/usePlaybackShortcuts";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
+import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import {
   defaultLanguage,
   uiText,
   type LanguageCode,
 } from "./i18n/uiText";
-import { formatText } from "./lib/formatText";
-import {
-  formatShortcutCode,
-  isUnsafeGlobalStopShortcut,
-  toGlobalShortcutAccelerators,
-} from "./lib/playbackShortcuts";
-import {
-  checkForUpdate,
-  type UpdateInfo,
-} from "./lib/updateCheck";
-import { ignoreUpdate, isUpdateIgnored } from "./lib/updateIgnore";
-import type { LibrarySongId, LibrarySongListItem } from "./types/library";
-import type { PlaybackQueueItem } from "./types/playbackQueue";
-import {
-  defaultPlaybackShortcuts,
-  type PlaybackShortcutAction,
-  type PlaybackShortcutNotices,
-  type PlaybackShortcuts,
-} from "./types/playbackShortcuts";
+import { forceCloseApp } from "./lib/tauriApi";
 import "../font/iconfont.css";
 import "./App.css";
 
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
-  const playbackHotkeyControlsRef = useRef<
-    Record<PlaybackShortcutAction, () => void>
-  >({
-    next: () => {},
-    pauseResume: () => {},
-    stop: () => {},
-  });
+  const isClosingAfterConfirmRef = useRef(false);
+  const closeRequestedUnlistenRef = useRef<(() => void) | null>(null);
+  const fileLogContextRef = useRef<Record<string, unknown>>({});
+  const dragDepthRef = useRef(0);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
-  const appNoticeTimerRef = useRef<number | null>(null);
-  const [appNotice, setAppNotice] = useState<string | null>(null);
-  const [shortcutNotice, setShortcutNotice] =
-    useState<PlaybackShortcutNotices>({});
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
-  const [playbackShortcuts, setPlaybackShortcuts] =
-    useState<PlaybackShortcuts>(defaultPlaybackShortcuts);
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [isDraggingScoreFiles, setIsDraggingScoreFiles] = useState(false);
+  const [appNotice, setAppNotice] = useState<{
+    id: number;
+    message: string;
+  } | null>(null);
+  const [isAppNoticeOpen, setIsAppNoticeOpen] = useState(false);
+  const updateCheck = useUpdateCheck();
   const text = uiText[language];
-  const { appendLog, logEntries } = usePlaybackLog([
-    uiText[defaultLanguage].logs.appReady,
-  ]);
+  const appFileLogger = useAppFileLogger(language);
+  const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
+
+  useEffect(() => {
+    appendDetailedLogRef.current = appFileLogger.appendDetailedLog;
+  }, [appFileLogger.appendDetailedLog]);
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.info("[startup] App mounted", `${performance.now().toFixed(1)}ms`);
+    }
+  }, []);
+
+  const { appendLog, logEntries } = usePlaybackLog(
+    [uiText[defaultLanguage].logs.appReady],
+    {
+      onAppend: (entry) => {
+        appFileLogger.appendDetailedLog({
+          details: fileLogContextRef.current,
+          message: entry,
+          source: "ui-log",
+        });
+      },
+    },
+  );
+  const playbackShortcutsController = usePlaybackShortcuts({
+    appendLog,
+    showNotice: showAppNotice,
+    text,
+  });
   const {
     applyKeyMapping,
     handleStartKeyMappingListen,
@@ -94,6 +102,7 @@ function App() {
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
+    showNotice: showAppNotice,
     text,
   });
   const playbackOrder = usePlaybackOrder();
@@ -103,6 +112,10 @@ function App() {
     showNotice: showAppNotice,
     text: text.logs,
   });
+  function handlePlaybackSongIndexChange(songIndex: number | null) {
+    scoreLibrary.setPlaybackSongIndex(songIndex);
+    scoreLibrary.setSelectedSongIndex(songIndex);
+  }
   const previewPlayback = usePreviewPlayback({
     appendLog,
     consumeNextQueueItemAfterCurrent:
@@ -116,7 +129,7 @@ function App() {
     importedSongsRef: scoreLibrary.importedSongsRef,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
-    setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    setSelectedSongIndex: handlePlaybackSongIndexChange,
     startQueuePlayback: playbackQueue.startQueuePlayback,
     text,
   });
@@ -138,7 +151,7 @@ function App() {
     playbackSpeed: previewPlayback.playbackSpeed,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
-    setSelectedSongIndex: scoreLibrary.setSelectedSongIndex,
+    setSelectedSongIndex: handlePlaybackSongIndexChange,
     showNotice: showAppNotice,
     startQueuePlayback: playbackQueue.startQueuePlayback,
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
@@ -150,7 +163,7 @@ function App() {
       experimentalInput.applyExperimentalInputPreferences,
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
-    applyPlaybackShortcuts: setPlaybackShortcuts,
+    applyPlaybackShortcuts: playbackShortcutsController.setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
     canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
@@ -162,7 +175,7 @@ function App() {
     likedSongs: scoreLibrary.likedSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
-    playbackShortcuts,
+    playbackShortcuts: playbackShortcutsController.playbackShortcuts,
     playbackSpeed: previewPlayback.playbackSpeed,
     playlists: scoreLibrary.playlists,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
@@ -183,6 +196,24 @@ function App() {
     previewPlayback,
     text: text.bottomPlayer,
   });
+  const playbackCoordinator = usePlaybackCoordinator({
+    appendLog,
+    experimentalInput,
+    playbackOrder,
+    playbackOutput,
+    playbackQueue,
+    scoreLibrary,
+    text,
+  });
+  const libraryDialogs = useLibraryDialogs({
+    librarySongs: scoreLibrary.librarySongs,
+    onDeleteLocalSong: playbackCoordinator.handleDeleteLocalSong,
+    onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
+    onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
+    playlists: scoreLibrary.playlists,
+    selectedSongId: scoreLibrary.selectedSongId,
+    text: text.library,
+  });
   const [queueOpen, setQueueOpen] = useState(false);
   const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
     useState(false);
@@ -193,54 +224,73 @@ function App() {
     experimentalInput.foregroundPlaybackState === "playing" ||
     experimentalInput.foregroundPlaybackState === "paused" ||
     experimentalInput.isExperimentalPlaybackRunning;
-  const selectedLibrarySong =
-    scoreLibrary.selectedSongIndex === null
-      ? null
-      : (scoreLibrary.librarySongs[scoreLibrary.selectedSongIndex] ?? null);
-  const isCurrentSongLoading =
-    selectedLibrarySong !== null &&
-    selectedLibrarySong.source === "built-in" &&
-    !selectedLibrarySong.isBuiltInLoaded &&
-    scoreLibrary.isBuiltInSongLoading(selectedLibrarySong.id);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (isClosingAfterConfirmRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        setIsCloseConfirmOpen(true);
+        appendDetailedLogRef.current({
+          details: fileLogContextRef.current,
+          message: "Native close requested; confirmation dialog opened",
+          source: "window",
+        });
+      })
+      .then((unlistenCloseRequested) => {
+        if (!isMounted) {
+          unlistenCloseRequested();
+          return;
+        }
+
+        closeRequestedUnlistenRef.current = unlistenCloseRequested;
+      })
+      .catch((error) => {
+        appendDetailedLogRef.current({
+          details: { error: String(error instanceof Error ? error.message : error) },
+          level: "warn",
+          message: "Failed to register close confirmation handler",
+          source: "window",
+        });
+      });
+
+    return () => {
+      isMounted = false;
+      closeRequestedUnlistenRef.current?.();
+      closeRequestedUnlistenRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     stopPreviewRef.current = playbackOutput.onStop;
   }, [playbackOutput.onStop]);
 
   useEffect(() => {
-    let isCancelled = false;
-
-    async function loadUpdateInfo() {
-      try {
-        const currentVersion = await getVersion();
-        const nextUpdateInfo = await checkForUpdate({
-          allowedReleaseUrlPrefix: ALLOWED_RELEASE_URL_PREFIX,
-          currentVersion,
-          manifestUrl: UPDATE_MANIFEST_URL,
-        });
-
-        if (
-          !isCancelled &&
-          nextUpdateInfo !== null &&
-          !isUpdateIgnored(nextUpdateInfo)
-        ) {
-          setUpdateInfo(nextUpdateInfo);
-        }
-      } catch (error) {
-        console.warn("[update-check] startup check failed", error);
-      }
-    }
-
-    void loadUpdateInfo();
-
-    return () => {
-      isCancelled = true;
+    fileLogContextRef.current = {
+      activeSection,
+      isExperimentalInputEnabled: experimentalInput.experimentalInputEnabled,
+      language,
+      noteIntervalDelayMs: playbackOutput.noteIntervalDelayMs,
+      outputMode: playbackOutput.mode,
+      playbackMode: playbackOutput.playbackMode,
+      playbackSpeed: playbackOutput.playbackSpeed,
+      playbackState: playbackOutput.playbackState,
+      selectedSongIndex: scoreLibrary.selectedSongIndex,
+      selectedSongName: scoreLibrary.currentSelectedSong?.name ?? null,
+      targetWindowCompatibilityProfile:
+        experimentalInput.targetWindowCompatibilityProfile,
+      targetWindowHwnd: experimentalInput.selectedWindowHwnd,
     };
-  }, []);
+  });
 
   useEffect(() => {
-    playbackHotkeyControlsRef.current = {
-      next: handleNextPlayback,
+    playbackShortcutsController.setPlaybackHotkeyControls({
+      next: playbackCoordinator.handleNextPlayback,
       pauseResume: () => {
         if (playbackOutput.playbackState === "playing") {
           playbackOutput.onPause();
@@ -252,188 +302,23 @@ function App() {
           return;
         }
 
-        if (playbackOutput.canPlay && !isCurrentSongLoading) {
-          handleBottomPlayerPlay();
+        if (
+          playbackOutput.canPlay &&
+          !playbackCoordinator.isCurrentSongLoading
+        ) {
+          void playbackCoordinator.handleBottomPlayerPlay();
         }
       },
       stop: playbackOutput.onStop,
-    };
+    });
   });
 
-  useEffect(() => {
-    function isEditableTarget(target: EventTarget | null) {
-      if (!(target instanceof HTMLElement)) {
-        return false;
-      }
-
-      const tagName = target.tagName.toLowerCase();
-
-      return (
-        tagName === "input" ||
-        tagName === "textarea" ||
-        tagName === "select" ||
-        tagName === "button" ||
-        target.isContentEditable ||
-        target.closest('[contenteditable="true"]') !== null
-      );
-    }
-
-    function handleInAppShortcutKeyDown(event: KeyboardEvent) {
-      if (
-        event.repeat ||
-        event.ctrlKey ||
-        event.altKey ||
-        event.metaKey ||
-        isEditableTarget(event.target)
-      ) {
-        return;
-      }
-
-      if (event.code === playbackShortcuts.pauseResume) {
-        event.preventDefault();
-        playbackHotkeyControlsRef.current.pauseResume();
-        return;
-      }
-
-      if (event.code === playbackShortcuts.next) {
-        event.preventDefault();
-        playbackHotkeyControlsRef.current.next();
-      }
-    }
-
-    window.addEventListener("keydown", handleInAppShortcutKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleInAppShortcutKeyDown);
-    };
-  }, [playbackShortcuts.next, playbackShortcuts.pauseResume]);
-
-  useEffect(() => {
-    let isDisposed = false;
-    const registeredAccelerators: string[] = [];
-
-    async function registerGlobalStopHotkey() {
-      const shortcutCode = playbackShortcuts.stop;
-      const acceleratorCandidates = toGlobalShortcutAccelerators(shortcutCode);
-      const shortcutLabel = formatShortcutCode(shortcutCode) || shortcutCode;
-
-      if (isUnsafeGlobalStopShortcut(shortcutCode)) {
-        setShortcutNotice({
-          stop: text.settings.keyboardShortcutUnsafeGlobalStop,
-        });
-        return;
-      }
-
-      if (shortcutCode.trim() !== "" && acceleratorCandidates.length === 0) {
-        setShortcutNotice({
-          stop: text.settings.keyboardShortcutGlobalStopFailed,
-        });
-        return;
-      }
-
-      for (const accelerator of acceleratorCandidates) {
-        try {
-          await register(accelerator, (event: ShortcutEvent) => {
-            if (event.state !== "Pressed") {
-              return;
-            }
-
-            playbackHotkeyControlsRef.current.stop();
-          });
-
-          if (isDisposed) {
-            await unregister(accelerator).catch(() => {});
-            return;
-          }
-
-          registeredAccelerators.push(accelerator);
-          setShortcutNotice((currentNotices) => {
-            const { stop: _stopNotice, ...nextNotices } = currentNotices;
-            return nextNotices;
-          });
-          break;
-        } catch (error) {
-          const isLastCandidate =
-            accelerator ===
-            acceleratorCandidates[acceleratorCandidates.length - 1];
-
-          if (!isLastCandidate) {
-            continue;
-          }
-
-          console.warn(
-            "Failed to register global Stop hotkey.",
-            shortcutLabel,
-            error,
-          );
-          setShortcutNotice({
-            stop: text.settings.keyboardShortcutGlobalStopFailed,
-          });
-        }
-      }
-    }
-
-    void registerGlobalStopHotkey();
-
-    return () => {
-      isDisposed = true;
-      if (registeredAccelerators.length > 0) {
-        void unregister(Array.from(new Set(registeredAccelerators))).catch(
-          () => {},
-        );
-      }
-    };
-  }, [
-    playbackShortcuts.stop,
-    text.settings.keyboardShortcutGlobalStopFailed,
-    text.settings.keyboardShortcutUnsafeGlobalStop,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      if (appNoticeTimerRef.current !== null) {
-        window.clearTimeout(appNoticeTimerRef.current);
-      }
-    };
-  }, []);
-
   function showAppNotice(message: string) {
-    setAppNotice(message);
-    if (appNoticeTimerRef.current !== null) {
-      window.clearTimeout(appNoticeTimerRef.current);
-    }
-    appNoticeTimerRef.current = window.setTimeout(() => {
-      setAppNotice(null);
-      appNoticeTimerRef.current = null;
-    }, 3000);
-  }
-
-  function handleOpenUpdateDialog() {
-    if (updateInfo !== null) {
-      setIsUpdateDialogOpen(true);
-    }
-  }
-
-  async function handleOpenUpdateReleasePage() {
-    if (updateInfo === null) {
-      return;
-    }
-
-    try {
-      await openUrl(updateInfo.releaseUrl);
-    } catch (error) {
-      console.warn("Failed to open release page.", error);
-    }
-  }
-
-  function handleIgnoreUpdate() {
-    if (updateInfo === null || updateInfo.updateKind !== "alpha") {
-      return;
-    }
-
-    ignoreUpdate(updateInfo);
-    setIsUpdateDialogOpen(false);
-    setUpdateInfo(null);
+    setAppNotice((currentNotice) => ({
+      id: (currentNotice?.id ?? 0) + 1,
+      message,
+    }));
+    setIsAppNoticeOpen(true);
   }
 
   async function handleOpenUserManual() {
@@ -453,207 +338,99 @@ function App() {
     void scoreLibrary.handleImportScoreFiles(files);
   }
 
-  function handleDeleteLocalSong(songIndex: number) {
-    scoreLibrary.handleDeleteLocalSong(
-      songIndex,
-      (deletedSongIndex, deletedSongId) => {
-        playbackQueue.removeSongIndex(deletedSongIndex);
-        playbackOrder.removeSongFromPlaybackContext(deletedSongId);
-      },
-    );
-  }
-
-  function handlePlayLibraryItem(item: LibrarySongListItem) {
-    scoreLibrary.setSelectedSongId(item.librarySong.id);
-    setPlaybackContextForLibraryItem(item);
-    playbackQueue.replaceQueueWithCurrent(item.songIndex);
-    playbackOutput.onPlaySong(item.songIndex);
-  }
-
-  function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
-    scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
-    playbackOrder.clearPlaybackContext();
-    startPlaybackFromSongIndex(queueItem.songIndex);
-  }
-
-  function handleRemoveFromLiked(songId: LibrarySongId) {
-    const shouldClear =
-      scoreLibrary.selectedLibraryCategory === "liked" &&
-      scoreLibrary.selectedSongId === songId;
-
-    scoreLibrary.handleRemoveFromLiked(songId);
-
-    if (shouldClear) {
-      clearCurrentSelectionAfterRemoval();
-    }
-  }
-
-  function handleRemoveSongFromPlaylist(
-    playlistId: string,
-    songId: LibrarySongId,
-  ) {
-    const shouldClear =
-      scoreLibrary.selectedLibraryCategory === "playlists" &&
-      scoreLibrary.selectedPlaylistId === playlistId &&
-      scoreLibrary.selectedSongId === songId;
-
-    scoreLibrary.handleRemoveSongFromPlaylist(playlistId, songId);
-
-    if (shouldClear) {
-      clearCurrentSelectionAfterRemoval();
-    }
-  }
-
-  function handleToggleLikedSong(songIndex: number) {
-    const toggledSong = scoreLibrary.librarySongs[songIndex];
-    const isCurrentlyLiked =
-      toggledSong !== undefined &&
-      scoreLibrary.likedSongs.some(
-        (entry) => entry.songId === toggledSong.id,
-      );
-    const shouldClear =
-      scoreLibrary.selectedLibraryCategory === "liked" &&
-      isCurrentlyLiked &&
-      scoreLibrary.selectedSongId === toggledSong?.id;
-
-    scoreLibrary.handleToggleLikedSong(songIndex);
-
-    if (shouldClear) {
-      clearCurrentSelectionAfterRemoval();
-    }
-  }
-
-  function handleNextPlayback() {
-    const songs = scoreLibrary.importedSongsRef.current;
-    const queuedItem = playbackQueue.consumeNextQueueItemAfterCurrent(
-      songs.length,
-    );
-    if (queuedItem) {
-      playbackOrder.clearPlaybackContext();
-    }
-
-    const playbackOrderNextSongIndex =
-      queuedItem === null && scoreLibrary.selectedSongIndex !== null
-        ? playbackOrder.getNextPlaybackOrderSongIndex({
-            currentSongIndex: scoreLibrary.selectedSongIndex,
-            isShuffleEnabled: playbackOutput.isShuffleEnabled,
-            librarySongs: scoreLibrary.librarySongs,
-            playbackMode: playbackOutput.playbackMode,
-          })
-        : null;
-    const nextSongIndex = queuedItem?.songIndex ?? playbackOrderNextSongIndex;
-
-    if (nextSongIndex === null) {
-      playbackOrder.clearPlaybackContext();
-      playbackOutput.onStop();
-      appendLog(text.logs.manualNextUnavailable);
+  function handleAppDragEnter(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
       return;
     }
 
-    appendLog(
-      formatText(text.logs.manualNextTriggered, {
-        songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
-      }),
-    );
-    if (queuedItem === null) {
-      playbackQueue.startQueuePlayback(nextSongIndex);
-    }
-    playbackOutput.onPlaySong(nextSongIndex);
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingScoreFiles(true);
   }
 
-  function handleBottomPlayerPlay() {
-    if (
-      scoreLibrary.selectedSongId === null ||
-      scoreLibrary.selectedSongIndex === null
-    ) {
-      playbackOutput.onPlay();
+  function handleAppDragOver(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
       return;
     }
 
-    const selectedVisibleItem = getCurrentDisplayedLibraryItems().find(
-      (item) => item.librarySong.id === scoreLibrary.selectedSongId,
-    );
+    event.preventDefault();
+    event.dataTransfer.dropEffect = isAnyPlaybackActive ? "none" : "copy";
+  }
 
-    if (!selectedVisibleItem) {
-      clearCurrentSelectionAfterRemoval();
-      appendLog(text.logs.selectedSongNotInCurrentView);
+  function handleAppDragLeave(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
       return;
     }
 
-    setPlaybackContextForLibraryItem(selectedVisibleItem);
-    playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
-    playbackOutput.onPlaySong(selectedVisibleItem.songIndex);
-  }
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
 
-  function handleQueueItemRemove(queueItemId: string) {
-    const removedItem = playbackQueue.queueItems.find(
-      (queueItem) => queueItem.id === queueItemId,
-    );
-    const isRemovingCurrentItem = playbackQueue.queueItems[0]?.id === queueItemId;
-    const isRemovingOnlyQueueItem = playbackQueue.queueItems.length === 1;
-
-    playbackQueue.removeQueueItem(queueItemId);
-
-    if (removedItem && isRemovingCurrentItem && isRemovingOnlyQueueItem) {
-      clearCurrentPlaybackSelection();
+    if (dragDepthRef.current === 0) {
+      setIsDraggingScoreFiles(false);
     }
   }
 
-  function handleQueueClear() {
-    const hadQueueItems = playbackQueue.queueItems.length > 0;
-
-    playbackQueue.clearQueue();
-
-    if (hadQueueItems) {
-      clearCurrentPlaybackSelection();
-    }
-  }
-
-  function startPlaybackFromSongIndex(songIndex: number) {
-    if (canStartQueueForCurrentOutput()) {
-      playbackQueue.startQueuePlayback(songIndex);
+  function handleAppDrop(event: ReactDragEvent<HTMLElement>) {
+    if (!hasDraggedFiles(event)) {
+      return;
     }
 
-    playbackOutput.onPlaySong(songIndex);
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingScoreFiles(false);
+
+    const files = Array.from(event.dataTransfer.files);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    if (!isAnyPlaybackActive) {
+      setActiveSection("Library");
+      scoreLibrary.handleLibraryCategoryChange("local-imports");
+    }
+
+    handleImportScoreFiles(files);
   }
 
-  function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
-    playbackOrder.setPlaybackContext({
-      currentSongId: item.librarySong.id,
-      selectedCategory: scoreLibrary.selectedLibraryCategory,
-      songIds: buildPlaybackOrderFromVisibleItems(
-        scoreLibrary.visibleLibraryItems,
-        item.librarySong.id,
-        { usesSearch: scoreLibrary.hasSearchQuery },
-      ),
-      usesSearch: scoreLibrary.hasSearchQuery,
+  async function handleConfirmAppClose() {
+    isClosingAfterConfirmRef.current = true;
+    setIsCloseConfirmOpen(false);
+    appFileLogger.appendDetailedLog({
+      details: fileLogContextRef.current,
+      message: "Close confirmed",
+      source: "window",
     });
-  }
 
-  function getCurrentDisplayedLibraryItems() {
-    return scoreLibrary.selectedLibraryCategory === "built-in"
-      ? scoreLibrary.pagedVisibleLibraryItems
-      : scoreLibrary.visibleLibraryItems;
-  }
+    try {
+      await forceCloseApp();
+    } catch (error) {
+      appFileLogger.appendDetailedLog({
+        details: { error: String(error instanceof Error ? error.message : error) },
+        level: "warn",
+        message: "Force-close command failed; trying window close fallback",
+        source: "window",
+      });
 
-  function clearCurrentSelectionAfterRemoval() {
-    playbackOutput.onStop();
-    playbackOrder.clearPlaybackContext();
-    playbackQueue.clearQueue();
-    scoreLibrary.setSelectedSongId(null);
-  }
-
-  function clearCurrentPlaybackSelection() {
-    playbackOutput.onStop();
-    playbackOrder.clearPlaybackContext();
-    scoreLibrary.setSelectedSongId(null);
-  }
-
-  function canStartQueueForCurrentOutput() {
-    return (
-      playbackOutput.mode !== "experimental-target-window" ||
-      experimentalInput.selectedWindowHwnd !== null
-    );
+      try {
+        await getCurrentWindow().close();
+      } catch (fallbackError) {
+        isClosingAfterConfirmRef.current = false;
+        appFileLogger.appendDetailedLog({
+          details: {
+            error: String(
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : fallbackError,
+            ),
+          },
+          level: "error",
+          message: "Failed to close app after confirmation",
+          source: "window",
+        });
+        setIsCloseConfirmOpen(true);
+      }
+    }
   }
 
   function renderActiveSection() {
@@ -663,22 +440,28 @@ function App() {
           builtInPagination={scoreLibrary.builtInPagination}
           importError={scoreLibrary.importError}
           importDisabled={isAnyPlaybackActive}
+          isQueueOpen={queueOpen}
           hasSearchQuery={scoreLibrary.hasSearchQuery}
           items={scoreLibrary.pagedVisibleLibraryItems}
+          locateScoreRequest={scoreLibrary.locateScoreRequest}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
-          onDeleteLocalSong={handleDeleteLocalSong}
-          onDeletePlaylist={scoreLibrary.handleDeletePlaylist}
+          onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
+          onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
+          onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
-          onPlaySong={handlePlayLibraryItem}
+          onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
+          onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
-          onRemoveFromLiked={handleRemoveFromLiked}
-          onRemoveSongFromPlaylist={handleRemoveSongFromPlaylist}
-          onRenamePlaylist={scoreLibrary.handleRenamePlaylist}
+          onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}
+          onRemoveSongFromPlaylist={
+            playbackCoordinator.handleRemoveSongFromPlaylist
+          }
+          onRenamePlaylist={libraryDialogs.requestRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
           onSelectSong={scoreLibrary.handleSelectImportedSong}
-          onToggleLiked={handleToggleLikedSong}
+          onToggleLiked={playbackCoordinator.handleToggleLikedSong}
           playlists={scoreLibrary.playlists}
           searchQuery={scoreLibrary.searchQuery}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
@@ -728,17 +511,10 @@ function App() {
             onSelectedWindowChange: experimentalInput.setSelectedWindowHwnd,
             onTargetWindowCompatibilityProfileChange:
               experimentalInput.setTargetWindowCompatibilityProfile,
-            onTargetWindowKeyHoldMsChange:
-              experimentalInput.setTargetWindowKeyHoldMs,
-            onTargetWindowMessageMethodChange:
-              experimentalInput.setTargetWindowMessageMethod,
             selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
             selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
             targetWindowCompatibilityProfile:
               experimentalInput.targetWindowCompatibilityProfile,
-            targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
-            targetWindowMessageMethod:
-              experimentalInput.targetWindowMessageMethod,
             experimentalInputMode: experimentalInput.experimentalInputMode,
             foregroundCountdown: experimentalInput.foregroundCountdown,
             foregroundPlaybackState: experimentalInput.foregroundPlaybackState,
@@ -748,13 +524,15 @@ function App() {
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onLanguageChange={setLanguage}
+          appRuntimeInfo={appFileLogger.runtimeInfo}
+          onOpenLogDirectory={appFileLogger.openLogDirectory}
           onPlaybackShortcutsChange={(nextShortcuts) => {
-            setShortcutNotice({});
-            setPlaybackShortcuts(nextShortcuts);
+            playbackShortcutsController.clearShortcutNotice();
+            playbackShortcutsController.setPlaybackShortcuts(nextShortcuts);
           }}
-          onShortcutNoticeClear={() => setShortcutNotice({})}
-          playbackShortcuts={playbackShortcuts}
-          shortcutNotice={shortcutNotice}
+          onShortcutNoticeClear={playbackShortcutsController.clearShortcutNotice}
+          playbackShortcuts={playbackShortcutsController.playbackShortcuts}
+          shortcutNotice={playbackShortcutsController.shortcutNotice}
           text={text.settings}
         />
       );
@@ -764,25 +542,41 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main
+      className="app-shell"
+      onDragEnter={handleAppDragEnter}
+      onDragLeave={handleAppDragLeave}
+      onDragOver={handleAppDragOver}
+      onDrop={handleAppDrop}
+    >
       <AppSidebar
         activeSection={activeSection}
-        localImportCount={scoreLibrary.localLibrarySongs.length}
-        onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
-        onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
-        onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
+        onCreatePlaylistRequest={() => {
+          setActiveSection("Library");
+          setIsCreatingPlaylistFromSidebar(true);
+        }}
+        onLibraryCategorySelect={(category) => {
+          setActiveSection("Library");
+          scoreLibrary.handleLibraryCategoryChange(category);
+        }}
+        onPlaylistSelect={(playlistId) => {
+          setActiveSection("Library");
+          scoreLibrary.handleLibraryCategoryChange("playlists");
+          scoreLibrary.setSelectedPlaylistId(playlistId);
+        }}
         onSectionChange={setActiveSection}
-        onUpdateClick={handleOpenUpdateDialog}
+        onUpdateClick={updateCheck.openUpdateDialog}
         playlists={scoreLibrary.playlists}
         selectedLibraryCategory={scoreLibrary.selectedLibraryCategory}
         selectedPlaylistId={scoreLibrary.selectedPlaylistId}
         text={text}
-        updateInfo={updateInfo}
+        updateInfo={updateCheck.updateInfo}
       />
 
       <section className="workspace-shell" aria-label={text.app.contentAria}>
         <WorkspaceHeader
           activeSection={activeSection}
+          onLogsClick={() => setActiveSection("Logs")}
           onSettingsClick={() => setActiveSection("Settings")}
           onUserManualClick={handleOpenUserManual}
           text={text}
@@ -795,41 +589,118 @@ function App() {
         </div>
       </section>
 
-      {appNotice ? (
-        <div className="app-notice" role="status" aria-live="polite">
-          {appNotice}
+      <AppNoticeToast
+        message={appNotice?.message ?? null}
+        noticeKey={appNotice?.id ?? 0}
+        open={isAppNoticeOpen}
+        onOpenChange={setIsAppNoticeOpen}
+      />
+
+      {isDraggingScoreFiles ? (
+        <div
+          className={`app-drag-import-overlay${
+            isAnyPlaybackActive ? " is-disabled" : ""
+          }`}
+          aria-hidden="true"
+        >
+          <div className="app-drag-import-card">
+            <span className="app-drag-import-icon" aria-hidden="true">
+              {isAnyPlaybackActive ? <CircleAlert /> : <FileUp />}
+            </span>
+            <strong>{text.dragImport.title}</strong>
+            <span>
+              {isAnyPlaybackActive
+                ? text.dragImport.disabledDescription
+                : text.dragImport.description}
+            </span>
+          </div>
         </div>
       ) : null}
 
-      {isUpdateDialogOpen && updateInfo !== null ? (
+      <ConfirmDialog
+        cancelLabel={text.library.cancelDelete}
+        confirmLabel={text.library.confirmDelete}
+        description={libraryDialogs.deleteDialogDescription}
+        open={libraryDialogs.isDeleteDialogOpen}
+        title={libraryDialogs.deleteDialogTitle}
+        variant="danger"
+        onCancel={libraryDialogs.cancelDelete}
+        onConfirm={libraryDialogs.confirmDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            libraryDialogs.cancelDelete();
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        cancelLabel={text.closeConfirm.cancel}
+        confirmLabel={text.closeConfirm.confirm}
+        description={text.closeConfirm.description}
+        open={isCloseConfirmOpen}
+        title={text.closeConfirm.title}
+        onCancel={() => setIsCloseConfirmOpen(false)}
+        onConfirm={handleConfirmAppClose}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCloseConfirmOpen(false);
+          }
+        }}
+      />
+
+      {libraryDialogs.pendingRenamePlaylist ? (
+        <RenamePlaylistDialog
+          initialName={libraryDialogs.pendingRenamePlaylist.playlistName}
+          onClose={libraryDialogs.cancelRename}
+          onRename={libraryDialogs.confirmRename}
+          text={text.library}
+        />
+      ) : null}
+
+      {updateCheck.isUpdateDialogOpen && updateCheck.updateInfo !== null ? (
         <UpdateDialog
-          onClose={() => setIsUpdateDialogOpen(false)}
-          onDownload={handleOpenUpdateReleasePage}
-          onIgnore={handleIgnoreUpdate}
+          onClose={updateCheck.closeUpdateDialog}
+          onDownload={updateCheck.openUpdateReleasePage}
+          onIgnore={updateCheck.ignoreCurrentUpdate}
           text={text.updateDialog}
-          updateInfo={updateInfo}
+          updateInfo={updateCheck.updateInfo}
         />
       ) : null}
 
       <BottomPlayer
         canPlay={playbackOutput.canPlay}
-        currentSong={scoreLibrary.currentSelectedSong}
-        isCurrentSongLoading={isCurrentSongLoading}
+        canSeek={playbackOutput.canSeek}
+        currentSong={scoreLibrary.currentPlaybackSong}
+        isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
-        onNext={handleNextPlayback}
+        onNext={playbackCoordinator.handleNextPlayback}
         onPause={playbackOutput.onPause}
-        onPlayQueueItem={handlePlayQueueItem}
-        onPlay={handleBottomPlayerPlay}
+        onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
+        onPlay={playbackCoordinator.handleBottomPlayerPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
-        onQueueClear={handleQueueClear}
-        onQueueItemRemove={handleQueueItemRemove}
+        onQueueClear={playbackCoordinator.handleQueueClear}
+        onQueueItemRemove={playbackCoordinator.handleQueueItemRemove}
         onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
         onQueueClose={() => setQueueOpen(false)}
         onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
         onResume={playbackOutput.onResume}
+        onSeek={(timeMs) => {
+          appFileLogger.appendDetailedLog({
+            details: {
+              ...fileLogContextRef.current,
+              seekTargetMs: Math.round(timeMs),
+            },
+            message:
+              playbackOutput.playbackState === "finished"
+                ? "Progress seek requested after finish"
+                : "Progress seek requested",
+            source: "playback",
+          });
+          playbackOutput.onSeek(timeMs);
+        }}
         onShuffleToggle={playbackOutput.onShuffleToggle}
         onStop={playbackOutput.onStop}
         outputModeLabel={playbackOutput.outputModeLabel}
@@ -855,6 +726,10 @@ function App() {
       ) : null}
     </main>
   );
+}
+
+function hasDraggedFiles(event: ReactDragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes("Files");
 }
 
 export default App;

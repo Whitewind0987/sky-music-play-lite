@@ -28,6 +28,11 @@ export type UserPlaylist = {
   updatedAt: number;
 };
 
+export type AddSongToPlaylistResult =
+  | { status: "added"; message?: string }
+  | { status: "duplicate"; message: string }
+  | { status: "missing"; message?: string };
+
 export type LibrarySongListItem = {
   isLiked: boolean;
   librarySong: LibrarySong;
