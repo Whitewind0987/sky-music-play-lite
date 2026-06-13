@@ -39,7 +39,6 @@ type LibraryPanelProps = {
   importError: string;
   isQueueOpen: boolean;
   items: LibrarySongListItem[];
-  localImportCount: number;
   locateScoreRequest: LocateScoreRequest | null;
   onAddSongToPlaylist: (
     playlistId: string,
@@ -54,7 +53,6 @@ type LibraryPanelProps = {
   onDeleteLocalSong: (songIndex: number) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
-  onLibraryCategoryChange: (category: LibraryCategoryId) => void;
   onLocateSelectedSong: () => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
@@ -206,60 +204,6 @@ function LibraryImportArea({
       </label>
       {importError ? <p className="parse-error">{importError}</p> : null}
     </section>
-  );
-}
-
-function LibraryCategoryTabs({
-  localImportCount,
-  onLibraryCategoryChange,
-  playlists,
-  selectedCategory,
-  text,
-}: Pick<
-  LibraryPanelProps,
-  | "localImportCount"
-  | "onLibraryCategoryChange"
-  | "playlists"
-  | "selectedCategory"
-  | "text"
->) {
-  const categories: Array<{
-    count?: number;
-    id: LibraryCategoryId;
-    label: string;
-  }> = [
-    { id: "built-in", label: text.categoryBuiltIn },
-    {
-      count: localImportCount,
-      id: "local-imports",
-      label: text.categoryLocalImports,
-    },
-    { id: "liked", label: text.categoryLiked },
-    {
-      count: playlists.length,
-      id: "playlists",
-      label: text.categoryPlaylists,
-    },
-  ];
-
-  return (
-    <nav className="library-category-tabs" aria-label={text.categoriesTitle}>
-      {categories.map((category) => (
-        <button
-          className={`library-category-tab${
-            selectedCategory === category.id ? " is-active" : ""
-          }`}
-          key={category.id}
-          type="button"
-          onClick={() => onLibraryCategoryChange(category.id)}
-        >
-          <span>{category.label}</span>
-          {typeof category.count === "number" ? (
-            <span className="library-category-count">{category.count}</span>
-          ) : null}
-        </button>
-      ))}
-    </nav>
   );
 }
 
@@ -862,7 +806,6 @@ export function LibraryPanel({
   importError,
   isQueueOpen,
   items,
-  localImportCount,
   locateScoreRequest,
   onAddSongToPlaylist,
   onAddToQueue,
@@ -871,7 +814,6 @@ export function LibraryPanel({
   onDeleteLocalSong,
   onDeletePlaylist,
   onImportFiles,
-  onLibraryCategoryChange,
   onLocateSelectedSong,
   onPlaySong,
   onPlaySongNext,
@@ -977,13 +919,6 @@ export function LibraryPanel({
 
   return (
     <section ref={panelRef} className="library-panel" aria-label={text.aria}>
-      <LibraryCategoryTabs
-        localImportCount={localImportCount}
-        onLibraryCategoryChange={onLibraryCategoryChange}
-        playlists={playlists}
-        selectedCategory={selectedCategory}
-        text={text}
-      />
       {isLocalImports ? (
         <LibraryImportArea
           importDisabled={importDisabled}

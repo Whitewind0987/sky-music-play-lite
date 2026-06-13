@@ -439,7 +439,6 @@ function App() {
           isQueueOpen={queueOpen}
           hasSearchQuery={scoreLibrary.hasSearchQuery}
           items={scoreLibrary.pagedVisibleLibraryItems}
-          localImportCount={scoreLibrary.localLibrarySongs.length}
           locateScoreRequest={scoreLibrary.locateScoreRequest}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={playbackQueue.addToQueue}
@@ -448,7 +447,6 @@ function App() {
           onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
-          onLibraryCategoryChange={scoreLibrary.handleLibraryCategoryChange}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
@@ -560,6 +558,10 @@ function App() {
           setActiveSection("Library");
           setIsCreatingPlaylistFromSidebar(true);
         }}
+        onLibraryCategorySelect={(category) => {
+          setActiveSection("Library");
+          scoreLibrary.handleLibraryCategoryChange(category);
+        }}
         onPlaylistSelect={(playlistId) => {
           setActiveSection("Library");
           scoreLibrary.handleLibraryCategoryChange("playlists");
@@ -577,6 +579,7 @@ function App() {
       <section className="workspace-shell" aria-label={text.app.contentAria}>
         <WorkspaceHeader
           activeSection={activeSection}
+          onLogsClick={() => setActiveSection("Logs")}
           onSettingsClick={() => setActiveSection("Settings")}
           onUserManualClick={handleOpenUserManual}
           text={text}

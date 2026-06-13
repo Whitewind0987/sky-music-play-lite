@@ -61,6 +61,12 @@ Do not replace this stack unless the human user explicitly changes the project d
 - The bottom player primary play/pause button remains the visual anchor; use the stop button as the reference size for secondary controls.
 - Do not change playback, queue, experimental input, or score import logic during UI-only stages.
 - Sidebar playlist lists should scroll internally and must not push lower navigation items out of view.
+- The sidebar may reference a NetEase-style layout, but must not clone or add unrelated NetEase product sections.
+- When library categories are represented directly in the sidebar, do not also render a top-level Library item.
+- Logs and Settings belong in workspace header actions, not the sidebar.
+- Only existing user-created playlists may appear in the sidebar; do not fake collected or subscribed playlist data.
+- Hide the sidebar scrollbar by default and show it on hover only when the sidebar is scrollable.
+- Sidebar category and playlist names must use ellipsis when they overflow.
 - Do not set Tauri `security.csp` back to null; CSP changes must be tested in dev and avoid broad wildcards unless justified by a concrete violation.
 - Progress seek is a later feature stage and must support both preview playback and experimental playback when implemented.
 - Do not reintroduce frontend target-window activation preflight. `legacy-activate-scan-lparam` is an explicit compatibility profile that may send `WM_ACTIVATE` window messages, but it must never call `SetForegroundWindow`; non-activating profiles must remain available.

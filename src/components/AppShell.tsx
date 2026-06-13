@@ -3,6 +3,8 @@ import {
   ChevronRight,
   CircleHelp,
   Eye,
+  FolderDown,
+  Heart,
   Library,
   ListMusic,
   Plus,
@@ -24,24 +26,12 @@ import type { UserPlaylist } from "../types/library";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
-const librarySidebarItem = {
-  Icon: Library,
-  section: "Library",
-} as const;
-
-const secondarySidebarItems = [
-  { Icon: Eye, section: "Playback" },
-  { Icon: ScrollText, section: "Logs" },
-  { Icon: Settings, section: "Settings" },
-] as const;
-
-export type AppSection =
-  | typeof librarySidebarItem.section
-  | (typeof secondarySidebarItems)[number]["section"];
+export type AppSection = "Library" | "Playback" | "Logs" | "Settings";
 
 type AppSidebarProps = {
   activeSection: AppSection;
   onCreatePlaylistRequest: () => void;
+  onLibraryCategorySelect: (category: LibraryCategoryId) => void;
   onPlaylistSelect: (playlistId: string) => void;
   onSectionChange: (section: AppSection) => void;
   onUpdateClick: () => void;
@@ -65,14 +55,45 @@ type RippleState = {
 type SidebarNavButtonProps = {
   Icon: LucideIcon;
   isActive: boolean;
+  isCompact?: boolean;
   label: string;
   onClick: () => void;
   section: AppSection;
 };
 
+type SidebarCategoryButtonProps = {
+  Icon: LucideIcon;
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+};
+
+function SidebarCategoryButton({
+  Icon,
+  isActive,
+  label,
+  onClick,
+}: SidebarCategoryButtonProps) {
+  return (
+    <button
+      className={`sidebar-category-item${isActive ? " is-active" : ""}`}
+      type="button"
+      onClick={onClick}
+    >
+      <Icon
+        className="sidebar-category-icon"
+        aria-hidden="true"
+        focusable="false"
+      />
+      <span className="sidebar-category-label">{label}</span>
+    </button>
+  );
+}
+
 function SidebarNavButton({
   Icon,
   isActive,
+  isCompact = false,
   label,
   onClick,
   section,
@@ -197,7 +218,9 @@ function SidebarNavButton({
 
   return (
     <button
-      className={`sidebar-link${isActive ? " is-active" : ""}${
+      className={`sidebar-link${isCompact ? " is-compact" : ""}${
+        isActive ? " is-active" : ""
+      }${
         isPressing ? " is-pressing" : ""
       }`}
       type="button"
@@ -240,6 +263,7 @@ function SidebarNavButton({
 export function AppSidebar({
   activeSection,
   onCreatePlaylistRequest,
+  onLibraryCategorySelect,
   onPlaylistSelect,
   onSectionChange,
   onUpdateClick,
@@ -250,19 +274,39 @@ export function AppSidebar({
   updateInfo,
 }: AppSidebarProps) {
   const [isCreatedPlaylistsOpen, setIsCreatedPlaylistsOpen] = useState(true);
-  const renderSidebarItem = (item: {
-    Icon: LucideIcon;
-    section: AppSection;
-  }) => (
-    <SidebarNavButton
-      Icon={item.Icon}
-      isActive={activeSection === item.section}
-      key={item.section}
-      label={text.navigation[item.section]}
-      section={item.section}
-      onClick={() => onSectionChange(item.section)}
-    />
-  );
+  const [isSidebarScrollable, setIsSidebarScrollable] = useState(false);
+  const sidebarScrollAreaRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const element = sidebarScrollAreaRef.current;
+
+    if (!element) {
+      return;
+    }
+    const scrollElement = element;
+
+    function updateScrollableState() {
+      setIsSidebarScrollable(
+        scrollElement.scrollHeight > scrollElement.clientHeight + 1,
+      );
+    }
+
+    const frame = window.requestAnimationFrame(updateScrollableState);
+    window.addEventListener("resize", updateScrollableState);
+
+    const resizeObserver =
+      "ResizeObserver" in window
+        ? new ResizeObserver(updateScrollableState)
+        : null;
+
+    resizeObserver?.observe(scrollElement);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateScrollableState);
+      resizeObserver?.disconnect();
+    };
+  }, [activeSection, isCreatedPlaylistsOpen, playlists.length]);
 
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
@@ -285,14 +329,42 @@ export function AppSidebar({
         </div>
       </div>
 
-      <div className="sidebar-scroll-area">
-        <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
-          {renderSidebarItem(librarySidebarItem)}
-
-          <div className="sidebar-nav-divider" />
-
-          {secondarySidebarItems.map(renderSidebarItem)}
-        </nav>
+      <div
+        ref={sidebarScrollAreaRef}
+        className={`sidebar-scroll-area${
+          isSidebarScrollable ? " is-scrollable" : ""
+        }`}
+      >
+        <section className="sidebar-section sidebar-my-section">
+          <p className="sidebar-section-title">{text.sidebar.mySection}</p>
+          <SidebarCategoryButton
+            Icon={Library}
+            isActive={
+              activeSection === "Library" &&
+              selectedLibraryCategory === "built-in"
+            }
+            label={text.sidebar.builtIn}
+            onClick={() => onLibraryCategorySelect("built-in")}
+          />
+          <SidebarCategoryButton
+            Icon={FolderDown}
+            isActive={
+              activeSection === "Library" &&
+              selectedLibraryCategory === "local-imports"
+            }
+            label={text.sidebar.localImports}
+            onClick={() => onLibraryCategorySelect("local-imports")}
+          />
+          <SidebarCategoryButton
+            Icon={Heart}
+            isActive={
+              activeSection === "Library" &&
+              selectedLibraryCategory === "liked"
+            }
+            label={text.sidebar.liked}
+            onClick={() => onLibraryCategorySelect("liked")}
+          />
+        </section>
 
         <section className="sidebar-created-playlists-section">
           <div className="sidebar-playlist-header">
@@ -309,13 +381,25 @@ export function AppSidebar({
                 setIsCreatedPlaylistsOpen((currentValue) => !currentValue)
               }
             >
+              <span className="sidebar-playlist-toggle-label">
+                {text.sidebar.createdPlaylists}
+              </span>
+              <small className="sidebar-playlist-toggle-count">
+                {playlists.length}
+              </small>
               {isCreatedPlaylistsOpen ? (
-                <ChevronDown aria-hidden="true" focusable="false" />
+                <ChevronDown
+                  className="sidebar-playlist-toggle-chevron"
+                  aria-hidden="true"
+                  focusable="false"
+                />
               ) : (
-                <ChevronRight aria-hidden="true" focusable="false" />
+                <ChevronRight
+                  className="sidebar-playlist-toggle-chevron"
+                  aria-hidden="true"
+                  focusable="false"
+                />
               )}
-              <span>{text.sidebar.createdPlaylists}</span>
-              <small>{playlists.length}</small>
             </button>
             <button
               className="sidebar-playlist-create"
@@ -365,6 +449,17 @@ export function AppSidebar({
             )
           ) : null}
         </section>
+
+        <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
+          <SidebarNavButton
+            Icon={Eye}
+            isActive={activeSection === "Playback"}
+            isCompact
+            label={text.sidebar.preview}
+            section="Playback"
+            onClick={() => onSectionChange("Playback")}
+          />
+        </nav>
       </div>
     </aside>
   );
@@ -372,6 +467,7 @@ export function AppSidebar({
 
 type WorkspaceHeaderProps = {
   activeSection: AppSection;
+  onLogsClick: () => void;
   onSettingsClick: () => void;
   onUserManualClick: () => void;
   text: UiText;
@@ -379,6 +475,7 @@ type WorkspaceHeaderProps = {
 
 export function WorkspaceHeader({
   activeSection,
+  onLogsClick,
   onSettingsClick,
   onUserManualClick,
   text,
@@ -389,6 +486,15 @@ export function WorkspaceHeader({
     <header className="workspace-header">
       <h2>{header.title}</h2>
       <div className="header-actions" aria-label={text.app.placeholderActionsAria}>
+        <button
+          className="icon-action"
+          type="button"
+          onClick={onLogsClick}
+          title={text.actions.logs}
+          aria-label={text.actions.logs}
+        >
+          <ScrollText aria-hidden="true" focusable="false" />
+        </button>
         <button
           className="icon-action"
           type="button"

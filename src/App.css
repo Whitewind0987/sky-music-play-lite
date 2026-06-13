@@ -35,7 +35,6 @@ button {
 }
 
 .library-table-body,
-.sidebar-scroll-area,
 .library-collect-list,
 .queue-panel-list,
 .log-group-list,
@@ -47,7 +46,6 @@ button {
 }
 
 .library-table-body::-webkit-scrollbar,
-.sidebar-scroll-area::-webkit-scrollbar,
 .library-collect-list::-webkit-scrollbar,
 .queue-panel-list::-webkit-scrollbar,
 .log-group-list::-webkit-scrollbar,
@@ -59,7 +57,6 @@ button {
 }
 
 .library-table-body::-webkit-scrollbar-thumb,
-.sidebar-scroll-area::-webkit-scrollbar-thumb,
 .library-collect-list::-webkit-scrollbar-thumb,
 .queue-panel-list::-webkit-scrollbar-thumb,
 .log-group-list::-webkit-scrollbar-thumb,
@@ -71,7 +68,6 @@ button {
 }
 
 .library-table-body::-webkit-scrollbar-track,
-.sidebar-scroll-area::-webkit-scrollbar-track,
 .library-collect-list::-webkit-scrollbar-track,
 .queue-panel-list::-webkit-scrollbar-track,
 .log-group-list::-webkit-scrollbar-track,
@@ -204,7 +200,7 @@ button {
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
 
 .sidebar-scroll-area {
@@ -216,15 +212,108 @@ button {
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 2px;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scroll-area.is-scrollable:hover {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.62);
+}
+
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll-area.is-scrollable:hover::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-section {
+  display: grid;
+  gap: 4px;
+}
+
+.sidebar-section-title {
+  margin: 0;
+  padding: 0 12px 4px;
+  color: #9aa3af;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sidebar-category-item {
+  min-width: 0;
+  min-height: 36px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  color: #5f6b7a;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-category-item:hover,
+.sidebar-category-item:focus-visible {
+  color: #111827;
+  background: rgba(15, 23, 42, 0.035);
+  outline: none;
+}
+
+.sidebar-category-item.is-active {
+  color: #111827;
+  background: #dbeafe;
+  font-weight: 700;
+}
+
+.sidebar-category-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.sidebar-category-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-created-playlists-section {
   display: grid;
   gap: 6px;
-  padding-top: 12px;
-  border-top: 1px solid #d7d7d7;
 }
 
 .sidebar-playlist-header {
@@ -246,21 +335,22 @@ button {
 
 .sidebar-playlist-toggle {
   min-width: 0;
+  width: 100%;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, max-content) auto 16px;
+  justify-content: start;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   padding: 5px 4px;
   text-align: left;
 }
 
-.sidebar-playlist-toggle svg,
 .sidebar-playlist-create svg {
   width: 15px;
   height: 15px;
 }
 
-.sidebar-playlist-toggle span {
+.sidebar-playlist-toggle-label {
   min-width: 0;
   overflow: hidden;
   color: #4b5563;
@@ -270,9 +360,15 @@ button {
   white-space: nowrap;
 }
 
-.sidebar-playlist-toggle small {
+.sidebar-playlist-toggle-count {
   color: #8a97a5;
   font-size: 10px;
+}
+
+.sidebar-playlist-toggle-chevron {
+  width: 14px;
+  height: 14px;
+  color: #9aa3af;
 }
 
 .sidebar-playlist-create {
@@ -285,11 +381,16 @@ button {
 }
 
 .sidebar-playlist-toggle:hover,
-.sidebar-playlist-toggle:focus-visible,
+.sidebar-playlist-toggle:focus-visible {
+  color: #111827;
+  background: transparent;
+  outline: none;
+}
+
 .sidebar-playlist-create:hover,
 .sidebar-playlist-create:focus-visible {
   color: #111827;
-  background: #e8edf3;
+  background: rgba(15, 23, 42, 0.04);
   outline: none;
 }
 
@@ -313,14 +414,19 @@ button {
 .sidebar-playlist-item:hover,
 .sidebar-playlist-item:focus-visible {
   color: #111827;
-  background: rgba(var(--app-primary-rgb), 0.08);
+  background: rgba(15, 23, 42, 0.035);
   outline: none;
 }
 
 .sidebar-playlist-item.is-active {
   color: #1f2937;
-  background: rgba(var(--app-primary-rgb), 0.15);
+  background: rgba(var(--app-primary-rgb), 0.1);
   font-weight: 700;
+}
+
+.sidebar-playlist-item.is-active:hover,
+.sidebar-playlist-item.is-active:focus-visible {
+  background: rgba(var(--app-primary-rgb), 0.12);
 }
 
 .sidebar-playlist-icon {
@@ -492,6 +598,24 @@ button {
   gap: 12px;
   width: 100%;
   transition: transform 120ms ease;
+}
+
+.sidebar-link.is-compact {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+}
+
+.sidebar-link.is-compact .sidebar-link-content {
+  min-height: 36px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.sidebar-link.is-compact .sidebar-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .sidebar-ripple-layer {

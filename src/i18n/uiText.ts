@@ -29,11 +29,16 @@ export const uiText = {
       Settings: "设置",
     },
     sidebar: {
+      builtIn: "系统自带",
       collapseCreatedPlaylists: "收起创建的歌单",
       createPlaylist: "新建歌单",
       createdPlaylists: "创建的歌单",
       expandCreatedPlaylists: "展开创建的歌单",
+      liked: "我喜欢",
+      localImports: "本地导入",
+      mySection: "我的",
       noCreatedPlaylists: "暂无歌单",
+      preview: "预览",
     },
     sections: {
       Library: {
@@ -54,6 +59,7 @@ export const uiText = {
       },
     },
     actions: {
+      logs: "日志",
       openReleasePage: "打开发布页面",
       settings: "设置",
       updateAvailable: "发现新版本",
@@ -534,11 +540,16 @@ export const uiText = {
       Settings: "Settings",
     },
     sidebar: {
+      builtIn: "Built-in",
       collapseCreatedPlaylists: "Collapse created playlists",
       createPlaylist: "Create playlist",
       createdPlaylists: "Created Playlists",
       expandCreatedPlaylists: "Expand created playlists",
+      liked: "Liked",
+      localImports: "Local Imports",
+      mySection: "My",
       noCreatedPlaylists: "No playlists yet",
+      preview: "Preview",
     },
     sections: {
       Library: {
@@ -559,6 +570,7 @@ export const uiText = {
       },
     },
     actions: {
+      logs: "Logs",
       openReleasePage: "Open release page",
       settings: "Settings",
       updateAvailable: "Update available",
