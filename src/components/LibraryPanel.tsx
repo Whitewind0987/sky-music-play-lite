@@ -37,6 +37,7 @@ type LibraryPanelProps = {
   hasSearchQuery: boolean;
   importDisabled: boolean;
   importError: string;
+  isQueueOpen: boolean;
   items: LibrarySongListItem[];
   localImportCount: number;
   locateScoreRequest: LocateScoreRequest | null;
@@ -57,7 +58,6 @@ type LibraryPanelProps = {
   onLocateSelectedSong: () => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
-  onPlaylistSelect: (playlistId: string) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   onRenamePlaylist: (playlistId: string) => void;
@@ -260,62 +260,6 @@ function LibraryCategoryTabs({
         </button>
       ))}
     </nav>
-  );
-}
-
-function PlaylistSelector({
-  onCreatePlaylistRequest,
-  onLibraryCategoryChange,
-  onPlaylistSelect,
-  playlists,
-  selectedPlaylistId,
-  text,
-}: Pick<
-  LibraryPanelProps,
-  | "onCreatePlaylistRequest"
-  | "onLibraryCategoryChange"
-  | "onPlaylistSelect"
-  | "playlists"
-  | "selectedPlaylistId"
-  | "text"
->) {
-  return (
-    <section className="library-playlist-selector" aria-label={text.playlistsTitle}>
-      <div className="library-playlist-selector-header">
-        <div>
-          <p className="eyebrow">{text.categoryPlaylists}</p>
-          <h3>{text.playlistsTitle}</h3>
-        </div>
-        <button type="button" onClick={onCreatePlaylistRequest}>
-          <LibraryPlusIcon />
-          <span>{text.createPlaylist}</span>
-        </button>
-      </div>
-      {playlists.length === 0 ? (
-        <p className="library-playlist-selector-empty">{text.noPlaylists}</p>
-      ) : (
-        <div className="library-playlist-list" role="list">
-          {playlists.map((playlist) => (
-            <button
-              className={`library-playlist-card${
-                selectedPlaylistId === playlist.id ? " is-active" : ""
-              }`}
-              key={playlist.id}
-              type="button"
-              onClick={() => {
-                onLibraryCategoryChange("playlists");
-                onPlaylistSelect(playlist.id);
-              }}
-            >
-              <span>{playlist.name}</span>
-              <small>
-                {playlist.songIds.length} {text.playlistSongCount}
-              </small>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -916,6 +860,7 @@ export function LibraryPanel({
   hasSearchQuery,
   importDisabled,
   importError,
+  isQueueOpen,
   items,
   localImportCount,
   locateScoreRequest,
@@ -930,7 +875,6 @@ export function LibraryPanel({
   onLocateSelectedSong,
   onPlaySong,
   onPlaySongNext,
-  onPlaylistSelect,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onRenamePlaylist,
@@ -948,6 +892,7 @@ export function LibraryPanel({
 }: LibraryPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const [showLocateButton, setShowLocateButton] = useState(false);
+  const locateHideTimerRef = useRef<number | null>(null);
   const [collectingSongItem, setCollectingSongItem] =
     useState<LibrarySongListItem | null>(null);
   const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
@@ -984,6 +929,20 @@ export function LibraryPanel({
   }, []);
 
   useEffect(() => {
+    function clearLocateHideTimer() {
+      if (locateHideTimerRef.current !== null) {
+        window.clearTimeout(locateHideTimerRef.current);
+        locateHideTimerRef.current = null;
+      }
+    }
+
+    clearLocateHideTimer();
+    setShowLocateButton(false);
+
+    if (isQueueOpen || selectedSongIndex === null) {
+      return;
+    }
+
     const scrollContainer = panelRef.current?.closest(".app-layout");
 
     if (!(scrollContainer instanceof HTMLElement)) {
@@ -991,22 +950,30 @@ export function LibraryPanel({
     }
     const scrollElement = scrollContainer;
 
-    function updateLocateButtonVisibility() {
-      setShowLocateButton(scrollElement.scrollTop > 120);
+    function handleScroll() {
+      clearLocateHideTimer();
+
+      if (scrollElement.scrollTop <= 120) {
+        setShowLocateButton(false);
+        return;
+      }
+
+      setShowLocateButton(true);
+      locateHideTimerRef.current = window.setTimeout(() => {
+        setShowLocateButton(false);
+        locateHideTimerRef.current = null;
+      }, 3000);
     }
 
-    updateLocateButtonVisibility();
-    scrollElement.addEventListener("scroll", updateLocateButtonVisibility, {
+    scrollElement.addEventListener("scroll", handleScroll, {
       passive: true,
     });
 
     return () => {
-      scrollElement.removeEventListener(
-        "scroll",
-        updateLocateButtonVisibility,
-      );
+      scrollElement.removeEventListener("scroll", handleScroll);
+      clearLocateHideTimer();
     };
-  }, []);
+  }, [isQueueOpen, selectedSongIndex]);
 
   return (
     <section ref={panelRef} className="library-panel" aria-label={text.aria}>
@@ -1022,16 +989,6 @@ export function LibraryPanel({
           importDisabled={importDisabled}
           importError={importError}
           onImportFiles={onImportFiles}
-          text={text}
-        />
-      ) : null}
-      {isPlaylists ? (
-        <PlaylistSelector
-          onCreatePlaylistRequest={onCreatePlaylistRequest}
-          onLibraryCategoryChange={onLibraryCategoryChange}
-          onPlaylistSelect={onPlaylistSelect}
-          playlists={playlists}
-          selectedPlaylistId={selectedPlaylistId}
           text={text}
         />
       ) : null}
@@ -1087,15 +1044,13 @@ export function LibraryPanel({
                 ? text.noPlaylistsDescription
                 : text.playlistEmptyDescription}
             </p>
-            {playlists.length === 0 ? (
-              <button
-                className="library-empty-action"
-                type="button"
-                onClick={onCreatePlaylistRequest}
-              >
-                {text.createPlaylist}
-              </button>
-            ) : null}
+            <button
+              className="library-empty-action"
+              type="button"
+              onClick={onCreatePlaylistRequest}
+            >
+              {text.createPlaylist}
+            </button>
           </div>
         ) : (
           <LibrarySongTable
@@ -1166,7 +1121,7 @@ export function LibraryPanel({
           </div>
         ) : null}
       </div>
-      {showLocateButton && selectedSongIndex !== null ? (
+      {showLocateButton && selectedSongIndex !== null && !isQueueOpen ? (
         <button
           className="library-locate-floating-button"
           type="button"

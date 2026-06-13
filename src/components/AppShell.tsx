@@ -1,7 +1,11 @@
 import {
+  ChevronDown,
+  ChevronRight,
   CircleHelp,
   Eye,
   Library,
+  ListMusic,
+  Plus,
   ScrollText,
   Settings,
   type LucideIcon,
@@ -16,6 +20,7 @@ import {
 } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { UpdateInfo } from "../lib/updateCheck";
+import type { UserPlaylist } from "../types/library";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
@@ -36,8 +41,13 @@ export type AppSection =
 
 type AppSidebarProps = {
   activeSection: AppSection;
+  onCreatePlaylistRequest: () => void;
+  onPlaylistSelect: (playlistId: string) => void;
   onSectionChange: (section: AppSection) => void;
   onUpdateClick: () => void;
+  playlists: UserPlaylist[];
+  selectedLibraryCategory: LibraryCategoryId;
+  selectedPlaylistId: string | null;
   text: UiText;
   updateInfo: UpdateInfo | null;
 };
@@ -229,11 +239,17 @@ function SidebarNavButton({
 
 export function AppSidebar({
   activeSection,
+  onCreatePlaylistRequest,
+  onPlaylistSelect,
   onSectionChange,
   onUpdateClick,
+  playlists,
+  selectedLibraryCategory,
+  selectedPlaylistId,
   text,
   updateInfo,
 }: AppSidebarProps) {
+  const [isCreatedPlaylistsOpen, setIsCreatedPlaylistsOpen] = useState(true);
   const renderSidebarItem = (item: {
     Icon: LucideIcon;
     section: AppSection;
@@ -269,13 +285,87 @@ export function AppSidebar({
         </div>
       </div>
 
-      <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
-        {renderSidebarItem(librarySidebarItem)}
+      <div className="sidebar-scroll-area">
+        <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
+          {renderSidebarItem(librarySidebarItem)}
 
-        <div className="sidebar-nav-divider" />
+          <div className="sidebar-nav-divider" />
 
-        {secondarySidebarItems.map(renderSidebarItem)}
-      </nav>
+          {secondarySidebarItems.map(renderSidebarItem)}
+        </nav>
+
+        <section className="sidebar-created-playlists-section">
+          <div className="sidebar-playlist-header">
+            <button
+              className="sidebar-playlist-toggle"
+              type="button"
+              aria-expanded={isCreatedPlaylistsOpen}
+              aria-label={
+                isCreatedPlaylistsOpen
+                  ? text.sidebar.collapseCreatedPlaylists
+                  : text.sidebar.expandCreatedPlaylists
+              }
+              onClick={() =>
+                setIsCreatedPlaylistsOpen((currentValue) => !currentValue)
+              }
+            >
+              {isCreatedPlaylistsOpen ? (
+                <ChevronDown aria-hidden="true" focusable="false" />
+              ) : (
+                <ChevronRight aria-hidden="true" focusable="false" />
+              )}
+              <span>{text.sidebar.createdPlaylists}</span>
+              <small>{playlists.length}</small>
+            </button>
+            <button
+              className="sidebar-playlist-create"
+              type="button"
+              aria-label={text.sidebar.createPlaylist}
+              title={text.sidebar.createPlaylist}
+              onClick={onCreatePlaylistRequest}
+            >
+              <Plus aria-hidden="true" focusable="false" />
+            </button>
+          </div>
+
+          {isCreatedPlaylistsOpen ? (
+            playlists.length > 0 ? (
+              <div className="sidebar-playlist-list" role="list">
+                {playlists.map((playlist) => {
+                  const isActive =
+                    activeSection === "Library" &&
+                    selectedLibraryCategory === "playlists" &&
+                    selectedPlaylistId === playlist.id;
+
+                  return (
+                    <button
+                      className={`sidebar-playlist-item${
+                        isActive ? " is-active" : ""
+                      }`}
+                      key={playlist.id}
+                      type="button"
+                      onClick={() => onPlaylistSelect(playlist.id)}
+                    >
+                      <ListMusic
+                        className="sidebar-playlist-icon"
+                        aria-hidden="true"
+                        focusable="false"
+                      />
+                      <span className="sidebar-playlist-name">
+                        {playlist.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="sidebar-playlist-empty">
+                {text.sidebar.noCreatedPlaylists}
+              </p>
+            )
+          ) : null}
+        </section>
+      </div>
     </aside>
   );
 }

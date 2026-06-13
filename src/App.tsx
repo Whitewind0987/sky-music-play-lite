@@ -436,6 +436,7 @@ function App() {
           builtInPagination={scoreLibrary.builtInPagination}
           importError={scoreLibrary.importError}
           importDisabled={isAnyPlaybackActive}
+          isQueueOpen={queueOpen}
           hasSearchQuery={scoreLibrary.hasSearchQuery}
           items={scoreLibrary.pagedVisibleLibraryItems}
           localImportCount={scoreLibrary.localLibrarySongs.length}
@@ -451,7 +452,6 @@ function App() {
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
-          onPlaylistSelect={scoreLibrary.setSelectedPlaylistId}
           onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
@@ -556,8 +556,20 @@ function App() {
     >
       <AppSidebar
         activeSection={activeSection}
+        onCreatePlaylistRequest={() => {
+          setActiveSection("Library");
+          setIsCreatingPlaylistFromSidebar(true);
+        }}
+        onPlaylistSelect={(playlistId) => {
+          setActiveSection("Library");
+          scoreLibrary.handleLibraryCategoryChange("playlists");
+          scoreLibrary.setSelectedPlaylistId(playlistId);
+        }}
         onSectionChange={setActiveSection}
         onUpdateClick={updateCheck.openUpdateDialog}
+        playlists={scoreLibrary.playlists}
+        selectedLibraryCategory={scoreLibrary.selectedLibraryCategory}
+        selectedPlaylistId={scoreLibrary.selectedPlaylistId}
         text={text}
         updateInfo={updateCheck.updateInfo}
       />
