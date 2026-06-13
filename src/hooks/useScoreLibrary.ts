@@ -388,7 +388,6 @@ export function useScoreLibrary({
   }
 
   function handleSelectImportedSong(songIndex: number | null) {
-    onBeforeLibraryMutation();
     selectSongByIndex(songIndex);
 
     if (songIndex !== null) {

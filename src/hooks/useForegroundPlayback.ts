@@ -72,7 +72,6 @@ export function useForegroundPlayback({
 }: UseForegroundPlaybackOptions) {
   const controllerRef = useRef<PreviewPlaybackController | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
-  const ignoreNextCurrentSongChangeRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(playbackMode);
@@ -107,17 +106,6 @@ export function useForegroundPlayback({
       stopForegroundPlayback({ nextState: "stopped", shouldLog: false });
     };
   }, []);
-
-  useEffect(() => {
-    if (isForegroundPlaybackActive) {
-      if (ignoreNextCurrentSongChangeRef.current) {
-        ignoreNextCurrentSongChangeRef.current = false;
-        return;
-      }
-
-      stopForegroundPlayback({ nextState: "stopped", shouldLog: true });
-    }
-  }, [currentSong]);
 
   useEffect(() => {
     isShuffleEnabledRef.current = isShuffleEnabled;
@@ -263,7 +251,6 @@ export function useForegroundPlayback({
       withCountdown,
     }: { initialSeekMs?: number; withCountdown: boolean },
   ) {
-    ignoreNextCurrentSongChangeRef.current = selectedSongIndex !== songIndex;
     const song = await resolveSongForPlayback(songIndex);
 
     if (!song) {
