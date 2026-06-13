@@ -71,6 +71,43 @@ export function parseScoreFileContent(content: string): Song[] {
   return parsed.map((song, songIndex) => validateSong(song, songIndex));
 }
 
+export function parseScoreFileSongAtIndex(
+  content: string,
+  songIndex: number,
+): Song | null {
+  if (content.trim().length === 0) {
+    throw new ScoreFileImportError("emptyFile");
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    throw new ScoreFileImportError("invalidJson", {
+      jsonError: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new ScoreFileImportError("topLevelNotArray");
+  }
+
+  if (parsed.length === 0) {
+    throw new ScoreFileImportError("emptySongArray");
+  }
+
+  if (
+    !Number.isInteger(songIndex) ||
+    songIndex < 0 ||
+    songIndex >= parsed.length
+  ) {
+    return null;
+  }
+
+  return validateSong(parsed[songIndex], songIndex);
+}
+
 function validateSong(value: unknown, songIndex: number): Song {
   if (!isRecord(value)) {
     throw new ScoreFileImportError("songNotObject", { songIndex });

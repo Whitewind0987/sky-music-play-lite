@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isSupportedScoreFileName,
   parseScoreFileContent,
+  parseScoreFileSongAtIndex,
   ScoreFileImportError,
   type ScoreFileImportErrorCode,
 } from "./scoreFileImport";
@@ -171,6 +172,50 @@ describe("parseScoreFileContent success cases", () => {
     );
 
     expect(songs[0]?.songNotes).toEqual([{ time: 125, key: "Key3" }]);
+  });
+});
+
+describe("parseScoreFileSongAtIndex", () => {
+  const mixedSongContent = JSON.stringify([
+    { name: "Invalid sibling", songNotes: "bad" },
+    createRawSong({ name: "Playable built-in" }),
+  ]);
+
+  it("validates only the requested song", () => {
+    const song = parseScoreFileSongAtIndex(mixedSongContent, 1);
+
+    expect(song?.name).toBe("Playable built-in");
+    expect(song?.songNotes).toEqual([
+      { time: 0, key: "Key0" },
+      { time: 500, key: "Key1" },
+    ]);
+  });
+
+  it("keeps full user imports strict", () => {
+    expect(() => parseScoreFileContent(mixedSongContent)).toThrow(
+      ScoreFileImportError,
+    );
+  });
+
+  it("returns null for an out-of-range song index", () => {
+    expect(parseScoreFileSongAtIndex(mixedSongContent, 2)).toBeNull();
+    expect(parseScoreFileSongAtIndex(mixedSongContent, -1)).toBeNull();
+    expect(parseScoreFileSongAtIndex(mixedSongContent, 0.5)).toBeNull();
+  });
+
+  it("decrypts numeric song notes for the requested song", () => {
+    const song = parseScoreFileSongAtIndex(
+      JSON.stringify([
+        createRawSong({
+          isEncrypted: true,
+          name: "Encrypted built-in",
+          songNotes: encryptSongNotesForTest([{ time: 125, key: "Key3" }]),
+        }),
+      ]),
+      0,
+    );
+
+    expect(song?.songNotes).toEqual([{ time: 125, key: "Key3" }]);
   });
 });
 

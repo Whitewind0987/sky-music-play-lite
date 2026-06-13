@@ -92,6 +92,9 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Score import decryption lives in `src/lib/sheetDecrypt.ts`; keep it pure and covered by tests.
 - Do not add runtime dependencies for score decryption.
 - Do not log decrypted score contents, encrypted numeric arrays, decrypt keys, or signatures.
+- Built-in lazy loading must parse only the indexed song entry; user file imports remain strict and validate the full imported file.
+- Do not turn built-in index metadata such as duration or note count into fake playable notes.
+- "播放队列" means `QueuePanel`; queue current-badge overflow fixes belong there and must not be applied to `LibraryPanel` or `BottomPlayer`.
 
 ## Project Hardening Rules
 

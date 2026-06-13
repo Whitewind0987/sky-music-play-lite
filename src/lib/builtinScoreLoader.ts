@@ -1,7 +1,7 @@
 import type { Song } from "../types/score";
 import { findBuiltInScoreIndexEntry } from "./builtinScoreIndex";
 import {
-  parseScoreFileContent,
+  parseScoreFileSongAtIndex,
   ScoreFileImportError,
 } from "./scoreFileImport";
 
@@ -36,21 +36,34 @@ async function loadBuiltInScore(scoreId: string): Promise<Song | null> {
     }
 
     const raw = await response.text();
-    const songs = parseScoreFileContent(raw);
+    const song = parseScoreFileSongAtIndex(raw, entry.songIndex);
 
-    return songs[entry.songIndex] ?? null;
+    if (song === null) {
+      console.warn("[built-in-scores] lazy load song index missing", {
+        fileName: entry.fileName,
+        id: entry.id,
+        songIndex: entry.songIndex,
+        title: entry.title,
+      });
+    }
+
+    return song;
   } catch (error) {
     if (error instanceof ScoreFileImportError) {
       console.warn("[built-in-scores] lazy load skipped", {
         code: error.code,
         details: error.details,
+        fileName: entry.fileName,
         id: entry.id,
+        songIndex: entry.songIndex,
         title: entry.title,
       });
     } else {
       console.warn("[built-in-scores] lazy load failed", {
         error,
+        fileName: entry.fileName,
         id: entry.id,
+        songIndex: entry.songIndex,
         title: entry.title,
       });
     }

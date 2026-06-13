@@ -668,14 +668,6 @@ function LibrarySongTable({
               </span>
               <span className="library-song-title">
                 <span className="library-song-title-text">{song.name}</span>
-                {isSelected ? (
-                  <span className="library-selected-badge">{text.selected}</span>
-                ) : null}
-                {isSelected && isLoading ? (
-                  <span className="library-loading-badge">
-                    {text.loadingScore}
-                  </span>
-                ) : null}
                 <span className="library-row-title-actions">
                   <button
                     className="library-title-icon-button"
@@ -765,6 +757,14 @@ function LibrarySongTable({
                     </DropdownMenu.Root>
                   </span>
                 </span>
+                {isSelected ? (
+                  <span className="library-selected-badge">{text.selected}</span>
+                ) : null}
+                {isSelected && isLoading ? (
+                  <span className="library-loading-badge">
+                    {text.loadingScore}
+                  </span>
+                ) : null}
               </span>
               <span className="library-song-source">
                 {librarySong.source === "built-in"
