@@ -1,6 +1,10 @@
 // @ts-expect-error Node built-ins are available in the Vitest runtime.
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import {
+  sanitizeBuiltInScoreIndex,
+  type BuiltInScoreIndex,
+} from "./builtinScoreIndex";
 import {
   isSupportedScoreFileName,
   parseScoreFileContent,
@@ -40,17 +44,6 @@ function createRawSong(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-type BuiltInScoreIndex = {
-  entries: Array<{
-    durationMs: number;
-    fileName: string;
-    id: string;
-    noteCount: number;
-    songIndex: number;
-    title: string;
-  }>;
-};
 
 function expectImportError(content: string, code: ScoreFileImportErrorCode) {
   expect(() => parseScoreFileContent(content)).toThrow(ScoreFileImportError);
@@ -240,9 +233,8 @@ describe("parseScoreFileSongAtIndex", () => {
       "../../public/builtin-scores/scores/",
       import.meta.url,
     );
-    const index = JSON.parse(
-      await readFile(indexUrl, "utf8"),
-    ) as BuiltInScoreIndex;
+    const rawIndex = JSON.parse(await readFile(indexUrl, "utf8"));
+    const index = sanitizeBuiltInScoreIndex(rawIndex);
     const scoreFileCache = new Map<string, string>();
     const failures: string[] = [];
 
@@ -299,6 +291,62 @@ describe("parseScoreFileSongAtIndex", () => {
     }
 
     expect(failures.slice(0, 30)).toEqual([]);
+  });
+});
+
+describe("built-in score asset integrity", () => {
+  const indexUrl = new URL(
+    "../../public/builtin-scores/index.json",
+    import.meta.url,
+  );
+  const scoresDirectoryUrl = new URL(
+    "../../public/builtin-scores/scores/",
+    import.meta.url,
+  );
+
+  it("keeps every generated index entry after runtime sanitization", async () => {
+    const rawIndex = JSON.parse(
+      await readFile(indexUrl, "utf8"),
+    ) as BuiltInScoreIndex;
+    const sanitizedIndex = sanitizeBuiltInScoreIndex(rawIndex);
+    const sanitizedIds = new Set(
+      sanitizedIndex.entries.map((entry) => entry.id),
+    );
+    const droppedEntries = rawIndex.entries
+      .filter((entry) => !sanitizedIds.has(entry.id))
+      .map(
+        (entry) =>
+          `${entry.title} / ${entry.id} / ${entry.fileName} / songIndex ${entry.songIndex}`,
+      );
+
+    expect(droppedEntries).toEqual([]);
+  });
+
+  it("stores every built-in score file as a strict non-empty JSON array", async () => {
+    const fileNames = (await readdir(scoresDirectoryUrl))
+      .filter((fileName: string) => /\.(txt|json)$/i.test(fileName))
+      .sort();
+    const failures: string[] = [];
+
+    for (const fileName of fileNames) {
+      try {
+        const raw = await readFile(
+          new URL(encodeURIComponent(fileName), scoresDirectoryUrl),
+          "utf8",
+        );
+        const parsed = JSON.parse(raw);
+
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          failures.push(`${fileName}: top-level JSON is not a non-empty array`);
+        }
+      } catch (error) {
+        failures.push(
+          `${fileName}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    expect(failures.slice(0, 80)).toEqual([]);
   });
 });
 

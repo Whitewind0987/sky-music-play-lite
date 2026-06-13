@@ -52,6 +52,9 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Built-in score parser changes must stay compatible with the index generator and must run a regression test that parses every entry in `public/builtin-scores/index.json` against its source file.
 - Built-in lazy loading must parse only the indexed song entry, and the runtime parser must accept the same legacy compatibility cases as the index generator.
 - Failed built-in score loads must remain retryable; do not permanently cache transient fetch or parse failures.
+- Built-in score files under `public/builtin-scores/scores` must be strict non-empty JSON arrays; do not add runtime recovery for corrupted assets unless explicitly requested.
+- The runtime built-in index sanitizer must accept safe uppercase file names emitted by the generator while still rejecting path traversal, nested paths, spaces, hidden files, and unsupported extensions.
+- Built-in score tests must cover raw asset JSON validity, generator/runtime index consistency, and indexed song lazy-load parsing.
 - Locate-current-score behavior must use `librarySong.id`, not only an array index.
 - Trigger library DOM scrolling through explicit locate requests, not on every selection change; import auto-scroll must reuse the same locate request mechanism.
 - The library's main scroll container is `.app-layout`, not `window`.
@@ -98,6 +101,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Do not log decrypted score contents, encrypted numeric arrays, decrypt keys, or signatures.
 - Built-in lazy loading must parse only the indexed song entry; user file imports remain strict and validate the full imported file.
 - Do not turn built-in index metadata such as duration or note count into fake playable notes.
+- Repair corrupted built-in assets at the source; do not silently accept trailing garbage in runtime parsing.
 - "播放队列" means `QueuePanel`; queue current-badge overflow fixes belong there and must not be applied to `LibraryPanel` or `BottomPlayer`.
 
 ## Project Hardening Rules
