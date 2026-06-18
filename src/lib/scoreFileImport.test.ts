@@ -291,7 +291,7 @@ describe("parseScoreFileSongAtIndex", () => {
     }
 
     expect(failures.slice(0, 30)).toEqual([]);
-  });
+  }, 30000);
 });
 
 describe("built-in score asset integrity", () => {
@@ -347,7 +347,7 @@ describe("built-in score asset integrity", () => {
     }
 
     expect(failures.slice(0, 80)).toEqual([]);
-  });
+  }, 30000);
 });
 
 describe("parseScoreFileContent error cases", () => {

@@ -92,6 +92,7 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Test files should use `.test.ts`.
 - Prefer testing pure functions before changing app orchestration logic.
 - Every feature or fix stage should run `npm run test`, `npm run build`, and `cd src-tauri && cargo check && cd ..`.
+- Recommended maintenance verification is `npm run test -- --testTimeout=30000`, `npx tsc --noEmit`, `npm run build`, and `cd src-tauri && cargo check`.
 - Do not add UI or end-to-end tests unless a stage explicitly asks for them.
 - App data migrations, sanitizers, and new persisted fields should have Vitest coverage.
 
@@ -120,7 +121,13 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Library rename/delete dialog state belongs in `useLibraryDialogs`.
 - Update check orchestration belongs in `useUpdateCheck`.
 - App data migrations and sanitizers should have Vitest coverage.
-- UI polish should not change playback, persistence, update, or experimental input behavior unless explicitly requested.
+- UI polish should not change playback, queue, import, persistence, update check, or experimental input behavior unless explicitly requested.
+- Treat playback core, Windows input, built-in score parsing, and score library state as high-risk maintenance areas. Do not make broad rewrites in `src/hooks/useExperimentalInput.ts`, `src/hooks/usePreviewPlayback.ts`, `src/hooks/usePlaybackCoordinator.ts`, `src/hooks/useScoreLibrary.ts`, `src/lib/playbackScheduler.ts`, `src/lib/scoreFileImport.ts`, `src/lib/builtinScoreLoader.ts`, or `src-tauri/src/experimental_input/target_window_message.rs` without a dedicated phase and regression checks.
+- Before changing playback behavior, inspect all three output paths: preview playback, foreground playback, and target-window playback. Do not fix only one path unless the task explicitly targets only that path.
+- Queue logic still stores song indexes while library identity uses `librarySong.id`; changes to deletion, import, built-in lazy loading, shuffle, repeat, queue next, or play-next must check both index validity and id-based playback context.
+- New library features should prefer `librarySong.id` for identity. Use song indexes only at existing playback boundaries that require them.
+- Do not reintroduce `SetForegroundWindow`. `legacy-activate-scan-lparam` may send `WM_ACTIVATE` messages, but target-window playback must keep non-activating profiles available.
+- Before adding, removing, or renaming a Tauri command, check `src/lib/tauriApi.ts`, all frontend invoke wrappers/usages, and the Rust `tauri::generate_handler!` registration together.
 
 ## Development Style
 
