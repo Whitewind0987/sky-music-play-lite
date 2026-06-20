@@ -63,69 +63,133 @@ pub fn send_key_group_to_window_message(
     }
 
     let target = build_window_message_target(hwnd, method, compatibility_profile)?;
-    let inputs = keys
-        .into_iter()
-        .map(|key| build_profile_window_message_key_input(&target, key))
-        .collect::<Result<Vec<_>, _>>()?;
     let grouped = is_grouped_target_compatibility_profile(&target.compatibility_profile);
     let soft_activation =
         target.compatibility_profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM;
-    let mut send_results = Vec::<TargetWindowKeyMessageResult>::new();
 
-    if grouped {
-        if let Some(first_input) = inputs.first() {
-            activate_target_window_for_profile(first_input, "before key group")?;
-        }
-
-        for input in inputs.iter() {
-            let key_down_lparam = build_profile_key_down_lparam(input);
-            let down_result =
-                send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
-            send_results.push(TargetWindowKeyMessageResult {
-                down_result,
-                up_result: None,
-            });
-        }
-
-        thread::sleep(Duration::from_millis(key_hold_ms));
-
-        for (index, input) in inputs.iter().enumerate() {
-            let key_up_lparam = build_profile_key_up_lparam(input);
-            let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
-
-            if let Some(result) = send_results.get_mut(index) {
-                result.up_result = up_result;
-            }
-        }
-    } else {
-        for input in inputs.iter() {
-            activate_target_window_for_profile(input, "before key down")?;
-            let key_down_lparam = build_profile_key_down_lparam(input);
-            let down_result =
-                send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
-            thread::sleep(Duration::from_millis(key_hold_ms));
-            activate_target_window_for_profile(input, "before key up")?;
-            let key_up_lparam = build_profile_key_up_lparam(input);
-            let up_result = send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
-
-            send_results.push(TargetWindowKeyMessageResult {
-                down_result,
-                up_result,
-            });
-        }
-    }
+    send_target_window_key_down_group(&target, &keys)?;
+    thread::sleep(Duration::from_millis(key_hold_ms));
+    send_target_window_key_up_group(&target, &keys)?;
 
     Ok(format!(
         "Target-window key group messages sent. hwnd: {}; key count: {}; method: {}; profile: {}; hold: {}ms; grouped: {}; softActivation: {}; foregroundApi: false; send-message results: {}",
         target.hwnd_text,
-        inputs.len(),
+        keys.len(),
         target.method,
         target.compatibility_profile,
         key_hold_ms,
         grouped,
         soft_activation,
-        format_send_message_results(&send_results)
+        format_send_message_results(&[])
     ))
+}
+
+pub(crate) fn validate_window_message_key_group(
+    hwnd: &str,
+    keys: &[String],
+    method: &str,
+    compatibility_profile: &str,
+) -> Result<(), String> {
+    if keys.is_empty() {
+        return Err(format!(
+            "Target-window message input needs at least one key. hwnd: {hwnd}; method: {method}; profile: {compatibility_profile}"
+        ));
+    }
+
+    let target = build_window_message_target(
+        hwnd.to_string(),
+        method.to_string(),
+        compatibility_profile.to_string(),
+    )?;
+
+    for key in keys {
+        build_profile_window_message_key_input(&target, key.clone())?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn send_window_message_key_down_group(
+    hwnd: &str,
+    keys: &[String],
+    method: &str,
+    compatibility_profile: &str,
+) -> Result<(), String> {
+    let target = build_window_message_target(
+        hwnd.to_string(),
+        method.to_string(),
+        compatibility_profile.to_string(),
+    )?;
+
+    send_target_window_key_down_group(&target, keys)
+}
+
+pub(crate) fn send_window_message_key_up_group(
+    hwnd: &str,
+    keys: &[String],
+    method: &str,
+    compatibility_profile: &str,
+) -> Result<(), String> {
+    let target = build_window_message_target(
+        hwnd.to_string(),
+        method.to_string(),
+        compatibility_profile.to_string(),
+    )?;
+
+    send_target_window_key_up_group(&target, keys)
+}
+
+fn send_target_window_key_down_group(
+    target: &WindowMessageTarget,
+    keys: &[String],
+) -> Result<(), String> {
+    let inputs = build_window_message_key_inputs(target, keys)?;
+    let grouped = is_grouped_target_compatibility_profile(&target.compatibility_profile);
+
+    if grouped {
+        if let Some(first_input) = inputs.first() {
+            activate_target_window_for_profile(first_input, "before key group")?;
+        }
+    }
+
+    for input in inputs.iter() {
+        if !grouped {
+            activate_target_window_for_profile(input, "before key down")?;
+        }
+
+        let key_down_lparam = build_profile_key_down_lparam(input);
+        send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
+    }
+
+    Ok(())
+}
+
+fn send_target_window_key_up_group(
+    target: &WindowMessageTarget,
+    keys: &[String],
+) -> Result<(), String> {
+    let inputs = build_window_message_key_inputs(target, keys)?;
+    let grouped = is_grouped_target_compatibility_profile(&target.compatibility_profile);
+
+    for input in inputs.iter() {
+        if !grouped {
+            activate_target_window_for_profile(input, "before key up")?;
+        }
+
+        let key_up_lparam = build_profile_key_up_lparam(input);
+        send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
+    }
+
+    Ok(())
+}
+
+fn build_window_message_key_inputs(
+    target: &WindowMessageTarget,
+    keys: &[String],
+) -> Result<Vec<WindowMessageKeyInput>, String> {
+    keys.iter()
+        .map(|key| build_profile_window_message_key_input(target, key.clone()))
+        .collect::<Result<Vec<_>, _>>()
 }
 
 fn build_window_message_target(

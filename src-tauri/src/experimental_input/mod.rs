@@ -9,6 +9,8 @@ pub struct CandidateWindow {
 }
 
 #[cfg(windows)]
+mod background_playback;
+#[cfg(windows)]
 mod foreground_input;
 #[cfg(windows)]
 mod key_mapping;
@@ -19,6 +21,13 @@ mod target_window_message;
 #[cfg(windows)]
 mod window;
 
+#[cfg(windows)]
+pub use background_playback::{
+    pause_background_playback, resume_background_playback, seek_background_playback,
+    start_background_playback, stop_background_playback, update_background_playback_options,
+    BackgroundPlaybackOptionsRequest, BackgroundPlaybackStartRequest,
+    BackgroundPlaybackStartResponse,
+};
 #[cfg(windows)]
 pub use foreground_input::send_foreground_key_group;
 #[cfg(not(windows))]

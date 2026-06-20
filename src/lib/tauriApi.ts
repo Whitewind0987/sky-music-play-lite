@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
 import type { PersistedAppData } from "../types/appData";
 import type {
   CandidateWindow,
@@ -21,6 +22,40 @@ export type AppLogEntry = {
   level: AppLogLevel;
   message: string;
   source: string;
+};
+
+export type BackgroundPlaybackPlanEvent = {
+  keys: string[];
+  timeMs: number;
+};
+
+export type BackgroundPlaybackStartRequest = {
+  compatibilityProfile: TargetWindowCompatibilityProfile;
+  hwnd: string;
+  initialProgressMs?: number;
+  keyHoldMs: number;
+  noteIntervalDelayMs: number;
+  playbackSpeed: number;
+  plan: BackgroundPlaybackPlanEvent[];
+};
+
+export type BackgroundPlaybackStartResponse = {
+  sessionId: number;
+  totalMs: number;
+};
+
+export type BackgroundPlaybackProgress = {
+  currentMs: number;
+  percent: number;
+  totalMs: number;
+};
+
+export type BackgroundPlaybackEventPayload = {
+  error?: string;
+  progress?: BackgroundPlaybackProgress;
+  sessionId: number;
+  state?: string;
+  type: "error" | "finished" | "progress" | "state";
 };
 
 export function loadAppData(): Promise<unknown | null> {
@@ -63,6 +98,56 @@ export function sendKeyGroupToWindowMessage({
 
 export function sendForegroundKeyGroup(keys: string[]): Promise<string> {
   return invoke<string>("send_foreground_key_group", { keys });
+}
+
+export function startBackgroundPlayback(
+  request: BackgroundPlaybackStartRequest,
+): Promise<BackgroundPlaybackStartResponse> {
+  return invoke<BackgroundPlaybackStartResponse>("start_background_playback", {
+    request,
+  });
+}
+
+export function pauseBackgroundPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("pause_background_playback", { sessionId });
+}
+
+export function resumeBackgroundPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("resume_background_playback", { sessionId });
+}
+
+export function stopBackgroundPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("stop_background_playback", { sessionId });
+}
+
+export function seekBackgroundPlayback(
+  sessionId: number,
+  timeMs: number,
+): Promise<void> {
+  return invoke<void>("seek_background_playback", { sessionId, timeMs });
+}
+
+export function updateBackgroundPlaybackOptions({
+  noteIntervalDelayMs,
+  playbackSpeed,
+  sessionId,
+}: {
+  noteIntervalDelayMs: number;
+  playbackSpeed: number;
+  sessionId: number;
+}): Promise<void> {
+  return invoke<void>("update_background_playback_options", {
+    request: { noteIntervalDelayMs, playbackSpeed, sessionId },
+  });
+}
+
+export function listenBackgroundPlaybackEvents(
+  handler: (event: Event<BackgroundPlaybackEventPayload>) => void,
+): Promise<UnlistenFn> {
+  return listen<BackgroundPlaybackEventPayload>(
+    "background-playback-event",
+    handler,
+  );
 }
 
 export function getAppRuntimeInfo(): Promise<AppRuntimeInfo> {

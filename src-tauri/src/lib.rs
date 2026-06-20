@@ -2,7 +2,10 @@ mod app_data;
 mod app_log;
 mod app_window;
 mod experimental_input;
-use experimental_input::CandidateWindow;
+use experimental_input::{
+    BackgroundPlaybackOptionsRequest, BackgroundPlaybackStartRequest,
+    BackgroundPlaybackStartResponse, CandidateWindow,
+};
 
 #[tauri::command]
 fn list_candidate_windows() -> Result<Vec<CandidateWindow>, String> {
@@ -36,6 +39,41 @@ fn send_foreground_key_group(keys: Vec<String>) -> Result<String, String> {
     experimental_input::send_foreground_key_group(keys)
 }
 
+#[tauri::command]
+fn start_background_playback(
+    app: tauri::AppHandle,
+    request: BackgroundPlaybackStartRequest,
+) -> Result<BackgroundPlaybackStartResponse, String> {
+    experimental_input::start_background_playback(app, request)
+}
+
+#[tauri::command]
+fn pause_background_playback(session_id: u64) -> Result<(), String> {
+    experimental_input::pause_background_playback(session_id)
+}
+
+#[tauri::command]
+fn resume_background_playback(session_id: u64) -> Result<(), String> {
+    experimental_input::resume_background_playback(session_id)
+}
+
+#[tauri::command]
+fn stop_background_playback(session_id: u64) -> Result<(), String> {
+    experimental_input::stop_background_playback(session_id)
+}
+
+#[tauri::command]
+fn seek_background_playback(session_id: u64, time_ms: f64) -> Result<(), String> {
+    experimental_input::seek_background_playback(session_id, time_ms)
+}
+
+#[tauri::command]
+fn update_background_playback_options(
+    request: BackgroundPlaybackOptionsRequest,
+) -> Result<(), String> {
+    experimental_input::update_background_playback_options(request)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -50,9 +88,15 @@ pub fn run() {
             app_log::open_log_directory,
             app_window::force_close_app,
             list_candidate_windows,
+            pause_background_playback,
+            resume_background_playback,
             app_data::save_app_data,
+            seek_background_playback,
             send_foreground_key_group,
-            send_key_group_to_window_message
+            send_key_group_to_window_message,
+            start_background_playback,
+            stop_background_playback,
+            update_background_playback_options
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

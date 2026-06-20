@@ -10,16 +10,22 @@ import {
 import { formatText } from "../lib/formatText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
-  getAdjustedPreviewDurationMs,
-  schedulePreviewPlayback,
   type PreviewPlaybackController,
   type PreviewPlaybackProgress,
 } from "../lib/playbackScheduler";
 import { prepareMappedKeyboardKeyGroups } from "../lib/scoreKeyMapping";
 import {
   findSkyWindow,
+  listenBackgroundPlaybackEvents,
   listCandidateWindows,
-  sendKeyGroupToWindowMessage,
+  pauseBackgroundPlayback,
+  resumeBackgroundPlayback,
+  seekBackgroundPlayback,
+  startBackgroundPlayback,
+  stopBackgroundPlayback,
+  updateBackgroundPlaybackOptions,
+  type BackgroundPlaybackEventPayload,
+  type BackgroundPlaybackPlanEvent,
 } from "../lib/tauriApi";
 import type {
   CandidateWindow,
@@ -71,7 +77,12 @@ type UseExperimentalInputOptions = {
 const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
 const targetWindowKeyHoldMaxMs = 200;
-const REAL_PLAYBACK_PROGRESS_TICK_MS = 100;
+
+type BackgroundPlaybackContext = {
+  sessionId: number;
+  song: Song;
+  songIndex: number;
+};
 
 export function useExperimentalInput({
   appendLog,
@@ -94,6 +105,8 @@ export function useExperimentalInput({
 }: UseExperimentalInputOptions) {
   const experimentalPlaybackControllerRef =
     useRef<PreviewPlaybackController | null>(null);
+  const backgroundPlaybackContextRef =
+    useRef<BackgroundPlaybackContext | null>(null);
   const experimentalPlaybackRunIdRef = useRef(0);
   const hasAutoRefreshedRestoredWindowRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
@@ -190,7 +203,16 @@ export function useExperimentalInput({
   });
 
   useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    void listenBackgroundPlaybackEvents((event) => {
+      handleBackgroundPlaybackEvent(event.payload);
+    }).then((nextUnlisten) => {
+      unlisten = nextUnlisten;
+    });
+
     return () => {
+      unlisten?.();
       stopExperimentalPlayback({ logStopped: false });
     };
   }, []);
@@ -398,16 +420,22 @@ export function useExperimentalInput({
   }: {
     logStopped: boolean;
   }) {
+    const sessionId = experimentalPlaybackRunIdRef.current;
     experimentalPlaybackRunIdRef.current += 1;
     setIsStartingExperimentalPlayback(false);
     experimentalPlaybackControllerRef.current?.stop();
     experimentalPlaybackControllerRef.current = null;
+    backgroundPlaybackContextRef.current = null;
     setExperimentalPlaybackState("idle");
     setExperimentalPlaybackProgress({
       currentMs: 0,
       percent: 0,
       totalMs: 0,
     });
+
+    if (sessionId > 0) {
+      void stopBackgroundPlayback(sessionId);
+    }
 
     if (logStopped) {
       appendLog(text.logs.experimentalPlaybackStopped);
@@ -706,10 +734,10 @@ export function useExperimentalInput({
       return;
     }
 
-    let mappedKeyGroups: Map<number, string[]>;
+    let playbackPlan: BackgroundPlaybackPlanEvent[];
 
     try {
-      mappedKeyGroups = prepareMappedKeyboardKeyGroups(
+      playbackPlan = buildBackgroundPlaybackPlan(
         song.songNotes,
         keyMapping,
       );
@@ -722,7 +750,7 @@ export function useExperimentalInput({
       return;
     }
 
-    const runId = experimentalPlaybackRunIdRef.current + 1;
+    const startToken = experimentalPlaybackRunIdRef.current + 1;
     const targetWindowHwnd = selectedWindowHwnd;
     const targetWindowTitle =
       selectedWindow?.title ||
@@ -738,56 +766,87 @@ export function useExperimentalInput({
     );
     targetWindowMessageMethodRef.current = method;
     targetWindowCompatibilityProfileRef.current = compatibilityProfile;
-    experimentalPlaybackRunIdRef.current = runId;
-    setExperimentalPlaybackState("playing");
+    experimentalPlaybackRunIdRef.current = startToken;
     setLastError(null);
     setExperimentalPlaybackProgress({
       currentMs: 0,
       percent: 0,
-      totalMs: getAdjustedPreviewDurationMs(song.songNotes, {
-        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
-        playbackSpeed: playbackSpeedRef.current,
-      }),
+      totalMs: 0,
     });
-    appendLog(
-      formatText(text.logs.experimentalPlaybackStarted, {
-        songName: song.name,
-        target: targetWindowTitle,
-      }),
-    );
 
-    experimentalPlaybackControllerRef.current = schedulePreviewPlayback(
-      song.songNotes,
-      (noteGroup) => {
-        const mappedKeys = mappedKeyGroups.get(noteGroup[0]?.time ?? -1);
-
-        if (mappedKeys) {
-          void sendExperimentalNoteGroup({
-            mappedKeys,
-            runId,
-            targetWindowHwnd,
-          });
-        }
-      },
-      () => {
-        if (experimentalPlaybackRunIdRef.current !== runId) {
-          return;
-        }
-
-        handleExperimentalPlaybackFinished(songIndex, song);
-      },
-      {
+    try {
+      const response = await startBackgroundPlayback({
+        compatibilityProfile,
+        hwnd: targetWindowHwnd,
         initialProgressMs: options.initialSeekMs,
+        keyHoldMs: targetWindowKeyHoldMsRef.current,
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
-        onProgress: setExperimentalPlaybackProgress,
         playbackSpeed: playbackSpeedRef.current,
-        progressTickMs: REAL_PLAYBACK_PROGRESS_TICK_MS,
-      },
-    );
+        plan: playbackPlan,
+      });
+
+      if (experimentalPlaybackRunIdRef.current !== startToken) {
+        void stopBackgroundPlayback(response.sessionId);
+        return;
+      }
+
+      experimentalPlaybackRunIdRef.current = response.sessionId;
+      backgroundPlaybackContextRef.current = {
+        sessionId: response.sessionId,
+        song,
+        songIndex,
+      };
+      experimentalPlaybackControllerRef.current = createBackgroundPlaybackController(
+        response.sessionId,
+      );
+      setExperimentalPlaybackState("playing");
+      setExperimentalPlaybackProgress({
+        currentMs: Math.min(options.initialSeekMs ?? 0, response.totalMs),
+        percent:
+          response.totalMs > 0
+            ? (Math.min(options.initialSeekMs ?? 0, response.totalMs) /
+                response.totalMs) *
+              100
+            : 0,
+        totalMs: response.totalMs,
+      });
+      appendLog(
+        formatText(text.logs.experimentalPlaybackStarted, {
+          songName: song.name,
+          target: targetWindowTitle,
+        }),
+      );
+    } catch (error) {
+      if (experimentalPlaybackRunIdRef.current !== startToken) {
+        return;
+      }
+
+      const errorMessage = String(error);
+      const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
+      const logTemplate =
+        isInvalidTargetWindow
+          ? text.logs.experimentalSavedTargetWindowUnavailable
+          : selectedWindow === null && selectedWindowSnapshot !== undefined
+            ? text.logs.experimentalRestoredTargetWindowSendFailed
+            : text.logs.experimentalPlaybackCommandFailed;
+
+      console.warn("[real-playback] background playback start failed", {
+        error,
+        profile: compatibilityProfile,
+        targetWindowHwnd,
+      });
+      setLastError(logTemplate);
+      appendLog(logTemplate);
+      if (isInvalidTargetWindow) {
+        showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
+      }
+      stopExperimentalPlayback({ logStopped: false });
+    }
   }
 
   function handleExperimentalPlaybackFinished(songIndex: number, song: Song) {
     experimentalPlaybackControllerRef.current = null;
+    backgroundPlaybackContextRef.current = null;
 
     const currentImportedSongs = importedSongsRef.current;
     const queuedItem =
@@ -842,33 +901,36 @@ export function useExperimentalInput({
     appendLog(text.logs.experimentalPlaybackFinished);
   }
 
-  async function sendExperimentalNoteGroup({
-    mappedKeys,
-    runId,
-    targetWindowHwnd,
-  }: {
-    mappedKeys: string[];
-    runId: number;
-    targetWindowHwnd: string;
-  }) {
-    try {
-      if (experimentalPlaybackRunIdRef.current !== runId) {
-        return;
-      }
+  function handleBackgroundPlaybackEvent(
+    payload: BackgroundPlaybackEventPayload,
+  ) {
+    if (payload.sessionId !== experimentalPlaybackRunIdRef.current) {
+      return;
+    }
 
-      await sendKeyGroupToWindowMessage({
-        compatibilityProfile: targetWindowCompatibilityProfileRef.current,
-        hwnd: targetWindowHwnd,
-        keyHoldMs: targetWindowKeyHoldMsRef.current,
-        keys: mappedKeys,
-        method: "post-message",
-      });
-    } catch (error) {
-      if (experimentalPlaybackRunIdRef.current !== runId) {
-        return;
-      }
+    if (payload.type === "progress" && payload.progress) {
+      setExperimentalPlaybackProgress(payload.progress);
+      return;
+    }
 
-      const errorMessage = String(error);
+    if (payload.type === "state" && payload.state) {
+      if (payload.state === "playing" || payload.state === "paused") {
+        setExperimentalPlaybackState(payload.state);
+      }
+      return;
+    }
+
+    if (payload.type === "finished") {
+      const context = backgroundPlaybackContextRef.current;
+
+      if (context?.sessionId === payload.sessionId) {
+        handleExperimentalPlaybackFinished(context.songIndex, context.song);
+      }
+      return;
+    }
+
+    if (payload.type === "error") {
+      const errorMessage = payload.error ?? text.logs.experimentalPlaybackCommandFailed;
       const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
       const logTemplate =
         isInvalidTargetWindow
@@ -877,18 +939,45 @@ export function useExperimentalInput({
             ? text.logs.experimentalRestoredTargetWindowSendFailed
             : text.logs.experimentalPlaybackCommandFailed;
 
-      console.warn("[real-playback] background key send failed", {
-        error,
-        profile: targetWindowCompatibilityProfileRef.current,
-        targetWindowHwnd,
+      console.warn("[real-playback] background playback worker failed", {
+        error: payload.error,
+        sessionId: payload.sessionId,
       });
+      backgroundPlaybackContextRef.current = null;
+      experimentalPlaybackControllerRef.current = null;
+      setExperimentalPlaybackState("idle");
       setLastError(logTemplate);
       appendLog(logTemplate);
       if (isInvalidTargetWindow) {
         showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
       }
-      stopExperimentalPlayback({ logStopped: false });
     }
+  }
+
+  function createBackgroundPlaybackController(
+    sessionId: number,
+  ): PreviewPlaybackController {
+    return {
+      pause() {
+        void pauseBackgroundPlayback(sessionId);
+      },
+      resume() {
+        void resumeBackgroundPlayback(sessionId);
+      },
+      seekTo(timeMs) {
+        void seekBackgroundPlayback(sessionId, timeMs);
+      },
+      stop() {
+        void stopBackgroundPlayback(sessionId);
+      },
+      updateOptions(nextOptions) {
+        void updateBackgroundPlaybackOptions({
+          noteIntervalDelayMs: nextOptions.noteIntervalDelayMs,
+          playbackSpeed: nextOptions.playbackSpeed,
+          sessionId,
+        });
+      },
+    };
   }
 
   return {
@@ -959,6 +1048,16 @@ function clampTargetWindowKeyHoldMs(keyHoldMs: number) {
     targetWindowKeyHoldMaxMs,
     Math.max(targetWindowKeyHoldMinMs, Math.round(keyHoldMs)),
   );
+}
+
+function buildBackgroundPlaybackPlan(
+  notes: Song["songNotes"],
+  keyMapping: KeyMapping,
+): BackgroundPlaybackPlanEvent[] {
+  return Array.from(
+    prepareMappedKeyboardKeyGroups(notes, keyMapping),
+    ([timeMs, keys]) => ({ keys, timeMs }),
+  ).sort((left, right) => left.timeMs - right.timeMs);
 }
 
 function candidateWindowToSnapshot(
