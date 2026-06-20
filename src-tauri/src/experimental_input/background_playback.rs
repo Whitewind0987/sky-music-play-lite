@@ -1,9 +1,9 @@
 use super::target_window_message::{
-    send_window_message_key_down_group, send_window_message_key_up_group,
-    validate_window_message_key_group,
+    prepare_window_message_target, send_prepared_window_message_key_down_group,
+    send_prepared_window_message_key_up_group, PreparedWindowMessageTarget,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
@@ -14,6 +14,7 @@ const BACKGROUND_PLAYBACK_EVENT: &str = "background-playback-event";
 const NOTE_HIGHLIGHT_MS: f64 = 300.0;
 const PROGRESS_EVENT_INTERVAL_MS: f64 = 150.0;
 const TARGET_MESSAGE_METHOD_POST: &str = "post-message";
+const MAX_PREPARED_PLAYBACK_PLANS: usize = 32;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +37,24 @@ pub struct BackgroundPlaybackStartRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BackgroundPlaybackPreparePlanRequest {
+    pub plan: Vec<BackgroundPlaybackPlanEvent>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundPlaybackPreparedStartRequest {
+    pub prepared_plan_id: u64,
+    pub hwnd: String,
+    pub compatibility_profile: String,
+    pub key_hold_ms: u64,
+    pub note_interval_delay_ms: f64,
+    pub playback_speed: f64,
+    pub initial_progress_ms: Option<f64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackgroundPlaybackOptionsRequest {
     pub session_id: u64,
     pub note_interval_delay_ms: f64,
@@ -47,6 +66,12 @@ pub struct BackgroundPlaybackOptionsRequest {
 pub struct BackgroundPlaybackStartResponse {
     pub session_id: u64,
     pub total_ms: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundPlaybackPreparePlanResponse {
+    pub prepared_plan_id: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -124,6 +149,17 @@ struct BackgroundPlaybackManager {
     next_session_id: u64,
 }
 
+struct PreparedPlaybackPlanCache {
+    entries: HashMap<u64, PreparedPlaybackPlan>,
+    next_plan_id: u64,
+    order: VecDeque<u64>,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedPlaybackPlan {
+    groups: Vec<TimelineGroup>,
+}
+
 struct BackgroundPlaybackSession {
     session_id: u64,
     command_tx: Sender<PlaybackCommand>,
@@ -134,9 +170,8 @@ struct BackgroundPlaybackWorker {
     active_generations: HashMap<String, u64>,
     app_handle: AppHandle,
     command_rx: mpsc::Receiver<PlaybackCommand>,
-    compatibility_profile: String,
-    hwnd: String,
     key_hold_ms: f64,
+    logged_first_key_down: bool,
     next_generation: u64,
     next_group_index: usize,
     next_progress_event_ms: f64,
@@ -147,23 +182,80 @@ struct BackgroundPlaybackWorker {
     start_rx: Receiver<()>,
     started_at: Instant,
     state: WorkerPlaybackState,
+    target: PreparedWindowMessageTarget,
     timeline: PlaybackTimeline,
 }
 
 static BACKGROUND_PLAYBACK_MANAGER: OnceLock<Mutex<BackgroundPlaybackManager>> = OnceLock::new();
 static BACKGROUND_PLAYBACK_LIFECYCLE: OnceLock<Mutex<()>> = OnceLock::new();
+static PREPARED_PLAYBACK_PLAN_CACHE: OnceLock<Mutex<PreparedPlaybackPlanCache>> = OnceLock::new();
+
+pub fn prepare_background_playback_plan(
+    request: BackgroundPlaybackPreparePlanRequest,
+) -> Result<BackgroundPlaybackPreparePlanResponse, String> {
+    let started_at = Instant::now();
+    let groups = build_source_groups(&request.plan)?;
+    let prepared_plan_id = insert_prepared_plan(PreparedPlaybackPlan { groups });
+
+    debug_timing(
+        "prepare_background_playback_plan",
+        started_at,
+        &[("source timeline cached", started_at.elapsed())],
+    );
+
+    Ok(BackgroundPlaybackPreparePlanResponse { prepared_plan_id })
+}
 
 pub fn start_background_playback(
     app_handle: AppHandle,
     request: BackgroundPlaybackStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
+    let groups = build_source_groups(&request.plan)?;
+
+    start_background_playback_from_groups(
+        app_handle,
+        BackgroundPlaybackPreparedStartRequest {
+            compatibility_profile: request.compatibility_profile,
+            hwnd: request.hwnd,
+            initial_progress_ms: request.initial_progress_ms,
+            key_hold_ms: request.key_hold_ms,
+            note_interval_delay_ms: request.note_interval_delay_ms,
+            playback_speed: request.playback_speed,
+            prepared_plan_id: 0,
+        },
+        groups,
+    )
+}
+
+pub fn start_prepared_background_playback(
+    app_handle: AppHandle,
+    request: BackgroundPlaybackPreparedStartRequest,
+) -> Result<BackgroundPlaybackStartResponse, String> {
+    let groups = get_prepared_plan_groups(request.prepared_plan_id)?;
+
+    start_background_playback_from_groups(app_handle, request, groups)
+}
+
+fn start_background_playback_from_groups(
+    app_handle: AppHandle,
+    request: BackgroundPlaybackPreparedStartRequest,
+    groups: Vec<TimelineGroup>,
+) -> Result<BackgroundPlaybackStartResponse, String> {
+    let command_started_at = Instant::now();
     let options = PlaybackOptions {
         note_interval_delay_ms: request.note_interval_delay_ms,
         playback_speed: normalize_playback_speed(request.playback_speed)?,
     };
-    let timeline = build_timeline(&request.plan, &options)?;
-
-    validate_start_request(&request)?;
+    let timeline_ready_at = Instant::now();
+    let timeline = build_timeline_from_groups(&groups, &options)?;
+    let target_ready_start_at = Instant::now();
+    validate_start_request(&request, &groups)?;
+    let target = prepare_window_message_target(
+        &request.hwnd,
+        &unique_timeline_keys(&groups),
+        TARGET_MESSAGE_METHOD_POST,
+        &request.compatibility_profile,
+    )?;
 
     let initial_progress_ms = clamp_progress(
         request.initial_progress_ms.unwrap_or(0.0),
@@ -183,9 +275,8 @@ pub fn start_background_playback(
         active_generations: HashMap::new(),
         app_handle,
         command_rx,
-        compatibility_profile: request.compatibility_profile,
-        hwnd: request.hwnd,
         key_hold_ms: request.key_hold_ms as f64,
+        logged_first_key_down: false,
         next_generation: 1,
         next_group_index: find_next_group_index(&worker_timeline, initial_progress_ms),
         next_progress_event_ms: initial_progress_ms + PROGRESS_EVENT_INTERVAL_MS,
@@ -196,6 +287,7 @@ pub fn start_background_playback(
         start_rx,
         started_at: Instant::now(),
         state: WorkerPlaybackState::Playing,
+        target,
         timeline: worker_timeline,
     };
     let worker_handle = thread::spawn(move || worker.run());
@@ -212,6 +304,16 @@ pub fn start_background_playback(
     }
 
     let _ = start_tx.send(());
+
+    debug_timing(
+        "start_background_playback",
+        command_started_at,
+        &[
+            ("timeline lookup/build", timeline_ready_at.elapsed()),
+            ("target/key preparation", target_ready_start_at.elapsed()),
+            ("session accepted", command_started_at.elapsed()),
+        ],
+    );
 
     Ok(BackgroundPlaybackStartResponse {
         session_id,
@@ -277,6 +379,51 @@ fn manager() -> &'static Mutex<BackgroundPlaybackManager> {
 
 fn lifecycle() -> &'static Mutex<()> {
     BACKGROUND_PLAYBACK_LIFECYCLE.get_or_init(|| Mutex::new(()))
+}
+
+fn prepared_plan_cache() -> &'static Mutex<PreparedPlaybackPlanCache> {
+    PREPARED_PLAYBACK_PLAN_CACHE.get_or_init(|| {
+        Mutex::new(PreparedPlaybackPlanCache {
+            entries: HashMap::new(),
+            next_plan_id: 1,
+            order: VecDeque::new(),
+        })
+    })
+}
+
+fn insert_prepared_plan(plan: PreparedPlaybackPlan) -> u64 {
+    let mut cache = prepared_plan_cache()
+        .lock()
+        .expect("prepared playback plan cache poisoned");
+    let plan_id = cache.next_plan_id;
+
+    cache.next_plan_id = cache.next_plan_id.saturating_add(1).max(1);
+    cache.entries.insert(plan_id, plan);
+    cache.order.push_back(plan_id);
+
+    while cache.entries.len() > MAX_PREPARED_PLAYBACK_PLANS {
+        if let Some(expired_plan_id) = cache.order.pop_front() {
+            cache.entries.remove(&expired_plan_id);
+        } else {
+            break;
+        }
+    }
+
+    plan_id
+}
+
+fn get_prepared_plan_groups(plan_id: u64) -> Result<Vec<TimelineGroup>, String> {
+    let cache = prepared_plan_cache()
+        .lock()
+        .expect("prepared playback plan cache poisoned");
+
+    cache
+        .entries
+        .get(&plan_id)
+        .map(|plan| plan.groups.clone())
+        .ok_or_else(|| {
+            format!("Prepared background playback plan is no longer available. id: {plan_id}")
+        })
 }
 
 fn next_session_id() -> u64 {
@@ -547,6 +694,15 @@ impl BackgroundPlaybackWorker {
             return Err(error);
         }
 
+        if !self.logged_first_key_down {
+            self.logged_first_key_down = true;
+            debug_timing(
+                "background worker first key-down",
+                self.started_at,
+                &[("first key-down dispatch", self.started_at.elapsed())],
+            );
+        }
+
         for key in keys {
             let generation = self.next_generation;
             self.next_generation = self.next_generation.saturating_add(1).max(1);
@@ -653,21 +809,11 @@ impl BackgroundPlaybackWorker {
     }
 
     fn send_key_down_group(&self, keys: &[String]) -> Result<(), String> {
-        send_window_message_key_down_group(
-            &self.hwnd,
-            keys,
-            TARGET_MESSAGE_METHOD_POST,
-            &self.compatibility_profile,
-        )
+        send_prepared_window_message_key_down_group(&self.target, keys)
     }
 
     fn send_key_up_group(&self, keys: &[String]) -> Result<(), String> {
-        send_window_message_key_up_group(
-            &self.hwnd,
-            keys,
-            TARGET_MESSAGE_METHOD_POST,
-            &self.compatibility_profile,
-        )
+        send_prepared_window_message_key_up_group(&self.target, keys)
     }
 
     fn emit_state(&self, state: &str) {
@@ -727,22 +873,16 @@ fn clear_current_session(session_id: u64) {
     }
 }
 
-fn validate_start_request(request: &BackgroundPlaybackStartRequest) -> Result<(), String> {
-    if request.plan.is_empty() {
+fn validate_start_request(
+    request: &BackgroundPlaybackPreparedStartRequest,
+    groups: &[TimelineGroup],
+) -> Result<(), String> {
+    if groups.is_empty() {
         return Err("Background playback plan must contain at least one event.".to_string());
     }
 
     if request.key_hold_ms == 0 {
         return Err("Background playback key hold duration must be greater than zero.".to_string());
-    }
-
-    for event in &request.plan {
-        validate_window_message_key_group(
-            &request.hwnd,
-            &event.keys,
-            TARGET_MESSAGE_METHOD_POST,
-            &request.compatibility_profile,
-        )?;
     }
 
     Ok(())
@@ -758,10 +898,17 @@ fn normalize_playback_speed(playback_speed: f64) -> Result<f64, String> {
     Ok(playback_speed)
 }
 
+#[cfg(test)]
 fn build_timeline(
     plan: &[BackgroundPlaybackPlanEvent],
     options: &PlaybackOptions,
 ) -> Result<PlaybackTimeline, String> {
+    let groups = build_source_groups(plan)?;
+
+    build_timeline_from_groups(&groups, options)
+}
+
+fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<TimelineGroup>, String> {
     let mut grouped_events = plan.to_vec();
     grouped_events.sort_by(|left, right| left.time_ms.total_cmp(&right.time_ms));
 
@@ -790,7 +937,7 @@ fn build_timeline(
         });
     }
 
-    build_timeline_from_groups(&groups, options)
+    Ok(groups)
 }
 
 fn build_timeline_from_groups(
@@ -955,6 +1102,42 @@ fn unique_keys(keys: &[String]) -> Vec<String> {
     }
 
     unique
+}
+
+fn unique_timeline_keys(groups: &[TimelineGroup]) -> Vec<String> {
+    let mut seen_keys = HashSet::new();
+    let mut unique = Vec::new();
+
+    for group in groups {
+        for key in &group.keys {
+            if seen_keys.insert(key.clone()) {
+                unique.push(key.clone());
+            }
+        }
+    }
+
+    unique
+}
+
+fn debug_timing(label: &str, started_at: Instant, phases: &[(&str, Duration)]) {
+    #[cfg(debug_assertions)]
+    {
+        let phase_text = phases
+            .iter()
+            .map(|(phase, duration)| format!("{phase}={:.2}ms", duration.as_secs_f64() * 1000.0))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        eprintln!(
+            "[background-playback timing] {label}: total={:.2}ms; {phase_text}",
+            started_at.elapsed().as_secs_f64() * 1000.0
+        );
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (label, started_at, phases);
+    }
 }
 
 #[cfg(test)]

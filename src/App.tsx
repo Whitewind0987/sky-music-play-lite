@@ -140,11 +140,14 @@ function App() {
     consumeQueuedItemAfterCurrent:
       playbackQueue.consumeQueuedItemAfterCurrent,
     currentSong: scoreLibrary.currentSelectedSong,
+    currentPlaybackSongIndex: scoreLibrary.playbackSongIndex,
     getPlaybackOrderNextSongIndex: (options) =>
       playbackOrder.getNextPlaybackOrderSongIndex({
         ...options,
         librarySongs: scoreLibrary.librarySongs,
       }),
+    getSongIdentityForPlayback: (songIndex) =>
+      scoreLibrary.librarySongs[songIndex]?.id ?? null,
     importedSongsRef: scoreLibrary.importedSongsRef,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
@@ -155,6 +158,7 @@ function App() {
       playbackQueue.peekNextQueueItemAfterCurrent,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
+    setRequestedPlaybackSongIndex: scoreLibrary.setPlaybackSongIndex,
     setSelectedSongIndex: handlePlaybackSongIndexChange,
     showNotice: showAppNotice,
     startQueuePlayback: playbackQueue.startQueuePlayback,
@@ -457,6 +461,9 @@ function App() {
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
+          onPrepareSong={(songIndex) => {
+            void experimentalInput.handlePrepareExperimentalSong(songIndex);
+          }}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={playbackQueue.playNext}
           onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}

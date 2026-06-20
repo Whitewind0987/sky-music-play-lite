@@ -1,5 +1,6 @@
 use super::key_mapping::{legacy_vkscan_to_virtual_key, mapped_key_to_virtual_key};
 use super::window::parse_hwnd;
+use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 
@@ -21,7 +22,8 @@ const WA_ACTIVE: usize = 1;
 const TARGET_KEY_HOLD_MIN_MS: u64 = 10;
 const TARGET_KEY_HOLD_MAX_MS: u64 = 200;
 
-struct WindowMessageKeyInput {
+#[derive(Clone)]
+pub(crate) struct WindowMessageKeyInput {
     hwnd: HWND,
     hwnd_text: String,
     key: String,
@@ -31,12 +33,23 @@ struct WindowMessageKeyInput {
     virtual_key: u16,
 }
 
-struct WindowMessageTarget {
+#[derive(Clone)]
+pub(crate) struct WindowMessageTarget {
     hwnd: HWND,
     hwnd_text: String,
     method: String,
     compatibility_profile: String,
 }
+
+#[derive(Clone)]
+pub(crate) struct PreparedWindowMessageTarget {
+    inputs_by_key: HashMap<String, WindowMessageKeyInput>,
+    target: WindowMessageTarget,
+}
+
+unsafe impl Send for WindowMessageKeyInput {}
+unsafe impl Send for WindowMessageTarget {}
+unsafe impl Send for PreparedWindowMessageTarget {}
 
 struct TargetWindowKeyMessageResult {
     down_result: Option<isize>,
@@ -84,12 +97,12 @@ pub fn send_key_group_to_window_message(
     ))
 }
 
-pub(crate) fn validate_window_message_key_group(
+pub(crate) fn prepare_window_message_target(
     hwnd: &str,
     keys: &[String],
     method: &str,
     compatibility_profile: &str,
-) -> Result<(), String> {
+) -> Result<PreparedWindowMessageTarget, String> {
     if keys.is_empty() {
         return Err(format!(
             "Target-window message input needs at least one key. hwnd: {hwnd}; method: {method}; profile: {compatibility_profile}"
@@ -101,42 +114,37 @@ pub(crate) fn validate_window_message_key_group(
         method.to_string(),
         compatibility_profile.to_string(),
     )?;
+    let mut inputs_by_key = HashMap::new();
 
     for key in keys {
-        build_profile_window_message_key_input(&target, key.clone())?;
+        if inputs_by_key.contains_key(key) {
+            continue;
+        }
+
+        inputs_by_key.insert(
+            key.clone(),
+            build_profile_window_message_key_input(&target, key.clone())?,
+        );
     }
 
-    Ok(())
+    Ok(PreparedWindowMessageTarget {
+        inputs_by_key,
+        target,
+    })
 }
 
-pub(crate) fn send_window_message_key_down_group(
-    hwnd: &str,
+pub(crate) fn send_prepared_window_message_key_down_group(
+    target: &PreparedWindowMessageTarget,
     keys: &[String],
-    method: &str,
-    compatibility_profile: &str,
 ) -> Result<(), String> {
-    let target = build_window_message_target(
-        hwnd.to_string(),
-        method.to_string(),
-        compatibility_profile.to_string(),
-    )?;
-
-    send_target_window_key_down_group(&target, keys)
+    send_prepared_target_window_key_down_group(target, keys)
 }
 
-pub(crate) fn send_window_message_key_up_group(
-    hwnd: &str,
+pub(crate) fn send_prepared_window_message_key_up_group(
+    target: &PreparedWindowMessageTarget,
     keys: &[String],
-    method: &str,
-    compatibility_profile: &str,
 ) -> Result<(), String> {
-    let target = build_window_message_target(
-        hwnd.to_string(),
-        method.to_string(),
-        compatibility_profile.to_string(),
-    )?;
-
-    send_target_window_key_up_group(&target, keys)
+    send_prepared_target_window_key_up_group(target, keys)
 }
 
 fn send_target_window_key_down_group(
@@ -153,6 +161,31 @@ fn send_target_window_key_down_group(
     }
 
     for input in inputs.iter() {
+        if !grouped {
+            activate_target_window_for_profile(input, "before key down")?;
+        }
+
+        let key_down_lparam = build_profile_key_down_lparam(input);
+        send_target_window_message(input, WM_KEYDOWN, key_down_lparam, "down")?;
+    }
+
+    Ok(())
+}
+
+fn send_prepared_target_window_key_down_group(
+    target: &PreparedWindowMessageTarget,
+    keys: &[String],
+) -> Result<(), String> {
+    let inputs = collect_prepared_key_inputs(target, keys)?;
+    let grouped = is_grouped_target_compatibility_profile(&target.target.compatibility_profile);
+
+    if grouped {
+        if let Some(first_input) = inputs.first() {
+            activate_target_window_for_profile(first_input, "before key group")?;
+        }
+    }
+
+    for input in inputs {
         if !grouped {
             activate_target_window_for_profile(input, "before key down")?;
         }
@@ -181,6 +214,43 @@ fn send_target_window_key_up_group(
     }
 
     Ok(())
+}
+
+fn send_prepared_target_window_key_up_group(
+    target: &PreparedWindowMessageTarget,
+    keys: &[String],
+) -> Result<(), String> {
+    let inputs = collect_prepared_key_inputs(target, keys)?;
+    let grouped = is_grouped_target_compatibility_profile(&target.target.compatibility_profile);
+
+    for input in inputs {
+        if !grouped {
+            activate_target_window_for_profile(input, "before key up")?;
+        }
+
+        let key_up_lparam = build_profile_key_up_lparam(input);
+        send_target_window_message(input, WM_KEYUP, key_up_lparam, "up")?;
+    }
+
+    Ok(())
+}
+
+fn collect_prepared_key_inputs<'a>(
+    target: &'a PreparedWindowMessageTarget,
+    keys: &[String],
+) -> Result<Vec<&'a WindowMessageKeyInput>, String> {
+    keys.iter()
+        .map(|key| {
+            target.inputs_by_key.get(key).ok_or_else(|| {
+                format!(
+                    "Prepared target-window key is missing. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
+                    target.target.hwnd_text,
+                    target.target.method,
+                    target.target.compatibility_profile
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
 }
 
 fn build_window_message_key_inputs(

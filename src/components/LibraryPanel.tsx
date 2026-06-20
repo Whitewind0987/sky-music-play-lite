@@ -54,6 +54,7 @@ type LibraryPanelProps = {
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
+  onPrepareSong: (songIndex: number) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlaySongNext: (songIndex: number) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
@@ -397,6 +398,7 @@ function LibraryActionMenu({
   onOpenCollectDialog,
   onPlaySong,
   onPlaySongNext,
+  onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   selectedCategory,
@@ -408,6 +410,7 @@ function LibraryActionMenu({
   | "onDeleteLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
+  | "onPrepareSong"
   | "onRemoveFromLiked"
   | "onRemoveSongFromPlaylist"
   | "selectedCategory"
@@ -436,7 +439,13 @@ function LibraryActionMenu({
         asChild
         onSelect={(event) => runAction(event, () => onPlaySong(item))}
       >
-        <button type="button">{text.playAction}</button>
+        <button
+          type="button"
+          onFocus={() => onPrepareSong(item.songIndex)}
+          onPointerEnter={() => onPrepareSong(item.songIndex)}
+        >
+          {text.playAction}
+        </button>
       </DropdownMenu.Item>
       <DropdownMenu.Item
         asChild
@@ -444,7 +453,13 @@ function LibraryActionMenu({
           runAction(event, () => onPlaySongNext(item.songIndex))
         }
       >
-        <button type="button">{text.playNextAction}</button>
+        <button
+          type="button"
+          onFocus={() => onPrepareSong(item.songIndex)}
+          onPointerEnter={() => onPrepareSong(item.songIndex)}
+        >
+          {text.playNextAction}
+        </button>
       </DropdownMenu.Item>
       <DropdownMenu.Item
         asChild
@@ -506,6 +521,7 @@ function LibrarySongTable({
   onOpenCollectDialog,
   onPlaySong,
   onPlaySongNext,
+  onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onSelectSong,
@@ -526,6 +542,7 @@ function LibrarySongTable({
   | "onDeleteLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
+  | "onPrepareSong"
   | "onRemoveFromLiked"
   | "onRemoveSongFromPlaylist"
   | "onSelectSong"
@@ -650,6 +667,8 @@ function LibrarySongTable({
                   type="button"
                   aria-label={`${text.playThisScoreAction}: ${song.name}`}
                   title={text.playThisScoreAction}
+                  onFocus={() => onPrepareSong(songIndex)}
+                  onPointerEnter={() => onPrepareSong(songIndex)}
                   onPointerDown={(event) => {
                     event.stopPropagation();
                   }}
@@ -674,6 +693,8 @@ function LibrarySongTable({
                     type="button"
                     aria-label={text.playNextAction}
                     title={text.playNextAction}
+                    onFocus={() => onPrepareSong(songIndex)}
+                    onPointerEnter={() => onPrepareSong(songIndex)}
                     onClick={(event) => {
                       event.stopPropagation();
                       event.currentTarget.blur();
@@ -747,6 +768,7 @@ function LibrarySongTable({
                           onOpenCollectDialog={onOpenCollectDialog}
                           onPlaySong={onPlaySong}
                           onPlaySongNext={onPlaySongNext}
+                          onPrepareSong={onPrepareSong}
                           onRemoveFromLiked={onRemoveFromLiked}
                           onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
                           selectedCategory={selectedCategory}
@@ -817,6 +839,7 @@ export function LibraryPanel({
   onLocateSelectedSong,
   onPlaySong,
   onPlaySongNext,
+  onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onRenamePlaylist,
@@ -1004,6 +1027,7 @@ export function LibraryPanel({
             }}
             onPlaySong={onPlaySong}
             onPlaySongNext={onPlaySongNext}
+            onPrepareSong={onPrepareSong}
             onRemoveFromLiked={onRemoveFromLiked}
             onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
             onSelectSong={onSelectSong}

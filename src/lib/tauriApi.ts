@@ -39,9 +39,27 @@ export type BackgroundPlaybackStartRequest = {
   plan: BackgroundPlaybackPlanEvent[];
 };
 
+export type BackgroundPlaybackPreparePlanRequest = {
+  plan: BackgroundPlaybackPlanEvent[];
+};
+
+export type BackgroundPlaybackPreparedStartRequest = {
+  compatibilityProfile: TargetWindowCompatibilityProfile;
+  hwnd: string;
+  initialProgressMs?: number;
+  keyHoldMs: number;
+  noteIntervalDelayMs: number;
+  playbackSpeed: number;
+  preparedPlanId: number;
+};
+
 export type BackgroundPlaybackStartResponse = {
   sessionId: number;
   totalMs: number;
+};
+
+export type BackgroundPlaybackPreparePlanResponse = {
+  preparedPlanId: number;
 };
 
 export type BackgroundPlaybackProgress = {
@@ -106,6 +124,24 @@ export function startBackgroundPlayback(
   return invoke<BackgroundPlaybackStartResponse>("start_background_playback", {
     request,
   });
+}
+
+export function prepareBackgroundPlaybackPlan(
+  request: BackgroundPlaybackPreparePlanRequest,
+): Promise<BackgroundPlaybackPreparePlanResponse> {
+  return invoke<BackgroundPlaybackPreparePlanResponse>(
+    "prepare_background_playback_plan",
+    { request },
+  );
+}
+
+export function startPreparedBackgroundPlayback(
+  request: BackgroundPlaybackPreparedStartRequest,
+): Promise<BackgroundPlaybackStartResponse> {
+  return invoke<BackgroundPlaybackStartResponse>(
+    "start_prepared_background_playback",
+    { request },
+  );
 }
 
 export function pauseBackgroundPlayback(sessionId: number): Promise<void> {

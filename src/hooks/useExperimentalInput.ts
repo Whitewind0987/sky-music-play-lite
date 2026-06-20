@@ -12,6 +12,7 @@ import {
   getBackgroundPlaybackEventRoute,
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
+import { PreparedPlaybackPlanCache } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
@@ -24,9 +25,10 @@ import {
   listenBackgroundPlaybackEvents,
   listCandidateWindows,
   pauseBackgroundPlayback,
+  prepareBackgroundPlaybackPlan,
   resumeBackgroundPlayback,
   seekBackgroundPlayback,
-  startBackgroundPlayback,
+  startPreparedBackgroundPlayback,
   stopBackgroundPlayback,
   updateBackgroundPlaybackOptions,
   type BackgroundPlaybackEventPayload,
@@ -63,6 +65,7 @@ type UseExperimentalInputOptions = {
     songCount: number,
   ) => PlaybackQueueItem | null;
   currentSong: Song | null;
+  currentPlaybackSongIndex: number | null;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
     isShuffleEnabled: boolean;
@@ -71,12 +74,14 @@ type UseExperimentalInputOptions = {
   importedSongsRef: React.MutableRefObject<Song[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
+  getSongIdentityForPlayback: (songIndex: number) => string | null;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
   peekNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
+  setRequestedPlaybackSongIndex: (songIndex: number | null) => void;
   setSelectedSongIndex: (songIndex: number | null) => void;
   showNotice?: (message: string) => void;
   startQueuePlayback: (songIndex: number) => void;
@@ -94,12 +99,19 @@ type BackgroundPlaybackContext = {
   songIndex: number;
 };
 
+type BackgroundHandoffTiming = {
+  finish: (label: string) => void;
+  mark: (label: string) => void;
+};
+
 export function useExperimentalInput({
   appendLog,
   consumeNextQueueItemAfterCurrent,
   consumeQueuedItemAfterCurrent,
   currentSong,
+  currentPlaybackSongIndex,
   getPlaybackOrderNextSongIndex,
+  getSongIdentityForPlayback,
   importedSongsRef,
   isShuffleEnabled,
   keyMapping,
@@ -109,6 +121,7 @@ export function useExperimentalInput({
   peekNextQueueItemAfterCurrent,
   resolveSongForPlayback,
   selectedSongIndex,
+  setRequestedPlaybackSongIndex,
   setSelectedSongIndex,
   showNotice,
   startQueuePlayback,
@@ -122,6 +135,7 @@ export function useExperimentalInput({
   const pendingBackgroundEventsRef = useRef<
     Map<number, BackgroundPlaybackEventPayload[]>
   >(new Map());
+  const preparedPlanCacheRef = useRef(new PreparedPlaybackPlanCache());
   const activeBackgroundSessionIdRef = useRef<number | null>(null);
   const backgroundHandoffTokenRef = useRef(0);
   const isBackgroundHandoffPendingRef = useRef(false);
@@ -685,15 +699,25 @@ export function useExperimentalInput({
     }
 
     const handoffToken = beginBackgroundHandoff();
+    const timing = createBackgroundHandoffTiming("background handoff");
+    const rollbackPlaybackSongIndex = currentPlaybackSongIndex;
+
+    timing.mark("request received");
+    setRequestedPlaybackSongIndex(songIndex);
 
     const song = await resolveSongForPlayback(songIndex);
+    timing.mark("score resolution");
 
     if (!isLatestBackgroundHandoff(handoffToken)) {
+      rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongIndex);
+      timing.finish("cancelled after score resolution");
       return false;
     }
 
     if (song === null) {
       finishBackgroundHandoff(handoffToken);
+      rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongIndex);
+      timing.finish("score unavailable");
       return false;
     }
 
@@ -703,7 +727,52 @@ export function useExperimentalInput({
     return startExperimentalPlaybackForSong(songIndex, song, {
       handoffToken,
       initialSeekMs,
+      rollbackPlaybackSongIndex,
+      timing,
     });
+  }
+
+  async function prepareExperimentalSong(songIndex: number) {
+    if (
+      !experimentalInputEnabled ||
+      experimentalInputMode !== "target-window-message"
+    ) {
+      return false;
+    }
+
+    const songIdentity = getSongIdentityForPlayback(songIndex);
+
+    if (songIdentity === null) {
+      return false;
+    }
+
+    const song = await resolveSongForPlayback(songIndex);
+
+    if (!song || song.songNotes.length === 0) {
+      return false;
+    }
+
+    try {
+      await preparedPlanCacheRef.current.getOrPrepare(
+        {
+          keyMappingSignature: getKeyMappingSignature(keyMapping),
+          songIdentity,
+        },
+        async () => {
+          const response = await prepareBackgroundPlaybackPlan({
+            plan: buildBackgroundPlaybackPlan(song.songNotes, keyMapping),
+          });
+
+          return response.preparedPlanId;
+        },
+      );
+      return true;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.debug("[background-handoff timing] warm prepare failed", error);
+      }
+      return false;
+    }
   }
 
   function isTargetWindowReadyForPlayback() {
@@ -746,33 +815,92 @@ export function useExperimentalInput({
     );
   }
 
+  function rollbackRequestedPlaybackSong(
+    handoffToken: number,
+    rollbackPlaybackSongIndex: number | null,
+  ) {
+    if (backgroundHandoffTokenRef.current !== handoffToken) {
+      return;
+    }
+
+    setRequestedPlaybackSongIndex(rollbackPlaybackSongIndex);
+  }
+
   async function startExperimentalPlaybackForSong(
     songIndex: number,
     resolvedSong: Song,
-    options: { handoffToken: number; initialSeekMs?: number },
+    options: {
+      handoffToken: number;
+      initialSeekMs?: number;
+      rollbackPlaybackSongIndex: number | null;
+      timing: BackgroundHandoffTiming;
+    },
   ) {
     if (selectedWindowHwnd === null) {
       finishBackgroundHandoff(options.handoffToken);
+      rollbackRequestedPlaybackSong(
+        options.handoffToken,
+        options.rollbackPlaybackSongIndex,
+      );
+      options.timing.finish("missing target");
       return false;
     }
 
     const song = resolvedSong;
+    const songIdentity = getSongIdentityForPlayback(songIndex);
 
     if (song.songNotes.length === 0) {
       stopExperimentalPlayback({ logStopped: false });
       setSelectedSongIndex(songIndex);
       setExperimentalPlaybackState("finished");
       appendLog(text.logs.experimentalPlaybackFinished);
+      options.timing.finish("empty song");
       return true;
     }
 
-    let playbackPlan: BackgroundPlaybackPlanEvent[];
+    if (songIdentity === null) {
+      finishBackgroundHandoff(options.handoffToken);
+      rollbackRequestedPlaybackSong(
+        options.handoffToken,
+        options.rollbackPlaybackSongIndex,
+      );
+      appendLog(text.logs.noSelectedScore);
+      options.timing.finish("missing song identity");
+      return false;
+    }
 
     try {
-      playbackPlan = buildBackgroundPlaybackPlan(
-        song.songNotes,
-        keyMapping,
+      const keyMappingSignature = getKeyMappingSignature(keyMapping);
+      options.timing.mark("playback-plan cache lookup");
+      const preparedPlan = await preparedPlanCacheRef.current.getOrPrepare(
+        { keyMappingSignature, songIdentity },
+        async () => {
+          const playbackPlan = buildBackgroundPlaybackPlan(
+            song.songNotes,
+            keyMapping,
+          );
+
+          options.timing.mark("playback-plan construction");
+          const response = await prepareBackgroundPlaybackPlan({
+            plan: playbackPlan,
+          });
+          options.timing.mark("Rust prepare invoke");
+
+          return response.preparedPlanId;
+        },
       );
+      options.timing.mark(
+        preparedPlan.source === "cache"
+          ? "playback-plan cache hit"
+          : "playback-plan prepared",
+      );
+      return startPreparedExperimentalPlaybackForSong(songIndex, song, {
+        handoffToken: options.handoffToken,
+        initialSeekMs: options.initialSeekMs,
+        preparedPlanId: preparedPlan.preparedPlanId,
+        rollbackPlaybackSongIndex: options.rollbackPlaybackSongIndex,
+        timing: options.timing,
+      });
     } catch (error) {
       const errorMessage = String(error);
 
@@ -781,10 +909,37 @@ export function useExperimentalInput({
       showNotice?.(errorMessage);
       finishBackgroundHandoff(options.handoffToken);
       replayActiveSessionEventsAfterFailedHandoff();
+      rollbackRequestedPlaybackSong(
+        options.handoffToken,
+        options.rollbackPlaybackSongIndex,
+      );
+      options.timing.finish("prepare failed");
+      return false;
+    }
+  }
+
+  async function startPreparedExperimentalPlaybackForSong(
+    songIndex: number,
+    song: Song,
+    options: {
+      handoffToken: number;
+      initialSeekMs?: number;
+      preparedPlanId: number;
+      rollbackPlaybackSongIndex: number | null;
+      timing: BackgroundHandoffTiming;
+    },
+  ) {
+    const targetWindowHwnd = selectedWindowHwnd;
+    if (targetWindowHwnd === null) {
+      finishBackgroundHandoff(options.handoffToken);
+      rollbackRequestedPlaybackSong(
+        options.handoffToken,
+        options.rollbackPlaybackSongIndex,
+      );
+      options.timing.finish("missing target before start");
       return false;
     }
 
-    const targetWindowHwnd = selectedWindowHwnd;
     const targetWindowTitle =
       selectedWindow?.title ||
       selectedWindowSnapshot?.title ||
@@ -802,18 +957,25 @@ export function useExperimentalInput({
     setLastError(null);
 
     try {
-      const response = await startBackgroundPlayback({
+      options.timing.mark("Rust start invoke");
+      const response = await startPreparedBackgroundPlayback({
         compatibilityProfile,
         hwnd: targetWindowHwnd,
         initialProgressMs: options.initialSeekMs,
         keyHoldMs: targetWindowKeyHoldMsRef.current,
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         playbackSpeed: playbackSpeedRef.current,
-        plan: playbackPlan,
+        preparedPlanId: options.preparedPlanId,
       });
+      options.timing.mark("new session accepted");
 
       if (!isLatestBackgroundHandoff(options.handoffToken)) {
         void stopBackgroundPlayback(response.sessionId);
+        rollbackRequestedPlaybackSong(
+          options.handoffToken,
+          options.rollbackPlaybackSongIndex,
+        );
+        options.timing.finish("stale response stopped");
         return false;
       }
 
@@ -845,10 +1007,18 @@ export function useExperimentalInput({
           target: targetWindowTitle,
         }),
       );
+      options.timing.mark("player state installed");
       flushPendingBackgroundPlaybackEvents(response.sessionId);
+      warmNextLikelyExperimentalSong(songIndex);
+      options.timing.finish("started");
       return true;
     } catch (error) {
       if (!isLatestBackgroundHandoff(options.handoffToken)) {
+        rollbackRequestedPlaybackSong(
+          options.handoffToken,
+          options.rollbackPlaybackSongIndex,
+        );
+        options.timing.finish("stale failure ignored");
         return false;
       }
 
@@ -871,8 +1041,15 @@ export function useExperimentalInput({
       appendLog(logTemplate);
       if (isInvalidTargetWindow) {
         showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
+        setSelectedWindowHwnd(null);
+        setSelectedWindowSnapshot(undefined);
       }
       replayActiveSessionEventsAfterFailedHandoff();
+      rollbackRequestedPlaybackSong(
+        options.handoffToken,
+        options.rollbackPlaybackSongIndex,
+      );
+      options.timing.finish("start failed");
       return false;
     }
   }
@@ -1006,6 +1183,25 @@ export function useExperimentalInput({
     flushPendingBackgroundPlaybackEvents(activeSessionId);
   }
 
+  function warmNextLikelyExperimentalSong(currentSongIndex: number) {
+    const currentImportedSongs = importedSongsRef.current;
+    const queuedItem =
+      playbackModeRef.current === "repeat-one"
+        ? null
+        : peekNextQueueItemAfterCurrent(currentImportedSongs.length);
+    const nextSongIndex =
+      queuedItem?.songIndex ??
+      getPlaybackOrderNextSongIndex({
+        currentSongIndex,
+        isShuffleEnabled: isShuffleEnabledRef.current,
+        playbackMode: playbackModeRef.current,
+      });
+
+    if (nextSongIndex !== null) {
+      void prepareExperimentalSong(nextSongIndex);
+    }
+  }
+
   function applyBackgroundPlaybackEvent(payload: BackgroundPlaybackEventPayload) {
     if (payload.type === "progress" && payload.progress) {
       setExperimentalPlaybackProgress(payload.progress);
@@ -1050,6 +1246,8 @@ export function useExperimentalInput({
       appendLog(logTemplate);
       if (isInvalidTargetWindow) {
         showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
+        setSelectedWindowHwnd(null);
+        setSelectedWindowSnapshot(undefined);
       }
     }
   }
@@ -1098,6 +1296,7 @@ export function useExperimentalInput({
     ensureTargetWindowAvailableForPlayback,
     handleExperimentalInputModeChange,
     handlePauseExperimentalPlayback,
+    handlePrepareExperimentalSong: prepareExperimentalSong,
     handlePauseForegroundPlayback:
       foregroundPlayback.handlePauseForegroundPlayback,
     handlePlayExperimentalSong,
@@ -1159,7 +1358,49 @@ function buildBackgroundPlaybackPlan(
   return Array.from(
     prepareMappedKeyboardKeyGroups(notes, keyMapping),
     ([timeMs, keys]) => ({ keys, timeMs }),
-  ).sort((left, right) => left.timeMs - right.timeMs);
+  );
+}
+
+function getKeyMappingSignature(keyMapping: KeyMapping) {
+  return Object.entries(keyMapping)
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, value]) => `${key}:${value.trim()}`)
+    .join("|");
+}
+
+function createBackgroundHandoffTiming(label: string): BackgroundHandoffTiming {
+  if (!import.meta.env.DEV) {
+    return {
+      finish() {},
+      mark() {},
+    };
+  }
+
+  const startedAt = performance.now();
+  let previousAt = startedAt;
+  const marks: string[] = [];
+
+  return {
+    finish(finalLabel) {
+      const now = performance.now();
+
+      console.debug(
+        `[background-handoff timing] ${label}: ${finalLabel}; total=${(
+          now - startedAt
+        ).toFixed(1)}ms; ${marks.join("; ")}`,
+      );
+    },
+    mark(markLabel) {
+      const now = performance.now();
+
+      marks.push(
+        `${markLabel}=+${(now - previousAt).toFixed(1)}ms (${(
+          now - startedAt
+        ).toFixed(1)}ms)`,
+      );
+      previousAt = now;
+    },
+  };
 }
 
 function candidateWindowToSnapshot(

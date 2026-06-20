@@ -3,8 +3,9 @@ mod app_log;
 mod app_window;
 mod experimental_input;
 use experimental_input::{
-    BackgroundPlaybackOptionsRequest, BackgroundPlaybackStartRequest,
-    BackgroundPlaybackStartResponse, CandidateWindow,
+    BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
+    BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
+    BackgroundPlaybackStartRequest, BackgroundPlaybackStartResponse, CandidateWindow,
 };
 
 #[tauri::command]
@@ -45,6 +46,21 @@ fn start_background_playback(
     request: BackgroundPlaybackStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
     experimental_input::start_background_playback(app, request)
+}
+
+#[tauri::command]
+fn prepare_background_playback_plan(
+    request: BackgroundPlaybackPreparePlanRequest,
+) -> Result<BackgroundPlaybackPreparePlanResponse, String> {
+    experimental_input::prepare_background_playback_plan(request)
+}
+
+#[tauri::command]
+fn start_prepared_background_playback(
+    app: tauri::AppHandle,
+    request: BackgroundPlaybackPreparedStartRequest,
+) -> Result<BackgroundPlaybackStartResponse, String> {
+    experimental_input::start_prepared_background_playback(app, request)
 }
 
 #[tauri::command]
@@ -89,12 +105,14 @@ pub fn run() {
             app_window::force_close_app,
             list_candidate_windows,
             pause_background_playback,
+            prepare_background_playback_plan,
             resume_background_playback,
             app_data::save_app_data,
             seek_background_playback,
             send_foreground_key_group,
             send_key_group_to_window_message,
             start_background_playback,
+            start_prepared_background_playback,
             stop_background_playback,
             update_background_playback_options
         ])

@@ -44,7 +44,12 @@ export function usePlaybackCoordinator({
   scoreLibrary.isBuiltInSongLoading(currentPlaybackLibrarySong.id);
 
   async function ensureTargetWindowReadyForPlayback() {
-    if (playbackOutput.mode !== "experimental-target-window") {
+    if (
+      shouldSkipTargetWindowEnumerationBeforePlayback({
+        mode: playbackOutput.mode,
+        selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
+      })
+    ) {
       return true;
     }
 
@@ -338,4 +343,14 @@ export function usePlaybackCoordinator({
     isCurrentSongLoading,
     startPlaybackFromSongIndex,
   };
+}
+
+export function shouldSkipTargetWindowEnumerationBeforePlayback({
+  mode,
+  selectedWindowHwnd,
+}: {
+  mode: string;
+  selectedWindowHwnd: string | null;
+}) {
+  return mode !== "experimental-target-window" || selectedWindowHwnd !== null;
 }
