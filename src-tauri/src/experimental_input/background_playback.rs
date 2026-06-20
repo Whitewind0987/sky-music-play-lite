@@ -4,7 +4,7 @@ use super::target_window_message::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -92,8 +92,14 @@ struct PlaybackTimeline {
 }
 
 #[derive(Debug, Clone)]
+struct OptionUpdateRemap {
+    next_group_index: usize,
+    segment_ratio: f64,
+}
+
+#[derive(Debug, Clone)]
 struct ScheduledKeyUp {
-    deadline_ms: f64,
+    deadline_at: Instant,
     generation: u64,
     key: String,
 }
@@ -138,12 +144,14 @@ struct BackgroundPlaybackWorker {
     position_ms: f64,
     scheduled_key_ups: Vec<ScheduledKeyUp>,
     session_id: u64,
+    start_rx: Receiver<()>,
     started_at: Instant,
     state: WorkerPlaybackState,
     timeline: PlaybackTimeline,
 }
 
 static BACKGROUND_PLAYBACK_MANAGER: OnceLock<Mutex<BackgroundPlaybackManager>> = OnceLock::new();
+static BACKGROUND_PLAYBACK_LIFECYCLE: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn start_background_playback(
     app_handle: AppHandle,
@@ -156,14 +164,20 @@ pub fn start_background_playback(
     let timeline = build_timeline(&request.plan, &options)?;
 
     validate_start_request(&request)?;
-    stop_current_session();
 
     let initial_progress_ms = clamp_progress(
         request.initial_progress_ms.unwrap_or(0.0),
         timeline.total_ms,
     );
+    let _lifecycle_guard = lifecycle()
+        .lock()
+        .expect("background playback lifecycle poisoned");
+
+    stop_current_session();
+
     let session_id = next_session_id();
     let (command_tx, command_rx) = mpsc::channel();
+    let (start_tx, start_rx) = mpsc::channel();
     let worker_timeline = timeline.clone();
     let worker = BackgroundPlaybackWorker {
         active_generations: HashMap::new(),
@@ -179,6 +193,7 @@ pub fn start_background_playback(
         position_ms: initial_progress_ms,
         scheduled_key_ups: Vec::new(),
         session_id,
+        start_rx,
         started_at: Instant::now(),
         state: WorkerPlaybackState::Playing,
         timeline: worker_timeline,
@@ -195,6 +210,8 @@ pub fn start_background_playback(
             worker: Some(worker_handle),
         });
     }
+
+    let _ = start_tx.send(());
 
     Ok(BackgroundPlaybackStartResponse {
         session_id,
@@ -254,6 +271,10 @@ fn manager() -> &'static Mutex<BackgroundPlaybackManager> {
     })
 }
 
+fn lifecycle() -> &'static Mutex<()> {
+    BACKGROUND_PLAYBACK_LIFECYCLE.get_or_init(|| Mutex::new(()))
+}
+
 fn next_session_id() -> u64 {
     let mut manager = manager()
         .lock()
@@ -305,6 +326,11 @@ impl BackgroundPlaybackSession {
 
 impl BackgroundPlaybackWorker {
     fn run(mut self) {
+        if self.start_rx.recv().is_err() {
+            self.stop_without_event();
+            return;
+        }
+
         self.started_at = Instant::now();
         self.emit_state("playing");
         self.emit_progress();
@@ -422,13 +448,19 @@ impl BackgroundPlaybackWorker {
             }
             PlaybackCommand::UpdateOptions(options) => {
                 self.update_position_from_clock();
+                let remap = capture_option_update_remap(
+                    &self.timeline,
+                    self.position_ms,
+                    self.next_group_index,
+                );
                 self.options = options;
                 match build_timeline_from_groups(&self.timeline.groups, &self.options) {
                     Ok(timeline) => {
+                        let (next_position_ms, next_group_index) =
+                            remap_position_after_options_update(&remap, &timeline);
                         self.timeline = timeline;
-                        self.position_ms = clamp_progress(self.position_ms, self.timeline.total_ms);
-                        self.next_group_index =
-                            find_next_group_index(&self.timeline, self.position_ms);
+                        self.position_ms = next_position_ms;
+                        self.next_group_index = next_group_index;
                         self.next_progress_event_ms = self.position_ms + PROGRESS_EVENT_INTERVAL_MS;
 
                         if self.state == WorkerPlaybackState::Playing {
@@ -449,8 +481,9 @@ impl BackgroundPlaybackWorker {
 
     fn process_due_events(&mut self) -> Result<(), String> {
         let due_position = self.position_ms;
+        let now = Instant::now();
 
-        self.release_due_key_ups(due_position)?;
+        self.release_due_key_ups(now)?;
 
         while self.next_group_index < self.timeline.groups.len()
             && self.timeline.groups[self.next_group_index].adjusted_start_ms <= due_position
@@ -458,7 +491,7 @@ impl BackgroundPlaybackWorker {
             let group = self.timeline.groups[self.next_group_index].clone();
             self.play_group(&group)?;
             self.next_group_index += 1;
-            self.release_due_key_ups(due_position)?;
+            self.release_due_key_ups(Instant::now())?;
         }
 
         if due_position >= self.next_progress_event_ms {
@@ -498,7 +531,7 @@ impl BackgroundPlaybackWorker {
             self.next_generation = self.next_generation.saturating_add(1).max(1);
             self.active_generations.insert(key.clone(), generation);
             self.scheduled_key_ups.push(ScheduledKeyUp {
-                deadline_ms: group.adjusted_start_ms + self.key_hold_ms,
+                deadline_at: key_up_deadline_from_actual_send(Instant::now(), self.key_hold_ms),
                 generation,
                 key,
             });
@@ -507,12 +540,12 @@ impl BackgroundPlaybackWorker {
         Ok(())
     }
 
-    fn release_due_key_ups(&mut self, due_position: f64) -> Result<(), String> {
+    fn release_due_key_ups(&mut self, now: Instant) -> Result<(), String> {
         let mut due_key_ups = Vec::new();
         let mut pending_key_ups = Vec::new();
 
         for key_up in self.scheduled_key_ups.drain(..) {
-            if key_up.deadline_ms <= due_position {
+            if key_up.deadline_at <= now {
                 due_key_ups.push(key_up);
             } else {
                 pending_key_ups.push(key_up);
@@ -522,11 +555,7 @@ impl BackgroundPlaybackWorker {
         self.scheduled_key_ups = pending_key_ups;
 
         for key_up in due_key_ups {
-            if self
-                .active_generations
-                .get(&key_up.key)
-                .is_some_and(|generation| *generation == key_up.generation)
-            {
+            if should_apply_key_release(&self.active_generations, &key_up.key, key_up.generation) {
                 self.send_key_up_group(std::slice::from_ref(&key_up.key))?;
                 self.active_generations.remove(&key_up.key);
             }
@@ -585,10 +614,16 @@ impl BackgroundPlaybackWorker {
         if let Some(key_up_deadline) = self
             .scheduled_key_ups
             .iter()
-            .map(|key_up| key_up.deadline_ms)
-            .min_by(|left, right| left.total_cmp(right))
+            .map(|key_up| key_up.deadline_at)
+            .min()
         {
-            deadlines.push(key_up_deadline);
+            let key_up_deadline_ms = key_up_deadline
+                .checked_duration_since(Instant::now())
+                .unwrap_or(Duration::ZERO)
+                .as_secs_f64()
+                * 1000.0
+                + self.position_ms;
+            deadlines.push(key_up_deadline_ms);
         }
 
         deadlines
@@ -663,7 +698,10 @@ fn clear_current_session(session_id: u64) {
         .lock()
         .expect("background playback manager poisoned");
 
-    if matches!(manager.current.as_ref(), Some(current) if current.session_id == session_id) {
+    if should_clear_current_session(
+        manager.current.as_ref().map(|current| current.session_id),
+        session_id,
+    ) {
         manager.current = None;
     }
 }
@@ -795,12 +833,94 @@ fn find_next_group_index(timeline: &PlaybackTimeline, progress_ms: f64) -> usize
         .unwrap_or(timeline.groups.len())
 }
 
+fn capture_option_update_remap(
+    timeline: &PlaybackTimeline,
+    position_ms: f64,
+    next_group_index: usize,
+) -> OptionUpdateRemap {
+    let segment_start_ms = segment_start_ms(timeline, next_group_index);
+    let segment_end_ms = segment_end_ms(timeline, next_group_index);
+    let segment_duration_ms = segment_end_ms - segment_start_ms;
+    let segment_ratio = if segment_duration_ms <= 0.0 {
+        1.0
+    } else {
+        ((position_ms - segment_start_ms) / segment_duration_ms).clamp(0.0, 1.0)
+    };
+
+    OptionUpdateRemap {
+        next_group_index: next_group_index.min(timeline.groups.len()),
+        segment_ratio,
+    }
+}
+
+fn remap_position_after_options_update(
+    remap: &OptionUpdateRemap,
+    timeline: &PlaybackTimeline,
+) -> (f64, usize) {
+    let next_group_index = remap.next_group_index.min(timeline.groups.len());
+    let segment_start_ms = segment_start_ms(timeline, next_group_index);
+    let segment_end_ms = segment_end_ms(timeline, next_group_index);
+    let position_ms = segment_start_ms + (segment_end_ms - segment_start_ms) * remap.segment_ratio;
+
+    (
+        clamp_playback_position(position_ms, timeline.finish_ms),
+        next_group_index,
+    )
+}
+
+fn segment_start_ms(timeline: &PlaybackTimeline, next_group_index: usize) -> f64 {
+    if next_group_index == 0 {
+        0.0
+    } else if next_group_index <= timeline.groups.len() {
+        timeline.groups[next_group_index - 1].adjusted_start_ms
+    } else {
+        timeline.total_ms
+    }
+}
+
+fn segment_end_ms(timeline: &PlaybackTimeline, next_group_index: usize) -> f64 {
+    if let Some(group) = timeline.groups.get(next_group_index) {
+        group.adjusted_start_ms
+    } else {
+        timeline.finish_ms
+    }
+}
+
 fn clamp_progress(progress_ms: f64, total_ms: f64) -> f64 {
     if !progress_ms.is_finite() {
         return 0.0;
     }
 
     progress_ms.max(0.0).min(total_ms.max(0.0))
+}
+
+fn clamp_playback_position(position_ms: f64, finish_ms: f64) -> f64 {
+    if !position_ms.is_finite() {
+        return 0.0;
+    }
+
+    position_ms.max(0.0).min(finish_ms.max(0.0))
+}
+
+fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Instant {
+    sent_at + Duration::from_secs_f64(key_hold_ms.max(0.0) / 1000.0)
+}
+
+fn should_apply_key_release(
+    active_generations: &HashMap<String, u64>,
+    key: &str,
+    release_generation: u64,
+) -> bool {
+    active_generations
+        .get(key)
+        .is_some_and(|generation| *generation == release_generation)
+}
+
+fn should_clear_current_session(
+    current_session_id: Option<u64>,
+    finishing_session_id: u64,
+) -> bool {
+    current_session_id.is_some_and(|session_id| session_id == finishing_session_id)
 }
 
 fn unique_keys(keys: &[String]) -> Vec<String> {
@@ -890,10 +1010,62 @@ mod tests {
     #[test]
     fn option_update_can_preserve_logical_position() {
         let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let remap = capture_option_update_remap(&first, 250.0, 1);
         let second = build_timeline_from_groups(&first.groups, &options(50.0, 2.0)).unwrap();
+        let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
 
-        assert_eq!(find_next_group_index(&second, 300.0), 2);
         assert_eq!(second.total_ms, 600.0);
+        assert_eq!(next_group_index, 1);
+        assert_eq!(position_ms, 150.0);
+    }
+
+    #[test]
+    fn speeding_up_mid_gap_does_not_skip_next_group() {
+        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let remap = capture_option_update_remap(&first, 250.0, 1);
+        let second = build_timeline_from_groups(&first.groups, &options(0.0, 2.0)).unwrap();
+        let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
+
+        assert_eq!(next_group_index, 1);
+        assert!(position_ms < second.groups[1].adjusted_start_ms);
+        assert_eq!(position_ms, 125.0);
+    }
+
+    #[test]
+    fn slowing_down_mid_gap_does_not_replay_completed_group() {
+        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let remap = capture_option_update_remap(&first, 750.0, 2);
+        let second = build_timeline_from_groups(&first.groups, &options(0.0, 0.5)).unwrap();
+        let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
+
+        assert_eq!(next_group_index, 2);
+        assert!(position_ms > second.groups[1].adjusted_start_ms);
+        assert!(position_ms < second.groups[2].adjusted_start_ms);
+        assert_eq!(position_ms, 1500.0);
+    }
+
+    #[test]
+    fn interval_change_mid_gap_preserves_pending_group() {
+        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let remap = capture_option_update_remap(&first, 750.0, 2);
+        let second = build_timeline_from_groups(&first.groups, &options(100.0, 1.0)).unwrap();
+        let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
+
+        assert_eq!(next_group_index, 2);
+        assert_eq!(position_ms, 900.0);
+    }
+
+    #[test]
+    fn option_update_preserves_tail_segment_ratio() {
+        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let remap = capture_option_update_remap(&first, 1150.0, first.groups.len());
+        let second = build_timeline_from_groups(&first.groups, &options(0.0, 2.0)).unwrap();
+        let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
+
+        assert_eq!(next_group_index, second.groups.len());
+        assert_eq!(position_ms, 575.0);
+        assert!(position_ms > second.total_ms);
+        assert!(position_ms < second.finish_ms);
     }
 
     #[test]
@@ -911,21 +1083,38 @@ mod tests {
 
     #[test]
     fn stale_release_does_not_match_newer_generation() {
-        let mut active = HashMap::from([("A".to_string(), 2_u64)]);
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
         let stale = ScheduledKeyUp {
-            deadline_ms: 10.0,
+            deadline_at: Instant::now(),
             generation: 1,
             key: "A".to_string(),
         };
 
-        if active
-            .get(&stale.key)
-            .is_some_and(|generation| *generation == stale.generation)
-        {
-            active.remove(&stale.key);
-        }
+        assert!(!should_apply_key_release(
+            &active,
+            &stale.key,
+            stale.generation
+        ));
+        assert!(should_apply_key_release(&active, "A", 2));
+    }
 
-        assert_eq!(active.get("A"), Some(&2));
+    #[test]
+    fn late_key_down_still_gets_full_hold_duration() {
+        let planned_at = Instant::now();
+        let actual_sent_at = planned_at + Duration::from_millis(75);
+        let deadline = key_up_deadline_from_actual_send(actual_sent_at, 30.0);
+
+        assert_eq!(
+            deadline.duration_since(actual_sent_at),
+            Duration::from_millis(30)
+        );
+    }
+
+    #[test]
+    fn old_session_cannot_clear_newer_current_session() {
+        assert!(!should_clear_current_session(Some(2), 1));
+        assert!(should_clear_current_session(Some(2), 2));
+        assert!(!should_clear_current_session(None, 2));
     }
 
     #[test]

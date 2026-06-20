@@ -107,6 +107,10 @@ export function useExperimentalInput({
     useRef<PreviewPlaybackController | null>(null);
   const backgroundPlaybackContextRef =
     useRef<BackgroundPlaybackContext | null>(null);
+  const pendingBackgroundEventsRef = useRef<
+    Map<number, BackgroundPlaybackEventPayload[]>
+  >(new Map());
+  const pendingBackgroundStartTokenRef = useRef<number | null>(null);
   const experimentalPlaybackRunIdRef = useRef(0);
   const hasAutoRefreshedRestoredWindowRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
@@ -422,6 +426,8 @@ export function useExperimentalInput({
   }) {
     const sessionId = experimentalPlaybackRunIdRef.current;
     experimentalPlaybackRunIdRef.current += 1;
+    pendingBackgroundStartTokenRef.current = null;
+    pendingBackgroundEventsRef.current.clear();
     setIsStartingExperimentalPlayback(false);
     experimentalPlaybackControllerRef.current?.stop();
     experimentalPlaybackControllerRef.current = null;
@@ -767,6 +773,8 @@ export function useExperimentalInput({
     targetWindowMessageMethodRef.current = method;
     targetWindowCompatibilityProfileRef.current = compatibilityProfile;
     experimentalPlaybackRunIdRef.current = startToken;
+    pendingBackgroundStartTokenRef.current = startToken;
+    pendingBackgroundEventsRef.current.clear();
     setLastError(null);
     setExperimentalPlaybackProgress({
       currentMs: 0,
@@ -791,6 +799,7 @@ export function useExperimentalInput({
       }
 
       experimentalPlaybackRunIdRef.current = response.sessionId;
+      pendingBackgroundStartTokenRef.current = null;
       backgroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
         song,
@@ -816,11 +825,14 @@ export function useExperimentalInput({
           target: targetWindowTitle,
         }),
       );
+      flushPendingBackgroundPlaybackEvents(response.sessionId);
     } catch (error) {
       if (experimentalPlaybackRunIdRef.current !== startToken) {
         return;
       }
 
+      pendingBackgroundStartTokenRef.current = null;
+      pendingBackgroundEventsRef.current.clear();
       const errorMessage = String(error);
       const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
       const logTemplate =
@@ -905,9 +917,32 @@ export function useExperimentalInput({
     payload: BackgroundPlaybackEventPayload,
   ) {
     if (payload.sessionId !== experimentalPlaybackRunIdRef.current) {
+      if (pendingBackgroundStartTokenRef.current !== null) {
+        const pendingEvents =
+          pendingBackgroundEventsRef.current.get(payload.sessionId) ?? [];
+        pendingEvents.push(payload);
+        pendingBackgroundEventsRef.current.set(payload.sessionId, pendingEvents);
+      }
       return;
     }
 
+    applyBackgroundPlaybackEvent(payload);
+  }
+
+  function flushPendingBackgroundPlaybackEvents(sessionId: number) {
+    const pendingEvents = pendingBackgroundEventsRef.current.get(sessionId) ?? [];
+    pendingBackgroundEventsRef.current.clear();
+
+    for (const event of pendingEvents) {
+      if (event.sessionId !== experimentalPlaybackRunIdRef.current) {
+        continue;
+      }
+
+      applyBackgroundPlaybackEvent(event);
+    }
+  }
+
+  function applyBackgroundPlaybackEvent(payload: BackgroundPlaybackEventPayload) {
     if (payload.type === "progress" && payload.progress) {
       setExperimentalPlaybackProgress(payload.progress);
       return;
