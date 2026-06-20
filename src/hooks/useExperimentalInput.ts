@@ -7,6 +7,11 @@ import {
   normalizeTargetWindowCompatibilityProfile,
   normalizeTargetWindowMessageMethod,
 } from "../lib/experimentalInputPreferences";
+import {
+  bufferBackgroundPlaybackEvent,
+  getBackgroundPlaybackEventRoute,
+  takePendingBackgroundPlaybackEvents,
+} from "../lib/backgroundPlaybackEvents";
 import { formatText } from "../lib/formatText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
@@ -111,6 +116,9 @@ export function useExperimentalInput({
     Map<number, BackgroundPlaybackEventPayload[]>
   >(new Map());
   const pendingBackgroundStartTokenRef = useRef<number | null>(null);
+  const backgroundPlaybackEventHandlerRef = useRef<
+    (payload: BackgroundPlaybackEventPayload) => void
+  >(() => {});
   const experimentalPlaybackRunIdRef = useRef(0);
   const hasAutoRefreshedRestoredWindowRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
@@ -206,11 +214,13 @@ export function useExperimentalInput({
     consumeNextQueueItemAfterCurrent,
   });
 
+  backgroundPlaybackEventHandlerRef.current = handleBackgroundPlaybackEvent;
+
   useEffect(() => {
     let unlisten: (() => void) | null = null;
 
     void listenBackgroundPlaybackEvents((event) => {
-      handleBackgroundPlaybackEvent(event.payload);
+      backgroundPlaybackEventHandlerRef.current(event.payload);
     }).then((nextUnlisten) => {
       unlisten = nextUnlisten;
     });
@@ -916,13 +926,21 @@ export function useExperimentalInput({
   function handleBackgroundPlaybackEvent(
     payload: BackgroundPlaybackEventPayload,
   ) {
-    if (payload.sessionId !== experimentalPlaybackRunIdRef.current) {
-      if (pendingBackgroundStartTokenRef.current !== null) {
-        const pendingEvents =
-          pendingBackgroundEventsRef.current.get(payload.sessionId) ?? [];
-        pendingEvents.push(payload);
-        pendingBackgroundEventsRef.current.set(payload.sessionId, pendingEvents);
-      }
+    const route = getBackgroundPlaybackEventRoute({
+      currentSessionId: experimentalPlaybackRunIdRef.current,
+      eventSessionId: payload.sessionId,
+      isStartPending: pendingBackgroundStartTokenRef.current !== null,
+    });
+
+    if (route === "buffer") {
+      pendingBackgroundEventsRef.current = bufferBackgroundPlaybackEvent(
+        pendingBackgroundEventsRef.current,
+        payload,
+      );
+      return;
+    }
+
+    if (route === "ignore") {
       return;
     }
 
@@ -930,7 +948,10 @@ export function useExperimentalInput({
   }
 
   function flushPendingBackgroundPlaybackEvents(sessionId: number) {
-    const pendingEvents = pendingBackgroundEventsRef.current.get(sessionId) ?? [];
+    const pendingEvents = takePendingBackgroundPlaybackEvents(
+      pendingBackgroundEventsRef.current,
+      sessionId,
+    );
     pendingBackgroundEventsRef.current.clear();
 
     for (const event of pendingEvents) {

@@ -21,3 +21,5 @@ pub fn send_key_group_to_window_message(
 pub fn send_foreground_key_group(_keys: Vec<String>) -> Result<String, String> {
     Err("Experimental foreground input is only available on Windows.".to_string())
 }
+
+pub fn stop_current_background_playback_for_shutdown() {}

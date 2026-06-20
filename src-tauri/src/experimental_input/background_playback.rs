@@ -248,11 +248,7 @@ pub fn stop_background_playback(session_id: u64) -> Result<(), String> {
             .lock()
             .expect("background playback manager poisoned");
 
-        if !matches!(manager.current.as_ref(), Some(current) if current.session_id == session_id) {
-            return Ok(());
-        }
-
-        manager.current.take()
+        take_session_if_current(&mut manager, session_id)
     };
 
     if let Some(session) = session {
@@ -260,6 +256,14 @@ pub fn stop_background_playback(session_id: u64) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+pub fn stop_current_background_playback_for_shutdown() {
+    let _lifecycle_guard = lifecycle()
+        .lock()
+        .expect("background playback lifecycle poisoned");
+
+    stop_current_session();
 }
 
 fn manager() -> &'static Mutex<BackgroundPlaybackManager> {
@@ -289,12 +293,29 @@ fn stop_current_session() {
         let mut manager = manager()
             .lock()
             .expect("background playback manager poisoned");
-        manager.current.take()
+        take_current_session(&mut manager)
     };
 
     if let Some(session) = session {
         session.stop_and_join();
     }
+}
+
+fn take_current_session(
+    manager: &mut BackgroundPlaybackManager,
+) -> Option<BackgroundPlaybackSession> {
+    manager.current.take()
+}
+
+fn take_session_if_current(
+    manager: &mut BackgroundPlaybackManager,
+    session_id: u64,
+) -> Option<BackgroundPlaybackSession> {
+    if matches!(manager.current.as_ref(), Some(current) if current.session_id == session_id) {
+        return manager.current.take();
+    }
+
+    None
 }
 
 fn send_command_to_session(session_id: u64, command: PlaybackCommand) -> Result<(), String> {
@@ -968,6 +989,16 @@ mod tests {
         ]
     }
 
+    fn test_session(session_id: u64) -> BackgroundPlaybackSession {
+        let (command_tx, _command_rx) = mpsc::channel();
+
+        BackgroundPlaybackSession {
+            command_tx,
+            session_id,
+            worker: None,
+        }
+    }
+
     #[test]
     fn timeline_groups_and_orders_events() {
         let timeline = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
@@ -1115,6 +1146,36 @@ mod tests {
         assert!(!should_clear_current_session(Some(2), 1));
         assert!(should_clear_current_session(Some(2), 2));
         assert!(!should_clear_current_session(None, 2));
+    }
+
+    #[test]
+    fn shutdown_takes_current_session_from_manager() {
+        let mut manager = BackgroundPlaybackManager {
+            current: Some(test_session(7)),
+            next_session_id: 8,
+        };
+        let session = take_current_session(&mut manager);
+
+        assert_eq!(session.map(|session| session.session_id), Some(7));
+        assert!(manager.current.is_none());
+    }
+
+    #[test]
+    fn targeted_stop_takes_only_matching_current_session() {
+        let mut manager = BackgroundPlaybackManager {
+            current: Some(test_session(7)),
+            next_session_id: 8,
+        };
+
+        assert!(take_session_if_current(&mut manager, 6).is_none());
+        assert_eq!(
+            manager.current.as_ref().map(|session| session.session_id),
+            Some(7)
+        );
+
+        let session = take_session_if_current(&mut manager, 7);
+        assert_eq!(session.map(|session| session.session_id), Some(7));
+        assert!(manager.current.is_none());
     }
 
     #[test]
