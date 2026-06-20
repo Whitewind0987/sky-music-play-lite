@@ -26,6 +26,7 @@ type PendingRenamePlaylist = {
 };
 
 type UseLibraryDialogsOptions = {
+  isLocalSongDeleteBlocked?: boolean;
   librarySongs: LibrarySong[];
   onDeleteLocalSong: (
     songIndex: number,
@@ -40,6 +41,7 @@ type UseLibraryDialogsOptions = {
 };
 
 export function useLibraryDialogs({
+  isLocalSongDeleteBlocked = false,
   librarySongs,
   onDeleteLocalSong,
   onDeletePlaylist,
@@ -98,6 +100,10 @@ export function useLibraryDialogs({
   }
 
   function requestDeleteLocalSong(songIndex: number) {
+    if (isLocalSongDeleteBlocked) {
+      return;
+    }
+
     const librarySong = librarySongs[songIndex];
 
     if (!librarySong || librarySong.source !== "local-import") {
@@ -120,6 +126,10 @@ export function useLibraryDialogs({
     if (pendingDeleteConfirmation.type === "playlist") {
       onDeletePlaylist(pendingDeleteConfirmation.playlistId);
       setPendingDeleteConfirmation(null);
+      return;
+    }
+
+    if (isLocalSongDeleteBlocked) {
       return;
     }
 

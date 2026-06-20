@@ -118,18 +118,10 @@ export function usePlaybackOrder() {
 
 export function buildPlaybackOrderFromVisibleItems(
   items: LibrarySongListItem[],
-  clickedSongId: LibrarySongId,
-  { usesSearch }: { usesSearch: boolean },
+  _clickedSongId: LibrarySongId,
+  _options: { usesSearch: boolean },
 ) {
-  const songIds = items.map((item) => item.librarySong.id);
-
-  if (usesSearch) {
-    return songIds;
-  }
-
-  const clickedIndex = songIds.indexOf(clickedSongId);
-
-  return clickedIndex < 0 ? songIds : songIds.slice(clickedIndex);
+  return items.map((item) => item.librarySong.id);
 }
 
 function normalizeCategorySource(
@@ -142,7 +134,7 @@ function normalizeCategorySource(
   return "local-imports";
 }
 
-function getOrderedNextSongId(
+export function getOrderedNextSongId(
   songIds: LibrarySongId[],
   currentPosition: number,
   playbackMode: PlaybackMode,

@@ -148,7 +148,7 @@ export function usePlaybackQueue({
     setQueueItemsAndRef(nextItems);
   }
 
-  function consumeNextQueueItemAfterCurrent(songCount: number) {
+  function peekNextQueueItemAfterCurrent(songCount: number) {
     const currentItems = queueItemsRef.current;
     const currentItem = currentItems.find(
       (item) => item.songIndex >= 0 && item.songIndex < songCount,
@@ -156,6 +156,20 @@ export function usePlaybackQueue({
     const nextItemIndex = currentItems.findIndex(
       (item, index) =>
         index > 0 && item.songIndex >= 0 && item.songIndex < songCount,
+    );
+
+    return currentItem && nextItemIndex >= 0
+      ? currentItems[nextItemIndex]
+      : null;
+  }
+
+  function consumeQueuedItemAfterCurrent(
+    queueItemId: string,
+    songCount: number,
+  ) {
+    const currentItems = queueItemsRef.current;
+    const currentItem = currentItems.find(
+      (item) => item.songIndex >= 0 && item.songIndex < songCount,
     );
 
     if (!currentItem) {
@@ -166,14 +180,14 @@ export function usePlaybackQueue({
       return null;
     }
 
+    const nextItemIndex = currentItems.findIndex(
+      (item) =>
+        item.id === queueItemId &&
+        item.songIndex >= 0 &&
+        item.songIndex < songCount,
+    );
+
     if (nextItemIndex === -1) {
-      const nextItems =
-        currentItems.length === 1 ? currentItems : [currentItem];
-
-      if (nextItems.length !== currentItems.length) {
-        setQueueItemsAndRef(nextItems);
-      }
-
       return null;
     }
 
@@ -189,10 +203,41 @@ export function usePlaybackQueue({
     return nextItem;
   }
 
+  function consumeNextQueueItemAfterCurrent(songCount: number) {
+    const currentItems = queueItemsRef.current;
+    const currentItem = currentItems.find(
+      (item) => item.songIndex >= 0 && item.songIndex < songCount,
+    );
+    const nextItem = peekNextQueueItemAfterCurrent(songCount);
+
+    if (!currentItem) {
+      if (currentItems.length > 0) {
+        setQueueItemsAndRef([]);
+      }
+
+      return null;
+    }
+
+    if (!nextItem) {
+      const nextItems =
+        currentItems.length === 1 ? currentItems : [currentItem];
+
+      if (nextItems.length !== currentItems.length) {
+        setQueueItemsAndRef(nextItems);
+      }
+
+      return null;
+    }
+
+    return consumeQueuedItemAfterCurrent(nextItem.id, songCount);
+  }
+
   return {
     addToQueue,
     clearQueue,
+    consumeQueuedItemAfterCurrent,
     consumeNextQueueItemAfterCurrent,
+    peekNextQueueItemAfterCurrent,
     playNext,
     queueItems,
     replaceQueueWithCurrent,

@@ -56,10 +56,21 @@ export function usePlaybackCoordinator({
       return;
     }
 
+    if (playbackOutput.mode === "experimental-target-window") {
+      const didStart = await startOutputSong(item.songIndex);
+
+      if (!didStart) {
+        return;
+      }
+    }
+
     scoreLibrary.setSelectedSongId(item.librarySong.id);
     setPlaybackContextForLibraryItem(item);
     playbackQueue.replaceQueueWithCurrent(item.songIndex);
-    playbackOutput.onPlaySong(item.songIndex);
+
+    if (playbackOutput.mode !== "experimental-target-window") {
+      void startOutputSong(item.songIndex);
+    }
   }
 
   async function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
@@ -127,12 +138,11 @@ export function usePlaybackCoordinator({
     }
 
     const songs = scoreLibrary.importedSongsRef.current;
-    const queuedItem = playbackQueue.consumeNextQueueItemAfterCurrent(
-      songs.length,
-    );
-    if (queuedItem) {
-      playbackOrder.clearPlaybackContext();
-    }
+    const shouldDeferQueueConsume =
+      playbackOutput.mode === "experimental-target-window";
+    const queuedItem = shouldDeferQueueConsume
+      ? playbackQueue.peekNextQueueItemAfterCurrent(songs.length)
+      : playbackQueue.consumeNextQueueItemAfterCurrent(songs.length);
 
     const playbackOrderNextSongIndex =
       queuedItem === null && scoreLibrary.selectedSongIndex !== null
@@ -157,10 +167,23 @@ export function usePlaybackCoordinator({
         songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
       }),
     );
-    if (queuedItem === null) {
+    const didStart = await startOutputSong(nextSongIndex);
+
+    if (!didStart) {
+      return;
+    }
+
+    if (queuedItem) {
+      if (shouldDeferQueueConsume) {
+        playbackQueue.consumeQueuedItemAfterCurrent(
+          queuedItem.id,
+          songs.length,
+        );
+      }
+      playbackOrder.clearPlaybackContext();
+    } else {
       playbackQueue.startQueuePlayback(nextSongIndex);
     }
-    playbackOutput.onPlaySong(nextSongIndex);
   }
 
   async function handleBottomPlayerPlay() {
@@ -187,8 +210,11 @@ export function usePlaybackCoordinator({
     }
 
     setPlaybackContextForLibraryItem(selectedVisibleItem);
-    playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
-    playbackOutput.onPlaySong(selectedVisibleItem.songIndex);
+    const didStart = await startOutputSong(selectedVisibleItem.songIndex);
+
+    if (didStart) {
+      playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
+    }
   }
 
   function handleQueueItemRemove(queueItemId: string) {
@@ -226,11 +252,12 @@ export function usePlaybackCoordinator({
       return;
     }
 
-    if (canStartQueueForCurrentOutput()) {
+    const shouldStartQueue = canStartQueueForCurrentOutput();
+    const didStart = await startOutputSong(songIndex);
+
+    if (didStart && shouldStartQueue) {
       playbackQueue.startQueuePlayback(songIndex);
     }
-
-    playbackOutput.onPlaySong(songIndex);
   }
 
   function handleDeleteLocalSong(
@@ -287,6 +314,12 @@ export function usePlaybackCoordinator({
       playbackOutput.mode !== "experimental-target-window" ||
       experimentalInput.selectedWindowHwnd !== null
     );
+  }
+
+  async function startOutputSong(songIndex: number) {
+    const result = await playbackOutput.onPlaySong(songIndex);
+
+    return result !== false;
   }
 
   return {

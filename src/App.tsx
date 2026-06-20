@@ -137,6 +137,8 @@ function App() {
     appendLog,
     consumeNextQueueItemAfterCurrent:
       playbackQueue.consumeNextQueueItemAfterCurrent,
+    consumeQueuedItemAfterCurrent:
+      playbackQueue.consumeQueuedItemAfterCurrent,
     currentSong: scoreLibrary.currentSelectedSong,
     getPlaybackOrderNextSongIndex: (options) =>
       playbackOrder.getNextPlaybackOrderSongIndex({
@@ -149,6 +151,8 @@ function App() {
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
     playbackSpeed: previewPlayback.playbackSpeed,
+    peekNextQueueItemAfterCurrent:
+      playbackQueue.peekNextQueueItemAfterCurrent,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: handlePlaybackSongIndexChange,
@@ -211,6 +215,7 @@ function App() {
     onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
     onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
     playlists: scoreLibrary.playlists,
+    isLocalSongDeleteBlocked: experimentalInput.isBackgroundHandoffPending,
     selectedSongId: scoreLibrary.selectedSongId,
     text: text.library,
   });

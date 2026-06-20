@@ -58,6 +58,10 @@ type UseExperimentalInputOptions = {
   consumeNextQueueItemAfterCurrent: (
     songCount: number,
   ) => PlaybackQueueItem | null;
+  consumeQueuedItemAfterCurrent: (
+    queueItemId: string,
+    songCount: number,
+  ) => PlaybackQueueItem | null;
   currentSong: Song | null;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
@@ -70,6 +74,7 @@ type UseExperimentalInputOptions = {
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
+  peekNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
@@ -92,6 +97,7 @@ type BackgroundPlaybackContext = {
 export function useExperimentalInput({
   appendLog,
   consumeNextQueueItemAfterCurrent,
+  consumeQueuedItemAfterCurrent,
   currentSong,
   getPlaybackOrderNextSongIndex,
   importedSongsRef,
@@ -100,6 +106,7 @@ export function useExperimentalInput({
   noteIntervalDelayMs,
   playbackMode,
   playbackSpeed,
+  peekNextQueueItemAfterCurrent,
   resolveSongForPlayback,
   selectedSongIndex,
   setSelectedSongIndex,
@@ -115,11 +122,12 @@ export function useExperimentalInput({
   const pendingBackgroundEventsRef = useRef<
     Map<number, BackgroundPlaybackEventPayload[]>
   >(new Map());
-  const pendingBackgroundStartTokenRef = useRef<number | null>(null);
+  const activeBackgroundSessionIdRef = useRef<number | null>(null);
+  const backgroundHandoffTokenRef = useRef(0);
+  const isBackgroundHandoffPendingRef = useRef(false);
   const backgroundPlaybackEventHandlerRef = useRef<
     (payload: BackgroundPlaybackEventPayload) => void
   >(() => {});
-  const experimentalPlaybackRunIdRef = useRef(0);
   const hasAutoRefreshedRestoredWindowRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
@@ -160,6 +168,10 @@ export function useExperimentalInput({
   const [
     isStartingExperimentalPlayback,
     setIsStartingExperimentalPlayback,
+  ] = useState(false);
+  const [
+    isBackgroundHandoffPending,
+    setIsBackgroundHandoffPending,
   ] = useState(false);
   const [experimentalPlaybackState, setExperimentalPlaybackState] =
     useState<PlaybackState>("idle");
@@ -434,12 +446,13 @@ export function useExperimentalInput({
   }: {
     logStopped: boolean;
   }) {
-    const sessionId = experimentalPlaybackRunIdRef.current;
-    experimentalPlaybackRunIdRef.current += 1;
-    pendingBackgroundStartTokenRef.current = null;
+    const sessionId = activeBackgroundSessionIdRef.current;
+    backgroundHandoffTokenRef.current += 1;
+    isBackgroundHandoffPendingRef.current = false;
     pendingBackgroundEventsRef.current.clear();
+    activeBackgroundSessionIdRef.current = null;
     setIsStartingExperimentalPlayback(false);
-    experimentalPlaybackControllerRef.current?.stop();
+    setIsBackgroundHandoffPending(false);
     experimentalPlaybackControllerRef.current = null;
     backgroundPlaybackContextRef.current = null;
     setExperimentalPlaybackState("idle");
@@ -449,7 +462,7 @@ export function useExperimentalInput({
       totalMs: 0,
     });
 
-    if (sessionId > 0) {
+    if (sessionId !== null) {
       void stopBackgroundPlayback(sessionId);
     }
 
@@ -630,15 +643,15 @@ export function useExperimentalInput({
 
   async function handleStartExperimentalPlayback() {
     if (!canAttemptExperimentalPlayback || selectedSongIndex === null) {
-      return;
+      return false;
     }
 
     if (!isTargetWindowReadyForPlayback()) {
       logMissingTargetWindow();
-      return;
+      return false;
     }
 
-    await startExperimentalPlaybackWithPreflight(selectedSongIndex);
+    return startExperimentalPlaybackWithPreflight(selectedSongIndex);
   }
 
   async function handlePlayExperimentalSong(songIndex: number) {
@@ -646,73 +659,51 @@ export function useExperimentalInput({
       !experimentalInputEnabled ||
       experimentalInputMode !== "target-window-message"
     ) {
-      return;
+      return false;
     }
 
     if (!isTargetWindowReadyForPlayback()) {
       logMissingTargetWindow();
-      return;
+      return false;
     }
 
-    await startExperimentalPlaybackWithPreflight(songIndex, {
-      stopExistingBeforeResolve: true,
-    });
+    return startExperimentalPlaybackWithPreflight(songIndex);
   }
 
   async function startExperimentalPlaybackWithPreflight(
     songIndex: number,
-    {
-      initialSeekMs,
-      stopExistingBeforeResolve = false,
-    }: { initialSeekMs?: number; stopExistingBeforeResolve?: boolean } = {},
+    { initialSeekMs }: { initialSeekMs?: number } = {},
   ) {
     if (!isTargetWindowReadyForPlayback()) {
       logMissingTargetWindow();
-      return;
+      return false;
     }
 
     if (selectedWindowHwnd === null) {
       logMissingTargetWindow();
-      return;
+      return false;
     }
 
-    if (stopExistingBeforeResolve) {
-      stopPreviewPlayback();
-      foregroundPlayback.handleStopForegroundPlayback();
-      stopExperimentalPlayback({ logStopped: false });
-    }
-
-    const runId = experimentalPlaybackRunIdRef.current + 1;
-
-    experimentalPlaybackRunIdRef.current = runId;
-    setIsStartingExperimentalPlayback(true);
-    setLastError(null);
+    const handoffToken = beginBackgroundHandoff();
 
     const song = await resolveSongForPlayback(songIndex);
 
-    if (experimentalPlaybackRunIdRef.current !== runId) {
-      return;
+    if (!isLatestBackgroundHandoff(handoffToken)) {
+      return false;
     }
 
     if (song === null) {
-      setIsStartingExperimentalPlayback(false);
-      return;
+      finishBackgroundHandoff(handoffToken);
+      return false;
     }
 
-    if (!stopExistingBeforeResolve) {
-      stopPreviewPlayback();
-      foregroundPlayback.handleStopForegroundPlayback();
-      stopExperimentalPlayback({ logStopped: false });
-      experimentalPlaybackRunIdRef.current = runId;
-      setIsStartingExperimentalPlayback(true);
-    }
+    stopPreviewPlayback();
+    foregroundPlayback.handleStopForegroundPlayback();
 
-    if (experimentalPlaybackRunIdRef.current !== runId) {
-      return;
-    }
-
-    setIsStartingExperimentalPlayback(false);
-    startExperimentalPlaybackForSong(songIndex, song, { initialSeekMs });
+    return startExperimentalPlaybackForSong(songIndex, song, {
+      handoffToken,
+      initialSeekMs,
+    });
   }
 
   function isTargetWindowReadyForPlayback() {
@@ -725,29 +716,54 @@ export function useExperimentalInput({
     showNotice?.(message);
   }
 
+  function beginBackgroundHandoff() {
+    const token = backgroundHandoffTokenRef.current + 1;
+
+    backgroundHandoffTokenRef.current = token;
+    isBackgroundHandoffPendingRef.current = true;
+    pendingBackgroundEventsRef.current.clear();
+    setIsBackgroundHandoffPending(true);
+    setIsStartingExperimentalPlayback(true);
+    setLastError(null);
+
+    return token;
+  }
+
+  function finishBackgroundHandoff(token: number) {
+    if (backgroundHandoffTokenRef.current !== token) {
+      return;
+    }
+
+    isBackgroundHandoffPendingRef.current = false;
+    setIsBackgroundHandoffPending(false);
+    setIsStartingExperimentalPlayback(false);
+  }
+
+  function isLatestBackgroundHandoff(token: number) {
+    return (
+      isBackgroundHandoffPendingRef.current &&
+      backgroundHandoffTokenRef.current === token
+    );
+  }
+
   async function startExperimentalPlaybackForSong(
     songIndex: number,
-    resolvedSong?: Song,
-    options: { initialSeekMs?: number } = {},
+    resolvedSong: Song,
+    options: { handoffToken: number; initialSeekMs?: number },
   ) {
     if (selectedWindowHwnd === null) {
-      return;
+      finishBackgroundHandoff(options.handoffToken);
+      return false;
     }
 
-    const song = resolvedSong ?? (await resolveSongForPlayback(songIndex));
-
-    if (!song) {
-      appendLog(text.logs.noSelectedScore);
-      return;
-    }
-
-    setSelectedSongIndex(songIndex);
+    const song = resolvedSong;
 
     if (song.songNotes.length === 0) {
       stopExperimentalPlayback({ logStopped: false });
+      setSelectedSongIndex(songIndex);
       setExperimentalPlaybackState("finished");
       appendLog(text.logs.experimentalPlaybackFinished);
-      return;
+      return true;
     }
 
     let playbackPlan: BackgroundPlaybackPlanEvent[];
@@ -763,10 +779,11 @@ export function useExperimentalInput({
       setLastError(errorMessage);
       appendLog(errorMessage);
       showNotice?.(errorMessage);
-      return;
+      finishBackgroundHandoff(options.handoffToken);
+      replayActiveSessionEventsAfterFailedHandoff();
+      return false;
     }
 
-    const startToken = experimentalPlaybackRunIdRef.current + 1;
     const targetWindowHwnd = selectedWindowHwnd;
     const targetWindowTitle =
       selectedWindow?.title ||
@@ -782,15 +799,7 @@ export function useExperimentalInput({
     );
     targetWindowMessageMethodRef.current = method;
     targetWindowCompatibilityProfileRef.current = compatibilityProfile;
-    experimentalPlaybackRunIdRef.current = startToken;
-    pendingBackgroundStartTokenRef.current = startToken;
-    pendingBackgroundEventsRef.current.clear();
     setLastError(null);
-    setExperimentalPlaybackProgress({
-      currentMs: 0,
-      percent: 0,
-      totalMs: 0,
-    });
 
     try {
       const response = await startBackgroundPlayback({
@@ -803,21 +812,22 @@ export function useExperimentalInput({
         plan: playbackPlan,
       });
 
-      if (experimentalPlaybackRunIdRef.current !== startToken) {
+      if (!isLatestBackgroundHandoff(options.handoffToken)) {
         void stopBackgroundPlayback(response.sessionId);
-        return;
+        return false;
       }
 
-      experimentalPlaybackRunIdRef.current = response.sessionId;
-      pendingBackgroundStartTokenRef.current = null;
+      activeBackgroundSessionIdRef.current = response.sessionId;
       backgroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
         song,
         songIndex,
       };
+      setSelectedSongIndex(songIndex);
       experimentalPlaybackControllerRef.current = createBackgroundPlaybackController(
         response.sessionId,
       );
+      finishBackgroundHandoff(options.handoffToken);
       setExperimentalPlaybackState("playing");
       setExperimentalPlaybackProgress({
         currentMs: Math.min(options.initialSeekMs ?? 0, response.totalMs),
@@ -836,13 +846,13 @@ export function useExperimentalInput({
         }),
       );
       flushPendingBackgroundPlaybackEvents(response.sessionId);
+      return true;
     } catch (error) {
-      if (experimentalPlaybackRunIdRef.current !== startToken) {
-        return;
+      if (!isLatestBackgroundHandoff(options.handoffToken)) {
+        return false;
       }
 
-      pendingBackgroundStartTokenRef.current = null;
-      pendingBackgroundEventsRef.current.clear();
+      finishBackgroundHandoff(options.handoffToken);
       const errorMessage = String(error);
       const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
       const logTemplate =
@@ -862,19 +872,21 @@ export function useExperimentalInput({
       if (isInvalidTargetWindow) {
         showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
       }
-      stopExperimentalPlayback({ logStopped: false });
+      replayActiveSessionEventsAfterFailedHandoff();
+      return false;
     }
   }
 
   function handleExperimentalPlaybackFinished(songIndex: number, song: Song) {
     experimentalPlaybackControllerRef.current = null;
     backgroundPlaybackContextRef.current = null;
+    activeBackgroundSessionIdRef.current = null;
 
     const currentImportedSongs = importedSongsRef.current;
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
+        : peekNextQueueItemAfterCurrent(currentImportedSongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
@@ -896,7 +908,12 @@ export function useExperimentalInput({
       appendLog(
         formatText(text.logs.repeatOneTriggered, { songName: song.name }),
       );
-      void startExperimentalPlaybackForSong(songIndex);
+      void startExperimentalPlaybackWithPreflight(songIndex).then((started) => {
+        if (!started) {
+          setExperimentalPlaybackState("finished");
+          appendLog(text.logs.experimentalPlaybackFinished);
+        }
+      });
       return;
     }
 
@@ -912,10 +929,25 @@ export function useExperimentalInput({
           songName: nextSong.name,
         }),
       );
-      if (queuedItem === null) {
-        startQueuePlayback(finishDecision.nextSongIndex);
-      }
-      void startExperimentalPlaybackForSong(finishDecision.nextSongIndex);
+      void startExperimentalPlaybackWithPreflight(
+        finishDecision.nextSongIndex,
+      ).then((started) => {
+        if (!started) {
+          setExperimentalPlaybackState("finished");
+          appendLog(text.logs.experimentalPlaybackFinished);
+          return;
+        }
+
+        if (queuedItem === null) {
+          startQueuePlayback(finishDecision.nextSongIndex);
+          return;
+        }
+
+        consumeQueuedItemAfterCurrent(
+          queuedItem.id,
+          currentImportedSongs.length,
+        );
+      });
       return;
     }
 
@@ -927,9 +959,9 @@ export function useExperimentalInput({
     payload: BackgroundPlaybackEventPayload,
   ) {
     const route = getBackgroundPlaybackEventRoute({
-      currentSessionId: experimentalPlaybackRunIdRef.current,
+      currentSessionId: activeBackgroundSessionIdRef.current ?? -1,
       eventSessionId: payload.sessionId,
-      isStartPending: pendingBackgroundStartTokenRef.current !== null,
+      isStartPending: isBackgroundHandoffPendingRef.current,
     });
 
     if (route === "buffer") {
@@ -955,12 +987,23 @@ export function useExperimentalInput({
     pendingBackgroundEventsRef.current.clear();
 
     for (const event of pendingEvents) {
-      if (event.sessionId !== experimentalPlaybackRunIdRef.current) {
+      if (event.sessionId !== activeBackgroundSessionIdRef.current) {
         continue;
       }
 
       applyBackgroundPlaybackEvent(event);
     }
+  }
+
+  function replayActiveSessionEventsAfterFailedHandoff() {
+    const activeSessionId = activeBackgroundSessionIdRef.current;
+
+    if (activeSessionId === null) {
+      pendingBackgroundEventsRef.current.clear();
+      return;
+    }
+
+    flushPendingBackgroundPlaybackEvents(activeSessionId);
   }
 
   function applyBackgroundPlaybackEvent(payload: BackgroundPlaybackEventPayload) {
@@ -1000,6 +1043,7 @@ export function useExperimentalInput({
         sessionId: payload.sessionId,
       });
       backgroundPlaybackContextRef.current = null;
+      activeBackgroundSessionIdRef.current = null;
       experimentalPlaybackControllerRef.current = null;
       setExperimentalPlaybackState("idle");
       setLastError(logTemplate);
@@ -1074,8 +1118,10 @@ export function useExperimentalInput({
     isDetectingSkyWindow,
     isExperimentalPlaybackRunning:
       isStartingExperimentalPlayback ||
+      isBackgroundHandoffPending ||
       experimentalPlaybackState === "playing" ||
       experimentalPlaybackState === "paused",
+    isBackgroundHandoffPending,
     isRefreshingWindows,
     lastError,
     selectedWindow,
