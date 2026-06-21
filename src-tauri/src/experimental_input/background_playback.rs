@@ -1,7 +1,4 @@
-use super::target_window_message::{
-    prepare_window_message_target, send_prepared_window_message_key_down_group,
-    send_prepared_window_message_key_up_group, PreparedWindowMessageTarget,
-};
+use super::playback_engine::PlaybackOutput;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -11,9 +8,9 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 const BACKGROUND_PLAYBACK_EVENT: &str = "background-playback-event";
+const FOREGROUND_PLAYBACK_EVENT: &str = "foreground-playback-event";
 const NOTE_HIGHLIGHT_MS: f64 = 300.0;
 const PROGRESS_EVENT_INTERVAL_MS: f64 = 150.0;
-const TARGET_MESSAGE_METHOD_POST: &str = "post-message";
 const MAX_PREPARED_PLAYBACK_PLANS: usize = 32;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -47,6 +44,16 @@ pub struct BackgroundPlaybackPreparedStartRequest {
     pub prepared_plan_id: u64,
     pub hwnd: String,
     pub compatibility_profile: String,
+    pub key_hold_ms: u64,
+    pub note_interval_delay_ms: f64,
+    pub playback_speed: f64,
+    pub initial_progress_ms: Option<f64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForegroundPlaybackPreparedStartRequest {
+    pub prepared_plan_id: u64,
     pub key_hold_ms: u64,
     pub note_interval_delay_ms: f64,
     pub playback_speed: f64,
@@ -184,7 +191,8 @@ struct BackgroundPlaybackWorker {
     start_rx: Receiver<()>,
     started_at: Instant,
     state: WorkerPlaybackState,
-    target: PreparedWindowMessageTarget,
+    event_name: &'static str,
+    output: PlaybackOutput,
     timeline: PlaybackTimeline,
 }
 
@@ -242,6 +250,65 @@ fn start_background_playback_from_groups(
     request: BackgroundPlaybackPreparedStartRequest,
     prepared_plan: Arc<PreparedPlaybackPlan>,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
+    let output = PlaybackOutput::prepare_target_window(
+        &request.hwnd,
+        &prepared_plan.unique_keys,
+        &request.compatibility_profile,
+    )?;
+
+    start_playback_from_prepared(
+        app_handle,
+        PlaybackStartOptions {
+            initial_progress_ms: request.initial_progress_ms,
+            key_hold_ms: request.key_hold_ms,
+            note_interval_delay_ms: request.note_interval_delay_ms,
+            playback_speed: request.playback_speed,
+        },
+        prepared_plan,
+        output,
+        BACKGROUND_PLAYBACK_EVENT,
+        "start_background_playback",
+    )
+}
+
+pub fn start_prepared_foreground_playback(
+    app_handle: AppHandle,
+    request: ForegroundPlaybackPreparedStartRequest,
+) -> Result<BackgroundPlaybackStartResponse, String> {
+    let prepared_plan = get_prepared_plan(request.prepared_plan_id)?;
+    let output = PlaybackOutput::prepare_foreground(&prepared_plan.unique_keys)?;
+
+    start_playback_from_prepared(
+        app_handle,
+        PlaybackStartOptions {
+            initial_progress_ms: request.initial_progress_ms,
+            key_hold_ms: request.key_hold_ms,
+            note_interval_delay_ms: request.note_interval_delay_ms,
+            playback_speed: request.playback_speed,
+        },
+        prepared_plan,
+        output,
+        FOREGROUND_PLAYBACK_EVENT,
+        "start_prepared_foreground_playback",
+    )
+}
+
+#[derive(Debug, Clone)]
+struct PlaybackStartOptions {
+    initial_progress_ms: Option<f64>,
+    key_hold_ms: u64,
+    note_interval_delay_ms: f64,
+    playback_speed: f64,
+}
+
+fn start_playback_from_prepared(
+    app_handle: AppHandle,
+    request: PlaybackStartOptions,
+    prepared_plan: Arc<PreparedPlaybackPlan>,
+    output: PlaybackOutput,
+    event_name: &'static str,
+    timing_label: &str,
+) -> Result<BackgroundPlaybackStartResponse, String> {
     let command_started_at = Instant::now();
     let options = PlaybackOptions {
         note_interval_delay_ms: request.note_interval_delay_ms,
@@ -249,14 +316,8 @@ fn start_background_playback_from_groups(
     };
     let timeline = build_timeline_from_groups(&prepared_plan.groups, &options)?;
     let timeline_completed_at = Instant::now();
-    validate_start_request(&request, &prepared_plan.groups)?;
-    let target = prepare_window_message_target(
-        &request.hwnd,
-        &prepared_plan.unique_keys,
-        TARGET_MESSAGE_METHOD_POST,
-        &request.compatibility_profile,
-    )?;
-    let target_preparation_completed_at = Instant::now();
+    validate_start_request(request.key_hold_ms, &prepared_plan.groups)?;
+    let output_preparation_completed_at = Instant::now();
 
     let initial_progress_ms = clamp_progress(
         request.initial_progress_ms.unwrap_or(0.0),
@@ -291,7 +352,8 @@ fn start_background_playback_from_groups(
         start_rx,
         started_at: Instant::now(),
         state: WorkerPlaybackState::Playing,
-        target,
+        event_name,
+        output,
         timeline: worker_timeline,
     };
     let worker_handle = thread::spawn(move || worker.run());
@@ -313,7 +375,7 @@ fn start_background_playback_from_groups(
     let start_gate_released_at = Instant::now();
 
     debug_timing(
-        "start_background_playback",
+        timing_label,
         command_started_at,
         &[
             (
@@ -321,12 +383,12 @@ fn start_background_playback_from_groups(
                 timeline_completed_at.duration_since(command_started_at),
             ),
             (
-                "target preparation",
-                target_preparation_completed_at.duration_since(timeline_completed_at),
+                "output preparation",
+                output_preparation_completed_at.duration_since(timeline_completed_at),
             ),
             (
                 "previous session stop/join",
-                previous_session_stopped_at.duration_since(target_preparation_completed_at),
+                previous_session_stopped_at.duration_since(output_preparation_completed_at),
             ),
             (
                 "worker creation",
@@ -394,6 +456,28 @@ pub fn stop_current_background_playback_for_shutdown() {
         .expect("background playback lifecycle poisoned");
 
     stop_current_session();
+}
+
+pub fn pause_foreground_playback(session_id: u64) -> Result<(), String> {
+    pause_background_playback(session_id)
+}
+
+pub fn resume_foreground_playback(session_id: u64) -> Result<(), String> {
+    resume_background_playback(session_id)
+}
+
+pub fn seek_foreground_playback(session_id: u64, time_ms: f64) -> Result<(), String> {
+    seek_background_playback(session_id, time_ms)
+}
+
+pub fn stop_foreground_playback(session_id: u64) -> Result<(), String> {
+    stop_background_playback(session_id)
+}
+
+pub fn update_foreground_playback_options(
+    request: BackgroundPlaybackOptionsRequest,
+) -> Result<(), String> {
+    update_background_playback_options(request)
 }
 
 fn manager() -> &'static Mutex<BackgroundPlaybackManager> {
@@ -785,10 +869,13 @@ impl BackgroundPlaybackWorker {
 
         self.scheduled_key_ups = pending_key_ups;
 
-        for key_up in due_key_ups {
-            if should_apply_key_release(&self.active_generations, &key_up.key, key_up.generation) {
-                self.send_key_up_group(std::slice::from_ref(&key_up.key))?;
-                self.active_generations.remove(&key_up.key);
+        let keys_to_release = keys_due_for_release(&self.active_generations, &due_key_ups);
+
+        if !keys_to_release.is_empty() {
+            self.send_key_up_group(&keys_to_release)?;
+
+            for key in keys_to_release {
+                self.active_generations.remove(&key);
             }
         }
 
@@ -863,11 +950,11 @@ impl BackgroundPlaybackWorker {
     }
 
     fn send_key_down_group(&self, keys: &[String]) -> Result<(), String> {
-        send_prepared_window_message_key_down_group(&self.target, keys)
+        self.output.send_key_down_group(keys)
     }
 
     fn send_key_up_group(&self, keys: &[String]) -> Result<(), String> {
-        send_prepared_window_message_key_up_group(&self.target, keys)
+        self.output.send_key_up_group(keys)
     }
 
     fn emit_state(&self, state: &str) {
@@ -902,7 +989,7 @@ impl BackgroundPlaybackWorker {
         state: Option<String>,
     ) {
         let _ = self.app_handle.emit(
-            BACKGROUND_PLAYBACK_EVENT,
+            self.event_name,
             BackgroundPlaybackEvent {
                 session_id: self.session_id,
                 event_type: event_type.to_string(),
@@ -927,15 +1014,12 @@ fn clear_current_session(session_id: u64) {
     }
 }
 
-fn validate_start_request(
-    request: &BackgroundPlaybackPreparedStartRequest,
-    groups: &[TimelineGroup],
-) -> Result<(), String> {
+fn validate_start_request(key_hold_ms: u64, groups: &[TimelineGroup]) -> Result<(), String> {
     if groups.is_empty() {
         return Err("Background playback plan must contain at least one event.".to_string());
     }
 
-    if request.key_hold_ms == 0 {
+    if key_hold_ms == 0 {
         return Err("Background playback key hold duration must be greater than zero.".to_string());
     }
 
@@ -1151,6 +1235,19 @@ fn should_apply_key_release(
     active_generations
         .get(key)
         .is_some_and(|generation| *generation == release_generation)
+}
+
+fn keys_due_for_release(
+    active_generations: &HashMap<String, u64>,
+    due_key_ups: &[ScheduledKeyUp],
+) -> Vec<String> {
+    due_key_ups
+        .iter()
+        .filter(|key_up| {
+            should_apply_key_release(active_generations, &key_up.key, key_up.generation)
+        })
+        .map(|key_up| key_up.key.clone())
+        .collect()
 }
 
 fn should_clear_current_session(
@@ -1379,6 +1476,30 @@ mod tests {
             stale.generation
         ));
         assert!(should_apply_key_release(&active, "A", 2));
+    }
+
+    #[test]
+    fn due_releases_are_collected_as_one_output_chord() {
+        let active = HashMap::from([("A".to_string(), 1_u64), ("B".to_string(), 2_u64)]);
+        let due = vec![
+            ScheduledKeyUp {
+                deadline_at: Instant::now(),
+                generation: 1,
+                key: "A".to_string(),
+            },
+            ScheduledKeyUp {
+                deadline_at: Instant::now(),
+                generation: 2,
+                key: "B".to_string(),
+            },
+            ScheduledKeyUp {
+                deadline_at: Instant::now(),
+                generation: 1,
+                key: "B".to_string(),
+            },
+        ];
+
+        assert_eq!(keys_due_for_release(&active, &due), ["A", "B"]);
     }
 
     #[test]

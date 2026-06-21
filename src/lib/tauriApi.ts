@@ -53,6 +53,14 @@ export type BackgroundPlaybackPreparedStartRequest = {
   preparedPlanId: number;
 };
 
+export type ForegroundPlaybackPreparedStartRequest = {
+  initialProgressMs?: number;
+  keyHoldMs: number;
+  noteIntervalDelayMs: number;
+  playbackSpeed: number;
+  preparedPlanId: number;
+};
+
 export type BackgroundPlaybackStartResponse = {
   sessionId: number;
   totalMs: number;
@@ -144,16 +152,39 @@ export function startPreparedBackgroundPlayback(
   );
 }
 
+// Stage 1 exposes the Rust foreground engine without migrating the current
+// foreground React controller. A later stage will opt into these wrappers.
+export function startPreparedForegroundPlayback(
+  request: ForegroundPlaybackPreparedStartRequest,
+): Promise<BackgroundPlaybackStartResponse> {
+  return invoke<BackgroundPlaybackStartResponse>(
+    "start_prepared_foreground_playback",
+    { request },
+  );
+}
+
 export function pauseBackgroundPlayback(sessionId: number): Promise<void> {
   return invoke<void>("pause_background_playback", { sessionId });
+}
+
+export function pauseForegroundPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("pause_foreground_playback", { sessionId });
 }
 
 export function resumeBackgroundPlayback(sessionId: number): Promise<void> {
   return invoke<void>("resume_background_playback", { sessionId });
 }
 
+export function resumeForegroundPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("resume_foreground_playback", { sessionId });
+}
+
 export function stopBackgroundPlayback(sessionId: number): Promise<void> {
   return invoke<void>("stop_background_playback", { sessionId });
+}
+
+export function stopForegroundPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("stop_foreground_playback", { sessionId });
 }
 
 export function seekBackgroundPlayback(
@@ -161,6 +192,13 @@ export function seekBackgroundPlayback(
   timeMs: number,
 ): Promise<void> {
   return invoke<void>("seek_background_playback", { sessionId, timeMs });
+}
+
+export function seekForegroundPlayback(
+  sessionId: number,
+  timeMs: number,
+): Promise<void> {
+  return invoke<void>("seek_foreground_playback", { sessionId, timeMs });
 }
 
 export function updateBackgroundPlaybackOptions({
@@ -177,11 +215,34 @@ export function updateBackgroundPlaybackOptions({
   });
 }
 
+export function updateForegroundPlaybackOptions({
+  noteIntervalDelayMs,
+  playbackSpeed,
+  sessionId,
+}: {
+  noteIntervalDelayMs: number;
+  playbackSpeed: number;
+  sessionId: number;
+}): Promise<void> {
+  return invoke<void>("update_foreground_playback_options", {
+    request: { noteIntervalDelayMs, playbackSpeed, sessionId },
+  });
+}
+
 export function listenBackgroundPlaybackEvents(
   handler: (event: Event<BackgroundPlaybackEventPayload>) => void,
 ): Promise<UnlistenFn> {
   return listen<BackgroundPlaybackEventPayload>(
     "background-playback-event",
+    handler,
+  );
+}
+
+export function listenForegroundPlaybackEvents(
+  handler: (event: Event<BackgroundPlaybackEventPayload>) => void,
+): Promise<UnlistenFn> {
+  return listen<BackgroundPlaybackEventPayload>(
+    "foreground-playback-event",
     handler,
   );
 }
