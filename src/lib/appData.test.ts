@@ -132,6 +132,38 @@ describe("buildPersistedAppData", () => {
 });
 
 describe("sanitizePersistedAppData current version", () => {
+  it("migrates legacy shortcut strings to scoped bindings", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: "ArrowRight",
+        pauseResume: "Space",
+        stop: "F9",
+      },
+    });
+
+    expect(result?.playbackShortcuts).toEqual(defaultPlaybackShortcuts);
+  });
+
+  it("sanitizes shortcut binding codes and scopes independently", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: { code: "KeyN", scope: "global" },
+        pauseResume: { code: "", scope: "bad" },
+        stop: { code: "F8", scope: "in-app" },
+      },
+    });
+
+    expect(result?.playbackShortcuts).toEqual({
+      next: { code: "KeyN", scope: "global" },
+      pauseResume: defaultPlaybackShortcuts.pauseResume,
+      stop: { code: "F8", scope: "in-app" },
+    });
+  });
+
   it("returns null for non-object input", () => {
     expect(sanitizePersistedAppData(null)).toBeNull();
     expect(sanitizePersistedAppData("bad")).toBeNull();

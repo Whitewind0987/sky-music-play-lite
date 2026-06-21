@@ -28,6 +28,7 @@ import {
 import {
   defaultPlaybackShortcuts,
   playbackShortcutActions,
+  type PlaybackShortcutBinding,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
 import { ensureLibrarySongs } from "./libraryCollections";
@@ -189,16 +190,42 @@ function sanitizePlaybackShortcuts(
   return playbackShortcutActions.reduce<PlaybackShortcuts>(
     (nextShortcuts, action) => {
       const shortcut = playbackShortcuts[action];
+      const defaultBinding = defaultPlaybackShortcuts[action];
+      const binding = isRecord(shortcut) ? shortcut : null;
       return {
         ...nextShortcuts,
-        [action]:
-          typeof shortcut === "string" && shortcut.trim().length > 0
-            ? shortcut
-            : defaultPlaybackShortcuts[action],
+        [action]: sanitizePlaybackShortcutBinding(
+          typeof shortcut === "string" ? shortcut : binding,
+          defaultBinding,
+        ),
       };
     },
     { ...defaultPlaybackShortcuts },
   );
+}
+
+function sanitizePlaybackShortcutBinding(
+  rawBinding: string | Record<string, unknown> | null,
+  defaultBinding: PlaybackShortcutBinding,
+): PlaybackShortcutBinding {
+  if (typeof rawBinding === "string") {
+    return {
+      code:
+        rawBinding.trim().length > 0 ? rawBinding : defaultBinding.code,
+      scope: defaultBinding.scope,
+    };
+  }
+
+  return {
+    code:
+      typeof rawBinding?.code === "string" && rawBinding.code.trim().length > 0
+        ? rawBinding.code
+        : defaultBinding.code,
+    scope:
+      rawBinding?.scope === "in-app" || rawBinding?.scope === "global"
+        ? rawBinding.scope
+        : defaultBinding.scope,
+  };
 }
 
 function sanitizePlaybackSettings(

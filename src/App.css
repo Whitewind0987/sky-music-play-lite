@@ -2404,6 +2404,27 @@ button {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.shortcut-scope-badge:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.shortcut-scope-badge:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.shortcut-scope-badge:focus-visible {
+  outline: 2px solid rgba(47, 128, 237, 0.5);
+  outline-offset: 2px;
+}
+
+.shortcut-scope-badge:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .shortcut-scope-badge.is-in-app {

@@ -147,7 +147,7 @@ export function SettingsPlaceholder({
       const duplicateAction = playbackShortcutActions.find(
         (action) =>
           action !== currentAction &&
-          playbackShortcuts[action] === event.code,
+          playbackShortcuts[action].code === event.code,
       );
 
       if (duplicateAction !== undefined) {
@@ -158,6 +158,7 @@ export function SettingsPlaceholder({
       }
 
       if (
+        playbackShortcuts[currentAction].scope === "global" &&
         currentAction === "stop" &&
         isUnsafeGlobalStopShortcut(event.code)
       ) {
@@ -169,7 +170,10 @@ export function SettingsPlaceholder({
 
       onPlaybackShortcutsChange({
         ...playbackShortcuts,
-        [currentAction]: event.code,
+        [currentAction]: {
+          ...playbackShortcuts[currentAction],
+          code: event.code,
+        },
       });
       setListeningShortcutAction(null);
       setShortcutConflictNotices({});
@@ -561,17 +565,47 @@ export function SettingsPlaceholder({
               <div className="setting-row" key={action}>
                 <div className="shortcut-action-label">
                   <span>{text.keyboardShortcutActions[action]}</span>
-                  <span
+                  <button
+                    type="button"
+                    disabled={isListening || isDisabled}
+                    aria-pressed={playbackShortcuts[action].scope === "global"}
+                    aria-label={
+                      playbackShortcuts[action].scope === "global"
+                        ? text.keyboardShortcutScopes.inApp
+                        : text.keyboardShortcutScopes.global
+                    }
+                    title={
+                      playbackShortcuts[action].scope === "global"
+                        ? text.keyboardShortcutScopes.inApp
+                        : text.keyboardShortcutScopes.global
+                    }
+                    onClick={() => {
+                      onShortcutNoticeClear();
+                      onPlaybackShortcutsChange({
+                        ...playbackShortcuts,
+                        [action]: {
+                          ...playbackShortcuts[action],
+                          scope:
+                            playbackShortcuts[action].scope === "global"
+                              ? "in-app"
+                              : "global",
+                        },
+                      });
+                    }}
                     className={`shortcut-scope-badge ${
-                      action === "stop" ? "is-global" : "is-in-app"
+                      playbackShortcuts[action].scope === "global"
+                        ? "is-global"
+                        : "is-in-app"
                     }`}
                   >
                     {
                       text.keyboardShortcutScopes[
-                        action === "stop" ? "global" : "inApp"
+                        playbackShortcuts[action].scope === "global"
+                          ? "global"
+                          : "inApp"
                       ]
                     }
-                  </span>
+                  </button>
                   {rowShortcutNotice ? (
                     <span
                       className="shortcut-conflict-badge"
@@ -596,7 +630,7 @@ export function SettingsPlaceholder({
                 >
                   {isListening
                     ? text.keyboardShortcutListening
-                    : formatShortcutCode(playbackShortcuts[action])}
+                    : formatShortcutCode(playbackShortcuts[action].code)}
                 </button>
               </div>
             );

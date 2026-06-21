@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
+import {
+  bufferBackgroundPlaybackEvent,
+  getBackgroundPlaybackEventRoute,
+  takePendingBackgroundPlaybackEvents,
+} from "../lib/backgroundPlaybackEvents";
 import { formatText } from "../lib/formatText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
+import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackPlanErrors";
+import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import {
-  getAdjustedPreviewDurationMs,
-  schedulePreviewPlayback,
-  type PreviewPlaybackController,
-  type PreviewPlaybackProgress,
-} from "../lib/playbackScheduler";
-import { prepareMappedKeyboardKeyGroups } from "../lib/scoreKeyMapping";
-import { sendForegroundKeyGroup } from "../lib/tauriApi";
+  listenForegroundPlaybackEvents,
+  pauseForegroundPlayback,
+  resumeForegroundPlayback,
+  seekForegroundPlayback,
+  startPreparedForegroundPlayback,
+  stopForegroundPlayback as stopForegroundPlaybackSession,
+  updateForegroundPlaybackOptions,
+  type BackgroundPlaybackEventPayload,
+} from "../lib/tauriApi";
 import type { ForegroundPlaybackState } from "../types/experimentalInput";
-import type { KeyMapping } from "../types/keyMapping";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type {
@@ -20,22 +28,28 @@ import type {
   PlaybackSpeed,
 } from "../types/playbackOptions";
 import type { Song } from "../types/score";
+import type {
+  PreparedPlaybackPlan,
+} from "./usePlaybackPlanPreparation";
 
 type UseForegroundPlaybackOptions = {
   appendLog: (message: string) => void;
-  consumeNextQueueItemAfterCurrent: (
-    songCount: number,
-  ) => PlaybackQueueItem | null;
+  consumeNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
   currentSong: Song | null;
   experimentalInputEnabled: boolean;
+  getOrPreparePlaybackPlan: (options: {
+    priority: "direct" | "warm";
+    resolvedSong?: Song | null;
+    songIndex: number;
+  }) => Promise<PreparedPlaybackPlan>;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
   importedSongsRef: React.MutableRefObject<Song[]>;
+  invalidatePlaybackPlan: (cacheKey: PreparedPlaybackPlan["cacheKey"]) => void;
   isShuffleEnabled: boolean;
-  keyMapping: KeyMapping;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onBeforeStart: () => void;
   playbackMode: PlaybackMode;
@@ -47,19 +61,25 @@ type UseForegroundPlaybackOptions = {
   text: UiText;
 };
 
+type ForegroundPlaybackContext = {
+  sessionId: number;
+  song: Song;
+  songIndex: number;
+};
+
 const COUNTDOWN_START_SECONDS = 3;
-const COUNTDOWN_TICK_MS = 1000;
-const REAL_PLAYBACK_PROGRESS_TICK_MS = 100;
+const FOREGROUND_KEY_HOLD_MS = 40;
 
 export function useForegroundPlayback({
   appendLog,
   consumeNextQueueItemAfterCurrent,
   currentSong,
   experimentalInputEnabled,
+  getOrPreparePlaybackPlan,
   getPlaybackOrderNextSongIndex,
   importedSongsRef,
+  invalidatePlaybackPlan,
   isShuffleEnabled,
-  keyMapping,
   noteIntervalDelayMs,
   onBeforeStart,
   playbackMode,
@@ -70,39 +90,55 @@ export function useForegroundPlayback({
   startQueuePlayback,
   text,
 }: UseForegroundPlaybackOptions) {
-  const controllerRef = useRef<PreviewPlaybackController | null>(null);
+  const activeForegroundSessionIdRef = useRef<number | null>(null);
+  const completedForegroundSessionIdsRef = useRef(new Set<number>());
+  const countdownResolveRef = useRef<((completed: boolean) => void) | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
+  const foregroundPlaybackContextRef = useRef<ForegroundPlaybackContext | null>(null);
+  const foregroundRequestTokenRef = useRef(0);
+  const foregroundPlaybackEventHandlerRef = useRef<
+    (payload: BackgroundPlaybackEventPayload) => void
+  >(() => {});
+  const isForegroundStartPendingRef = useRef(false);
   const isShuffleEnabledRef = useRef(isShuffleEnabled);
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
+  const pendingForegroundEventsRef = useRef<
+    Map<number, BackgroundPlaybackEventPayload[]>
+  >(new Map());
   const playbackModeRef = useRef<PlaybackMode>(playbackMode);
   const playbackSpeedRef = useRef(playbackSpeed);
-  const runIdRef = useRef(0);
   const [foregroundPlaybackState, setForegroundPlaybackState] =
     useState<ForegroundPlaybackState>("idle");
   const [foregroundCountdown, setForegroundCountdown] = useState<number | null>(
     null,
   );
   const [foregroundPlaybackProgress, setForegroundPlaybackProgress] =
-    useState<PreviewPlaybackProgress>({
-      currentMs: 0,
-      percent: 0,
-      totalMs: 0,
-    });
+    useState<PreviewPlaybackProgress>({ currentMs: 0, percent: 0, totalMs: 0 });
+
   const isForegroundPlaybackActive =
     foregroundPlaybackState === "countdown" ||
     foregroundPlaybackState === "playing" ||
     foregroundPlaybackState === "paused";
   const canStartForegroundPlayback =
-    experimentalInputEnabled &&
-    currentSong !== null &&
-    !isForegroundPlaybackActive;
+    experimentalInputEnabled && currentSong !== null && !isForegroundPlaybackActive;
   const canStopForegroundPlayback = isForegroundPlaybackActive;
   const bottomPlaybackState = mapForegroundStateToPlaybackState(
     foregroundPlaybackState,
   );
 
+  foregroundPlaybackEventHandlerRef.current = handleForegroundPlaybackEvent;
+
   useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    void listenForegroundPlaybackEvents((event) => {
+      foregroundPlaybackEventHandlerRef.current(event.payload);
+    }).then((nextUnlisten) => {
+      unlisten = nextUnlisten;
+    });
+
     return () => {
+      unlisten?.();
       stopForegroundPlayback({ nextState: "stopped", shouldLog: false });
     };
   }, []);
@@ -117,25 +153,74 @@ export function useForegroundPlayback({
 
   useEffect(() => {
     noteIntervalDelayMsRef.current = noteIntervalDelayMs;
-    controllerRef.current?.updateOptions({
-      noteIntervalDelayMs,
-      playbackSpeed: playbackSpeedRef.current,
-    });
+    updateActiveForegroundPlaybackOptions();
   }, [noteIntervalDelayMs]);
 
   useEffect(() => {
     playbackSpeedRef.current = playbackSpeed;
-    controllerRef.current?.updateOptions({
-      noteIntervalDelayMs: noteIntervalDelayMsRef.current,
-      playbackSpeed,
-    });
+    updateActiveForegroundPlaybackOptions();
   }, [playbackSpeed]);
+
+  useEffect(() => {
+    if (!experimentalInputEnabled) {
+      stopForegroundPlayback({ nextState: "stopped", shouldLog: false });
+    }
+  }, [experimentalInputEnabled]);
 
   function clearCountdownTimer() {
     if (countdownTimerRef.current !== null) {
       window.clearTimeout(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
+
+    const resolve = countdownResolveRef.current;
+    countdownResolveRef.current = null;
+    resolve?.(false);
+  }
+
+  function startCountdown(requestToken: number) {
+    clearCountdownTimer();
+    setForegroundPlaybackState("countdown");
+    setForegroundCountdown(COUNTDOWN_START_SECONDS);
+    appendLog(text.logs.foregroundPlaybackFocusReminder);
+    appendLog(text.logs.foregroundPlaybackCountdownStarted);
+
+    return new Promise<boolean>((resolve) => {
+      countdownResolveRef.current = resolve;
+
+      function tick(countdown: number) {
+        countdownTimerRef.current = window.setTimeout(() => {
+          if (foregroundRequestTokenRef.current !== requestToken) {
+            resolve(false);
+            return;
+          }
+
+          const nextCountdown = countdown - 1;
+
+          if (nextCountdown <= 0) {
+            countdownTimerRef.current = null;
+            countdownResolveRef.current = null;
+            setForegroundCountdown(null);
+            resolve(true);
+            return;
+          }
+
+          setForegroundCountdown(nextCountdown);
+          tick(nextCountdown);
+        }, 1000);
+      }
+
+      tick(COUNTDOWN_START_SECONDS);
+    });
+  }
+
+  function resetForegroundPlayback(nextState: ForegroundPlaybackState) {
+    foregroundPlaybackContextRef.current = null;
+    activeForegroundSessionIdRef.current = null;
+    pendingForegroundEventsRef.current.clear();
+    setForegroundCountdown(null);
+    setForegroundPlaybackState(nextState);
+    setForegroundPlaybackProgress({ currentMs: 0, percent: 0, totalMs: 0 });
   }
 
   function stopForegroundPlayback({
@@ -146,18 +231,16 @@ export function useForegroundPlayback({
     shouldLog: boolean;
   }) {
     const wasCountingDown = foregroundPlaybackState === "countdown";
+    const sessionId = activeForegroundSessionIdRef.current;
 
-    runIdRef.current += 1;
+    foregroundRequestTokenRef.current += 1;
+    isForegroundStartPendingRef.current = false;
     clearCountdownTimer();
-    controllerRef.current?.stop();
-    controllerRef.current = null;
-    setForegroundCountdown(null);
-    setForegroundPlaybackState(nextState);
-    setForegroundPlaybackProgress({
-      currentMs: 0,
-      percent: 0,
-      totalMs: 0,
-    });
+    resetForegroundPlayback(nextState);
+
+    if (sessionId !== null) {
+      void stopForegroundPlaybackSession(sessionId).catch(() => {});
+    }
 
     if (shouldLog) {
       appendLog(
@@ -169,7 +252,7 @@ export function useForegroundPlayback({
   }
 
   function handleStopForegroundPlayback() {
-    if (!canStopForegroundPlayback) {
+    if (!canStopForegroundPlayback && activeForegroundSessionIdRef.current === null) {
       return;
     }
 
@@ -182,34 +265,24 @@ export function useForegroundPlayback({
       return;
     }
 
-    if (foregroundPlaybackState !== "playing") {
+    const sessionId = activeForegroundSessionIdRef.current;
+    if (foregroundPlaybackState !== "playing" || sessionId === null) {
       return;
     }
 
-    controllerRef.current?.pause();
-    setForegroundPlaybackState("paused");
-    appendLog(text.logs.foregroundPlaybackPaused);
+    void pauseForegroundPlayback(sessionId).catch(() => {});
   }
 
   function handleResumeForegroundPlayback() {
-    if (foregroundPlaybackState !== "paused") {
+    const sessionId = activeForegroundSessionIdRef.current;
+    if (foregroundPlaybackState !== "paused" || sessionId === null) {
       return;
     }
 
-    controllerRef.current?.resume();
-    setForegroundPlaybackState("playing");
-    appendLog(text.logs.foregroundPlaybackResumed);
+    void resumeForegroundPlayback(sessionId).catch(() => {});
   }
 
   function handleSeekForegroundPlayback(timeMs: number) {
-    if (
-      foregroundPlaybackState !== "playing" &&
-      foregroundPlaybackState !== "paused" &&
-      foregroundPlaybackState !== "finished"
-    ) {
-      return;
-    }
-
     if (foregroundPlaybackState === "finished") {
       if (selectedSongIndex !== null) {
         onBeforeStart();
@@ -221,7 +294,15 @@ export function useForegroundPlayback({
       return;
     }
 
-    controllerRef.current?.seekTo(timeMs);
+    const sessionId = activeForegroundSessionIdRef.current;
+    if (
+      sessionId === null ||
+      (foregroundPlaybackState !== "playing" && foregroundPlaybackState !== "paused")
+    ) {
+      return;
+    }
+
+    void seekForegroundPlayback(sessionId, timeMs).catch(() => {});
   }
 
   function handleStartForegroundPlayback() {
@@ -230,9 +311,7 @@ export function useForegroundPlayback({
     }
 
     onBeforeStart();
-    void startForegroundPlaybackForSong(selectedSongIndex, {
-      withCountdown: true,
-    });
+    void startForegroundPlaybackForSong(selectedSongIndex, { withCountdown: true });
   }
 
   function handlePlayForegroundSong(songIndex: number) {
@@ -251,148 +330,235 @@ export function useForegroundPlayback({
       withCountdown,
     }: { initialSeekMs?: number; withCountdown: boolean },
   ) {
+    const requestToken = foregroundRequestTokenRef.current + 1;
+    foregroundRequestTokenRef.current = requestToken;
+    isForegroundStartPendingRef.current = true;
+    clearCountdownTimer();
+
+    const activeSessionId = activeForegroundSessionIdRef.current;
+    if (activeSessionId !== null) {
+      activeForegroundSessionIdRef.current = null;
+      foregroundPlaybackContextRef.current = null;
+      void stopForegroundPlaybackSession(activeSessionId).catch(() => {});
+    }
+
     const song = await resolveSongForPlayback(songIndex);
+    if (foregroundRequestTokenRef.current !== requestToken) {
+      return;
+    }
 
     if (!song) {
+      isForegroundStartPendingRef.current = false;
       appendLog(text.logs.noSelectedScore);
       return;
     }
 
     setSelectedSongIndex(songIndex);
-
     if (song.songNotes.length === 0) {
-      stopForegroundPlayback({ nextState: "finished", shouldLog: false });
+      isForegroundStartPendingRef.current = false;
+      resetForegroundPlayback("finished");
       appendLog(text.logs.foregroundPlaybackFinished);
       return;
     }
 
-    let mappedKeyGroups: Map<number, string[]>;
+    const preparation = getOrPreparePlaybackPlan({
+      priority: "direct",
+      resolvedSong: song,
+      songIndex,
+    });
+    const countdown = withCountdown
+      ? startCountdown(requestToken)
+      : Promise.resolve(true);
 
+    let preparedPlan: PreparedPlaybackPlan;
     try {
-      mappedKeyGroups = prepareMappedKeyboardKeyGroups(
-        song.songNotes,
-        keyMapping,
-      );
+      [preparedPlan] = await Promise.all([preparation, countdown]);
     } catch (error) {
+      if (foregroundRequestTokenRef.current === requestToken) {
+        isForegroundStartPendingRef.current = false;
+        clearCountdownTimer();
+        setForegroundCountdown(null);
+        setForegroundPlaybackState("error");
+        appendLog(
+          formatText(text.logs.foregroundPlaybackKeySendFailed, {
+            error: String(error),
+          }),
+        );
+      }
+      return;
+    }
+
+    if (foregroundRequestTokenRef.current !== requestToken) {
+      return;
+    }
+
+    await startPreparedForegroundPlaybackForSong({
+      initialSeekMs,
+      preparedPlan,
+      requestToken,
+      retryCount: 0,
+      songIndex,
+    });
+  }
+
+  async function startPreparedForegroundPlaybackForSong({
+    initialSeekMs,
+    preparedPlan,
+    requestToken,
+    retryCount,
+    songIndex,
+  }: {
+    initialSeekMs?: number;
+    preparedPlan: PreparedPlaybackPlan;
+    requestToken: number;
+    retryCount: number;
+    songIndex: number;
+  }) {
+    try {
+      const response = await startPreparedForegroundPlayback({
+        initialProgressMs: initialSeekMs,
+        keyHoldMs: FOREGROUND_KEY_HOLD_MS,
+        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
+        playbackSpeed: playbackSpeedRef.current,
+        preparedPlanId: preparedPlan.preparedPlanId,
+      });
+
+      if (foregroundRequestTokenRef.current !== requestToken) {
+        void stopForegroundPlaybackSession(response.sessionId).catch(() => {});
+        return;
+      }
+
+      activeForegroundSessionIdRef.current = response.sessionId;
+      foregroundPlaybackContextRef.current = {
+        sessionId: response.sessionId,
+        song: preparedPlan.song,
+        songIndex,
+      };
+      isForegroundStartPendingRef.current = false;
+      setForegroundPlaybackState("playing");
+      setForegroundPlaybackProgress({
+        currentMs: Math.min(initialSeekMs ?? 0, response.totalMs),
+        percent:
+          response.totalMs > 0
+            ? (Math.min(initialSeekMs ?? 0, response.totalMs) / response.totalMs) * 100
+            : 0,
+        totalMs: response.totalMs,
+      });
+      appendLog(
+        formatText(text.logs.foregroundPlaybackStarted, {
+          songName: preparedPlan.song.name,
+        }),
+      );
+      flushPendingForegroundPlaybackEvents(response.sessionId);
+    } catch (error) {
+      if (foregroundRequestTokenRef.current !== requestToken) {
+        return;
+      }
+
+      if (retryCount === 0 && isPreparedPlaybackPlanUnavailableError(error)) {
+        invalidatePlaybackPlan(preparedPlan.cacheKey);
+        try {
+          const replacement = await getOrPreparePlaybackPlan({
+            priority: "direct",
+            resolvedSong: preparedPlan.song,
+            songIndex,
+          });
+          await startPreparedForegroundPlaybackForSong({
+            initialSeekMs,
+            preparedPlan: replacement,
+            requestToken,
+            retryCount: 1,
+            songIndex,
+          });
+          return;
+        } catch (retryError) {
+          error = retryError;
+        }
+      }
+
+      isForegroundStartPendingRef.current = false;
+      resetForegroundPlayback("error");
       appendLog(
         formatText(text.logs.foregroundPlaybackKeySendFailed, {
           error: String(error),
         }),
       );
-      return;
     }
+  }
 
-    clearCountdownTimer();
-    controllerRef.current?.stop();
-    controllerRef.current = null;
-    const runId = runIdRef.current + 1;
-
-    runIdRef.current = runId;
-    setForegroundPlaybackProgress({
-      currentMs: 0,
-      percent: 0,
-      totalMs: getAdjustedPreviewDurationMs(song.songNotes, {
-        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
-        playbackSpeed: playbackSpeedRef.current,
-      }),
+  function handleForegroundPlaybackEvent(payload: BackgroundPlaybackEventPayload) {
+    const route = getBackgroundPlaybackEventRoute({
+      currentSessionId: activeForegroundSessionIdRef.current ?? -1,
+      eventSessionId: payload.sessionId,
+      isStartPending: isForegroundStartPendingRef.current,
     });
 
-    if (!withCountdown) {
-      startForegroundPlayback(runId, songIndex, song, mappedKeyGroups, {
-        initialSeekMs,
-      });
+    if (route === "buffer") {
+      pendingForegroundEventsRef.current = bufferBackgroundPlaybackEvent(
+        pendingForegroundEventsRef.current,
+        payload,
+      );
       return;
     }
 
-    setForegroundPlaybackState("countdown");
-    setForegroundCountdown(COUNTDOWN_START_SECONDS);
-    appendLog(text.logs.foregroundPlaybackFocusReminder);
-    appendLog(text.logs.foregroundPlaybackCountdownStarted);
-    scheduleCountdownTick(
-      runId,
-      COUNTDOWN_START_SECONDS,
-      songIndex,
-      song,
-      mappedKeyGroups,
-    );
+    if (route === "apply") {
+      applyForegroundPlaybackEvent(payload);
+    }
   }
 
-  function scheduleCountdownTick(
-    runId: number,
-    currentCountdown: number,
-    songIndex: number,
-    song: Song,
-    mappedKeyGroups: Map<number, string[]>,
-  ) {
-    clearCountdownTimer();
+  function flushPendingForegroundPlaybackEvents(sessionId: number) {
+    const pending = takePendingBackgroundPlaybackEvents(
+      pendingForegroundEventsRef.current,
+      sessionId,
+    );
+    pendingForegroundEventsRef.current.clear();
 
-    countdownTimerRef.current = window.setTimeout(() => {
-      if (runIdRef.current !== runId) {
-        return;
+    for (const event of pending) {
+      if (event.sessionId === activeForegroundSessionIdRef.current) {
+        applyForegroundPlaybackEvent(event);
       }
+    }
+  }
 
-      const nextCountdown = currentCountdown - 1;
+  function applyForegroundPlaybackEvent(payload: BackgroundPlaybackEventPayload) {
+    if (payload.sessionId !== activeForegroundSessionIdRef.current) {
+      return;
+    }
 
-      if (nextCountdown <= 0) {
-        setForegroundCountdown(null);
-        startForegroundPlayback(runId, songIndex, song, mappedKeyGroups);
-        return;
-      }
+    if (payload.type === "progress" && payload.progress) {
+      setForegroundPlaybackProgress(payload.progress);
+      return;
+    }
 
-      setForegroundCountdown(nextCountdown);
-      scheduleCountdownTick(
-        runId,
-        nextCountdown,
-        songIndex,
-        song,
-        mappedKeyGroups,
+    if (payload.type === "state" && (payload.state === "playing" || payload.state === "paused")) {
+      setForegroundPlaybackState(payload.state);
+      return;
+    }
+
+    if (payload.type === "error") {
+      resetForegroundPlayback("error");
+      appendLog(
+        formatText(text.logs.foregroundPlaybackKeySendFailed, {
+          error: payload.error ?? text.logs.foregroundPlaybackKeySendFailed,
+        }),
       );
-    }, COUNTDOWN_TICK_MS);
-  }
+      return;
+    }
 
-  function startForegroundPlayback(
-    runId: number,
-    songIndex: number,
-    song: Song,
-    mappedKeyGroups: Map<number, string[]>,
-    options: { initialSeekMs?: number } = {},
-  ) {
-    setForegroundPlaybackState("playing");
-    appendLog(
-      formatText(text.logs.foregroundPlaybackStarted, {
-        songName: song.name,
-      }),
-    );
-
-    controllerRef.current = schedulePreviewPlayback(
-      song.songNotes,
-      (noteGroup) => {
-        const mappedKeys = mappedKeyGroups.get(noteGroup[0]?.time ?? -1);
-
-        if (mappedKeys) {
-          void sendForegroundNoteGroup({ mappedKeys, runId });
-        }
-      },
-      () => {
-        if (runIdRef.current !== runId) {
-          return;
-        }
-
-        handleForegroundPlaybackFinished(songIndex, song);
-      },
-      {
-        initialProgressMs: options.initialSeekMs,
-        noteIntervalDelayMs: noteIntervalDelayMsRef.current,
-        onProgress: setForegroundPlaybackProgress,
-        playbackSpeed: playbackSpeedRef.current,
-        progressTickMs: REAL_PLAYBACK_PROGRESS_TICK_MS,
-      },
-    );
+    if (payload.type === "finished") {
+      if (completedForegroundSessionIdsRef.current.has(payload.sessionId)) {
+        return;
+      }
+      completedForegroundSessionIdsRef.current.add(payload.sessionId);
+      const context = foregroundPlaybackContextRef.current;
+      if (context?.sessionId === payload.sessionId) {
+        resetForegroundPlayback("finished");
+        handleForegroundPlaybackFinished(context.songIndex, context.song);
+      }
+    }
   }
 
   function handleForegroundPlaybackFinished(songIndex: number, song: Song) {
-    controllerRef.current = null;
-
     const currentImportedSongs = importedSongsRef.current;
     const queuedItem =
       playbackModeRef.current === "repeat-one"
@@ -416,24 +582,18 @@ export function useForegroundPlayback({
     });
 
     if (finishDecision.type === "repeat-current") {
-      appendLog(
-        formatText(text.logs.repeatOneTriggered, { songName: song.name }),
-      );
+      appendLog(formatText(text.logs.repeatOneTriggered, { songName: song.name }));
       void startForegroundPlaybackForSong(songIndex, { withCountdown: false });
       return;
     }
 
     if (finishDecision.type === "play-next") {
       const nextSong = currentImportedSongs[finishDecision.nextSongIndex] ?? song;
-      const logTemplate =
-        queuedItem === null
-          ? text.logs.repeatAllTriggered
-          : text.logs.queueNextTriggered;
-
       appendLog(
-        formatText(logTemplate, {
-          songName: nextSong.name,
-        }),
+        formatText(
+          queuedItem === null ? text.logs.repeatAllTriggered : text.logs.queueNextTriggered,
+          { songName: nextSong.name },
+        ),
       );
       if (queuedItem === null) {
         startQueuePlayback(finishDecision.nextSongIndex);
@@ -448,35 +608,17 @@ export function useForegroundPlayback({
     appendLog(text.logs.foregroundPlaybackFinished);
   }
 
-  async function sendForegroundNoteGroup({
-    mappedKeys,
-    runId,
-  }: {
-    mappedKeys: string[];
-    runId: number;
-  }) {
-    try {
-      if (runIdRef.current !== runId) {
-        return;
-      }
-
-      await sendForegroundKeyGroup(mappedKeys);
-    } catch (error) {
-      if (runIdRef.current !== runId) {
-        return;
-      }
-
-      const errorMessage = String(error);
-
-      setForegroundPlaybackState("error");
-      appendLog(
-        formatText(text.logs.foregroundPlaybackKeySendFailed, {
-          error: errorMessage,
-        }),
-      );
-      controllerRef.current?.stop();
-      controllerRef.current = null;
+  function updateActiveForegroundPlaybackOptions() {
+    const sessionId = activeForegroundSessionIdRef.current;
+    if (sessionId === null) {
+      return;
     }
+
+    void updateForegroundPlaybackOptions({
+      noteIntervalDelayMs: noteIntervalDelayMsRef.current,
+      playbackSpeed: playbackSpeedRef.current,
+      sessionId,
+    }).catch(() => {});
   }
 
   return {
@@ -507,9 +649,5 @@ function mapForegroundStateToPlaybackState(
     return "paused";
   }
 
-  if (state === "finished") {
-    return "finished";
-  }
-
-  return "idle";
+  return state === "finished" ? "finished" : "idle";
 }
