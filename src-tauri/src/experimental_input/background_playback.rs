@@ -151,6 +151,40 @@ enum PlaybackCommand {
     UpdateOptions(PlaybackOptions),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlaybackOutputMode {
+    Background,
+    Foreground,
+}
+
+impl PlaybackOutputMode {
+    fn event_name(self) -> &'static str {
+        match self {
+            Self::Background => BACKGROUND_PLAYBACK_EVENT,
+            Self::Foreground => FOREGROUND_PLAYBACK_EVENT,
+        }
+    }
+
+    fn timing_label(self) -> &'static str {
+        match self {
+            Self::Background => "start_background_playback",
+            Self::Foreground => "start_prepared_foreground_playback",
+        }
+    }
+
+    fn first_key_down_timing_label(self) -> &'static str {
+        match self {
+            Self::Background => "background worker first key-down",
+            Self::Foreground => "foreground worker first key-down",
+        }
+    }
+
+    fn shared_manager(self) -> &'static Mutex<BackgroundPlaybackManager> {
+        let _ = self;
+        manager()
+    }
+}
+
 struct BackgroundPlaybackManager {
     current: Option<BackgroundPlaybackSession>,
     next_session_id: u64,
@@ -191,7 +225,7 @@ struct BackgroundPlaybackWorker {
     start_rx: Receiver<()>,
     started_at: Instant,
     state: WorkerPlaybackState,
-    event_name: &'static str,
+    output_mode: PlaybackOutputMode,
     output: PlaybackOutput,
     timeline: PlaybackTimeline,
 }
@@ -219,7 +253,9 @@ pub fn start_background_playback(
     app_handle: AppHandle,
     request: BackgroundPlaybackStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
+    let command_started_at = Instant::now();
     let prepared_plan = Arc::new(build_prepared_plan(&request.plan)?);
+    let prepared_plan_ready_at = Instant::now();
 
     start_background_playback_from_groups(
         app_handle,
@@ -233,6 +269,8 @@ pub fn start_background_playback(
             prepared_plan_id: 0,
         },
         prepared_plan,
+        command_started_at,
+        prepared_plan_ready_at,
     )
 }
 
@@ -240,21 +278,28 @@ pub fn start_prepared_background_playback(
     app_handle: AppHandle,
     request: BackgroundPlaybackPreparedStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
+    let command_started_at = Instant::now();
     let prepared_plan = get_prepared_plan(request.prepared_plan_id)?;
+    let prepared_plan_ready_at = Instant::now();
 
-    start_background_playback_from_groups(app_handle, request, prepared_plan)
+    start_background_playback_from_groups(
+        app_handle,
+        request,
+        prepared_plan,
+        command_started_at,
+        prepared_plan_ready_at,
+    )
 }
 
 fn start_background_playback_from_groups(
     app_handle: AppHandle,
     request: BackgroundPlaybackPreparedStartRequest,
     prepared_plan: Arc<PreparedPlaybackPlan>,
+    command_started_at: Instant,
+    prepared_plan_ready_at: Instant,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
-    let output = PlaybackOutput::prepare_target_window(
-        &request.hwnd,
-        &prepared_plan.unique_keys,
-        &request.compatibility_profile,
-    )?;
+    let hwnd = request.hwnd.clone();
+    let compatibility_profile = request.compatibility_profile.clone();
 
     start_playback_from_prepared(
         app_handle,
@@ -265,9 +310,10 @@ fn start_background_playback_from_groups(
             playback_speed: request.playback_speed,
         },
         prepared_plan,
-        output,
-        BACKGROUND_PLAYBACK_EVENT,
-        "start_background_playback",
+        command_started_at,
+        prepared_plan_ready_at,
+        PlaybackOutputMode::Background,
+        move |keys| PlaybackOutput::prepare_target_window(&hwnd, keys, &compatibility_profile),
     )
 }
 
@@ -275,8 +321,9 @@ pub fn start_prepared_foreground_playback(
     app_handle: AppHandle,
     request: ForegroundPlaybackPreparedStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
+    let command_started_at = Instant::now();
     let prepared_plan = get_prepared_plan(request.prepared_plan_id)?;
-    let output = PlaybackOutput::prepare_foreground(&prepared_plan.unique_keys)?;
+    let prepared_plan_ready_at = Instant::now();
 
     start_playback_from_prepared(
         app_handle,
@@ -287,9 +334,10 @@ pub fn start_prepared_foreground_playback(
             playback_speed: request.playback_speed,
         },
         prepared_plan,
-        output,
-        FOREGROUND_PLAYBACK_EVENT,
-        "start_prepared_foreground_playback",
+        command_started_at,
+        prepared_plan_ready_at,
+        PlaybackOutputMode::Foreground,
+        PlaybackOutput::prepare_foreground,
     )
 }
 
@@ -301,23 +349,27 @@ struct PlaybackStartOptions {
     playback_speed: f64,
 }
 
-fn start_playback_from_prepared(
+fn start_playback_from_prepared<F>(
     app_handle: AppHandle,
     request: PlaybackStartOptions,
     prepared_plan: Arc<PreparedPlaybackPlan>,
-    output: PlaybackOutput,
-    event_name: &'static str,
-    timing_label: &str,
-) -> Result<BackgroundPlaybackStartResponse, String> {
-    let command_started_at = Instant::now();
+    command_started_at: Instant,
+    prepared_plan_ready_at: Instant,
+    output_mode: PlaybackOutputMode,
+    prepare_output: F,
+) -> Result<BackgroundPlaybackStartResponse, String>
+where
+    F: FnOnce(&[String]) -> Result<PlaybackOutput, String>,
+{
     let options = PlaybackOptions {
         note_interval_delay_ms: request.note_interval_delay_ms,
         playback_speed: normalize_playback_speed(request.playback_speed)?,
     };
+    validate_start_request(request.key_hold_ms, &prepared_plan.groups)?;
+    let output = prepare_output(&prepared_plan.unique_keys)?;
+    let output_preparation_completed_at = Instant::now();
     let timeline = build_timeline_from_groups(&prepared_plan.groups, &options)?;
     let timeline_completed_at = Instant::now();
-    validate_start_request(request.key_hold_ms, &prepared_plan.groups)?;
-    let output_preparation_completed_at = Instant::now();
 
     let initial_progress_ms = clamp_progress(
         request.initial_progress_ms.unwrap_or(0.0),
@@ -330,7 +382,7 @@ fn start_playback_from_prepared(
     stop_current_session();
     let previous_session_stopped_at = Instant::now();
 
-    let session_id = next_session_id();
+    let session_id = next_session_id(output_mode);
     let (command_tx, command_rx) = mpsc::channel();
     let (start_tx, start_rx) = mpsc::channel();
     let total_ms = timeline.total_ms;
@@ -352,7 +404,7 @@ fn start_playback_from_prepared(
         start_rx,
         started_at: Instant::now(),
         state: WorkerPlaybackState::Playing,
-        event_name,
+        output_mode,
         output,
         timeline: worker_timeline,
     };
@@ -360,7 +412,8 @@ fn start_playback_from_prepared(
     let worker_created_at = Instant::now();
 
     {
-        let mut manager = manager()
+        let mut manager = output_mode
+            .shared_manager()
             .lock()
             .expect("background playback manager poisoned");
         manager.current = Some(BackgroundPlaybackSession {
@@ -375,20 +428,24 @@ fn start_playback_from_prepared(
     let start_gate_released_at = Instant::now();
 
     debug_timing(
-        timing_label,
+        output_mode.timing_label(),
         command_started_at,
         &[
             (
-                "timeline calculation",
-                timeline_completed_at.duration_since(command_started_at),
+                "prepared-plan lookup",
+                prepared_plan_ready_at.duration_since(command_started_at),
             ),
             (
                 "output preparation",
-                output_preparation_completed_at.duration_since(timeline_completed_at),
+                output_preparation_completed_at.duration_since(prepared_plan_ready_at),
+            ),
+            (
+                "timeline calculation",
+                timeline_completed_at.duration_since(output_preparation_completed_at),
             ),
             (
                 "previous session stop/join",
-                previous_session_stopped_at.duration_since(output_preparation_completed_at),
+                previous_session_stopped_at.duration_since(timeline_completed_at),
             ),
             (
                 "worker creation",
@@ -435,13 +492,7 @@ pub fn update_background_playback_options(
 }
 
 pub fn stop_background_playback(session_id: u64) -> Result<(), String> {
-    let session = {
-        let mut manager = manager()
-            .lock()
-            .expect("background playback manager poisoned");
-
-        take_session_if_current(&mut manager, session_id)
-    };
+    let session = take_session_if_current_from(manager(), session_id);
 
     if let Some(session) = session {
         session.stop_and_join();
@@ -564,8 +615,9 @@ fn touch_prepared_plan(cache: &mut PreparedPlaybackPlanCache, plan_id: u64) {
     cache.order.push_back(plan_id);
 }
 
-fn next_session_id() -> u64 {
-    let mut manager = manager()
+fn next_session_id(output_mode: PlaybackOutputMode) -> u64 {
+    let mut manager = output_mode
+        .shared_manager()
         .lock()
         .expect("background playback manager poisoned");
     let session_id = manager.next_session_id;
@@ -574,16 +626,33 @@ fn next_session_id() -> u64 {
 }
 
 fn stop_current_session() {
-    let session = {
-        let mut manager = manager()
-            .lock()
-            .expect("background playback manager poisoned");
-        take_current_session(&mut manager)
-    };
+    // Taking the session drops the manager lock before its worker can be joined.
+    let session = take_current_session_from(manager());
 
     if let Some(session) = session {
         session.stop_and_join();
     }
+}
+
+fn take_current_session_from(
+    manager: &Mutex<BackgroundPlaybackManager>,
+) -> Option<BackgroundPlaybackSession> {
+    let mut manager = manager
+        .lock()
+        .expect("background playback manager poisoned");
+
+    take_current_session(&mut manager)
+}
+
+fn take_session_if_current_from(
+    manager: &Mutex<BackgroundPlaybackManager>,
+    session_id: u64,
+) -> Option<BackgroundPlaybackSession> {
+    let mut manager = manager
+        .lock()
+        .expect("background playback manager poisoned");
+
+    take_session_if_current(&mut manager, session_id)
 }
 
 fn take_current_session(
@@ -609,15 +678,25 @@ fn send_command_to_session(session_id: u64, command: PlaybackCommand) -> Result<
             .lock()
             .expect("background playback manager poisoned");
 
-        match manager.current.as_ref() {
-            Some(session) if session.session_id == session_id => session.command_tx.clone(),
-            _ => return Ok(()),
+        match command_sender_for_current_session(&manager, session_id) {
+            Some(command_tx) => command_tx,
+            None => return Ok(()),
         }
     };
 
     command_tx
         .send(command)
         .map_err(|_| "Background playback worker is no longer available.".to_string())
+}
+
+fn command_sender_for_current_session(
+    manager: &BackgroundPlaybackManager,
+    session_id: u64,
+) -> Option<Sender<PlaybackCommand>> {
+    manager
+        .current
+        .as_ref()
+        .and_then(|session| (session.session_id == session_id).then(|| session.command_tx.clone()))
 }
 
 impl BackgroundPlaybackSession {
@@ -835,7 +914,7 @@ impl BackgroundPlaybackWorker {
         if !self.logged_first_key_down {
             self.logged_first_key_down = true;
             debug_timing(
-                "background worker first key-down",
+                self.output_mode.first_key_down_timing_label(),
                 self.started_at,
                 &[("first key-down dispatch", self.started_at.elapsed())],
             );
@@ -989,7 +1068,7 @@ impl BackgroundPlaybackWorker {
         state: Option<String>,
     ) {
         let _ = self.app_handle.emit(
-            self.event_name,
+            self.output_mode.event_name(),
             BackgroundPlaybackEvent {
                 session_id: self.session_id,
                 event_type: event_type.to_string(),
@@ -1348,6 +1427,21 @@ mod tests {
         }
     }
 
+    fn test_session_with_receiver(
+        session_id: u64,
+    ) -> (BackgroundPlaybackSession, Receiver<PlaybackCommand>) {
+        let (command_tx, command_rx) = mpsc::channel();
+
+        (
+            BackgroundPlaybackSession {
+                command_tx,
+                session_id,
+                worker: None,
+            },
+            command_rx,
+        )
+    }
+
     #[test]
     fn timeline_groups_and_orders_events() {
         let timeline = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
@@ -1549,6 +1643,98 @@ mod tests {
         let session = take_session_if_current(&mut manager, 7);
         assert_eq!(session.map(|session| session.session_id), Some(7));
         assert!(manager.current.is_none());
+    }
+
+    #[test]
+    fn replacement_takes_the_old_session_before_installing_the_new_one() {
+        let manager = Mutex::new(BackgroundPlaybackManager {
+            current: Some(test_session(7)),
+            next_session_id: 8,
+        });
+
+        let old_session = take_current_session_from(&manager);
+
+        assert_eq!(old_session.map(|session| session.session_id), Some(7));
+        assert!(manager.lock().unwrap().current.is_none());
+
+        manager.lock().unwrap().current = Some(test_session(8));
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .current
+                .as_ref()
+                .map(|session| session.session_id),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn taking_a_session_releases_the_manager_lock_before_joining() {
+        let manager = Mutex::new(BackgroundPlaybackManager {
+            current: Some(test_session(7)),
+            next_session_id: 8,
+        });
+
+        let old_session = take_current_session_from(&manager);
+
+        assert!(old_session.is_some());
+        assert!(manager.try_lock().is_ok());
+    }
+
+    #[test]
+    fn stale_session_commands_do_not_reach_the_current_session() {
+        let (current_session, current_receiver) = test_session_with_receiver(8);
+        let manager = BackgroundPlaybackManager {
+            current: Some(current_session),
+            next_session_id: 9,
+        };
+
+        assert!(command_sender_for_current_session(&manager, 7).is_none());
+
+        command_sender_for_current_session(&manager, 8)
+            .unwrap()
+            .send(PlaybackCommand::Pause)
+            .unwrap();
+
+        assert!(matches!(
+            current_receiver.try_recv(),
+            Ok(PlaybackCommand::Pause)
+        ));
+    }
+
+    #[test]
+    fn foreground_and_background_modes_use_distinct_events_with_the_shared_lifecycle() {
+        assert_eq!(
+            PlaybackOutputMode::Background.event_name(),
+            BACKGROUND_PLAYBACK_EVENT
+        );
+        assert_eq!(
+            PlaybackOutputMode::Foreground.event_name(),
+            FOREGROUND_PLAYBACK_EVENT
+        );
+        assert!(std::ptr::eq(
+            PlaybackOutputMode::Background.shared_manager(),
+            PlaybackOutputMode::Foreground.shared_manager(),
+        ));
+
+        let manager = Mutex::new(BackgroundPlaybackManager {
+            current: Some(test_session(7)),
+            next_session_id: 8,
+        });
+
+        let previous_session = take_current_session_from(&manager);
+        assert_eq!(previous_session.map(|session| session.session_id), Some(7));
+        manager.lock().unwrap().current = Some(test_session(8));
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .current
+                .as_ref()
+                .map(|session| session.session_id),
+            Some(8)
+        );
     }
 
     #[test]
