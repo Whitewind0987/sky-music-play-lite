@@ -19,7 +19,10 @@ import {
 } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
 import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackPlanErrors";
-import { PlaybackPreparationScheduler } from "../lib/playbackPreparationScheduler";
+import {
+  PlaybackPreparationScheduler,
+  PreparationCancelledError,
+} from "../lib/playbackPreparationScheduler";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
   type PreviewPlaybackController,
@@ -791,7 +794,7 @@ export function useExperimentalInput({
       );
       return preparedPlanId > 0;
     } catch (error) {
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && !(error instanceof PreparationCancelledError)) {
         console.debug("[background-handoff timing] warm prepare failed", error);
       }
       return false;

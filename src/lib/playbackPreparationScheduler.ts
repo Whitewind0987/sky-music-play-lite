@@ -1,22 +1,38 @@
 export type PlaybackPreparationPriority = "direct" | "warm";
 
+export class PreparationCancelledError extends Error {
+  constructor() {
+    super("Warm playback preparation was discarded before it started.");
+    this.name = "PreparationCancelledError";
+  }
+}
+
 type ScheduledTask<T> = {
   key: string;
   priority: PlaybackPreparationPriority;
-  run: () => Promise<T>;
+  promise: Promise<T>;
   reject: (error: unknown) => void;
   resolve: (value: T) => void;
+  run: () => Promise<T>;
 };
 
 export class PlaybackPreparationScheduler {
   private activeCount = 0;
   private readonly concurrency: number;
+  private readonly maxQueuedWarmTasks: number;
   private readonly pending = new Map<string, ScheduledTask<unknown>>();
   private readonly directQueue: string[] = [];
   private readonly warmQueue: string[] = [];
 
-  constructor({ concurrency = 2 }: { concurrency?: number } = {}) {
+  constructor({
+    concurrency = 2,
+    maxQueuedWarmTasks = 8,
+  }: {
+    concurrency?: number;
+    maxQueuedWarmTasks?: number;
+  } = {}) {
     this.concurrency = Math.max(1, concurrency);
+    this.maxQueuedWarmTasks = Math.max(1, maxQueuedWarmTasks);
   }
 
   schedule<T>(
@@ -28,12 +44,13 @@ export class PlaybackPreparationScheduler {
 
     if (existing) {
       if (priority === "direct" && existing.priority === "warm") {
-        existing.priority = "direct";
-        removeQueuedKey(this.warmQueue, key);
-        this.directQueue.push(key);
+        if (removeQueuedKey(this.warmQueue, key)) {
+          existing.priority = "direct";
+          this.directQueue.push(key);
+        }
       }
 
-      return existingPromise(existing) as Promise<T>;
+      return existing.promise as Promise<T>;
     }
 
     let resolveTask: (value: T) => void = () => {};
@@ -45,17 +62,43 @@ export class PlaybackPreparationScheduler {
     const task: ScheduledTask<T> = {
       key,
       priority,
+      promise,
       reject: rejectTask,
       resolve: resolveTask,
       run,
     };
 
-    Object.defineProperty(task, "promise", { value: promise });
     this.pending.set(key, task as ScheduledTask<unknown>);
-    (priority === "direct" ? this.directQueue : this.warmQueue).push(key);
-    this.drain();
 
+    if (priority === "warm") {
+      this.discardOldestQueuedWarmTaskIfNeeded();
+      this.warmQueue.push(key);
+    } else {
+      this.directQueue.push(key);
+    }
+
+    this.drain();
     return promise;
+  }
+
+  private discardOldestQueuedWarmTaskIfNeeded() {
+    while (this.warmQueue.length >= this.maxQueuedWarmTasks) {
+      const discardedKey = this.warmQueue.shift();
+
+      if (!discardedKey) {
+        return;
+      }
+
+      const discardedTask = this.pending.get(discardedKey);
+
+      if (!discardedTask || discardedTask.priority !== "warm") {
+        continue;
+      }
+
+      this.pending.delete(discardedKey);
+      discardedTask.reject(new PreparationCancelledError());
+      return;
+    }
   }
 
   private drain() {
@@ -86,14 +129,13 @@ export class PlaybackPreparationScheduler {
   }
 }
 
-function existingPromise(task: ScheduledTask<unknown>) {
-  return (task as ScheduledTask<unknown> & { promise: Promise<unknown> }).promise;
-}
-
 function removeQueuedKey(queue: string[], key: string) {
   const index = queue.indexOf(key);
 
-  if (index >= 0) {
-    queue.splice(index, 1);
+  if (index < 0) {
+    return false;
   }
+
+  queue.splice(index, 1);
+  return true;
 }

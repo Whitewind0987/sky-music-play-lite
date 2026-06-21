@@ -11,6 +11,7 @@ import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
 import { loadBuiltInLibrarySongs } from "../lib/builtinScores";
 import { formatText } from "../lib/formatText";
+import { InFlightByKey } from "../lib/inFlightByKey";
 import {
   formatImportError,
   formatImportFailureSummary,
@@ -82,6 +83,7 @@ export function useScoreLibrary({
   const [loadingBuiltInSongIds, setLoadingBuiltInSongIds] = useState<
     Set<LibrarySongId>
   >(new Set());
+  const builtInSongLoadRef = useRef(new InFlightByKey<Song | null>());
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [builtInPage, setBuiltInPage] = useState(1);
@@ -732,48 +734,58 @@ export function useScoreLibrary({
       return librarySong.song;
     }
 
-    setBuiltInSongLoading(librarySong.id, true);
+    const songId = librarySong.id;
+    const { promise } = builtInSongLoadRef.current.getOrStart(
+      songId,
+      async () => {
+        setBuiltInSongLoading(songId, true);
 
-    const loadedSong = await loadBuiltInScoreById(librarySong.id);
+        try {
+          const loadedSong = await loadBuiltInScoreById(songId);
 
-    if (loadedSong === null) {
-      setBuiltInSongLoading(librarySong.id, false);
+          if (loadedSong === null) {
+            return null;
+          }
 
-      if (shouldLogFailure) {
-        appendLog(
-          formatText(text.logs.builtInScoreLoadFailed, {
-            songName: librarySong.song.name,
-          }),
-        );
-      }
+          setBuiltInLibrarySongs((currentBuiltInLibrarySongs) => {
+            const nextBuiltInLibrarySongs = currentBuiltInLibrarySongs.map(
+              (currentSong) =>
+                currentSong.id === songId
+                  ? {
+                      ...currentSong,
+                      isBuiltInLoaded: true,
+                      song: loadedSong,
+                    }
+                  : currentSong,
+            );
+            const nextLibrarySongs = [
+              ...nextBuiltInLibrarySongs,
+              ...localLibrarySongsRef.current,
+            ];
 
-      return null;
+            librarySongsRef.current = nextLibrarySongs;
+            importedSongsRef.current = nextLibrarySongs.map(
+              (currentSong) => currentSong.song,
+            );
+
+            return nextBuiltInLibrarySongs;
+          });
+
+          return loadedSong;
+        } finally {
+          setBuiltInSongLoading(songId, false);
+        }
+      },
+    );
+    const loadedSong = await promise;
+
+    if (loadedSong === null && shouldLogFailure) {
+      appendLog(
+        formatText(text.logs.builtInScoreLoadFailed, {
+          songName: librarySong.song.name,
+        }),
+      );
     }
-
-    setBuiltInSongLoading(librarySong.id, false);
-    setBuiltInLibrarySongs((currentBuiltInLibrarySongs) => {
-      const nextBuiltInLibrarySongs = currentBuiltInLibrarySongs.map(
-        (currentSong) =>
-          currentSong.id === librarySong.id
-            ? {
-                ...currentSong,
-                isBuiltInLoaded: true,
-                song: loadedSong,
-              }
-            : currentSong,
-      );
-      const nextLibrarySongs = [
-        ...nextBuiltInLibrarySongs,
-        ...localLibrarySongsRef.current,
-      ];
-
-      librarySongsRef.current = nextLibrarySongs;
-      importedSongsRef.current = nextLibrarySongs.map(
-        (currentSong) => currentSong.song,
-      );
-
-      return nextBuiltInLibrarySongs;
-    });
 
     return loadedSong;
   }
