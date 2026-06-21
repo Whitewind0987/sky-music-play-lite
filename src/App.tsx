@@ -165,6 +165,24 @@ function App() {
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
   });
+  function warmPlaybackPlan(songIndex: number) {
+    void experimentalInput.handlePrepareExperimentalSong(songIndex);
+  }
+
+  function handleLibrarySongSelection(songIndex: number) {
+    scoreLibrary.handleSelectImportedSong(songIndex);
+    warmPlaybackPlan(songIndex);
+  }
+
+  function handleAddSongToQueue(songIndex: number) {
+    playbackQueue.addToQueue(songIndex);
+    warmPlaybackPlan(songIndex);
+  }
+
+  function handlePlaySongNext(songIndex: number) {
+    playbackQueue.playNext(songIndex);
+    warmPlaybackPlan(songIndex);
+  }
   useAppPersistence({
     appendLog,
     applyExperimentalInputPreferences:
@@ -454,25 +472,23 @@ function App() {
           items={scoreLibrary.pagedVisibleLibraryItems}
           locateScoreRequest={scoreLibrary.locateScoreRequest}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
-          onAddToQueue={playbackQueue.addToQueue}
+          onAddToQueue={handleAddSongToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
           onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
           onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
-          onPrepareSong={(songIndex) => {
-            void experimentalInput.handlePrepareExperimentalSong(songIndex);
-          }}
+          onPrepareSong={warmPlaybackPlan}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
-          onPlaySongNext={playbackQueue.playNext}
+          onPlaySongNext={handlePlaySongNext}
           onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
           onRenamePlaylist={libraryDialogs.requestRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
-          onSelectSong={scoreLibrary.handleSelectImportedSong}
+          onSelectSong={handleLibrarySongSelection}
           onToggleLiked={playbackCoordinator.handleToggleLikedSong}
           playlists={scoreLibrary.playlists}
           searchQuery={scoreLibrary.searchQuery}

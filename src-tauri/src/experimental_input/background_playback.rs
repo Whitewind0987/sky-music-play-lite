@@ -5,7 +5,7 @@ use super::target_window_message::{
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
@@ -106,7 +106,7 @@ struct PlaybackOptions {
 struct TimelineGroup {
     source_time_ms: f64,
     adjusted_start_ms: f64,
-    keys: Vec<String>,
+    keys: Arc<[String]>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,14 +150,15 @@ struct BackgroundPlaybackManager {
 }
 
 struct PreparedPlaybackPlanCache {
-    entries: HashMap<u64, PreparedPlaybackPlan>,
+    entries: HashMap<u64, Arc<PreparedPlaybackPlan>>,
     next_plan_id: u64,
     order: VecDeque<u64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct PreparedPlaybackPlan {
-    groups: Vec<TimelineGroup>,
+    groups: Arc<[TimelineGroup]>,
+    unique_keys: Arc<[String]>,
 }
 
 struct BackgroundPlaybackSession {
@@ -177,6 +178,7 @@ struct BackgroundPlaybackWorker {
     next_progress_event_ms: f64,
     options: PlaybackOptions,
     position_ms: f64,
+    prepared_plan: Arc<PreparedPlaybackPlan>,
     scheduled_key_ups: Vec<ScheduledKeyUp>,
     session_id: u64,
     start_rx: Receiver<()>,
@@ -194,8 +196,7 @@ pub fn prepare_background_playback_plan(
     request: BackgroundPlaybackPreparePlanRequest,
 ) -> Result<BackgroundPlaybackPreparePlanResponse, String> {
     let started_at = Instant::now();
-    let groups = build_source_groups(&request.plan)?;
-    let prepared_plan_id = insert_prepared_plan(PreparedPlaybackPlan { groups });
+    let prepared_plan_id = insert_prepared_plan(build_prepared_plan(&request.plan)?);
 
     debug_timing(
         "prepare_background_playback_plan",
@@ -210,7 +211,7 @@ pub fn start_background_playback(
     app_handle: AppHandle,
     request: BackgroundPlaybackStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
-    let groups = build_source_groups(&request.plan)?;
+    let prepared_plan = Arc::new(build_prepared_plan(&request.plan)?);
 
     start_background_playback_from_groups(
         app_handle,
@@ -223,7 +224,7 @@ pub fn start_background_playback(
             playback_speed: request.playback_speed,
             prepared_plan_id: 0,
         },
-        groups,
+        prepared_plan,
     )
 }
 
@@ -231,31 +232,31 @@ pub fn start_prepared_background_playback(
     app_handle: AppHandle,
     request: BackgroundPlaybackPreparedStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
-    let groups = get_prepared_plan_groups(request.prepared_plan_id)?;
+    let prepared_plan = get_prepared_plan(request.prepared_plan_id)?;
 
-    start_background_playback_from_groups(app_handle, request, groups)
+    start_background_playback_from_groups(app_handle, request, prepared_plan)
 }
 
 fn start_background_playback_from_groups(
     app_handle: AppHandle,
     request: BackgroundPlaybackPreparedStartRequest,
-    groups: Vec<TimelineGroup>,
+    prepared_plan: Arc<PreparedPlaybackPlan>,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
     let command_started_at = Instant::now();
     let options = PlaybackOptions {
         note_interval_delay_ms: request.note_interval_delay_ms,
         playback_speed: normalize_playback_speed(request.playback_speed)?,
     };
-    let timeline_ready_at = Instant::now();
-    let timeline = build_timeline_from_groups(&groups, &options)?;
-    let target_ready_start_at = Instant::now();
-    validate_start_request(&request, &groups)?;
+    let timeline = build_timeline_from_groups(&prepared_plan.groups, &options)?;
+    let timeline_completed_at = Instant::now();
+    validate_start_request(&request, &prepared_plan.groups)?;
     let target = prepare_window_message_target(
         &request.hwnd,
-        &unique_timeline_keys(&groups),
+        &prepared_plan.unique_keys,
         TARGET_MESSAGE_METHOD_POST,
         &request.compatibility_profile,
     )?;
+    let target_preparation_completed_at = Instant::now();
 
     let initial_progress_ms = clamp_progress(
         request.initial_progress_ms.unwrap_or(0.0),
@@ -266,11 +267,13 @@ fn start_background_playback_from_groups(
         .expect("background playback lifecycle poisoned");
 
     stop_current_session();
+    let previous_session_stopped_at = Instant::now();
 
     let session_id = next_session_id();
     let (command_tx, command_rx) = mpsc::channel();
     let (start_tx, start_rx) = mpsc::channel();
-    let worker_timeline = timeline.clone();
+    let total_ms = timeline.total_ms;
+    let worker_timeline = timeline;
     let worker = BackgroundPlaybackWorker {
         active_generations: HashMap::new(),
         app_handle,
@@ -282,6 +285,7 @@ fn start_background_playback_from_groups(
         next_progress_event_ms: initial_progress_ms + PROGRESS_EVENT_INTERVAL_MS,
         options,
         position_ms: initial_progress_ms,
+        prepared_plan,
         scheduled_key_ups: Vec::new(),
         session_id,
         start_rx,
@@ -291,6 +295,7 @@ fn start_background_playback_from_groups(
         timeline: worker_timeline,
     };
     let worker_handle = thread::spawn(move || worker.run());
+    let worker_created_at = Instant::now();
 
     {
         let mut manager = manager()
@@ -302,22 +307,45 @@ fn start_background_playback_from_groups(
             worker: Some(worker_handle),
         });
     }
+    let session_registered_at = Instant::now();
 
     let _ = start_tx.send(());
+    let start_gate_released_at = Instant::now();
 
     debug_timing(
         "start_background_playback",
         command_started_at,
         &[
-            ("timeline lookup/build", timeline_ready_at.elapsed()),
-            ("target/key preparation", target_ready_start_at.elapsed()),
-            ("session accepted", command_started_at.elapsed()),
+            (
+                "timeline calculation",
+                timeline_completed_at.duration_since(command_started_at),
+            ),
+            (
+                "target preparation",
+                target_preparation_completed_at.duration_since(timeline_completed_at),
+            ),
+            (
+                "previous session stop/join",
+                previous_session_stopped_at.duration_since(target_preparation_completed_at),
+            ),
+            (
+                "worker creation",
+                worker_created_at.duration_since(previous_session_stopped_at),
+            ),
+            (
+                "session registration",
+                session_registered_at.duration_since(worker_created_at),
+            ),
+            (
+                "start gate released",
+                start_gate_released_at.duration_since(session_registered_at),
+            ),
         ],
     );
 
     Ok(BackgroundPlaybackStartResponse {
         session_id,
-        total_ms: timeline.total_ms,
+        total_ms,
     })
 }
 
@@ -395,13 +423,29 @@ fn insert_prepared_plan(plan: PreparedPlaybackPlan) -> u64 {
     let mut cache = prepared_plan_cache()
         .lock()
         .expect("prepared playback plan cache poisoned");
+    insert_prepared_plan_into_cache(&mut cache, plan, MAX_PREPARED_PLAYBACK_PLANS)
+}
+
+fn get_prepared_plan(plan_id: u64) -> Result<Arc<PreparedPlaybackPlan>, String> {
+    let mut cache = prepared_plan_cache()
+        .lock()
+        .expect("prepared playback plan cache poisoned");
+
+    get_prepared_plan_from_cache(&mut cache, plan_id)
+}
+
+fn insert_prepared_plan_into_cache(
+    cache: &mut PreparedPlaybackPlanCache,
+    plan: PreparedPlaybackPlan,
+    max_entries: usize,
+) -> u64 {
     let plan_id = cache.next_plan_id;
 
     cache.next_plan_id = cache.next_plan_id.saturating_add(1).max(1);
-    cache.entries.insert(plan_id, plan);
+    cache.entries.insert(plan_id, Arc::new(plan));
     cache.order.push_back(plan_id);
 
-    while cache.entries.len() > MAX_PREPARED_PLAYBACK_PLANS {
+    while cache.entries.len() > max_entries {
         if let Some(expired_plan_id) = cache.order.pop_front() {
             cache.entries.remove(&expired_plan_id);
         } else {
@@ -412,18 +456,28 @@ fn insert_prepared_plan(plan: PreparedPlaybackPlan) -> u64 {
     plan_id
 }
 
-fn get_prepared_plan_groups(plan_id: u64) -> Result<Vec<TimelineGroup>, String> {
-    let cache = prepared_plan_cache()
-        .lock()
-        .expect("prepared playback plan cache poisoned");
+fn get_prepared_plan_from_cache(
+    cache: &mut PreparedPlaybackPlanCache,
+    plan_id: u64,
+) -> Result<Arc<PreparedPlaybackPlan>, String> {
+    let plan = cache.entries.get(&plan_id).cloned().ok_or_else(|| {
+        format!("Prepared background playback plan is no longer available. id: {plan_id}")
+    })?;
 
-    cache
-        .entries
-        .get(&plan_id)
-        .map(|plan| plan.groups.clone())
-        .ok_or_else(|| {
-            format!("Prepared background playback plan is no longer available. id: {plan_id}")
-        })
+    touch_prepared_plan(cache, plan_id);
+    Ok(plan)
+}
+
+fn touch_prepared_plan(cache: &mut PreparedPlaybackPlanCache, plan_id: u64) {
+    if let Some(position) = cache
+        .order
+        .iter()
+        .position(|current_id| *current_id == plan_id)
+    {
+        cache.order.remove(position);
+    }
+
+    cache.order.push_back(plan_id);
 }
 
 fn next_session_id() -> u64 {
@@ -622,7 +676,7 @@ impl BackgroundPlaybackWorker {
                     self.next_group_index,
                 );
                 self.options = options;
-                match build_timeline_from_groups(&self.timeline.groups, &self.options) {
+                match build_timeline_from_groups(&self.prepared_plan.groups, &self.options) {
                     Ok(timeline) => {
                         let (next_position_ms, next_group_index) =
                             remap_position_after_options_update(&remap, &timeline);
@@ -912,7 +966,7 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
     let mut grouped_events = plan.to_vec();
     grouped_events.sort_by(|left, right| left.time_ms.total_cmp(&right.time_ms));
 
-    let mut groups = Vec::<TimelineGroup>::new();
+    let mut grouped_keys = Vec::<(f64, Vec<String>)>::new();
 
     for event in grouped_events {
         if !event.time_ms.is_finite() {
@@ -923,21 +977,36 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
             return Err("Background playback event must contain at least one key.".to_string());
         }
 
-        if let Some(last_group) = groups.last_mut() {
-            if last_group.source_time_ms == event.time_ms {
-                last_group.keys.extend(event.keys);
+        if let Some((last_time_ms, last_keys)) = grouped_keys.last_mut() {
+            if *last_time_ms == event.time_ms {
+                last_keys.extend(event.keys);
                 continue;
             }
         }
 
-        groups.push(TimelineGroup {
-            source_time_ms: event.time_ms,
-            adjusted_start_ms: 0.0,
-            keys: event.keys,
-        });
+        grouped_keys.push((event.time_ms, event.keys));
     }
 
-    Ok(groups)
+    Ok(grouped_keys
+        .into_iter()
+        .map(|(source_time_ms, keys)| TimelineGroup {
+            source_time_ms,
+            adjusted_start_ms: 0.0,
+            keys: Arc::from(keys),
+        })
+        .collect())
+}
+
+fn build_prepared_plan(
+    plan: &[BackgroundPlaybackPlanEvent],
+) -> Result<PreparedPlaybackPlan, String> {
+    let groups = build_source_groups(plan)?;
+    let unique_keys = unique_timeline_keys(&groups);
+
+    Ok(PreparedPlaybackPlan {
+        groups: Arc::from(groups),
+        unique_keys: Arc::from(unique_keys),
+    })
 }
 
 fn build_timeline_from_groups(
@@ -1109,7 +1178,7 @@ fn unique_timeline_keys(groups: &[TimelineGroup]) -> Vec<String> {
     let mut unique = Vec::new();
 
     for group in groups {
-        for key in &group.keys {
+        for key in group.keys.iter() {
             if seen_keys.insert(key.clone()) {
                 unique.push(key.clone());
             }
@@ -1187,9 +1256,9 @@ mod tests {
         let timeline = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
 
         assert_eq!(timeline.groups.len(), 3);
-        assert_eq!(timeline.groups[0].keys, vec!["Key0"]);
-        assert_eq!(timeline.groups[1].keys, vec!["Key1", "Key2"]);
-        assert_eq!(timeline.groups[2].keys, vec!["Key3"]);
+        assert_eq!(timeline.groups[0].keys.as_ref(), ["Key0"]);
+        assert_eq!(timeline.groups[1].keys.as_ref(), ["Key1", "Key2"]);
+        assert_eq!(timeline.groups[2].keys.as_ref(), ["Key3"]);
     }
 
     #[test]
@@ -1366,5 +1435,51 @@ mod tests {
         assert_eq!(clamp_progress(f64::NAN, 100.0), 0.0);
         assert_eq!(clamp_progress(-1.0, 100.0), 0.0);
         assert_eq!(clamp_progress(150.0, 100.0), 100.0);
+    }
+
+    #[test]
+    fn prepared_plan_cache_refreshes_lru_access_order() {
+        let mut cache = PreparedPlaybackPlanCache {
+            entries: HashMap::new(),
+            next_plan_id: 1,
+            order: VecDeque::new(),
+        };
+        let first =
+            insert_prepared_plan_into_cache(&mut cache, build_prepared_plan(&plan()).unwrap(), 2);
+        let second =
+            insert_prepared_plan_into_cache(&mut cache, build_prepared_plan(&plan()).unwrap(), 2);
+
+        get_prepared_plan_from_cache(&mut cache, first).unwrap();
+        let third =
+            insert_prepared_plan_into_cache(&mut cache, build_prepared_plan(&plan()).unwrap(), 2);
+
+        assert!(cache.entries.contains_key(&first));
+        assert!(!cache.entries.contains_key(&second));
+        assert!(cache.entries.contains_key(&third));
+        assert_eq!(
+            cache.order.into_iter().collect::<Vec<_>>(),
+            vec![first, third]
+        );
+    }
+
+    #[test]
+    fn adjusted_timelines_share_prepared_source_key_arrays() {
+        let prepared_plan = build_prepared_plan(&plan()).unwrap();
+        let first = build_timeline_from_groups(&prepared_plan.groups, &options(0.0, 1.0)).unwrap();
+        let second =
+            build_timeline_from_groups(&prepared_plan.groups, &options(50.0, 2.0)).unwrap();
+
+        assert!(Arc::ptr_eq(
+            &first.groups[1].keys,
+            &prepared_plan.groups[1].keys
+        ));
+        assert!(Arc::ptr_eq(
+            &second.groups[1].keys,
+            &prepared_plan.groups[1].keys
+        ));
+        assert_eq!(first.groups[1].keys.as_ref(), ["Key1", "Key2"]);
+        assert_eq!(second.groups[1].keys.as_ref(), ["Key1", "Key2"]);
+        assert_eq!(first.groups[1].adjusted_start_ms, 500.0);
+        assert_eq!(second.groups[1].adjusted_start_ms, 300.0);
     }
 }

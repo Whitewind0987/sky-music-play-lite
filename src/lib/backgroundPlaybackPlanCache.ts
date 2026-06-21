@@ -34,17 +34,32 @@ export class PreparedPlaybackPlanCache {
     }
   }
 
+  invalidate(cacheKey: PreparedPlaybackPlanCacheKey) {
+    this.entries.delete(serializePreparedPlanCacheKey(cacheKey));
+  }
+
+  get(cacheKey: PreparedPlaybackPlanCacheKey) {
+    const key = serializePreparedPlanCacheKey(cacheKey);
+    const cached = this.entries.get(key);
+
+    if (!cached) {
+      return null;
+    }
+
+    this.entries.delete(key);
+    this.entries.set(key, cached);
+    return cached.preparedPlanId;
+  }
+
   async getOrPrepare(
     cacheKey: PreparedPlaybackPlanCacheKey,
     prepare: () => Promise<number>,
   ): Promise<PreparedPlaybackPlanCacheResult> {
     const key = serializePreparedPlanCacheKey(cacheKey);
-    const cached = this.entries.get(key);
+    const preparedPlanId = this.get(cacheKey);
 
-    if (cached) {
-      this.entries.delete(key);
-      this.entries.set(key, cached);
-      return { preparedPlanId: cached.preparedPlanId, source: "cache" };
+    if (preparedPlanId !== null) {
+      return { preparedPlanId, source: "cache" };
     }
 
     const existingPreparation = this.inFlightPreparations.get(key);

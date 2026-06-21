@@ -108,4 +108,36 @@ describe("PreparedPlaybackPlanCache", () => {
     expect(cache.size).toBe(2);
     expect(rebuilt).toEqual({ preparedPlanId: 4, source: "prepared" });
   });
+
+  it("keeps LRU access order aligned with a matching bounded backend cache", async () => {
+    const cache = new PreparedPlaybackPlanCache({ maxEntries: 2 });
+    const keyA = { keyMappingSignature: "keys", songIdentity: "song-a" };
+    const keyB = { keyMappingSignature: "keys", songIdentity: "song-b" };
+    const keyC = { keyMappingSignature: "keys", songIdentity: "song-c" };
+
+    await cache.getOrPrepare(keyA, async () => 1);
+    await cache.getOrPrepare(keyB, async () => 2);
+    await cache.getOrPrepare(keyA, async () => 1);
+    await cache.getOrPrepare(keyC, async () => 3);
+
+    expect(
+      await cache.getOrPrepare(keyA, async () => 4),
+    ).toEqual({ preparedPlanId: 1, source: "cache" });
+    expect(
+      await cache.getOrPrepare(keyB, async () => 5),
+    ).toEqual({ preparedPlanId: 5, source: "prepared" });
+  });
+
+  it("invalidates only the exact prepared plan entry after a backend eviction", async () => {
+    const cache = new PreparedPlaybackPlanCache();
+    const key = { keyMappingSignature: "keys-a", songIdentity: "song-a" };
+
+    await cache.getOrPrepare(key, async () => 7);
+    cache.invalidate(key);
+
+    expect(await cache.getOrPrepare(key, async () => 8)).toEqual({
+      preparedPlanId: 8,
+      source: "prepared",
+    });
+  });
 });

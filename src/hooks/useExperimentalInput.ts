@@ -12,8 +12,14 @@ import {
   getBackgroundPlaybackEventRoute,
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
-import { PreparedPlaybackPlanCache } from "../lib/backgroundPlaybackPlanCache";
+import {
+  PreparedPlaybackPlanCache,
+  serializePreparedPlanCacheKey,
+  type PreparedPlaybackPlanCacheKey,
+} from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
+import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackPlanErrors";
+import { PlaybackPreparationScheduler } from "../lib/playbackPreparationScheduler";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import {
   type PreviewPlaybackController,
@@ -136,6 +142,7 @@ export function useExperimentalInput({
     Map<number, BackgroundPlaybackEventPayload[]>
   >(new Map());
   const preparedPlanCacheRef = useRef(new PreparedPlaybackPlanCache());
+  const preparationSchedulerRef = useRef(new PlaybackPreparationScheduler());
   const activeBackgroundSessionIdRef = useRef<number | null>(null);
   const backgroundHandoffTokenRef = useRef(0);
   const isBackgroundHandoffPendingRef = useRef(false);
@@ -704,6 +711,7 @@ export function useExperimentalInput({
 
     timing.mark("request received");
     setRequestedPlaybackSongIndex(songIndex);
+    timing.mark("requested-song UI update");
 
     const song = await resolveSongForPlayback(songIndex);
     timing.mark("score resolution");
@@ -746,27 +754,42 @@ export function useExperimentalInput({
       return false;
     }
 
-    const song = await resolveSongForPlayback(songIndex);
-
-    if (!song || song.songNotes.length === 0) {
-      return false;
-    }
-
     try {
-      await preparedPlanCacheRef.current.getOrPrepare(
-        {
-          keyMappingSignature: getKeyMappingSignature(keyMapping),
-          songIdentity,
-        },
+      const cacheKey = {
+        keyMappingSignature: getKeyMappingSignature(keyMapping),
+        songIdentity,
+      };
+      const preparedPlanId = await preparationSchedulerRef.current.schedule(
+        serializePreparedPlanCacheKey(cacheKey),
+        "warm",
         async () => {
-          const response = await prepareBackgroundPlaybackPlan({
-            plan: buildBackgroundPlaybackPlan(song.songNotes, keyMapping),
-          });
+          const cachedPreparedPlanId = preparedPlanCacheRef.current.get(cacheKey);
 
-          return response.preparedPlanId;
+          if (cachedPreparedPlanId !== null) {
+            return cachedPreparedPlanId;
+          }
+
+          const song = await resolveSongForPlayback(songIndex);
+
+          if (!song || song.songNotes.length === 0) {
+            throw new Error("Score could not be prepared for background playback.");
+          }
+
+          const preparedPlan = await preparedPlanCacheRef.current.getOrPrepare(
+            cacheKey,
+            async () => {
+              const response = await prepareBackgroundPlaybackPlan({
+                plan: buildBackgroundPlaybackPlan(song.songNotes, keyMapping),
+              });
+
+              return response.preparedPlanId;
+            },
+          );
+
+          return preparedPlan.preparedPlanId;
         },
       );
-      return true;
+      return preparedPlanId > 0;
     } catch (error) {
       if (import.meta.env.DEV) {
         console.debug("[background-handoff timing] warm prepare failed", error);
@@ -834,8 +857,9 @@ export function useExperimentalInput({
       initialSeekMs?: number;
       rollbackPlaybackSongIndex: number | null;
       timing: BackgroundHandoffTiming;
+      preparedPlanRetryCount?: number;
     },
-  ) {
+  ): Promise<boolean> {
     if (selectedWindowHwnd === null) {
       finishBackgroundHandoff(options.handoffToken);
       rollbackRequestedPlaybackSong(
@@ -872,32 +896,47 @@ export function useExperimentalInput({
     try {
       const keyMappingSignature = getKeyMappingSignature(keyMapping);
       options.timing.mark("playback-plan cache lookup");
-      const preparedPlan = await preparedPlanCacheRef.current.getOrPrepare(
-        { keyMappingSignature, songIdentity },
-        async () => {
-          const playbackPlan = buildBackgroundPlaybackPlan(
-            song.songNotes,
-            keyMapping,
-          );
+      const cacheKey = { keyMappingSignature, songIdentity };
+      const cachedPreparedPlanId = preparedPlanCacheRef.current.get(cacheKey);
+      const preparedPlanId =
+        cachedPreparedPlanId ??
+        (await preparationSchedulerRef.current.schedule(
+          serializePreparedPlanCacheKey(cacheKey),
+          "direct",
+          async () => {
+            const preparedPlan = await preparedPlanCacheRef.current.getOrPrepare(
+              cacheKey,
+              async () => {
+                const playbackPlan = buildBackgroundPlaybackPlan(
+                  song.songNotes,
+                  keyMapping,
+                );
 
-          options.timing.mark("playback-plan construction");
-          const response = await prepareBackgroundPlaybackPlan({
-            plan: playbackPlan,
-          });
-          options.timing.mark("Rust prepare invoke");
+                options.timing.mark("playback-plan construction");
+                options.timing.mark("Rust prepare invoke");
+                const response = await prepareBackgroundPlaybackPlan({
+                  plan: playbackPlan,
+                });
+                options.timing.mark("Rust prepare complete");
 
-          return response.preparedPlanId;
-        },
-      );
+                return response.preparedPlanId;
+              },
+            );
+
+            return preparedPlan.preparedPlanId;
+          },
+        ));
       options.timing.mark(
-        preparedPlan.source === "cache"
+        cachedPreparedPlanId !== null
           ? "playback-plan cache hit"
           : "playback-plan prepared",
       );
       return startPreparedExperimentalPlaybackForSong(songIndex, song, {
         handoffToken: options.handoffToken,
         initialSeekMs: options.initialSeekMs,
-        preparedPlanId: preparedPlan.preparedPlanId,
+        preparedPlanId,
+        cacheKey,
+        preparedPlanRetryCount: options.preparedPlanRetryCount ?? 0,
         rollbackPlaybackSongIndex: options.rollbackPlaybackSongIndex,
         timing: options.timing,
       });
@@ -925,10 +964,12 @@ export function useExperimentalInput({
       handoffToken: number;
       initialSeekMs?: number;
       preparedPlanId: number;
+      cacheKey: PreparedPlaybackPlanCacheKey;
+      preparedPlanRetryCount: number;
       rollbackPlaybackSongIndex: number | null;
       timing: BackgroundHandoffTiming;
     },
-  ) {
+  ): Promise<boolean> {
     const targetWindowHwnd = selectedWindowHwnd;
     if (targetWindowHwnd === null) {
       finishBackgroundHandoff(options.handoffToken);
@@ -1020,6 +1061,21 @@ export function useExperimentalInput({
         );
         options.timing.finish("stale failure ignored");
         return false;
+      }
+
+      if (
+        options.preparedPlanRetryCount === 0 &&
+        isPreparedPlaybackPlanUnavailableError(error)
+      ) {
+        preparedPlanCacheRef.current.invalidate(options.cacheKey);
+        options.timing.mark("prepared plan evicted; retrying once");
+        return startExperimentalPlaybackForSong(songIndex, song, {
+          handoffToken: options.handoffToken,
+          initialSeekMs: options.initialSeekMs,
+          preparedPlanRetryCount: 1,
+          rollbackPlaybackSongIndex: options.rollbackPlaybackSongIndex,
+          timing: options.timing,
+        });
       }
 
       finishBackgroundHandoff(options.handoffToken);
