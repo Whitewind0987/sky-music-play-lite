@@ -34,7 +34,7 @@ import type {
 
 type UseForegroundPlaybackOptions = {
   appendLog: (message: string) => void;
-  consumeNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
+  consumeQueuedItemAfterCurrent: (queueItemId: string, songCount: number) => PlaybackQueueItem | null;
   currentSong: Song | null;
   experimentalInputEnabled: boolean;
   getOrPreparePlaybackPlan: (options: {
@@ -52,6 +52,7 @@ type UseForegroundPlaybackOptions = {
   isShuffleEnabled: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onBeforeStart: () => void;
+  peekNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
@@ -72,7 +73,7 @@ const FOREGROUND_KEY_HOLD_MS = 40;
 
 export function useForegroundPlayback({
   appendLog,
-  consumeNextQueueItemAfterCurrent,
+  consumeQueuedItemAfterCurrent,
   currentSong,
   experimentalInputEnabled,
   getOrPreparePlaybackPlan,
@@ -82,6 +83,7 @@ export function useForegroundPlayback({
   isShuffleEnabled,
   noteIntervalDelayMs,
   onBeforeStart,
+  peekNextQueueItemAfterCurrent,
   playbackMode,
   playbackSpeed,
   resolveSongForPlayback,
@@ -578,7 +580,7 @@ export function useForegroundPlayback({
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : consumeNextQueueItemAfterCurrent(currentImportedSongs.length);
+        : peekNextQueueItemAfterCurrent(currentImportedSongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
@@ -610,11 +612,19 @@ export function useForegroundPlayback({
           { songName: nextSong.name },
         ),
       );
-      if (queuedItem === null) {
-        startQueuePlayback(finishDecision.nextSongIndex);
-      }
       void startForegroundPlaybackForSong(finishDecision.nextSongIndex, {
         withCountdown: false,
+      }).then((started) => {
+        if (!started) {
+          setForegroundPlaybackState("finished");
+          appendLog(text.logs.foregroundPlaybackFinished);
+          return;
+        }
+        if (queuedItem) {
+          consumeQueuedItemAfterCurrent(queuedItem.id, currentImportedSongs.length);
+        } else {
+          startQueuePlayback(finishDecision.nextSongIndex);
+        }
       });
       return;
     }
@@ -624,7 +634,8 @@ export function useForegroundPlayback({
   }
 
   function warmLikelyForegroundSong(currentSongIndex: number) {
-    const nextSongIndex = getPlaybackOrderNextSongIndex({
+    const queuedItem = peekNextQueueItemAfterCurrent(importedSongsRef.current.length);
+    const nextSongIndex = queuedItem?.songIndex ?? getPlaybackOrderNextSongIndex({
         currentSongIndex,
         isShuffleEnabled: isShuffleEnabledRef.current,
         playbackMode: playbackModeRef.current,

@@ -1,8 +1,13 @@
 import type { ExperimentalInputPreferences } from "../types/appData";
 import type {
+  ExperimentalInputMode,
   TargetWindowCompatibilityProfile,
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
+
+export const defaultExperimentalInputEnabled = true;
+export const defaultExperimentalInputMode: ExperimentalInputMode =
+  "target-window-message";
 
 export const defaultTargetWindowCompatibilityProfile: TargetWindowCompatibilityProfile =
   "legacy-activate-scan-lparam";

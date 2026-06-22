@@ -7,6 +7,8 @@ import {
 } from "../types/appData";
 import type { ExperimentalInputMode } from "../types/experimentalInput";
 import {
+  defaultExperimentalInputEnabled,
+  defaultExperimentalInputMode,
   normalizeExperimentalInputPreferences,
   normalizeTargetWindowCompatibilityProfile,
   normalizeTargetWindowMessageMethod,
@@ -267,11 +269,11 @@ function sanitizeExperimentalInputPreferences(
     experimentalInputEnabled:
       typeof rawPreferences.experimentalInputEnabled === "boolean"
         ? rawPreferences.experimentalInputEnabled
-        : false,
+        : defaultExperimentalInputEnabled,
     experimentalInputMode: sanitizeEnum(
       rawPreferences.experimentalInputMode,
       experimentalInputModes,
-      "target-window-message",
+      defaultExperimentalInputMode,
     ),
     selectedWindowHwnd:
       typeof rawPreferences.selectedWindowHwnd === "string"

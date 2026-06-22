@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { ExperimentalInputPreferences } from "../types/appData";
 import {
+  defaultExperimentalInputEnabled,
+  defaultExperimentalInputMode,
   defaultTargetWindowCompatibilityProfile,
   normalizeExperimentalInputPreferences,
   normalizeTargetWindowCompatibilityProfile,
@@ -106,7 +108,6 @@ type BackgroundHandoffTiming = {
 
 export function useExperimentalInput({
   appendLog,
-  consumeNextQueueItemAfterCurrent,
   consumeQueuedItemAfterCurrent,
   currentSong,
   currentPlaybackSongIndex,
@@ -162,9 +163,9 @@ export function useExperimentalInput({
   const [selectedWindowSnapshot, setSelectedWindowSnapshot] =
     useState<SelectedWindowSnapshot>(undefined);
   const [experimentalInputEnabled, setExperimentalInputEnabled] =
-    useState(false);
+    useState(defaultExperimentalInputEnabled);
   const [experimentalInputMode, setExperimentalInputMode] =
-    useState<ExperimentalInputMode>("target-window-message");
+    useState<ExperimentalInputMode>(defaultExperimentalInputMode);
   const [targetWindowMessageMethod, setTargetWindowMessageMethod] =
     useState<TargetWindowMessageMethod>("post-message");
   const [
@@ -243,7 +244,8 @@ export function useExperimentalInput({
     setSelectedSongIndex,
     startQueuePlayback,
     text,
-    consumeNextQueueItemAfterCurrent,
+    consumeQueuedItemAfterCurrent,
+    peekNextQueueItemAfterCurrent,
   });
 
   backgroundPlaybackEventHandlerRef.current = handleBackgroundPlaybackEvent;
@@ -549,7 +551,7 @@ export function useExperimentalInput({
       | undefined,
   ) {
     if (!preferences) {
-      setExperimentalInputEnabled(false);
+      setExperimentalInputEnabled(defaultExperimentalInputEnabled);
       setSelectedWindowHwnd(null);
       setSelectedWindowSnapshot(undefined);
       return;
@@ -783,6 +785,7 @@ export function useExperimentalInput({
 
   function finishBackgroundHandoff(token: number) {
     if (backgroundHandoffTokenRef.current !== token) {
+      setExperimentalInputMode(defaultExperimentalInputMode);
       return;
     }
 

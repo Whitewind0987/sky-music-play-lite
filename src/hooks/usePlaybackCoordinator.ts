@@ -61,7 +61,7 @@ export function usePlaybackCoordinator({
       return;
     }
 
-    if (playbackOutput.mode === "experimental-target-window") {
+    if (isAcceptedStartOutputMode(playbackOutput.mode)) {
       const didStart = await startOutputSong(item.songIndex);
 
       if (!didStart) {
@@ -73,7 +73,7 @@ export function usePlaybackCoordinator({
     setPlaybackContextForLibraryItem(item);
     playbackQueue.replaceQueueWithCurrent(item.songIndex);
 
-    if (playbackOutput.mode !== "experimental-target-window") {
+    if (!isAcceptedStartOutputMode(playbackOutput.mode)) {
       void startOutputSong(item.songIndex);
     }
   }
@@ -344,6 +344,13 @@ export function usePlaybackCoordinator({
     isCurrentSongLoading,
     startPlaybackFromSongIndex,
   };
+}
+
+function isAcceptedStartOutputMode(mode: PlaybackOutputController["mode"]) {
+  return (
+    mode === "experimental-target-window" ||
+    mode === "experimental-foreground"
+  );
 }
 
 export function shouldSkipTargetWindowEnumerationBeforePlayback({

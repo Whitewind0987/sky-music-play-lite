@@ -335,7 +335,7 @@ describe("sanitizePersistedAppData experimental input preferences", () => {
     });
 
     expect(result?.experimentalInputPreferences).toEqual({
-      experimentalInputEnabled: false,
+      experimentalInputEnabled: true,
       experimentalInputMode: "target-window-message",
       selectedWindowHwnd: null,
       selectedWindowSnapshot: undefined,
