@@ -248,6 +248,8 @@ export const uiText = {
         songNotesInvalid: "曲谱“{songName}”必须包含 songNotes 数组。",
         noteNotObject: "曲谱“{songName}”里的第 {noteIndex} 个音符必须是一个对象。",
         noteTimeInvalid: "曲谱“{songName}”里的第 {noteIndex} 个音符必须包含数字 time。",
+        relativeTimeInvalid:
+          "曲谱“{songName}”里的相对时间无效。第一个音符必须为 0，后续时间不能为负数。",
         noteKeyInvalid: "曲谱“{songName}”里的第 {noteIndex} 个音符必须包含文本 key。",
       },
     },
@@ -392,11 +394,11 @@ export const uiText = {
       experimentalTargetWindowActivationPreflightFailed:
         "目标窗口激活预处理失败，播放未开始：HWND={targetHwnd}；方式={method}；兼容={profile}；错误={error}",
       experimentalTargetWindowMissing:
-        "请先刷新或检测目标窗口，然后再播放。",
+        "未选择目标窗口。请先打开光遇，然后前往设置，点击刷新窗口列表并选择光遇窗口。",
       experimentalSavedTargetWindowUnavailable:
-        "已保存的目标窗口不可用，请刷新或重新检测目标窗口。",
+        "之前选择的目标窗口已失效。请先打开光遇，然后前往设置，点击刷新窗口列表并重新选择光遇窗口。",
       experimentalSavedTargetWindowUnavailableShort:
-        "已保存的目标窗口不可用，请刷新或重新检测。",
+        "之前选择的目标窗口已失效。请前往设置，点击刷新窗口列表并重新选择光遇窗口。",
       experimentalInputPreferencesRestored: "已恢复实验性输入设置。",
       experimentalRestoredTargetWindow: "已恢复上次目标窗口：{target}",
       experimentalRestoredTargetWindowMissing:
@@ -774,6 +776,8 @@ export const uiText = {
           'Note {noteIndex} in song "{songName}" must be an object.',
         noteTimeInvalid:
           'Note {noteIndex} in song "{songName}" must have a numeric time.',
+        relativeTimeInvalid:
+          'Score "{songName}" has invalid relative timing. The first note must be 0 and later delays cannot be negative.',
         noteKeyInvalid:
           'Note {noteIndex} in song "{songName}" must have a string key.',
       },
@@ -923,11 +927,11 @@ export const uiText = {
       experimentalTargetWindowActivationPreflightFailed:
         "Target window activation preflight failed; playback was not started: hwnd={targetHwnd}; method={method}; profile={profile}; error={error}",
       experimentalTargetWindowMissing:
-        "Please refresh or detect the target window before playing.",
+        "No target window is selected. Open Sky, then go to Settings, refresh the window list, and select the Sky window.",
       experimentalSavedTargetWindowUnavailable:
-        "The saved target window is unavailable. Please refresh or detect the target window again.",
+        "The previously selected target window is unavailable. Open Sky, then go to Settings, refresh the window list, and select the Sky window again.",
       experimentalSavedTargetWindowUnavailableShort:
-        "The saved target window is unavailable. Please refresh or detect it again.",
+        "The previously selected target window is unavailable. Go to Settings, refresh the window list, and select the Sky window again.",
       experimentalInputPreferencesRestored:
         "Restored experimental input settings.",
       experimentalRestoredTargetWindow:

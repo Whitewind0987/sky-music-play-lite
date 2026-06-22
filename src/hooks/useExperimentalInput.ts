@@ -785,7 +785,6 @@ export function useExperimentalInput({
 
   function finishBackgroundHandoff(token: number) {
     if (backgroundHandoffTokenRef.current !== token) {
-      setExperimentalInputMode(defaultExperimentalInputMode);
       return;
     }
 

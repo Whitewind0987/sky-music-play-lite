@@ -600,7 +600,13 @@ export function useForegroundPlayback({
 
     if (finishDecision.type === "repeat-current") {
       appendLog(formatText(text.logs.repeatOneTriggered, { songName: song.name }));
-      void startForegroundPlaybackForSong(songIndex, { withCountdown: false });
+      void startForegroundPlaybackForSong(songIndex, {
+        withCountdown: false,
+      }).then((started) => {
+        if (!started) {
+          setForegroundPlaybackState("finished");
+        }
+      });
       return;
     }
 

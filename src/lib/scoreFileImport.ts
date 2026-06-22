@@ -18,6 +18,7 @@ export type ScoreFileImportErrorCode =
   | "songNotesInvalid"
   | "noteNotObject"
   | "noteTimeInvalid"
+  | "relativeTimeInvalid"
   | "noteKeyInvalid";
 
 type ScoreFileImportErrorDetails = Record<string, string | number>;
@@ -124,6 +125,9 @@ function validateSong(value: unknown, songIndex: number): Song {
     songIndex,
   );
   const songNotes = resolveSongNotes(value, name);
+  const validatedNotes = songNotes.map((note, noteIndex) =>
+    validateNote(note, name, noteIndex),
+  );
 
   return {
     name,
@@ -131,10 +135,36 @@ function validateSong(value: unknown, songIndex: number): Song {
     bitsPerPage,
     pitchLevel,
     isComposed,
-    songNotes: songNotes.map((note, noteIndex) =>
-      validateNote(note, name, noteIndex),
-    ),
+    songNotes:
+      value.isRelativeTime === true
+        ? normalizeRelativeSongNotes(validatedNotes, name)
+        : validatedNotes,
   };
+}
+
+function normalizeRelativeSongNotes(notes: Note[], songName: string): Note[] {
+  if (notes.length === 0) {
+    return notes;
+  }
+
+  if (notes[0].time !== 0) {
+    throw new ScoreFileImportError("relativeTimeInvalid", { noteIndex: 0, songName });
+  }
+
+  let absoluteTime = 0;
+  return notes.map((note, noteIndex) => {
+    if (noteIndex === 0) {
+      return { ...note, time: 0 };
+    }
+    if (note.time < 0) {
+      throw new ScoreFileImportError("relativeTimeInvalid", { noteIndex, songName });
+    }
+    absoluteTime += note.time;
+    if (!Number.isFinite(absoluteTime)) {
+      throw new ScoreFileImportError("relativeTimeInvalid", { noteIndex, songName });
+    }
+    return { ...note, time: absoluteTime };
+  });
 }
 
 function resolveSongNotes(
