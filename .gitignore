@@ -27,3 +27,13 @@ dist-ssr
 Codex_Master_Plan_For_SkyMusicPlay_Lite.md
 Codex_Pending_Plan_For_SkyMusicPlay_Lite.md
 Codex_Alpha_Plan_For_SkyMusicPlay_Lite.md
+
+# Development-only audio-to-score tool
+tools/audio-to-score-engine/.venv/
+tools/audio-to-score-engine/__pycache__/
+tools/audio-to-score-engine/tests/__pycache__/
+tools/audio-to-score-engine/output/
+tools/audio-to-score-engine/build/
+tools/audio-to-score-engine/dist/
+tools/audio-to-score-engine/.pyinstaller/
+*.pyc
