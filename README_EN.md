@@ -211,10 +211,11 @@ When reporting an issue, please provide:
 - Whether the issue is reproducible
 - Log files or screen recordings
 
-## 丨Contact
+## 丨Community & Contact
 
+- **QQ Group**: `632482169`
 - **GitHub**: [@Whitewind0987](https://github.com/Whitewind0987)
-- **Feedback and suggestions**: please submit issues, suggestions, or usage feedback through [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues)
+You are welcome to discuss usage, feature ideas, and music scores in the QQ group. For bug reports, please use [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) whenever possible.
 
 ## 丨License
 
