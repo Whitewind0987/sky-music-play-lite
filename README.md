@@ -209,10 +209,12 @@ npm run tauri build
 - 是否能稳定复现
 - 日志文件或录屏
 
-## 丨联系我
+## 丨交流与联系
 
+- **QQ 群**：`632482169`
 - **GitHub**：[@Whitewind0987](https://github.com/Whitewind0987)
-- **反馈与建议**：可以通过 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) 提交问题、建议或使用反馈
+
+欢迎交流使用体验、功能建议和曲谱相关内容。问题反馈建议优先通过 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) 提交。
 
 ## 丨开源协议
 
