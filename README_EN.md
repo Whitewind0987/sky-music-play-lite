@@ -42,7 +42,7 @@ For first-time users, it is recommended to read the quick start, real playback, 
 - Local score import
 - Drag-and-drop score import
 - SkyStudio-style score parsing
-- Legacy encrypted numeric score import
+- Encrypted numeric score import
 - Score library search
 - Liked scores
 - User-created playlists
@@ -89,7 +89,7 @@ The bottom player supports:
 
 SkyMusicPlay Lite includes real playback functionality.
 
-Real playback is disabled by default and must be manually enabled in Settings.  
+Real playback is enabled by default and uses target-window playback by default. Before using it for the first time, open Sky, then go to Settings, refresh the window list, and select the Sky window.
 Before using it, please understand and follow the rules of the related game or software.
 
 Current real playback modes:
