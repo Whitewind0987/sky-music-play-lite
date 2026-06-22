@@ -212,7 +212,6 @@ npm run tauri build
 ## 丨联系我
 
 - **GitHub**：[@Whitewind0987](https://github.com/Whitewind0987)
-- **Email**：whitewind0569@gmail.com
 - **反馈与建议**：可以通过 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) 提交问题、建议或使用反馈
 
 ## 丨开源协议

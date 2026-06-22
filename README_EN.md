@@ -214,7 +214,6 @@ When reporting an issue, please provide:
 ## 丨Contact
 
 - **GitHub**: [@Whitewind0987](https://github.com/Whitewind0987)
-- **Email**: whitewind0569@gmail.com
 - **Feedback and suggestions**: please submit issues, suggestions, or usage feedback through [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues)
 
 ## 丨License
