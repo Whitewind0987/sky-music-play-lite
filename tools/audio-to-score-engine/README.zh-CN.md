@@ -44,6 +44,7 @@ python -m venv tools\audio-to-score-engine\.venv
 - `--chord-window-ms`：和弦分组窗口，默认 `35` 毫秒
 - `--max-chord-notes`：每个和弦最多保留的音符数，默认 `3`，范围为 `1` 至 `15`
 - `--transpose`：转调模式，默认 `auto`；也可使用 `-36` 至 `36` 的手动整数值
+- `--pitch-mapping`：音高范围映射模式，默认 `clamp`；可试验性地使用 `octave-fold`
 
 命令会在需要时创建输出目录，并通过同目录临时文件原子写入 JSON。未传入 `--name` 时，乐谱名称会使用输入文件名。
 
@@ -66,6 +67,37 @@ python -m venv tools\audio-to-score-engine\.venv
 ```
 
 非八度手动转调用于诊断和用户修正，不会作为自动模式的默认行为。
+
+### 音高映射实验
+
+默认的 `--pitch-mapping clamp` 保留原有行为：低于 Sky MIDI 60 的音高会向 `Key0` 收缩，高于 MIDI 84 的音高会向 `Key14` 收缩。A/B 对比时请保留它作为基线。
+
+`--pitch-mapping octave-fold` 是实验模式。它会在转调后，把范围外音高反复按完整八度移入 MIDI 60–84，再继续使用原有的最近自然音映射。例如 MIDI 38 会折叠到 62，MIDI 43 会折叠到 67，而不会都变成 `Key0`。折叠保留音级，但不等于旋律提取。
+
+使用同一音频和诊断目录比较两种模式：
+
+```powershell
+$Python = ".\tools\audio-to-score-engine\.venv\Scripts\python.exe"
+$Script = ".\tools\audio-to-score-engine\transcribe.py"
+$Audio = "D:\Music\piano-test.wav"
+$Output = ".\tools\audio-to-score-engine\output"
+
+& $Python $Script $Audio `
+  --output "$Output\mapping-clamp.json" `
+  --transpose 0 `
+  --pitch-mapping clamp `
+  --diagnostics-dir "$Output\mapping-clamp-diagnostics"
+
+& $Python $Script $Audio `
+  --output "$Output\mapping-octave-fold.json" `
+  --transpose 0 `
+  --pitch-mapping octave-fold `
+  --diagnostics-dir "$Output\mapping-octave-fold-diagnostics"
+```
+
+`mapping-report.json` 中的 `rangeClassificationAfterTranspose` 始终是范围处理前的基线；新增 `pitchMapping` 区域说明折叠、原本在范围内和边界钳制的数量。输出键位直方图反映当前模式下、和弦裁剪和重复抑制之前的映射结果。
+
+八度折叠可能恢复低音的运动，但也可能把伴奏折叠到旋律音区，造成更密集的碰撞。它只用于试听对比，不是完整的编排质量解决方案。
 
 ### 转写诊断
 

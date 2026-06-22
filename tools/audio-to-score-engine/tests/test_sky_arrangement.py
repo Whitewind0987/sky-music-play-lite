@@ -16,11 +16,13 @@ if str(TOOL_DIRECTORY) not in sys.path:
 from sky_arrangement import (  # noqa: E402
     ArrangementError,
     AUTO_TRANSPOSE_CANDIDATES,
+    DEFAULT_PITCH_MAPPING_MODE,
     RawNoteEvent,
     SKY_MIDI_NOTES,
     arrange_events,
     build_lite_score,
     build_mapping_diagnostics,
+    fold_pitch_to_sky_range,
     map_events,
     nearest_sky_midi,
     normalize_basic_pitch_events,
@@ -31,6 +33,7 @@ from transcribe import (  # noqa: E402
     build_raw_note_events_document,
     convert_events_to_output,
     main,
+    parse_args,
     parse_transpose_argument,
     run_basic_pitch,
 )
@@ -53,6 +56,161 @@ class SkyArrangementTests(unittest.TestCase):
     def test_target_midi_notes_map_to_expected_keys(self) -> None:
         mapped = map_events([event(0, 100, midi) for midi in SKY_MIDI_NOTES], 0)
         self.assertEqual([item.key_index for item in mapped], list(range(15)))
+
+    def test_clamp_mapping_preserves_existing_low_boundary_behavior(self) -> None:
+        mapped = map_events(
+            [event(0, 100, 36), event(100, 200, 38), event(200, 300, 43)],
+            0,
+            "clamp",
+        )
+        self.assertEqual([item.key_index for item in mapped], [0, 0, 0])
+
+    def test_octave_folding_preserves_pitch_class_for_documented_examples(self) -> None:
+        expected = {
+            36: (60, 2),
+            38: (62, 2),
+            43: (67, 2),
+            48: (60, 1),
+            50: (62, 1),
+            55: (67, 1),
+            58: (70, 1),
+            85: (73, -1),
+            96: (84, -1),
+        }
+        for source_pitch, expected_result in expected.items():
+            with self.subTest(source_pitch=source_pitch):
+                folded_pitch, octave_steps = fold_pitch_to_sky_range(source_pitch)
+                self.assertEqual((folded_pitch, octave_steps), expected_result)
+                self.assertEqual(folded_pitch % 12, source_pitch % 12)
+
+    def test_octave_folding_ends_inside_sky_range_for_all_midi_values(self) -> None:
+        for midi_pitch in range(128):
+            with self.subTest(midi_pitch=midi_pitch):
+                folded_pitch, _ = fold_pitch_to_sky_range(midi_pitch)
+                self.assertGreaterEqual(folded_pitch, 60)
+                self.assertLessEqual(folded_pitch, 84)
+
+    def test_in_range_pitches_are_unchanged_by_octave_folding(self) -> None:
+        for midi_pitch in (60, 61, 72, 77, 84):
+            with self.subTest(midi_pitch=midi_pitch):
+                self.assertEqual(fold_pitch_to_sky_range(midi_pitch), (midi_pitch, 0))
+
+    def test_octave_fold_mapping_distributes_low_pitch_classes(self) -> None:
+        source = [event(index * 100, index * 100 + 80, midi) for index, midi in enumerate((38, 43, 50, 55))]
+        clamp = map_events(source, 0, "clamp")
+        octave_fold = map_events(source, 0, "octave-fold")
+        self.assertEqual([item.key_index for item in clamp], [0, 0, 0, 0])
+        self.assertEqual([item.key_index for item in octave_fold], [1, 4, 1, 4])
+
+    def test_global_transpose_is_applied_before_octave_folding(self) -> None:
+        mapped = map_events([event(0, 100, 50)], 12, "octave-fold")
+        self.assertEqual(mapped[0].key_index, 1)
+
+    def test_chromatic_folded_pitch_maps_to_existing_lower_natural_note(self) -> None:
+        source = [event(0, 100, 58)]
+        result = arrange_events(source, transpose=0, pitch_mapping_mode="octave-fold")
+        report = build_mapping_diagnostics(
+            source,
+            result,
+            raw_basic_pitch_event_count=1,
+            rejected_invalid_event_count=0,
+            min_amplitude=0.25,
+            min_duration_ms=50,
+            transpose_mode="manual",
+            pitch_mapping_mode="octave-fold",
+        )
+        self.assertEqual(list(result.notes), [{"time": 0, "key": "1Key5"}])
+        self.assertEqual(report["pitchMapping"]["octaveFoldedUp"], 1)
+        self.assertEqual(report["pitchMapping"]["chromaticNotesMappedToNatural"], 1)
+
+    def test_mapping_diagnostics_distinguish_clamps_from_octave_folds(self) -> None:
+        source = [event(0, 100, 59), event(100, 200, 60), event(200, 300, 85)]
+        clamp_result = arrange_events(source, transpose=0, pitch_mapping_mode="clamp")
+        fold_result = arrange_events(source, transpose=0, pitch_mapping_mode="octave-fold")
+        clamp_report = build_mapping_diagnostics(
+            source,
+            clamp_result,
+            raw_basic_pitch_event_count=3,
+            rejected_invalid_event_count=0,
+            min_amplitude=0.25,
+            min_duration_ms=50,
+            transpose_mode="manual",
+            pitch_mapping_mode="clamp",
+        )
+        fold_report = build_mapping_diagnostics(
+            source,
+            fold_result,
+            raw_basic_pitch_event_count=3,
+            rejected_invalid_event_count=0,
+            min_amplitude=0.25,
+            min_duration_ms=50,
+            transpose_mode="manual",
+            pitch_mapping_mode="octave-fold",
+        )
+        self.assertEqual(
+            clamp_report["rangeClassificationAfterTranspose"],
+            {"belowSkyRange": 1, "insideSkyRange": 1, "aboveSkyRange": 1},
+        )
+        self.assertEqual(
+            clamp_report["pitchMapping"],
+            {
+                "octaveFoldedUp": 0,
+                "octaveFoldedDown": 0,
+                "unchangedByRangeMapping": 1,
+                "clampedToLowestKey": 1,
+                "clampedToHighestKey": 1,
+                "chromaticNotesMappedToNatural": 0,
+            },
+        )
+        self.assertEqual(
+            fold_report["pitchMapping"],
+            {
+                "octaveFoldedUp": 1,
+                "octaveFoldedDown": 1,
+                "unchangedByRangeMapping": 1,
+                "clampedToLowestKey": 0,
+                "clampedToHighestKey": 0,
+                "chromaticNotesMappedToNatural": 1,
+            },
+        )
+
+    def test_octave_fold_histogram_does_not_collapse_low_notes_to_key_zero(self) -> None:
+        source = [event(index * 100, index * 100 + 80, midi) for index, midi in enumerate((36, 38, 43, 50, 55))]
+        result = arrange_events(source, transpose=0, pitch_mapping_mode="octave-fold")
+        report = build_mapping_diagnostics(
+            source,
+            result,
+            raw_basic_pitch_event_count=5,
+            rejected_invalid_event_count=0,
+            min_amplitude=0.25,
+            min_duration_ms=50,
+            transpose_mode="manual",
+            pitch_mapping_mode="octave-fold",
+        )
+        histogram = report["outputKeyHistogram"]
+        self.assertEqual(histogram["1Key0"], 1)
+        self.assertGreater(histogram["1Key1"], 0)
+        self.assertGreater(histogram["1Key4"], 0)
+
+    def test_pitch_mapping_cli_accepts_both_modes_and_defaults_to_clamp(self) -> None:
+        default_args = parse_args(["input.wav", "--output", "output.json"])
+        fold_args = parse_args(
+            ["input.wav", "--output", "output.json", "--pitch-mapping", "octave-fold"]
+        )
+        self.assertEqual(default_args.pitch_mapping, DEFAULT_PITCH_MAPPING_MODE)
+        self.assertEqual(fold_args.pitch_mapping, "octave-fold")
+        with self.assertRaises(SystemExit):
+            parse_args(["input.wav", "--output", "output.json", "--pitch-mapping", "invalid"])
+        with self.assertRaisesRegex(
+            ArrangementError, "pitch mapping mode must be 'clamp' or 'octave-fold'"
+        ):
+            arrange_events([event(0, 100, 60)], pitch_mapping_mode="invalid")  # type: ignore[arg-type]
+
+    def test_default_pitch_mapping_mode_remains_clamp(self) -> None:
+        source = [event(0, 100, 38), event(100, 200, 43)]
+        default_result = arrange_events(source, transpose=0)
+        explicit_clamp_result = arrange_events(source, transpose=0, pitch_mapping_mode="clamp")
+        self.assertEqual(default_result.notes, explicit_clamp_result.notes)
 
     def test_every_output_key_is_in_range(self) -> None:
         result = arrange_events([event(index * 100, index * 100 + 60, midi) for index, midi in enumerate(range(0, 128, 7))])
@@ -246,7 +404,12 @@ class SkyArrangementTests(unittest.TestCase):
             midi_data = FakeMidiData()
             prediction = BasicPitchPrediction(
                 midi_data,
-                ((0.0, 0.1, 60, 0.8), (0.2, 0.3, 61, 0.7), (0.0, 0.1, 60, 1.2)),
+                (
+                    (0.0, 0.1, 60, 0.8),
+                    (0.2, 0.3, 61, 0.7),
+                    (0.4, 0.5, 38, 0.7),
+                    (0.0, 0.1, 60, 1.2),
+                ),
             )
 
             stdout = io.StringIO()
@@ -260,6 +423,8 @@ class SkyArrangementTests(unittest.TestCase):
                                 str(output_path),
                                 "--transpose",
                                 "0",
+                                "--pitch-mapping",
+                                "octave-fold",
                                 "--diagnostics-dir",
                                 str(diagnostics_dir),
                             ]
@@ -276,8 +441,11 @@ class SkyArrangementTests(unittest.TestCase):
             self.assertTrue(report_path.is_file())
             self.assertEqual(midi_data.write_paths, [str(raw_midi_path)])
             run_prediction.assert_called_once_with(input_path)
-            self.assertEqual(json.loads(raw_events_path.read_text(encoding="utf-8"))["normalizedEventCount"], 2)
-            self.assertEqual(json.loads(report_path.read_text(encoding="utf-8"))["counts"]["filteredEvents"], 2)
+            self.assertEqual(json.loads(raw_events_path.read_text(encoding="utf-8"))["normalizedEventCount"], 3)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["counts"]["filteredEvents"], 3)
+            self.assertEqual(report["pitchMappingMode"], "octave-fold")
+            self.assertEqual(report["pitchMapping"]["octaveFoldedUp"], 1)
             self.assertIn("Diagnostics written:", stdout.getvalue())
             self.assertIn("Mapping diagnostics:", stdout.getvalue())
 

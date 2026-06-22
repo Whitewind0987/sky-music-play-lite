@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 from numbers import Integral, Real
-from typing import Iterable, Sequence
+from typing import Iterable, Literal, Sequence, cast
 
 
 SKY_MIDI_NOTES = (
@@ -35,6 +35,8 @@ MAX_WEIGHTED_DURATION_MS = 2_000.0
 AUTO_TRANSPOSE_CANDIDATES = (-24, -12, 0, 12, 24)
 MIN_MANUAL_TRANSPOSE = -36
 MAX_MANUAL_TRANSPOSE = 36
+PitchMappingMode = Literal["clamp", "octave-fold"]
+DEFAULT_PITCH_MAPPING_MODE: PitchMappingMode = "clamp"
 
 
 class ArrangementError(ValueError):
@@ -154,6 +156,12 @@ def validate_transpose_override(transpose: int | None) -> None:
         raise ArrangementError("transpose must be an integer from -36 through 36")
 
 
+def validate_pitch_mapping_mode(pitch_mapping_mode: object) -> PitchMappingMode:
+    if pitch_mapping_mode not in ("clamp", "octave-fold"):
+        raise ArrangementError("pitch mapping mode must be 'clamp' or 'octave-fold'")
+    return cast(PitchMappingMode, pitch_mapping_mode)
+
+
 def filter_events(
     events: Iterable[RawNoteEvent], min_amplitude: float, min_duration_ms: float
 ) -> tuple[RawNoteEvent, ...]:
@@ -184,10 +192,40 @@ def select_global_transpose(events: Sequence[RawNoteEvent]) -> int:
     return min(candidates)[2]
 
 
-def map_events(events: Sequence[RawNoteEvent], transpose: int) -> tuple[MappedNoteEvent, ...]:
+def fold_pitch_to_sky_range(midi_pitch: int) -> tuple[int, int]:
+    if isinstance(midi_pitch, bool) or not isinstance(midi_pitch, Integral):
+        raise ArrangementError("MIDI pitch must be an integer")
+
+    folded_pitch = int(midi_pitch)
+    octave_steps = 0
+    while folded_pitch < SKY_MIDI_NOTES[0]:
+        folded_pitch += 12
+        octave_steps += 1
+    while folded_pitch > SKY_MIDI_NOTES[-1]:
+        folded_pitch -= 12
+        octave_steps -= 1
+    return folded_pitch, octave_steps
+
+
+def apply_pitch_mapping_mode(
+    midi_pitch: int, pitch_mapping_mode: PitchMappingMode = DEFAULT_PITCH_MAPPING_MODE
+) -> tuple[int, int]:
+    mode = validate_pitch_mapping_mode(pitch_mapping_mode)
+    if mode == "octave-fold":
+        return fold_pitch_to_sky_range(midi_pitch)
+    return midi_pitch, 0
+
+
+def map_events(
+    events: Sequence[RawNoteEvent],
+    transpose: int,
+    pitch_mapping_mode: PitchMappingMode = DEFAULT_PITCH_MAPPING_MODE,
+) -> tuple[MappedNoteEvent, ...]:
+    mode = validate_pitch_mapping_mode(pitch_mapping_mode)
     mapped: list[MappedNoteEvent] = []
     for source_index, event in enumerate(events):
-        target_midi = nearest_sky_midi(event.midi_pitch + transpose)
+        mapped_pitch, _ = apply_pitch_mapping_mode(event.midi_pitch + transpose, mode)
+        target_midi = nearest_sky_midi(mapped_pitch)
         key_index = SKY_MIDI_NOTES.index(target_midi)
         mapped.append(
             MappedNoteEvent(
@@ -215,15 +253,17 @@ def arrange_events(
     chord_window_ms: float = DEFAULT_CHORD_WINDOW_MS,
     max_chord_notes: int = DEFAULT_MAX_CHORD_NOTES,
     transpose: int | None = None,
+    pitch_mapping_mode: PitchMappingMode = DEFAULT_PITCH_MAPPING_MODE,
 ) -> ArrangementResult:
     validate_options(min_amplitude, min_duration_ms, chord_window_ms, max_chord_notes)
     validate_transpose_override(transpose)
+    mode = validate_pitch_mapping_mode(pitch_mapping_mode)
     filtered_events = filter_events(events, min_amplitude, min_duration_ms)
     if not filtered_events:
         raise ArrangementError("no note events remain after amplitude and duration filtering")
 
     selected_transpose = select_global_transpose(filtered_events) if transpose is None else transpose
-    mapped_events = map_events(filtered_events, selected_transpose)
+    mapped_events = map_events(filtered_events, selected_transpose, mode)
     earliest_start_ms = min(event.start_ms for event in mapped_events)
     normalized_events = tuple(
         MappedNoteEvent(
@@ -270,6 +310,7 @@ def build_mapping_diagnostics(
     min_amplitude: float,
     min_duration_ms: float,
     transpose_mode: str,
+    pitch_mapping_mode: PitchMappingMode = DEFAULT_PITCH_MAPPING_MODE,
 ) -> dict[str, object]:
     """Describe Sky mapping losses without mutating or re-arranging the score."""
 
@@ -278,16 +319,28 @@ def build_mapping_diagnostics(
     transposed_pitches = tuple(
         event.midi_pitch + arrangement_result.transpose for event in filtered_events
     )
-    mapped_events = map_events(filtered_events, arrangement_result.transpose)
+    mode = validate_pitch_mapping_mode(pitch_mapping_mode)
+    handled_pitches_and_steps = tuple(
+        apply_pitch_mapping_mode(pitch, mode) for pitch in transposed_pitches
+    )
+    handled_pitches = tuple(item[0] for item in handled_pitches_and_steps)
+    mapped_events = map_events(filtered_events, arrangement_result.transpose, mode)
 
     below_sky_range = sum(pitch < SKY_MIDI_NOTES[0] for pitch in transposed_pitches)
     above_sky_range = sum(pitch > SKY_MIDI_NOTES[-1] for pitch in transposed_pitches)
     inside_sky_range = len(filtered_events) - below_sky_range - above_sky_range
-    exact_sky_natural_notes = sum(pitch in SKY_MIDI_NOTES for pitch in transposed_pitches)
+    exact_sky_natural_notes = sum(pitch in SKY_MIDI_NOTES for pitch in handled_pitches)
     chromatic_notes = sum(
         SKY_MIDI_NOTES[0] <= pitch <= SKY_MIDI_NOTES[-1] and pitch not in SKY_MIDI_NOTES
-        for pitch in transposed_pitches
+        for pitch in handled_pitches
     )
+    octave_folded_up = sum(steps > 0 for _, steps in handled_pitches_and_steps)
+    octave_folded_down = sum(steps < 0 for _, steps in handled_pitches_and_steps)
+    unchanged_by_range_mapping = sum(
+        SKY_MIDI_NOTES[0] <= pitch <= SKY_MIDI_NOTES[-1] for pitch in transposed_pitches
+    )
+    clamped_to_lowest = below_sky_range if mode == "clamp" else 0
+    clamped_to_highest = above_sky_range if mode == "clamp" else 0
     histogram = {f"1Key{key_index}": 0 for key_index in range(len(SKY_MIDI_NOTES))}
     for event in mapped_events:
         histogram[f"1Key{event.key_index}"] += 1
@@ -296,6 +349,7 @@ def build_mapping_diagnostics(
         "schemaVersion": 1,
         "transposeMode": transpose_mode,
         "selectedTransposeSemitones": arrangement_result.transpose,
+        "pitchMappingMode": mode,
         "skyMidiRange": {
             "minimum": SKY_MIDI_NOTES[0],
             "maximum": SKY_MIDI_NOTES[-1],
@@ -317,8 +371,16 @@ def build_mapping_diagnostics(
         "mapping": {
             "exactSkyNaturalNotes": exact_sky_natural_notes,
             "chromaticNotesMappedToNatural": chromatic_notes,
-            "clampedToLowestKey": below_sky_range,
-            "clampedToHighestKey": above_sky_range,
+            "clampedToLowestKey": clamped_to_lowest,
+            "clampedToHighestKey": clamped_to_highest,
+        },
+        "pitchMapping": {
+            "octaveFoldedUp": octave_folded_up,
+            "octaveFoldedDown": octave_folded_down,
+            "unchangedByRangeMapping": unchanged_by_range_mapping,
+            "clampedToLowestKey": clamped_to_lowest,
+            "clampedToHighestKey": clamped_to_highest,
+            "chromaticNotesMappedToNatural": chromatic_notes,
         },
         "outputKeyHistogram": histogram,
         "arrangement": {

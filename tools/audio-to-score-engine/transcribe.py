@@ -16,12 +16,15 @@ from sky_arrangement import (
     DEFAULT_MAX_CHORD_NOTES,
     DEFAULT_MIN_AMPLITUDE,
     DEFAULT_MIN_DURATION_MS,
+    DEFAULT_PITCH_MAPPING_MODE,
+    PitchMappingMode,
     RawNoteEvent,
     arrange_events,
     build_mapping_diagnostics,
     build_lite_score,
     normalize_basic_pitch_events,
     validate_options,
+    validate_pitch_mapping_mode,
     validate_transpose_override,
 )
 
@@ -57,6 +60,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--transpose",
         default="auto",
         help="Transpose in semitones: 'auto' (default) or an integer from -36 through 36",
+    )
+    parser.add_argument(
+        "--pitch-mapping",
+        choices=("clamp", "octave-fold"),
+        default=DEFAULT_PITCH_MAPPING_MODE,
+        help="Pitch range mapping: 'clamp' (default) or 'octave-fold'",
     )
     parser.add_argument(
         "--diagnostics-dir",
@@ -127,6 +136,7 @@ def convert_events_to_output(
     chord_window_ms: float = DEFAULT_CHORD_WINDOW_MS,
     max_chord_notes: int = DEFAULT_MAX_CHORD_NOTES,
     transpose: int | None = None,
+    pitch_mapping_mode: PitchMappingMode = DEFAULT_PITCH_MAPPING_MODE,
 ):
     result = arrange_events(
         raw_events,
@@ -135,6 +145,7 @@ def convert_events_to_output(
         chord_window_ms=chord_window_ms,
         max_chord_notes=max_chord_notes,
         transpose=transpose,
+        pitch_mapping_mode=pitch_mapping_mode,
     )
     document = build_lite_score(score_name, result.notes)
     atomic_write_json(output_path, document)
@@ -224,6 +235,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         transpose_override = parse_transpose_argument(args.transpose)
+        pitch_mapping_mode = validate_pitch_mapping_mode(args.pitch_mapping)
         validate_paths(args.input, args.output)
         score_name = args.name if args.name is not None else args.input.stem
         if not score_name.strip():
@@ -262,6 +274,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             chord_window_ms=args.chord_window_ms,
             max_chord_notes=args.max_chord_notes,
             transpose=transpose_override,
+            pitch_mapping_mode=pitch_mapping_mode,
         )
         song_notes = result.notes
         mapping_report = None
@@ -274,6 +287,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 min_amplitude=args.min_amplitude,
                 min_duration_ms=args.min_duration_ms,
                 transpose_mode="automatic" if transpose_override is None else "manual",
+                pitch_mapping_mode=pitch_mapping_mode,
             )
             atomic_write_json(paths.mapping_report, mapping_report)
         first_time = song_notes[0]["time"] if song_notes else "n/a"
@@ -286,6 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"  Rejected invalid events: {normalized.rejected_count}")
         print(f"  Filtered event count: {result.filtered_event_count}")
         print(f"  Final note count: {len(song_notes)}")
+        print(f"  Pitch mapping mode: {pitch_mapping_mode}")
         print(f"  Transpose mode: {'automatic octave-only' if transpose_override is None else 'manual'}")
         print(f"  Selected transpose: {_format_transpose(result.transpose)}")
         print(f"  First note time: {first_time} ms")
@@ -304,6 +319,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  Chromatic notes changed: {mapping['chromaticNotesMappedToNatural']}")
             print(f"  Lowest-key clamps: {mapping['clampedToLowestKey']}")
             print(f"  Highest-key clamps: {mapping['clampedToHighestKey']}")
+            pitch_mapping = mapping_report["pitchMapping"]
+            print("\nPitch mapping diagnostics:")
+            print(f"  Octave-folded upward: {pitch_mapping['octaveFoldedUp']}")
+            print(f"  Octave-folded downward: {pitch_mapping['octaveFoldedDown']}")
+            print(f"  Lowest-key clamps: {pitch_mapping['clampedToLowestKey']}")
+            print(f"  Highest-key clamps: {pitch_mapping['clampedToHighestKey']}")
+            print(f"  Chromatic notes changed: {pitch_mapping['chromaticNotesMappedToNatural']}")
         return 0
     except ArrangementError as error:
         print(f"Conversion failed: {error}")

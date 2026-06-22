@@ -44,6 +44,7 @@ Optional parameters:
 - `--chord-window-ms` (default `35`)
 - `--max-chord-notes` (default `3`, from `1` through `15`)
 - `--transpose` (default `auto`, or a manual integer from `-36` through `36`)
+- `--pitch-mapping` (default `clamp`, or the experimental `octave-fold`)
 
 The command creates the output parent directory if needed and writes the JSON atomically. It derives the score name from the input filename unless `--name` is supplied.
 
@@ -66,6 +67,37 @@ For diagnosis or a user correction, a non-octave manual transpose is also availa
 ```
 
 Non-octave manual transposition is intended for diagnosis and user correction, not as the automatic default.
+
+### Pitch-mapping experiments
+
+The default `--pitch-mapping clamp` preserves the original behavior: pitches below Sky MIDI 60 collapse toward `Key0`, and pitches above MIDI 84 collapse toward `Key14`. Keep this mode as the A/B baseline.
+
+`--pitch-mapping octave-fold` is experimental. After transpose, it repeatedly moves out-of-range pitches by whole octaves until they are inside MIDI 60–84, then applies the existing nearest-natural-note mapping. For example, MIDI 38 folds to 62 and MIDI 43 folds to 67 instead of both becoming `Key0`. Folding preserves pitch class, but it does not perform melody extraction.
+
+Compare both modes with the same audio and diagnostics directory:
+
+```powershell
+$Python = ".\tools\audio-to-score-engine\.venv\Scripts\python.exe"
+$Script = ".\tools\audio-to-score-engine\transcribe.py"
+$Audio = "D:\Music\piano-test.wav"
+$Output = ".\tools\audio-to-score-engine\output"
+
+& $Python $Script $Audio `
+  --output "$Output\mapping-clamp.json" `
+  --transpose 0 `
+  --pitch-mapping clamp `
+  --diagnostics-dir "$Output\mapping-clamp-diagnostics"
+
+& $Python $Script $Audio `
+  --output "$Output\mapping-octave-fold.json" `
+  --transpose 0 `
+  --pitch-mapping octave-fold `
+  --diagnostics-dir "$Output\mapping-octave-fold-diagnostics"
+```
+
+In `mapping-report.json`, keep `rangeClassificationAfterTranspose` as the pre-mapping baseline. The `pitchMapping` section then shows how many notes were octave-folded, remained in range, or were boundary-clamped. The output key histogram reflects the selected mode before chord limiting and repeat suppression.
+
+Octave folding can restore low-note movement, but it can also fold accompaniment into the melody register and create denser collisions. It is an experiment for listening comparison, not a complete arrangement-quality solution.
 
 ### Transcription diagnostics
 
