@@ -99,6 +99,26 @@ In `mapping-report.json`, keep `rangeClassificationAfterTranspose` as the pre-ma
 
 Octave folding can restore low-note movement, but it can also fold accompaniment into the melody register and create denser collisions. It is an experiment for listening comparison, not a complete arrangement-quality solution.
 
+### Melody extraction experiment
+
+`--arrangement-mode polyphonic` remains the default and preserves the current multi-note arrangement. `--arrangement-mode melody-dp` is an experimental single-line dynamic-programming extractor. It groups filtered Basic Pitch events by anchored onset windows, scores a small candidate set per group, then chooses a continuous path before transpose and pitch mapping. It does not reconstruct accompaniment.
+
+```powershell
+& $Python $Script $Audio `
+  --output "$Output\melody-dp.json" `
+  --transpose 0 `
+  --pitch-mapping octave-fold `
+  --arrangement-mode melody-dp `
+  --melody-onset-window-ms 70 `
+  --melody-max-candidates 6 `
+  --melody-max-skip-groups 3 `
+  --diagnostics-dir "$Output\melody-dp-diagnostics"
+```
+
+The melody path is selected on original MIDI pitches; transpose, clamp/octave-fold, and Sky natural-note mapping happen afterwards. The default melody settings are a 70 ms anchored onset window, six candidates per group, and up to three skipped groups. Diagnostics in melody mode add `melody-selected-events.json` and a `melodyExtraction` section in `mapping-report.json` with group, candidate, coverage, and jump statistics.
+
+Compare `melody-dp.json` with the polyphonic highest-note-style baseline using the same audio, transpose, and pitch mapping parameters. Melody DP targets a stable recognizable single-note line, not piano accompaniment reconstruction; folded accompaniment can still collide with the melody and important notes can still be skipped.
+
 ### Transcription diagnostics
 
 Use `--diagnostics-dir` to inspect the same Basic Pitch prediction before it reaches the Sky 15-key arrangement layer:

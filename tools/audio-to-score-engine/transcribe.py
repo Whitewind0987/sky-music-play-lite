@@ -13,11 +13,16 @@ from typing import Iterable, Sequence
 from sky_arrangement import (
     ArrangementError,
     DEFAULT_CHORD_WINDOW_MS,
+    DEFAULT_ARRANGEMENT_MODE,
+    DEFAULT_MELODY_MAX_CANDIDATES,
+    DEFAULT_MELODY_MAX_SKIP_GROUPS,
+    DEFAULT_MELODY_ONSET_WINDOW_MS,
     DEFAULT_MAX_CHORD_NOTES,
     DEFAULT_MIN_AMPLITUDE,
     DEFAULT_MIN_DURATION_MS,
     DEFAULT_PITCH_MAPPING_MODE,
     PitchMappingMode,
+    ArrangementMode,
     RawNoteEvent,
     arrange_events,
     build_mapping_diagnostics,
@@ -25,6 +30,8 @@ from sky_arrangement import (
     normalize_basic_pitch_events,
     validate_options,
     validate_pitch_mapping_mode,
+    validate_arrangement_mode,
+    validate_melody_options,
     validate_transpose_override,
 )
 
@@ -43,6 +50,7 @@ class DiagnosticPaths:
     raw_midi: Path
     raw_note_events: Path
     mapping_report: Path
+    melody_selected_events: Path
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -61,6 +69,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="auto",
         help="Transpose in semitones: 'auto' (default) or an integer from -36 through 36",
     )
+    parser.add_argument("--arrangement-mode", choices=("polyphonic", "melody-dp"), default=DEFAULT_ARRANGEMENT_MODE)
+    parser.add_argument("--melody-onset-window-ms", type=float, default=DEFAULT_MELODY_ONSET_WINDOW_MS)
+    parser.add_argument("--melody-max-candidates", type=int, default=DEFAULT_MELODY_MAX_CANDIDATES)
+    parser.add_argument("--melody-max-skip-groups", type=int, default=DEFAULT_MELODY_MAX_SKIP_GROUPS)
     parser.add_argument(
         "--pitch-mapping",
         choices=("clamp", "octave-fold"),
@@ -137,6 +149,10 @@ def convert_events_to_output(
     max_chord_notes: int = DEFAULT_MAX_CHORD_NOTES,
     transpose: int | None = None,
     pitch_mapping_mode: PitchMappingMode = DEFAULT_PITCH_MAPPING_MODE,
+    arrangement_mode: ArrangementMode = DEFAULT_ARRANGEMENT_MODE,
+    melody_onset_window_ms: float = DEFAULT_MELODY_ONSET_WINDOW_MS,
+    melody_max_candidates: int = DEFAULT_MELODY_MAX_CANDIDATES,
+    melody_max_skip_groups: int = DEFAULT_MELODY_MAX_SKIP_GROUPS,
 ):
     result = arrange_events(
         raw_events,
@@ -146,6 +162,10 @@ def convert_events_to_output(
         max_chord_notes=max_chord_notes,
         transpose=transpose,
         pitch_mapping_mode=pitch_mapping_mode,
+        arrangement_mode=arrangement_mode,
+        melody_onset_window_ms=melody_onset_window_ms,
+        melody_max_candidates=melody_max_candidates,
+        melody_max_skip_groups=melody_max_skip_groups,
     )
     document = build_lite_score(score_name, result.notes)
     atomic_write_json(output_path, document)
@@ -183,6 +203,7 @@ def diagnostic_paths(diagnostics_dir: Path) -> DiagnosticPaths:
         raw_midi=diagnostics_dir / "basic-pitch-raw.mid",
         raw_note_events=diagnostics_dir / "raw-note-events.json",
         mapping_report=diagnostics_dir / "mapping-report.json",
+        melody_selected_events=diagnostics_dir / "melody-selected-events.json",
     )
 
 
@@ -231,11 +252,52 @@ def build_raw_note_events_document(
     }
 
 
+def build_melody_selected_events_document(
+    result: object, *, onset_window_ms: float, max_candidates: int, max_skip_groups: int
+) -> dict[str, object]:
+    melody = getattr(result, "melody_extraction", None)
+    if melody is None:
+        raise ArrangementError("melody diagnostics require melody-dp arrangement mode")
+    return {
+        "schemaVersion": 1,
+        "arrangementMode": "melody-dp",
+        "onsetWindowMs": onset_window_ms,
+        "maximumCandidatesPerGroup": max_candidates,
+        "maximumSkippedGroups": max_skip_groups,
+        "counts": {
+            "filteredInputEvents": result.filtered_event_count,
+            "onsetGroups": melody.onset_group_count,
+            "candidates": melody.candidate_count,
+            "selectedMelodyEvents": melody.selected_group_count,
+            "skippedGroups": melody.skipped_group_count,
+        },
+        "jumpStatistics": {
+            "largeJumpsFiveOrMoreSemitones": melody.large_jump_count,
+            "octaveOrLargerJumps": melody.octave_or_larger_jump_count,
+            "maximumJumpSemitones": melody.maximum_jump_semitones,
+        },
+        "events": [
+            {
+                "groupIndex": candidate.group_index,
+                "startMs": candidate.event.start_ms,
+                "endMs": candidate.event.end_ms,
+                "durationMs": candidate.event.duration_ms,
+                "midiPitch": candidate.event.midi_pitch,
+                "amplitude": candidate.event.amplitude,
+                "localScore": candidate.local_score,
+            }
+            for candidate in melody.selected_candidates
+        ],
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         transpose_override = parse_transpose_argument(args.transpose)
         pitch_mapping_mode = validate_pitch_mapping_mode(args.pitch_mapping)
+        arrangement_mode = validate_arrangement_mode(args.arrangement_mode)
+        validate_melody_options(args.melody_onset_window_ms, args.melody_max_candidates, args.melody_max_skip_groups)
         validate_paths(args.input, args.output)
         score_name = args.name if args.name is not None else args.input.stem
         if not score_name.strip():
@@ -275,9 +337,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_chord_notes=args.max_chord_notes,
             transpose=transpose_override,
             pitch_mapping_mode=pitch_mapping_mode,
+            arrangement_mode=arrangement_mode,
+            melody_onset_window_ms=args.melody_onset_window_ms,
+            melody_max_candidates=args.melody_max_candidates,
+            melody_max_skip_groups=args.melody_max_skip_groups,
         )
         song_notes = result.notes
         mapping_report = None
+        melody_diagnostic_path = None
         if paths is not None:
             mapping_report = build_mapping_diagnostics(
                 normalized.events,
@@ -288,8 +355,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 min_duration_ms=args.min_duration_ms,
                 transpose_mode="automatic" if transpose_override is None else "manual",
                 pitch_mapping_mode=pitch_mapping_mode,
+                arrangement_mode=arrangement_mode,
             )
             atomic_write_json(paths.mapping_report, mapping_report)
+            if arrangement_mode == "melody-dp":
+                atomic_write_json(
+                    paths.melody_selected_events,
+                    build_melody_selected_events_document(
+                        result,
+                        onset_window_ms=args.melody_onset_window_ms,
+                        max_candidates=args.melody_max_candidates,
+                        max_skip_groups=args.melody_max_skip_groups,
+                    ),
+                )
+                melody_diagnostic_path = paths.melody_selected_events
         first_time = song_notes[0]["time"] if song_notes else "n/a"
         last_time = song_notes[-1]["time"] if song_notes else "n/a"
         print("[4/4] Writing Lite-compatible JSON complete.")
@@ -301,6 +380,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"  Filtered event count: {result.filtered_event_count}")
         print(f"  Final note count: {len(song_notes)}")
         print(f"  Pitch mapping mode: {pitch_mapping_mode}")
+        print(f"  Arrangement mode: {arrangement_mode}")
         print(f"  Transpose mode: {'automatic octave-only' if transpose_override is None else 'manual'}")
         print(f"  Selected transpose: {_format_transpose(result.transpose)}")
         print(f"  First note time: {first_time} ms")
@@ -311,6 +391,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  Raw MIDI: {paths.raw_midi}")
             print(f"  Raw note events: {paths.raw_note_events}")
             print(f"  Mapping report: {paths.mapping_report}")
+            if melody_diagnostic_path is not None:
+                print(f"  Melody selected events: {melody_diagnostic_path}")
             classification = mapping_report["rangeClassificationAfterTranspose"]
             mapping = mapping_report["mapping"]
             print("\nMapping diagnostics:")
@@ -326,6 +408,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  Lowest-key clamps: {pitch_mapping['clampedToLowestKey']}")
             print(f"  Highest-key clamps: {pitch_mapping['clampedToHighestKey']}")
             print(f"  Chromatic notes changed: {pitch_mapping['chromaticNotesMappedToNatural']}")
+        if result.melody_extraction is not None:
+            melody = result.melody_extraction
+            print("\nMelody extraction:")
+            print(f"  Filtered input events: {result.filtered_event_count}")
+            print(f"  Onset groups: {melody.onset_group_count}")
+            print(f"  Candidate events: {melody.candidate_count}")
+            print(f"  Selected melody events: {melody.selected_group_count}")
+            print(f"  Skipped groups: {melody.skipped_group_count}")
+            print(f"  Jumps >= 5 semitones: {melody.large_jump_count}")
+            print(f"  Jumps >= 12 semitones: {melody.octave_or_larger_jump_count}")
+            print(f"  Maximum jump: {melody.maximum_jump_semitones} semitones")
         return 0
     except ArrangementError as error:
         print(f"Conversion failed: {error}")

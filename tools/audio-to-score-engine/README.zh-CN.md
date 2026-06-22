@@ -99,6 +99,26 @@ $Output = ".\tools\audio-to-score-engine\output"
 
 八度折叠可能恢复低音的运动，但也可能把伴奏折叠到旋律音区，造成更密集的碰撞。它只用于试听对比，不是完整的编排质量解决方案。
 
+### 旋律提取实验
+
+`--arrangement-mode polyphonic` 仍是默认值，保留当前多音编排。`--arrangement-mode melody-dp` 是实验性的单旋律动态规划提取器：它先按锚点起音窗口分组过滤后的 Basic Pitch 事件，在每组中对少量候选评分，再在转调和音高映射之前选择一条连续路径。它不会重建伴奏。
+
+```powershell
+& $Python $Script $Audio `
+  --output "$Output\melody-dp.json" `
+  --transpose 0 `
+  --pitch-mapping octave-fold `
+  --arrangement-mode melody-dp `
+  --melody-onset-window-ms 70 `
+  --melody-max-candidates 6 `
+  --melody-max-skip-groups 3 `
+  --diagnostics-dir "$Output\melody-dp-diagnostics"
+```
+
+旋律路径在原始 MIDI 音高上选择；之后才执行转调、clamp/octave-fold 和 Sky 自然音映射。默认参数为 70ms 锚点起音窗口、每组最多 6 个候选、最多跳过 3 组。旋律模式的诊断会新增 `melody-selected-events.json`，并在 `mapping-report.json` 中添加包含分组、候选、覆盖率和跳音统计的 `melodyExtraction` 区域。
+
+请在相同音频、转调和音高映射参数下，将 `melody-dp.json` 与 polyphonic 的最高音式基线比较。旋律 DP 的目标是稳定且可识别的单音旋律线，不是钢琴伴奏重建；折叠后的伴奏仍可能与旋律碰撞，重要旋律音也可能被跳过。
+
 ### 转写诊断
 
 使用 `--diagnostics-dir` 可以检查同一次 Basic Pitch 预测在进入 Sky 15 键编排层之前的原始结果：

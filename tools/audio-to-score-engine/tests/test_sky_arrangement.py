@@ -23,6 +23,8 @@ from sky_arrangement import (  # noqa: E402
     build_lite_score,
     build_mapping_diagnostics,
     fold_pitch_to_sky_range,
+    group_events_by_onset,
+    extract_melody_dp,
     map_events,
     nearest_sky_midi,
     normalize_basic_pitch_events,
@@ -53,6 +55,49 @@ class FakeMidiData:
 
 
 class SkyArrangementTests(unittest.TestCase):
+    def test_melody_onset_groups_use_first_event_anchor(self) -> None:
+        groups = group_events_by_onset(
+            [event(0, 100, 60), event(25, 125, 62), event(50, 150, 64), event(75, 175, 65)],
+            30,
+        )
+        self.assertEqual([[item.start_ms for item in group] for group in groups], [[0, 25], [50, 75]])
+
+    def test_melody_dp_prefers_continuous_line_over_higher_distractors(self) -> None:
+        source = [
+            event(0, 300, 67, 0.8), event(0, 300, 79, 0.9),
+            event(100, 400, 69, 0.8), event(100, 400, 55, 0.9),
+            event(200, 500, 71, 0.8), event(200, 500, 83, 0.9),
+            event(300, 600, 72, 0.8), event(300, 600, 50, 0.9),
+        ]
+        result = extract_melody_dp(source, onset_window_ms=30, max_candidates=2, max_skip_groups=0)
+        self.assertEqual([item.midi_pitch for item in result.events], [67, 69, 71, 72])
+
+    def test_melody_dp_supports_descending_line_and_is_deterministic(self) -> None:
+        source = [
+            event(0, 200, 76, 0.8), event(0, 200, 84, 0.9),
+            event(100, 300, 74, 0.8), event(100, 300, 60, 0.9),
+            event(200, 400, 72, 0.8), event(200, 400, 83, 0.9),
+            event(300, 500, 71, 0.8), event(300, 500, 55, 0.9),
+        ]
+        first = extract_melody_dp(source, onset_window_ms=30, max_candidates=2, max_skip_groups=0)
+        second = extract_melody_dp(source, onset_window_ms=30, max_candidates=2, max_skip_groups=0)
+        self.assertEqual([item.midi_pitch for item in first.events], [76, 74, 72, 71])
+        self.assertEqual(first, second)
+
+    def test_melody_dp_extracts_before_pitch_mapping(self) -> None:
+        source = [event(0, 100, 36, 0.9), event(0, 100, 67, 0.8), event(100, 200, 38, 0.9), event(100, 200, 69, 0.8)]
+        clamp = arrange_events(source, transpose=0, arrangement_mode="melody-dp", pitch_mapping_mode="clamp")
+        folded = arrange_events(source, transpose=0, arrangement_mode="melody-dp", pitch_mapping_mode="octave-fold")
+        self.assertEqual(clamp.arranged_events, folded.arranged_events)
+        self.assertEqual(len(clamp.arranged_events), 2)
+        self.assertLessEqual(folded.maximum_chord_size, 1)
+
+    def test_melody_dp_respects_maximum_skip_groups(self) -> None:
+        source = [event(0, 100, 60, 0.8), event(100, 200, 84, 0.2), event(200, 300, 62, 0.8)]
+        no_skip = extract_melody_dp(source, onset_window_ms=30, max_candidates=1, max_skip_groups=0)
+        can_skip = extract_melody_dp(source, onset_window_ms=30, max_candidates=1, max_skip_groups=1)
+        self.assertLessEqual(no_skip.skipped_group_count, 0)
+        self.assertLessEqual(can_skip.skipped_group_count, 1)
     def test_target_midi_notes_map_to_expected_keys(self) -> None:
         mapped = map_events([event(0, 100, midi) for midi in SKY_MIDI_NOTES], 0)
         self.assertEqual([item.key_index for item in mapped], list(range(15)))
@@ -466,6 +511,34 @@ class SkyArrangementTests(unittest.TestCase):
             self.assertFalse((temporary_path / "mapping-report.json").exists())
             self.assertEqual(prediction.midi_data.write_paths, [])
             run_prediction.assert_called_once_with(input_path)
+
+    def test_melody_mode_diagnostics_write_selected_events_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            input_path = temporary_path / "piano.wav"
+            output_path = temporary_path / "melody.json"
+            diagnostics_dir = temporary_path / "diagnostics"
+            input_path.touch()
+            prediction = BasicPitchPrediction(
+                FakeMidiData(),
+                ((0.0, 0.1, 67, 0.8), (0.1, 0.2, 69, 0.8), (0.2, 0.3, 71, 0.8)),
+            )
+            with patch("transcribe.run_basic_pitch", return_value=prediction):
+                self.assertEqual(
+                    main(
+                        [
+                            str(input_path), "--output", str(output_path), "--arrangement-mode", "melody-dp",
+                            "--diagnostics-dir", str(diagnostics_dir),
+                        ]
+                    ),
+                    0,
+                )
+            selected_path = diagnostics_dir / "melody-selected-events.json"
+            report = json.loads((diagnostics_dir / "mapping-report.json").read_text(encoding="utf-8"))
+            self.assertTrue(selected_path.is_file())
+            self.assertEqual(json.loads(selected_path.read_text(encoding="utf-8"))["arrangementMode"], "melody-dp")
+            self.assertEqual(report["arrangementMode"], "melody-dp")
+            self.assertIsNotNone(report["melodyExtraction"])
 
     def test_low_amplitude_and_short_events_are_removed(self) -> None:
         result = arrange_events([event(0, 100, 60, 0.2), event(100, 140, 62), event(200, 300, 64)])
