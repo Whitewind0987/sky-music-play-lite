@@ -28,12 +28,14 @@ from sky_arrangement import (
     build_mapping_diagnostics,
     build_lite_score,
     normalize_basic_pitch_events,
+    filter_events,
     validate_options,
     validate_pitch_mapping_mode,
     validate_arrangement_mode,
     validate_melody_options,
     validate_transpose_override,
 )
+from voice_separation import separate_voices, validate_voice_options
 
 
 SUPPORTED_AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
@@ -51,6 +53,7 @@ class DiagnosticPaths:
     raw_note_events: Path
     mapping_report: Path
     melody_selected_events: Path
+    voice_report: Path
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -69,6 +72,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="auto",
         help="Transpose in semitones: 'auto' (default) or an integer from -36 through 36",
     )
+    parser.add_argument("--export-separated-voices", action="store_true")
+    parser.add_argument("--voice-count", type=int, default=4)
+    parser.add_argument("--voice-onset-window-ms", type=float, default=70.0)
+    parser.add_argument("--voice-beam-width", type=int, default=64)
+    parser.add_argument("--voice-max-notes-per-group", type=int, default=6)
     parser.add_argument("--arrangement-mode", choices=("polyphonic", "melody-dp"), default=DEFAULT_ARRANGEMENT_MODE)
     parser.add_argument("--melody-onset-window-ms", type=float, default=DEFAULT_MELODY_ONSET_WINDOW_MS)
     parser.add_argument("--melody-max-candidates", type=int, default=DEFAULT_MELODY_MAX_CANDIDATES)
@@ -204,7 +212,32 @@ def diagnostic_paths(diagnostics_dir: Path) -> DiagnosticPaths:
         raw_note_events=diagnostics_dir / "raw-note-events.json",
         mapping_report=diagnostics_dir / "mapping-report.json",
         melody_selected_events=diagnostics_dir / "melody-selected-events.json",
+        voice_report=diagnostics_dir / "voice-separation-report.json",
     )
+
+
+def build_voice_report(result, *, voice_count: int, onset_window_ms: float, max_notes_per_group: int) -> dict[str, object]:
+    return {
+        "schemaVersion": 1, "inputEventCount": result.input_event_count,
+        "consideredEventCount": result.considered_event_count, "assignedEventCount": result.assigned_event_count,
+        "droppedEventCount": result.dropped_event_count, "truncatedGroupEventCount": result.truncated_group_event_count,
+        "onsetGroups": result.onset_group_count, "requestedVoiceCount": voice_count,
+        "exportedVoiceCount": len(result.voices), "onsetWindowMs": onset_window_ms,
+        "beamWidth": result.beam_width, "maximumNotesPerGroup": max_notes_per_group,
+        "voices": [{"index": v.index, "eventCount": len(v.events), "minimumPitch": v.minimum_pitch,
+          "maximumPitch": v.maximum_pitch, "medianPitch": v.median_pitch, "averageAmplitude": v.average_amplitude,
+          "averageDurationMs": v.average_duration_ms, "largeJumpsFiveOrMoreSemitones": v.large_jump_count,
+          "octaveOrLargerJumps": v.octave_or_larger_jump_count, "maximumJumpSemitones": v.maximum_jump_semitones,
+          "activeStartMs": v.events[0].event.start_ms, "activeEndMs": v.events[-1].event.end_ms} for v in result.voices],
+    }
+
+
+def build_voice_events_document(voice) -> dict[str, object]:
+    return {"schemaVersion": 1, "voiceIndex": voice.index, "registerOrder": "low-to-high", "events": [
+        {"groupIndex": item.group_index, "startMs": item.event.start_ms, "endMs": item.event.end_ms,
+         "durationMs": item.event.duration_ms, "midiPitch": item.event.midi_pitch,
+         "amplitude": item.event.amplitude, "assignmentCost": item.assignment_cost}
+        for item in sorted(voice.events, key=lambda item: (item.event.start_ms, item.group_index, item.event.midi_pitch))]}
 
 
 def write_raw_midi_diagnostic(midi_data: object, output_path: Path) -> None:
@@ -298,6 +331,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         pitch_mapping_mode = validate_pitch_mapping_mode(args.pitch_mapping)
         arrangement_mode = validate_arrangement_mode(args.arrangement_mode)
         validate_melody_options(args.melody_onset_window_ms, args.melody_max_candidates, args.melody_max_skip_groups)
+        validate_voice_options(args.voice_count, args.voice_onset_window_ms, args.voice_beam_width, args.voice_max_notes_per_group)
+        if args.export_separated_voices and args.diagnostics_dir is None:
+            raise ArrangementError("--export-separated-voices requires --diagnostics-dir")
         validate_paths(args.input, args.output)
         score_name = args.name if args.name is not None else args.input.stem
         if not score_name.strip():
@@ -314,6 +350,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prediction = run_basic_pitch(args.input)
         raw_event_count = len(prediction.note_events)
         normalized = normalize_basic_pitch_events(prediction.note_events)
+        voice_result = None
         paths = diagnostic_paths(args.diagnostics_dir) if args.diagnostics_dir is not None else None
         if paths is not None:
             write_raw_midi_diagnostic(prediction.midi_data, paths.raw_midi)
@@ -326,6 +363,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                     rejected_invalid_event_count=normalized.rejected_count,
                 ),
             )
+        if args.export_separated_voices:
+            voice_result = separate_voices(
+                filter_events(normalized.events, args.min_amplitude, args.min_duration_ms),
+                voice_count=args.voice_count, onset_window_ms=args.voice_onset_window_ms,
+                beam_width=args.voice_beam_width, max_notes_per_group=args.voice_max_notes_per_group,
+            )
+            atomic_write_json(paths.voice_report, build_voice_report(
+                voice_result, voice_count=args.voice_count, onset_window_ms=args.voice_onset_window_ms,
+                max_notes_per_group=args.voice_max_notes_per_group,
+            ))
+            for voice in voice_result.voices:
+                atomic_write_json(paths.raw_midi.parent / f"voice-{voice.index}-raw-events.json", build_voice_events_document(voice))
         print("[3/4] Arranging note events...")
         result = convert_events_to_output(
             normalized.events,
@@ -393,6 +442,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  Mapping report: {paths.mapping_report}")
             if melody_diagnostic_path is not None:
                 print(f"  Melody selected events: {melody_diagnostic_path}")
+            if voice_result is not None:
+                print(f"  Voice separation report: {paths.voice_report}")
+                print("\nVoice separation:")
+                print(f"  Filtered input events: {voice_result.input_event_count}")
+                print(f"  Onset groups: {voice_result.onset_group_count}")
+                print(f"  Considered events: {voice_result.considered_event_count}")
+                print(f"  Assigned events: {voice_result.assigned_event_count}")
+                print(f"  Dropped events: {voice_result.dropped_event_count}")
+                print(f"  Truncated group events: {voice_result.truncated_group_event_count}")
+                for voice in voice_result.voices:
+                    print(f"  Voice {voice.index}: {len(voice.events)} events, MIDI {voice.minimum_pitch}–{voice.maximum_pitch}, median {voice.median_pitch}")
             classification = mapping_report["rangeClassificationAfterTranspose"]
             mapping = mapping_report["mapping"]
             print("\nMapping diagnostics:")
