@@ -261,6 +261,72 @@ def build_lite_score(name: str, notes: Sequence[dict[str, int | str]]) -> list[d
     ]
 
 
+def build_mapping_diagnostics(
+    normalized_events: Iterable[RawNoteEvent],
+    arrangement_result: ArrangementResult,
+    *,
+    raw_basic_pitch_event_count: int,
+    rejected_invalid_event_count: int,
+    min_amplitude: float,
+    min_duration_ms: float,
+    transpose_mode: str,
+) -> dict[str, object]:
+    """Describe Sky mapping losses without mutating or re-arranging the score."""
+
+    events = tuple(normalized_events)
+    filtered_events = filter_events(events, min_amplitude, min_duration_ms)
+    transposed_pitches = tuple(
+        event.midi_pitch + arrangement_result.transpose for event in filtered_events
+    )
+    mapped_events = map_events(filtered_events, arrangement_result.transpose)
+
+    below_sky_range = sum(pitch < SKY_MIDI_NOTES[0] for pitch in transposed_pitches)
+    above_sky_range = sum(pitch > SKY_MIDI_NOTES[-1] for pitch in transposed_pitches)
+    inside_sky_range = len(filtered_events) - below_sky_range - above_sky_range
+    exact_sky_natural_notes = sum(pitch in SKY_MIDI_NOTES for pitch in transposed_pitches)
+    chromatic_notes = sum(
+        SKY_MIDI_NOTES[0] <= pitch <= SKY_MIDI_NOTES[-1] and pitch not in SKY_MIDI_NOTES
+        for pitch in transposed_pitches
+    )
+    histogram = {f"1Key{key_index}": 0 for key_index in range(len(SKY_MIDI_NOTES))}
+    for event in mapped_events:
+        histogram[f"1Key{event.key_index}"] += 1
+
+    return {
+        "schemaVersion": 1,
+        "transposeMode": transpose_mode,
+        "selectedTransposeSemitones": arrangement_result.transpose,
+        "skyMidiRange": {
+            "minimum": SKY_MIDI_NOTES[0],
+            "maximum": SKY_MIDI_NOTES[-1],
+        },
+        "counts": {
+            "rawBasicPitchEvents": raw_basic_pitch_event_count,
+            "rejectedInvalidEvents": rejected_invalid_event_count,
+            "normalizedEvents": len(events),
+            "filteredEvents": len(filtered_events),
+            "finalLiteNotes": len(arrangement_result.notes),
+        },
+        "sourcePitchRange": _pitch_range(event.midi_pitch for event in filtered_events),
+        "transposedPitchRange": _pitch_range(transposed_pitches),
+        "rangeClassificationAfterTranspose": {
+            "belowSkyRange": below_sky_range,
+            "insideSkyRange": inside_sky_range,
+            "aboveSkyRange": above_sky_range,
+        },
+        "mapping": {
+            "exactSkyNaturalNotes": exact_sky_natural_notes,
+            "chromaticNotesMappedToNatural": chromatic_notes,
+            "clampedToLowestKey": below_sky_range,
+            "clampedToHighestKey": above_sky_range,
+        },
+        "outputKeyHistogram": histogram,
+        "arrangement": {
+            "maximumChordSize": arrangement_result.maximum_chord_size,
+        },
+    }
+
+
 def _select_chord_notes(
     events: Sequence[MappedNoteEvent], chord_window_ms: float, max_chord_notes: int
 ) -> list[tuple[int, tuple[MappedNoteEvent, ...]]]:
@@ -312,6 +378,14 @@ def _remove_immediate_repeats(
 def _mapping_weight(event: RawNoteEvent) -> float:
     capped_duration = min(event.duration_ms, MAX_WEIGHTED_DURATION_MS)
     return (0.25 + event.amplitude) * (0.5 + capped_duration / MAX_WEIGHTED_DURATION_MS)
+
+
+def _pitch_range(pitches: Iterable[int]) -> dict[str, int | None]:
+    values = tuple(pitches)
+    return {
+        "minimum": min(values) if values else None,
+        "maximum": max(values) if values else None,
+    }
 
 
 def _nearest_distance(midi_pitch: int) -> int:

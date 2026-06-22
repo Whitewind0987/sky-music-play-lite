@@ -67,6 +67,30 @@ For diagnosis or a user correction, a non-octave manual transpose is also availa
 
 Non-octave manual transposition is intended for diagnosis and user correction, not as the automatic default.
 
+### Transcription diagnostics
+
+Use `--diagnostics-dir` to inspect the same Basic Pitch prediction before it reaches the Sky 15-key arrangement layer:
+
+```powershell
+& ".\tools\audio-to-score-engine\.venv\Scripts\python.exe" `
+  ".\tools\audio-to-score-engine\transcribe.py" `
+  "D:\Music\piano-test.wav" `
+  --output ".\tools\audio-to-score-engine\output\piano-test.json" `
+  --name "Piano diagnostic test" `
+  --transpose 0 `
+  --diagnostics-dir ".\tools\audio-to-score-engine\output\piano-test-diagnostics"
+```
+
+The diagnostics directory contains:
+
+- `basic-pitch-raw.mid`: the raw MIDI object returned by Basic Pitch, before filtering, transpose, Sky key mapping, chord limiting, or repeat suppression.
+- `raw-note-events.json`: valid normalized Basic Pitch note events, including notes that later fail the normal amplitude or duration filters.
+- `mapping-report.json`: counts for pitch range loss, chromatic-to-natural mapping, boundary clamps, and output-key usage.
+
+Compare the original piano audio with `basic-pitch-raw.mid`, then compare that MIDI with the generated Lite JSON played in SkyMusicPlay Lite. If the raw MIDI already does not resemble the original, Basic Pitch transcription is the main issue. If the raw MIDI resembles it but the Lite score does not, the Sky arrangement layer is the main issue. A raw MIDI that is melodic but excessively dense indicates that melody extraction or accompaniment reduction is needed later.
+
+Diagnostic files are development artifacts and must not be committed.
+
 ## Import and preview
 
 Import the generated `.json` in SkyMusicPlay Lite's existing local import section. Start with preview playback before enabling foreground or target-window game playback. The output is one Lite-compatible JSON array containing one song and absolute millisecond note times.
@@ -75,7 +99,7 @@ Import the generated `.json` in SkyMusicPlay Lite's existing local import sectio
 
 Basic Pitch works best with isolated or simple instruments. Full mixed songs can produce dense or inaccurate notes. This phase intentionally does not include melody extraction, Demucs, beat detection/BPM estimation, MIDI input, an LLM, UI integration, or release packaging. BPM is fixed at `120` because Lite playback uses absolute note times.
 
-Do not commit `.venv`, Basic Pitch/model caches, generated output, or PyInstaller temporary build directories. This repository does not yet build or ship an executable Sidecar; source-sidecar packaging is a later, explicitly scoped task.
+Do not commit `.venv`, Basic Pitch/model caches, generated output (including diagnostic MIDI and JSON), or PyInstaller temporary build directories. This repository does not yet build or ship an executable Sidecar; source-sidecar packaging is a later, explicitly scoped task.
 
 ## Test the deterministic arrangement
 
