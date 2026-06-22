@@ -114,14 +114,15 @@ export function useForegroundPlayback({
   );
   const [foregroundPlaybackProgress, setForegroundPlaybackProgress] =
     useState<PreviewPlaybackProgress>({ currentMs: 0, percent: 0, totalMs: 0 });
+  const [isForegroundStartPending, setIsForegroundStartPending] = useState(false);
 
   const isForegroundPlaybackActive =
     foregroundPlaybackState === "countdown" ||
     foregroundPlaybackState === "playing" ||
     foregroundPlaybackState === "paused";
   const canStartForegroundPlayback =
-    experimentalInputEnabled && currentSong !== null && !isForegroundPlaybackActive;
-  const canStopForegroundPlayback = isForegroundPlaybackActive;
+    experimentalInputEnabled && currentSong !== null && !isForegroundPlaybackActive && !isForegroundStartPending;
+  const canStopForegroundPlayback = isForegroundPlaybackActive || isForegroundStartPending;
   const bottomPlaybackState = mapForegroundStateToPlaybackState(
     foregroundPlaybackState,
   );
@@ -176,6 +177,11 @@ export function useForegroundPlayback({
     const resolve = countdownResolveRef.current;
     countdownResolveRef.current = null;
     resolve?.(false);
+  }
+
+  function setForegroundStartPending(pending: boolean) {
+    isForegroundStartPendingRef.current = pending;
+    setIsForegroundStartPending(pending);
   }
 
   function startCountdown(requestToken: number) {
@@ -234,7 +240,7 @@ export function useForegroundPlayback({
     const sessionId = activeForegroundSessionIdRef.current;
 
     foregroundRequestTokenRef.current += 1;
-    isForegroundStartPendingRef.current = false;
+    setForegroundStartPending(false);
     clearCountdownTimer();
     resetForegroundPlayback(nextState);
 
@@ -314,13 +320,13 @@ export function useForegroundPlayback({
     void startForegroundPlaybackForSong(selectedSongIndex, { withCountdown: true });
   }
 
-  function handlePlayForegroundSong(songIndex: number) {
+  function handlePlayForegroundSong(songIndex: number): Promise<boolean> {
     if (!experimentalInputEnabled) {
-      return;
+      return Promise.resolve(false);
     }
 
     onBeforeStart();
-    void startForegroundPlaybackForSong(songIndex, { withCountdown: true });
+    return startForegroundPlaybackForSong(songIndex, { withCountdown: true });
   }
 
   async function startForegroundPlaybackForSong(
@@ -329,10 +335,10 @@ export function useForegroundPlayback({
       initialSeekMs,
       withCountdown,
     }: { initialSeekMs?: number; withCountdown: boolean },
-  ) {
+  ): Promise<boolean> {
     const requestToken = foregroundRequestTokenRef.current + 1;
     foregroundRequestTokenRef.current = requestToken;
-    isForegroundStartPendingRef.current = true;
+    setForegroundStartPending(true);
     clearCountdownTimer();
 
     const activeSessionId = activeForegroundSessionIdRef.current;
@@ -344,21 +350,21 @@ export function useForegroundPlayback({
 
     const song = await resolveSongForPlayback(songIndex);
     if (foregroundRequestTokenRef.current !== requestToken) {
-      return;
+      return false;
     }
 
     if (!song) {
-      isForegroundStartPendingRef.current = false;
+      setForegroundStartPending(false);
       appendLog(text.logs.noSelectedScore);
-      return;
+      return false;
     }
 
     setSelectedSongIndex(songIndex);
     if (song.songNotes.length === 0) {
-      isForegroundStartPendingRef.current = false;
+      setForegroundStartPending(false);
       resetForegroundPlayback("finished");
       appendLog(text.logs.foregroundPlaybackFinished);
-      return;
+      return false;
     }
 
     const preparation = getOrPreparePlaybackPlan({
@@ -371,11 +377,12 @@ export function useForegroundPlayback({
       : Promise.resolve(true);
 
     let preparedPlan: PreparedPlaybackPlan;
+    let countdownCompleted: boolean;
     try {
-      [preparedPlan] = await Promise.all([preparation, countdown]);
+      [preparedPlan, countdownCompleted] = await Promise.all([preparation, countdown]);
     } catch (error) {
       if (foregroundRequestTokenRef.current === requestToken) {
-        isForegroundStartPendingRef.current = false;
+        setForegroundStartPending(false);
         clearCountdownTimer();
         setForegroundCountdown(null);
         setForegroundPlaybackState("error");
@@ -385,14 +392,14 @@ export function useForegroundPlayback({
           }),
         );
       }
-      return;
+      return false;
     }
 
-    if (foregroundRequestTokenRef.current !== requestToken) {
-      return;
+    if (!countdownCompleted || foregroundRequestTokenRef.current !== requestToken) {
+      return false;
     }
 
-    await startPreparedForegroundPlaybackForSong({
+    return startPreparedForegroundPlaybackForSong({
       initialSeekMs,
       preparedPlan,
       requestToken,
@@ -413,7 +420,10 @@ export function useForegroundPlayback({
     requestToken: number;
     retryCount: number;
     songIndex: number;
-  }) {
+  }): Promise<boolean> {
+    if (foregroundRequestTokenRef.current !== requestToken) {
+      return false;
+    }
     try {
       const response = await startPreparedForegroundPlayback({
         initialProgressMs: initialSeekMs,
@@ -425,7 +435,7 @@ export function useForegroundPlayback({
 
       if (foregroundRequestTokenRef.current !== requestToken) {
         void stopForegroundPlaybackSession(response.sessionId).catch(() => {});
-        return;
+        return false;
       }
 
       activeForegroundSessionIdRef.current = response.sessionId;
@@ -434,7 +444,7 @@ export function useForegroundPlayback({
         song: preparedPlan.song,
         songIndex,
       };
-      isForegroundStartPendingRef.current = false;
+      setForegroundStartPending(false);
       setForegroundPlaybackState("playing");
       setForegroundPlaybackProgress({
         currentMs: Math.min(initialSeekMs ?? 0, response.totalMs),
@@ -450,9 +460,11 @@ export function useForegroundPlayback({
         }),
       );
       flushPendingForegroundPlaybackEvents(response.sessionId);
+      warmLikelyForegroundSong(songIndex);
+      return true;
     } catch (error) {
       if (foregroundRequestTokenRef.current !== requestToken) {
-        return;
+        return false;
       }
 
       if (retryCount === 0 && isPreparedPlaybackPlanUnavailableError(error)) {
@@ -463,26 +475,29 @@ export function useForegroundPlayback({
             resolvedSong: preparedPlan.song,
             songIndex,
           });
-          await startPreparedForegroundPlaybackForSong({
+          if (foregroundRequestTokenRef.current !== requestToken) {
+            return false;
+          }
+          return startPreparedForegroundPlaybackForSong({
             initialSeekMs,
             preparedPlan: replacement,
             requestToken,
             retryCount: 1,
             songIndex,
           });
-          return;
         } catch (retryError) {
           error = retryError;
         }
       }
 
-      isForegroundStartPendingRef.current = false;
+      setForegroundStartPending(false);
       resetForegroundPlayback("error");
       appendLog(
         formatText(text.logs.foregroundPlaybackKeySendFailed, {
           error: String(error),
         }),
       );
+      return false;
     }
   }
 
@@ -608,6 +623,21 @@ export function useForegroundPlayback({
     appendLog(text.logs.foregroundPlaybackFinished);
   }
 
+  function warmLikelyForegroundSong(currentSongIndex: number) {
+    const nextSongIndex = getPlaybackOrderNextSongIndex({
+        currentSongIndex,
+        isShuffleEnabled: isShuffleEnabledRef.current,
+        playbackMode: playbackModeRef.current,
+      });
+
+    if (nextSongIndex !== null) {
+      void getOrPreparePlaybackPlan({
+        priority: "warm",
+        songIndex: nextSongIndex,
+      }).catch(() => {});
+    }
+  }
+
   function updateActiveForegroundPlaybackOptions() {
     const sessionId = activeForegroundSessionIdRef.current;
     if (sessionId === null) {
@@ -635,6 +665,7 @@ export function useForegroundPlayback({
     handleStartForegroundPlayback,
     handleStopForegroundPlayback,
     isForegroundPlaybackActive,
+    isForegroundStartPending,
   };
 }
 

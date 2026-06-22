@@ -237,7 +237,9 @@ function App() {
     onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
     onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
     playlists: scoreLibrary.playlists,
-    isLocalSongDeleteBlocked: experimentalInput.isBackgroundHandoffPending,
+    isLocalSongDeleteBlocked:
+      experimentalInput.isBackgroundHandoffPending ||
+      experimentalInput.isForegroundStartPending,
     selectedSongId: scoreLibrary.selectedSongId,
     text: text.library,
   });
@@ -250,6 +252,7 @@ function App() {
     experimentalInput.foregroundPlaybackState === "countdown" ||
     experimentalInput.foregroundPlaybackState === "playing" ||
     experimentalInput.foregroundPlaybackState === "paused" ||
+    experimentalInput.isForegroundStartPending ||
     experimentalInput.isExperimentalPlaybackRunning;
 
   useEffect(() => {

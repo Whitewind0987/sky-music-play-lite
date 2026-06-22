@@ -13,6 +13,7 @@ import {
   type PlaybackShortcutAction,
   type PlaybackShortcutNotices,
   type PlaybackShortcutScope,
+  type PlaybackShortcutBinding,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
 
@@ -28,7 +29,7 @@ function isEditableTarget(target: EventTarget | null) {
 export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybackShortcutsOptions) {
   const controlsRef = useRef<PlaybackHotkeyControls>({ next: () => {}, pauseResume: () => {}, stop: () => {} });
   const operationRef = useRef<Promise<void>>(Promise.resolve());
-  const registeredRef = useRef(new Map<PlaybackShortcutAction, string>());
+  const registeredRef = useRef(new Map<PlaybackShortcutAction, { accelerator: string; binding: PlaybackShortcutBinding }>());
   const latestBindingsRef = useRef<PlaybackShortcuts>(defaultPlaybackShortcuts);
   const appendLogRef = useRef(appendLog);
   const showNoticeRef = useRef(showNotice);
@@ -71,9 +72,18 @@ export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybac
       for (const action of playbackShortcutActions) {
         const binding = desired[action];
         const registered = registeredRef.current.get(action);
-        if (registered && (binding.scope !== "global" || !toGlobalShortcutAccelerators(binding.code).includes(registered))) {
-          await unregister(registered).catch(() => {});
-          registeredRef.current.delete(action);
+        if (registered && (binding.scope !== "global" || !toGlobalShortcutAccelerators(binding.code).includes(registered.accelerator))) {
+          try {
+            await unregister(registered.accelerator);
+            registeredRef.current.delete(action);
+          } catch {
+            const message = text.settings.keyboardShortcutGlobalStopFailed;
+            setShortcutNotice((current) => ({ ...current, [action]: message }));
+            setPlaybackShortcutsState((current) => ({ ...current, [action]: registered.binding }));
+            showNoticeRef.current(message);
+            appendLogRef.current(formatText(text.logs.globalHotkeyRegisterFailed, { shortcut: formatShortcutCode(registered.binding.code) || registered.binding.code }));
+            continue;
+          }
         }
         if (binding.scope !== "global" || registeredRef.current.has(action)) continue;
         const candidates = toGlobalShortcutAccelerators(binding.code);
@@ -93,7 +103,7 @@ export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybac
           } catch { /* try alias */ }
         }
         if (registeredAccelerator) {
-          registeredRef.current.set(action, registeredAccelerator);
+          registeredRef.current.set(action, { accelerator: registeredAccelerator, binding });
           setShortcutNotice((current) => { const { [action]: _notice, ...rest } = current; return rest; });
         } else {
           failGlobalBinding(action, binding.code, text.settings.keyboardShortcutGlobalStopFailed);
@@ -112,7 +122,7 @@ export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybac
 
   useEffect(() => () => {
     void enqueue(async () => {
-      await Promise.all(Array.from(registeredRef.current.values(), (accelerator) => unregister(accelerator).catch(() => {})));
+      await Promise.all(Array.from(registeredRef.current.values(), (registered) => unregister(registered.accelerator).catch(() => {})));
       registeredRef.current.clear();
     });
   }, [enqueue]);

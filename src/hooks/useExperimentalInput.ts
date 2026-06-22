@@ -740,10 +740,7 @@ export function useExperimentalInput({
   }
 
   async function prepareExperimentalSong(songIndex: number) {
-    if (
-      !experimentalInputEnabled ||
-      experimentalInputMode !== "target-window-message"
-    ) {
+    if (!experimentalInputEnabled) {
       return false;
     }
 
@@ -1295,9 +1292,11 @@ export function useExperimentalInput({
     isExperimentalPlaybackRunning:
       isStartingExperimentalPlayback ||
       isBackgroundHandoffPending ||
+      foregroundPlayback.isForegroundStartPending ||
       experimentalPlaybackState === "playing" ||
       experimentalPlaybackState === "paused",
     isBackgroundHandoffPending,
+    isForegroundStartPending: foregroundPlayback.isForegroundStartPending,
     isRefreshingWindows,
     lastError,
     selectedWindow,

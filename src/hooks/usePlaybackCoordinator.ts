@@ -144,7 +144,8 @@ export function usePlaybackCoordinator({
 
     const songs = scoreLibrary.importedSongsRef.current;
     const shouldDeferQueueConsume =
-      playbackOutput.mode === "experimental-target-window";
+      playbackOutput.mode === "experimental-target-window" ||
+      playbackOutput.mode === "experimental-foreground";
     const queuedItem = shouldDeferQueueConsume
       ? playbackQueue.peekNextQueueItemAfterCurrent(songs.length)
       : playbackQueue.consumeNextQueueItemAfterCurrent(songs.length);
