@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from contextlib import redirect_stdout
+import io
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 TOOL_DIRECTORY = Path(__file__).resolve().parents[1]
 if str(TOOL_DIRECTORY) not in sys.path:
@@ -12,6 +15,7 @@ if str(TOOL_DIRECTORY) not in sys.path:
 
 from sky_arrangement import (  # noqa: E402
     ArrangementError,
+    AUTO_TRANSPOSE_CANDIDATES,
     RawNoteEvent,
     SKY_MIDI_NOTES,
     arrange_events,
@@ -20,7 +24,7 @@ from sky_arrangement import (  # noqa: E402
     nearest_sky_midi,
     select_global_transpose,
 )
-from transcribe import convert_events_to_output  # noqa: E402
+from transcribe import convert_events_to_output, main, parse_transpose_argument  # noqa: E402
 
 
 def event(start_ms: float, end_ms: float, midi: int, amplitude: float = 0.8) -> RawNoteEvent:
@@ -42,12 +46,90 @@ class SkyArrangementTests(unittest.TestCase):
     def test_nearest_target_ties_prefer_lower_midi(self) -> None:
         self.assertEqual(nearest_sky_midi(61), 60)
 
-    def test_transpose_selection_is_deterministic(self) -> None:
-        source = [event(0, 500, 55), event(600, 900, 59, 0.4), event(1000, 1100, 64)]
-        self.assertEqual(select_global_transpose(source), select_global_transpose(source))
+    def test_automatic_transpose_is_deterministic_and_octave_only(self) -> None:
+        sources = (
+            [event(0, 500, 55), event(600, 900, 59, 0.4), event(1000, 1100, 64)],
+            [event(0, 100, 56), event(200, 300, 63), event(400, 500, 70)],
+            [event(0, 100, 84), event(200, 300, 91)],
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                selected = select_global_transpose(source)
+                self.assertIn(selected, AUTO_TRANSPOSE_CANDIDATES)
+                self.assertEqual(selected, select_global_transpose(source))
 
-    def test_transpose_tie_breaking_prefers_smaller_absolute_then_numeric_shift(self) -> None:
-        self.assertEqual(select_global_transpose([event(0, 100, 61)]), -1)
+    def test_automatic_transpose_never_uses_old_non_octave_candidate(self) -> None:
+        # The old unrestricted search selected +4 here to map MIDI 56 exactly
+        # to MIDI 60. Automatic mode must instead preserve the musical key.
+        selected = select_global_transpose([event(0, 100, 56)])
+        self.assertIn(selected, AUTO_TRANSPOSE_CANDIDATES)
+        self.assertNotIn(selected, {4, 5, 7})
+        self.assertEqual(selected % 12, 0)
+
+    def test_automatic_transpose_tie_breaking_prefers_zero(self) -> None:
+        # MIDI 60 maps exactly at 0, +12, and +24; the lower absolute value wins.
+        self.assertEqual(select_global_transpose([event(0, 100, 60)]), 0)
+
+    def test_manual_transpose_is_applied_to_mapping(self) -> None:
+        result = arrange_events([event(0, 100, 64)], transpose=-4)
+        self.assertEqual(result.transpose, -4)
+        self.assertEqual(list(result.notes), [{"time": 0, "key": "1Key0"}])
+
+    def test_manual_zero_transpose_does_not_use_automatic_selection(self) -> None:
+        source = [event(0, 100, 56)]
+        automatic = arrange_events(source)
+        manual_zero = arrange_events(source, transpose=0)
+        self.assertEqual(manual_zero.transpose, 0)
+        self.assertNotEqual(automatic.transpose, manual_zero.transpose)
+
+    def test_invalid_manual_transposes_are_rejected(self) -> None:
+        for invalid_transpose in (-37, 37, 1.5, True, "0"):
+            with self.subTest(transpose=invalid_transpose):
+                with self.assertRaises(ArrangementError):
+                    arrange_events([event(0, 100, 60)], transpose=invalid_transpose)  # type: ignore[arg-type]
+
+    def test_cli_transpose_argument_accepts_auto_and_manual_values(self) -> None:
+        self.assertIsNone(parse_transpose_argument("auto"))
+        self.assertEqual(parse_transpose_argument("-4"), -4)
+        self.assertEqual(parse_transpose_argument("0"), 0)
+        for invalid_value in ("-37", "37", "1.5", "AUTO"):
+            with self.subTest(value=invalid_value):
+                with self.assertRaisesRegex(
+                    ArrangementError, "transpose must be 'auto' or an integer from -36 through 36"
+                ):
+                    parse_transpose_argument(invalid_value)
+
+    def test_cli_summary_identifies_automatic_and_manual_transpose_modes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_path = Path(temporary_directory) / "input.wav"
+            automatic_output = Path(temporary_directory) / "automatic.json"
+            manual_output = Path(temporary_directory) / "manual.json"
+            input_path.touch()
+
+            with patch("transcribe.run_basic_pitch", return_value=((0.0, 0.1, 60, 0.8),)):
+                automatic_stdout = io.StringIO()
+                with redirect_stdout(automatic_stdout):
+                    self.assertEqual(main([str(input_path), "--output", str(automatic_output)]), 0)
+
+                manual_stdout = io.StringIO()
+                with redirect_stdout(manual_stdout):
+                    self.assertEqual(
+                        main(
+                            [
+                                str(input_path),
+                                "--output",
+                                str(manual_output),
+                                "--transpose",
+                                "-4",
+                            ]
+                        ),
+                        0,
+                    )
+
+        self.assertIn("Transpose mode: automatic octave-only", automatic_stdout.getvalue())
+        self.assertIn("Selected transpose: 0 semitones", automatic_stdout.getvalue())
+        self.assertIn("Transpose mode: manual", manual_stdout.getvalue())
+        self.assertIn("Selected transpose: -4 semitones", manual_stdout.getvalue())
 
     def test_low_amplitude_and_short_events_are_removed(self) -> None:
         result = arrange_events([event(0, 100, 60, 0.2), event(100, 140, 62), event(200, 300, 64)])

@@ -20,6 +20,7 @@ from sky_arrangement import (
     build_lite_score,
     normalize_basic_pitch_events,
     validate_options,
+    validate_transpose_override,
 )
 
 
@@ -37,7 +38,26 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--min-duration-ms", type=float, default=DEFAULT_MIN_DURATION_MS)
     parser.add_argument("--chord-window-ms", type=float, default=DEFAULT_CHORD_WINDOW_MS)
     parser.add_argument("--max-chord-notes", type=int, default=DEFAULT_MAX_CHORD_NOTES)
+    parser.add_argument(
+        "--transpose",
+        default="auto",
+        help="Transpose in semitones: 'auto' (default) or an integer from -36 through 36",
+    )
     return parser.parse_args(argv)
+
+
+def parse_transpose_argument(value: str) -> int | None:
+    if value == "auto":
+        return None
+    try:
+        transpose = int(value)
+    except (TypeError, ValueError) as error:
+        raise ArrangementError("transpose must be 'auto' or an integer from -36 through 36") from error
+    try:
+        validate_transpose_override(transpose)
+    except ArrangementError as error:
+        raise ArrangementError("transpose must be 'auto' or an integer from -36 through 36") from error
+    return transpose
 
 
 def validate_paths(input_path: Path, output_path: Path) -> None:
@@ -81,6 +101,7 @@ def convert_events_to_output(
     min_duration_ms: float = DEFAULT_MIN_DURATION_MS,
     chord_window_ms: float = DEFAULT_CHORD_WINDOW_MS,
     max_chord_notes: int = DEFAULT_MAX_CHORD_NOTES,
+    transpose: int | None = None,
 ):
     result = arrange_events(
         raw_events,
@@ -88,6 +109,7 @@ def convert_events_to_output(
         min_duration_ms=min_duration_ms,
         chord_window_ms=chord_window_ms,
         max_chord_notes=max_chord_notes,
+        transpose=transpose,
     )
     document = build_lite_score(score_name, result.notes)
     atomic_write_json(output_path, document)
@@ -123,6 +145,7 @@ def atomic_write_json(output_path: Path, document: object) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        transpose_override = parse_transpose_argument(args.transpose)
         validate_paths(args.input, args.output)
         score_name = args.name if args.name is not None else args.input.stem
         if not score_name.strip():
@@ -148,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             min_duration_ms=args.min_duration_ms,
             chord_window_ms=args.chord_window_ms,
             max_chord_notes=args.max_chord_notes,
+            transpose=transpose_override,
         )
         song_notes = result.notes
         first_time = song_notes[0]["time"] if song_notes else "n/a"
@@ -160,7 +184,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"  Rejected invalid events: {normalized.rejected_count}")
         print(f"  Filtered event count: {result.filtered_event_count}")
         print(f"  Final note count: {len(song_notes)}")
-        print(f"  Selected transpose: {result.transpose}")
+        print(f"  Transpose mode: {'automatic octave-only' if transpose_override is None else 'manual'}")
+        print(f"  Selected transpose: {_format_transpose(result.transpose)}")
         print(f"  First note time: {first_time} ms")
         print(f"  Last note time: {last_time} ms")
         print(f"  Maximum chord size: {result.maximum_chord_size}")
@@ -171,6 +196,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as error:  # Keep model/library failures concise for the CLI user.
         print(f"Conversion failed unexpectedly: {error}")
         return 1
+
+
+def _format_transpose(transpose: int) -> str:
+    if transpose != 0 and transpose % 12 == 0:
+        return f"{transpose} semitones ({transpose // 12} octave{'s' if abs(transpose // 12) != 1 else ''})"
+    return f"{transpose} semitones"
 
 
 if __name__ == "__main__":

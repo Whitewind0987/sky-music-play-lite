@@ -28,12 +28,13 @@ python -m venv tools\audio-to-score-engine\.venv
 
 支持的输入扩展名为 `.wav`、`.mp3`、`.flac`、`.ogg` 和 `.m4a`。
 
+默认自动转调只会按完整八度移动检测到的音符，不会把歌曲移到不同的音乐调性。
+
 ```powershell
-tools\audio-to-score-engine\.venv\Scripts\python.exe `
-  tools\audio-to-score-engine\transcribe.py `
-  "D:\Music Library\我的歌曲\input song.mp3" `
-  --output "D:\Music Library\我的歌曲\input-song-sky.json" `
-  --name "我的 Sky 改编"
+& ".\tools\audio-to-score-engine\.venv\Scripts\python.exe" `
+  ".\tools\audio-to-score-engine\transcribe.py" `
+  "D:\Music\test.wav" `
+  --output ".\tools\audio-to-score-engine\output\test.json"
 ```
 
 可选参数：
@@ -42,8 +43,29 @@ tools\audio-to-score-engine\.venv\Scripts\python.exe `
 - `--min-duration-ms`：最短音符时长，默认 `50` 毫秒
 - `--chord-window-ms`：和弦分组窗口，默认 `35` 毫秒
 - `--max-chord-notes`：每个和弦最多保留的音符数，默认 `3`，范围为 `1` 至 `15`
+- `--transpose`：转调模式，默认 `auto`；也可使用 `-36` 至 `36` 的手动整数值
 
 命令会在需要时创建输出目录，并通过同目录临时文件原子写入 JSON。未传入 `--name` 时，乐谱名称会使用输入文件名。
+
+### 转调选项
+
+`--transpose auto` 是默认值。它只会评估 `-24`、`-12`、`0`、`12` 和 `24` 半音，因此自动调整会保持 Basic Pitch 检测到的原始调性和音程关系。
+
+如需完全关闭自动八度调整，请使用：
+
+```powershell
+--transpose 0
+```
+
+这会尽可能保留 Basic Pitch 检测到的绝对音高。超出 Sky 15 键范围的音符仍会被限制到边界键，半音音符仍会映射到最近的自然音。
+
+如需诊断或手动修正，也可以使用非八度的手动转调：
+
+```powershell
+--transpose -4
+```
+
+非八度手动转调用于诊断和用户修正，不会作为自动模式的默认行为。
 
 ## 导入与试听
 

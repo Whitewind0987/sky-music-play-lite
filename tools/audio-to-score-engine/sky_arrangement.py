@@ -32,6 +32,9 @@ DEFAULT_CHORD_WINDOW_MS = 35.0
 DEFAULT_MAX_CHORD_NOTES = 3
 IMMEDIATE_REPEAT_WINDOW_MS = 40
 MAX_WEIGHTED_DURATION_MS = 2_000.0
+AUTO_TRANSPOSE_CANDIDATES = (-24, -12, 0, 12, 24)
+MIN_MANUAL_TRANSPOSE = -36
+MAX_MANUAL_TRANSPOSE = 36
 
 
 class ArrangementError(ValueError):
@@ -142,6 +145,15 @@ def validate_options(
         raise ArrangementError(f"maximum chord notes must be from 1 through {len(SKY_MIDI_NOTES)}")
 
 
+def validate_transpose_override(transpose: int | None) -> None:
+    if transpose is None:
+        return
+    if isinstance(transpose, bool) or not isinstance(transpose, int):
+        raise ArrangementError("transpose must be an integer from -36 through 36")
+    if not MIN_MANUAL_TRANSPOSE <= transpose <= MAX_MANUAL_TRANSPOSE:
+        raise ArrangementError("transpose must be an integer from -36 through 36")
+
+
 def filter_events(
     events: Iterable[RawNoteEvent], min_amplitude: float, min_duration_ms: float
 ) -> tuple[RawNoteEvent, ...]:
@@ -162,7 +174,7 @@ def select_global_transpose(events: Sequence[RawNoteEvent]) -> int:
     # grows with confidence and duration, but duration is capped at two seconds
     # so one sustained note cannot dominate the entire arrangement.
     candidates: list[tuple[float, int, int]] = []
-    for transpose in range(-36, 37):
+    for transpose in AUTO_TRANSPOSE_CANDIDATES:
         total_loss = math.fsum(
             _mapping_weight(event) * _nearest_distance(event.midi_pitch + transpose) ** 2
             for event in events
@@ -202,14 +214,16 @@ def arrange_events(
     min_duration_ms: float = DEFAULT_MIN_DURATION_MS,
     chord_window_ms: float = DEFAULT_CHORD_WINDOW_MS,
     max_chord_notes: int = DEFAULT_MAX_CHORD_NOTES,
+    transpose: int | None = None,
 ) -> ArrangementResult:
     validate_options(min_amplitude, min_duration_ms, chord_window_ms, max_chord_notes)
+    validate_transpose_override(transpose)
     filtered_events = filter_events(events, min_amplitude, min_duration_ms)
     if not filtered_events:
         raise ArrangementError("no note events remain after amplitude and duration filtering")
 
-    transpose = select_global_transpose(filtered_events)
-    mapped_events = map_events(filtered_events, transpose)
+    selected_transpose = select_global_transpose(filtered_events) if transpose is None else transpose
+    mapped_events = map_events(filtered_events, selected_transpose)
     earliest_start_ms = min(event.start_ms for event in mapped_events)
     normalized_events = tuple(
         MappedNoteEvent(
@@ -225,7 +239,7 @@ def arrange_events(
     chord_notes = _select_chord_notes(normalized_events, chord_window_ms, max_chord_notes)
     final_notes = _remove_immediate_repeats(chord_notes)
     return ArrangementResult(
-        transpose=transpose,
+        transpose=selected_transpose,
         filtered_event_count=len(filtered_events),
         notes=tuple({"time": time_ms, "key": f"1Key{key_index}"} for time_ms, key_index in final_notes),
         maximum_chord_size=max((len(notes) for _, notes in chord_notes), default=0),

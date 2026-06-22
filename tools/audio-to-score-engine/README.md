@@ -28,12 +28,13 @@ python -m venv tools\audio-to-score-engine\.venv
 
 Supported input extensions are `.wav`, `.mp3`, `.flac`, `.ogg`, and `.m4a`.
 
+By default, automatic transpose only moves detected notes by whole octaves. It will not shift a song into a different musical key.
+
 ```powershell
-tools\audio-to-score-engine\.venv\Scripts\python.exe `
-  tools\audio-to-score-engine\transcribe.py `
-  "D:\Music Library\我的歌曲\input song.mp3" `
-  --output "D:\Music Library\我的歌曲\input-song-sky.json" `
-  --name "My Sky Arrangement"
+& ".\tools\audio-to-score-engine\.venv\Scripts\python.exe" `
+  ".\tools\audio-to-score-engine\transcribe.py" `
+  "D:\Music\test.wav" `
+  --output ".\tools\audio-to-score-engine\output\test.json"
 ```
 
 Optional parameters:
@@ -42,8 +43,29 @@ Optional parameters:
 - `--min-duration-ms` (default `50`)
 - `--chord-window-ms` (default `35`)
 - `--max-chord-notes` (default `3`, from `1` through `15`)
+- `--transpose` (default `auto`, or a manual integer from `-36` through `36`)
 
 The command creates the output parent directory if needed and writes the JSON atomically. It derives the score name from the input filename unless `--name` is supplied.
+
+### Transpose choices
+
+`--transpose auto` is the default. It evaluates only `-24`, `-12`, `0`, `12`, and `24` semitones, so automatic adjustment preserves the detected musical key and interval relationships.
+
+To completely disable automatic octave adjustment, use:
+
+```powershell
+--transpose 0
+```
+
+This preserves Basic Pitch's detected absolute pitches as closely as possible. Notes outside the Sky 15-key range will still be clamped to boundary keys, and chromatic notes will still be mapped to the nearest natural note.
+
+For diagnosis or a user correction, a non-octave manual transpose is also available:
+
+```powershell
+--transpose -4
+```
+
+Non-octave manual transposition is intended for diagnosis and user correction, not as the automatic default.
 
 ## Import and preview
 
