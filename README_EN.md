@@ -214,7 +214,6 @@ When reporting an issue, please provide:
 ## 丨Community & Contact
 
 - **QQ Group**: `632482169`
-
 - **GitHub**: [@Whitewind0987](https://github.com/Whitewind0987)
 
 You are welcome to discuss usage, feature ideas, and music scores in the QQ group. For bug reports, please use [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) whenever possible.
