@@ -6,7 +6,12 @@ import {
   sanitizePersistedAppData,
 } from "../lib/appData";
 import { formatText } from "../lib/formatText";
-import { loadAppData, saveAppData } from "../lib/tauriApi";
+import { reconcilePersistedImportedScores } from "../lib/importedScoreReconciliation";
+import {
+  loadAppData,
+  reconcileImportedScoreFiles,
+  saveAppData,
+} from "../lib/tauriApi";
 import type {
   ExperimentalInputPreferences,
   PersistedAppData,
@@ -57,6 +62,7 @@ type UseAppPersistenceOptions = {
   selectedWindowHwnd: string | null;
   selectedWindowSnapshot: ExperimentalInputPreferences["selectedWindowSnapshot"];
   setLanguage: (language: LanguageCode) => void;
+  showNotice?: (message: string) => void;
   targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
   targetWindowKeyHoldMs: number;
   targetWindowMessageMethod: TargetWindowMessageMethod;
@@ -90,6 +96,7 @@ export function useAppPersistence({
   selectedWindowHwnd,
   selectedWindowSnapshot,
   setLanguage,
+  showNotice,
   targetWindowCompatibilityProfile,
   targetWindowKeyHoldMs,
   targetWindowMessageMethod,
@@ -131,6 +138,13 @@ export function useAppPersistence({
         applyScoreLibrary(appData.library);
         applyExperimentalInputPreferences(appData.experimentalInputPreferences);
         appendLog(text.appDataLoaded);
+        void reconcilePersistedImportedScores({
+          appendLog,
+          librarySongs: appData.library.librarySongs,
+          reconcileImportedScoreFiles,
+          showNotice,
+          text,
+        });
         setHasLoadedAppData(true);
       } catch (error) {
         if (!isCancelled) {

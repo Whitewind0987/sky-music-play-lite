@@ -210,6 +210,7 @@ function App() {
     selectedWindowHwnd: experimentalInput.selectedWindowHwnd,
     selectedWindowSnapshot: experimentalInput.selectedWindowSnapshot,
     setLanguage,
+    showNotice: showAppNotice,
     targetWindowCompatibilityProfile:
       experimentalInput.targetWindowCompatibilityProfile,
     targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,

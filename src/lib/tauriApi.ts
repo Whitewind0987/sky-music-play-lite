@@ -34,6 +34,24 @@ export type ImportedScoreFileMetadata = {
   sizeBytes: number;
 };
 
+export type ImportedScoreReconcileEntry = {
+  songId: LibrarySongId;
+  song: Song;
+};
+
+export type ImportedScoreReconcileFailure = {
+  songId: LibrarySongId;
+  songName: string;
+  error: string;
+};
+
+export type ImportedScoreReconcileReport = {
+  createdCount: number;
+  renamedCount: number;
+  unchangedCount: number;
+  failed: ImportedScoreReconcileFailure[];
+};
+
 export type BackgroundPlaybackPlanEvent = {
   keys: string[];
   timeMs: number;
@@ -135,6 +153,14 @@ export function deleteImportedScoreFile(
 
 export function listImportedScoreFiles(): Promise<ImportedScoreFileMetadata[]> {
   return invoke<ImportedScoreFileMetadata[]>("list_imported_score_files");
+}
+
+export function reconcileImportedScoreFiles(
+  entries: ImportedScoreReconcileEntry[],
+): Promise<ImportedScoreReconcileReport> {
+  return invoke<ImportedScoreReconcileReport>("reconcile_imported_score_files", {
+    entries,
+  });
 }
 
 export function clearImportedScoreFiles(): Promise<number> {

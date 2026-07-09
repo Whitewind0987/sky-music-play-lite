@@ -355,6 +355,14 @@ export const uiText = {
         "播放进行中，已阻止导入曲谱。请先停止播放。",
       localScoreDeleteFailed:
         "删除本地曲谱文件失败：{songName}；{error}",
+      importedScoreReconcileSucceeded:
+        "已整理本地曲谱文件：新增 {createdCount} 个，重命名 {renamedCount} 个。",
+      importedScoreReconcileFailed:
+        "整理本地曲谱文件失败：{songName} ({songId})；{error}",
+      importedScoreReconcileFailedSummary:
+        "{count} 首本地曲谱文件整理失败，曲库数据已保留。",
+      importedScoreReconcileCommandFailed:
+        "整理本地曲谱文件失败，曲库数据已保留：{error}",
       selectedSongNotInCurrentView:
         "当前选中的曲谱已不在当前列表中。",
       manualNextTriggered: "手动切换到下一首：{songName}",
@@ -888,6 +896,14 @@ export const uiText = {
         "Import was blocked while playback is active. Please stop playback first.",
       localScoreDeleteFailed:
         "Failed to delete local score file for {songName}: {error}",
+      importedScoreReconcileSucceeded:
+        "Organized local score files: created {createdCount}, renamed {renamedCount}.",
+      importedScoreReconcileFailed:
+        "Failed to organize local score file for {songName} ({songId}): {error}",
+      importedScoreReconcileFailedSummary:
+        "{count} local score file(s) failed to organize. Library data was kept.",
+      importedScoreReconcileCommandFailed:
+        "Failed to organize local score files. Library data was kept: {error}",
       selectedSongNotInCurrentView:
         "The selected score is no longer in the current list.",
       manualNextTriggered: "Skipped to next score: {songName}",
