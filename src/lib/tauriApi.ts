@@ -6,6 +6,8 @@ import type {
   TargetWindowCompatibilityProfile,
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
+import type { LibrarySongId } from "../types/library";
+import type { Song } from "../types/score";
 
 export type AppRuntimeInfo = {
   productName: string;
@@ -22,6 +24,14 @@ export type AppLogEntry = {
   level: AppLogLevel;
   message: string;
   source: string;
+};
+
+export type ImportedScoreFileMetadata = {
+  fileName: string;
+  id: LibrarySongId;
+  modifiedMs: number | null;
+  path: string;
+  sizeBytes: number;
 };
 
 export type BackgroundPlaybackPlanEvent = {
@@ -90,6 +100,49 @@ export function loadAppData(): Promise<unknown | null> {
 
 export function saveAppData(appData: PersistedAppData): Promise<string> {
   return invoke<string>("save_app_data", { appData });
+}
+
+export function resolveImportedScoresDirectory(): Promise<string> {
+  return invoke<string>("resolve_imported_scores_directory");
+}
+
+export function ensureImportedScoresDirectory(): Promise<string> {
+  return invoke<string>("ensure_imported_scores_directory");
+}
+
+export function saveImportedScoreSong(
+  songId: LibrarySongId,
+  song: Song,
+): Promise<string> {
+  return invoke<string>("save_imported_score_song", { songId, song });
+}
+
+export function readImportedScoreSong(songId: LibrarySongId): Promise<Song> {
+  return invoke<Song>("read_imported_score_song", { songId });
+}
+
+export function importedScoreFileExists(
+  songId: LibrarySongId,
+): Promise<boolean> {
+  return invoke<boolean>("imported_score_file_exists", { songId });
+}
+
+export function deleteImportedScoreFile(
+  songId: LibrarySongId,
+): Promise<boolean> {
+  return invoke<boolean>("delete_imported_score_file", { songId });
+}
+
+export function listImportedScoreFiles(): Promise<ImportedScoreFileMetadata[]> {
+  return invoke<ImportedScoreFileMetadata[]>("list_imported_score_files");
+}
+
+export function clearImportedScoreFiles(): Promise<number> {
+  return invoke<number>("clear_imported_score_files");
+}
+
+export function openImportedScoresDirectory(): Promise<void> {
+  return invoke<void>("open_imported_scores_directory");
 }
 
 export function listCandidateWindows(): Promise<CandidateWindow[]> {
