@@ -2,7 +2,6 @@ mod app_data;
 mod app_log;
 mod app_window;
 mod experimental_input;
-mod imported_scores;
 use experimental_input::{
     BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
@@ -140,15 +139,6 @@ pub fn run() {
             app_log::get_app_runtime_info,
             app_log::open_log_directory,
             app_window::force_close_app,
-            imported_scores::clear_imported_score_files,
-            imported_scores::delete_imported_score_file,
-            imported_scores::ensure_imported_scores_directory,
-            imported_scores::imported_score_file_exists,
-            imported_scores::list_imported_score_files,
-            imported_scores::open_imported_scores_directory,
-            imported_scores::read_imported_score_song,
-            imported_scores::resolve_imported_scores_directory,
-            imported_scores::save_imported_score_song,
             list_candidate_windows,
             pause_background_playback,
             pause_foreground_playback,
