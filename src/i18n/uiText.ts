@@ -353,6 +353,8 @@ export const uiText = {
       duplicateImportSkippedSummary: "已跳过 {count} 首已存在的曲谱。",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
+      localScoreDeleteFailed:
+        "删除本地曲谱文件失败：{songName}；{error}",
       selectedSongNotInCurrentView:
         "当前选中的曲谱已不在当前列表中。",
       manualNextTriggered: "手动切换到下一首：{songName}",
@@ -884,6 +886,8 @@ export const uiText = {
       duplicateImportSkippedSummary: "Skipped {count} existing score(s).",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
+      localScoreDeleteFailed:
+        "Failed to delete local score file for {songName}: {error}",
       selectedSongNotInCurrentView:
         "The selected score is no longer in the current list.",
       manualNextTriggered: "Skipped to next score: {songName}",

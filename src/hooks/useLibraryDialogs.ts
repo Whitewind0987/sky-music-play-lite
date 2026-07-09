@@ -32,7 +32,7 @@ type UseLibraryDialogsOptions = {
     songIndex: number,
     songId: LibrarySongId,
     options: { stopPlaybackBeforeDelete: boolean },
-  ) => void;
+  ) => Promise<void> | void;
   onDeletePlaylist: (playlistId: string) => void;
   onRenamePlaylist: (playlistId: string, nextName: string) => void;
   playlists: UserPlaylist[];
@@ -118,7 +118,7 @@ export function useLibraryDialogs({
     });
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (pendingDeleteConfirmation === null) {
       return;
     }
@@ -145,7 +145,7 @@ export function useLibraryDialogs({
       selectedSongId === pendingDeleteConfirmation.songId;
 
     if (currentSongIndex >= 0) {
-      onDeleteLocalSong(
+      await onDeleteLocalSong(
         currentSongIndex,
         pendingDeleteConfirmation.songId,
         { stopPlaybackBeforeDelete },

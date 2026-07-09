@@ -19,12 +19,8 @@ import {
 } from "../lib/importErrors";
 import {
   addSongToPlaylist,
-  createLibrarySong,
   createPlaylist,
   filterSongsByQuery,
-  getLibrarySongFingerprint,
-  getSongFingerprint,
-  hasReliableDuplicateFingerprint,
   isSongLiked,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
@@ -34,6 +30,14 @@ import {
   isSupportedScoreFileName,
   parseScoreFileContent,
 } from "../lib/scoreFileImport";
+import {
+  storeUniqueImportedSongs,
+  type ParsedImportedSong,
+} from "../lib/scoreLibraryImport";
+import {
+  deleteImportedScoreFile,
+  saveImportedScoreSong,
+} from "../lib/tauriApi";
 import type { PersistedAppData } from "../types/appData";
 import type {
   AddSongToPlaylistResult,
@@ -291,7 +295,7 @@ export function useScoreLibrary({
     }
 
     const failedImports: ImportFailure[] = [];
-    const importedSongsFromFiles: Song[] = [];
+    const importedSongsFromFiles: ParsedImportedSong[] = [];
     let successfulFileCount = 0;
 
     for (const file of files) {
@@ -303,7 +307,12 @@ export function useScoreLibrary({
         const content = await file.text();
         const songs = parseScoreFileContent(content);
 
-        importedSongsFromFiles.push(...songs);
+        importedSongsFromFiles.push(
+          ...songs.map((song) => ({
+            fileName: file.name,
+            song,
+          })),
+        );
         successfulFileCount += 1;
       } catch (error) {
         failedImports.push({
@@ -314,30 +323,14 @@ export function useScoreLibrary({
     }
 
     if (importedSongsFromFiles.length > 0) {
-      const existingSongFingerprints = new Set(
-        librarySongsRef.current
-          .filter(hasReliableDuplicateFingerprint)
-          .map(getLibrarySongFingerprint),
-      );
-      const uniqueImportedSongs: Song[] = [];
-      const skippedDuplicateSongs: Song[] = [];
-
-      importedSongsFromFiles.forEach((song) => {
-        const fingerprint = getSongFingerprint(song);
-
-        if (
-          song.songNotes.length > 0 &&
-          existingSongFingerprints.has(fingerprint)
-        ) {
-          skippedDuplicateSongs.push(song);
-          return;
-        }
-
-        uniqueImportedSongs.push(song);
-        if (song.songNotes.length > 0) {
-          existingSongFingerprints.add(fingerprint);
-        }
+      const storedImportResult = await storeUniqueImportedSongs({
+        existingLibrarySongs: librarySongsRef.current,
+        importedSongs: importedSongsFromFiles,
+        saveImportedScoreSong,
       });
+      const { skippedDuplicateSongs, storedLibrarySongs } = storedImportResult;
+
+      failedImports.push(...storedImportResult.failedImports);
 
       skippedDuplicateSongs.forEach((song) => {
         appendLog(
@@ -360,18 +353,15 @@ export function useScoreLibrary({
         showNotice?.(skippedMessage);
       }
 
-      if (uniqueImportedSongs.length === 0) {
+      if (storedLibrarySongs.length === 0) {
         if (failedImports.length === 0) {
           setImportError("");
         }
       } else {
-        const nextLocalLibrarySongs = uniqueImportedSongs.map((song) =>
-          createLibrarySong(song),
-        );
-        const firstImportedLibrarySong = nextLocalLibrarySongs[0];
+        const firstImportedLibrarySong = storedLibrarySongs[0];
 
         setLocalLibrarySongs((currentSongs) => {
-          const nextSongs = [...currentSongs, ...nextLocalLibrarySongs];
+          const nextSongs = [...currentSongs, ...storedLibrarySongs];
 
           localLibrarySongsRef.current = nextSongs;
           return nextSongs;
@@ -387,7 +377,7 @@ export function useScoreLibrary({
         setImportError("");
         appendLog(
           formatText(text.logs.importedScoresFromFiles, {
-            count: uniqueImportedSongs.length,
+            count: storedLibrarySongs.length,
             fileCount: successfulFileCount,
           }),
         );
@@ -639,7 +629,7 @@ export function useScoreLibrary({
     );
   }
 
-  function handleDeleteLocalSong(
+  async function handleDeleteLocalSong(
     songIndex: number,
     onDeleted?: (deletedSongIndex: number, deletedSongId: LibrarySongId) => void,
     options: DeleteLocalSongOptions = {},
@@ -647,6 +637,19 @@ export function useScoreLibrary({
     const librarySong = librarySongsRef.current[songIndex];
 
     if (!librarySong || librarySong.source !== "local-import") {
+      return;
+    }
+
+    try {
+      await deleteImportedScoreFile(librarySong.id);
+    } catch (error) {
+      const message = formatText(text.logs.localScoreDeleteFailed, {
+        error: String(error instanceof Error ? error.message : error),
+        songName: librarySong.song.name,
+      });
+
+      appendLog(message);
+      showNotice?.(message);
       return;
     }
 
