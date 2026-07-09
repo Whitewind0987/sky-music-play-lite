@@ -24,8 +24,16 @@ type ReconcilePersistedImportedScoresOptions = {
   text: ImportedScoreReconciliationText;
 };
 
+type ReconcilePersistedImportedScoresWithProgressOptions =
+  ReconcilePersistedImportedScoresOptions & {
+    setInProgress: (isInProgress: boolean) => void;
+  };
+
 const completedReconciliationSignatures = new Set<string>();
-const activeReconciliationSignatures = new Set<string>();
+const activeReconciliationRuns = new Map<
+  string,
+  Promise<ImportedScoreReconcileReport | null>
+>();
 
 export function createImportedScoreReconcileEntries(
   librarySongs: LibrarySong[],
@@ -52,16 +60,67 @@ export async function reconcilePersistedImportedScores({
   }
 
   const signature = buildReconciliationSignature(entries);
+  const activeRun = activeReconciliationRuns.get(signature);
 
-  if (
-    completedReconciliationSignatures.has(signature) ||
-    activeReconciliationSignatures.has(signature)
-  ) {
+  if (completedReconciliationSignatures.has(signature)) {
     return null;
   }
 
-  activeReconciliationSignatures.add(signature);
+  if (activeRun) {
+    return activeRun;
+  }
 
+  const run = runImportedScoreReconciliation({
+    appendLog,
+    entries,
+    reconcileImportedScoreFiles,
+    showNotice,
+    signature,
+    text,
+  });
+
+  activeReconciliationRuns.set(signature, run);
+
+  return run;
+}
+
+export async function reconcilePersistedImportedScoresWithProgress({
+  setInProgress,
+  ...options
+}: ReconcilePersistedImportedScoresWithProgressOptions): Promise<ImportedScoreReconcileReport | null> {
+  if (createImportedScoreReconcileEntries(options.librarySongs).length === 0) {
+    return null;
+  }
+
+  setInProgress(true);
+
+  try {
+    return await reconcilePersistedImportedScores(options);
+  } finally {
+    setInProgress(false);
+  }
+}
+
+export function resetImportedScoreReconciliationForTests() {
+  completedReconciliationSignatures.clear();
+  activeReconciliationRuns.clear();
+}
+
+async function runImportedScoreReconciliation({
+  appendLog,
+  entries,
+  reconcileImportedScoreFiles,
+  showNotice,
+  signature,
+  text,
+}: {
+  appendLog: (entry: string) => void;
+  entries: ImportedScoreReconcileEntry[];
+  reconcileImportedScoreFiles: ReconcileImportedScoreFiles;
+  showNotice?: (message: string) => void;
+  signature: string;
+  text: ImportedScoreReconciliationText;
+}) {
   try {
     const report = await reconcileImportedScoreFiles(entries);
     completedReconciliationSignatures.add(signature);
@@ -82,13 +141,8 @@ export async function reconcilePersistedImportedScores({
     showNotice?.(message);
     return null;
   } finally {
-    activeReconciliationSignatures.delete(signature);
+    activeReconciliationRuns.delete(signature);
   }
-}
-
-export function resetImportedScoreReconciliationForTests() {
-  completedReconciliationSignatures.clear();
-  activeReconciliationSignatures.clear();
 }
 
 function logReconciliationReport({
@@ -133,13 +187,13 @@ function logReconciliationReport({
 function buildReconciliationSignature(entries: ImportedScoreReconcileEntry[]) {
   return JSON.stringify(
     entries.map(({ song, songId }) => [
-        songId,
-        song.name,
-        song.bpm,
-        song.bitsPerPage,
-        song.pitchLevel,
-        song.isComposed,
-        song.songNotes.length,
-      ]),
+      songId,
+      song.name,
+      song.bpm,
+      song.bitsPerPage,
+      song.pitchLevel,
+      song.isComposed,
+      song.songNotes.length,
+    ]),
   );
 }

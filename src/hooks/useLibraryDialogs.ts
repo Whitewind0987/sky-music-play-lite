@@ -5,6 +5,7 @@ import {
   runSingleFlightDelete,
 } from "../lib/deleteConfirmationFlow";
 import { formatText } from "../lib/formatText";
+import { shouldBlockLibraryDeleteRequest } from "../lib/libraryDeletionBlocking";
 import type {
   LibrarySong,
   LibrarySongId,
@@ -90,7 +91,13 @@ export function useLibraryDialogs({
   }
 
   function requestDeletePlaylist(playlistId: string) {
-    if (!canCloseDeleteConfirmation(isDeleteInProgressRef)) {
+    if (
+      shouldBlockLibraryDeleteRequest({
+        isLocalSongDeleteBlocked,
+        requestType: "playlist",
+      }) ||
+      !canCloseDeleteConfirmation(isDeleteInProgressRef)
+    ) {
       return;
     }
 
@@ -111,7 +118,10 @@ export function useLibraryDialogs({
 
   function requestDeleteLocalSong(songIndex: number) {
     if (
-      isLocalSongDeleteBlocked ||
+      shouldBlockLibraryDeleteRequest({
+        isLocalSongDeleteBlocked,
+        requestType: "local-song",
+      }) ||
       !canCloseDeleteConfirmation(isDeleteInProgressRef)
     ) {
       return;
@@ -142,7 +152,12 @@ export function useLibraryDialogs({
       return;
     }
 
-    if (isLocalSongDeleteBlocked) {
+    if (
+      shouldBlockLibraryDeleteRequest({
+        isLocalSongDeleteBlocked,
+        requestType: "local-song",
+      })
+    ) {
       return;
     }
 

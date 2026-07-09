@@ -6,7 +6,7 @@ import {
   sanitizePersistedAppData,
 } from "../lib/appData";
 import { formatText } from "../lib/formatText";
-import { reconcilePersistedImportedScores } from "../lib/importedScoreReconciliation";
+import { reconcilePersistedImportedScoresWithProgress } from "../lib/importedScoreReconciliation";
 import {
   loadAppData,
   reconcileImportedScoreFiles,
@@ -105,6 +105,10 @@ export function useAppPersistence({
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
   const [hasLoadedAppData, setHasLoadedAppData] = useState(false);
+  const [
+    isImportedScoreReconciliationInProgress,
+    setIsImportedScoreReconciliationInProgress,
+  ] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -131,6 +135,20 @@ export function useAppPersistence({
           return;
         }
 
+        const reconciliationPromise =
+          reconcilePersistedImportedScoresWithProgress({
+            appendLog,
+            librarySongs: appData.library.librarySongs,
+            reconcileImportedScoreFiles,
+            setInProgress: (isInProgress) => {
+              if (!isCancelled) {
+                setIsImportedScoreReconciliationInProgress(isInProgress);
+              }
+            },
+            showNotice,
+            text,
+          });
+
         setLanguage(appData.language);
         applyKeyMapping(appData.keyMapping);
         applyPlaybackSettings(appData.playbackSettings);
@@ -138,14 +156,8 @@ export function useAppPersistence({
         applyScoreLibrary(appData.library);
         applyExperimentalInputPreferences(appData.experimentalInputPreferences);
         appendLog(text.appDataLoaded);
-        void reconcilePersistedImportedScores({
-          appendLog,
-          librarySongs: appData.library.librarySongs,
-          reconcileImportedScoreFiles,
-          showNotice,
-          text,
-        });
         setHasLoadedAppData(true);
+        await reconciliationPromise;
       } catch (error) {
         if (!isCancelled) {
           appendLog(
@@ -243,5 +255,6 @@ export function useAppPersistence({
 
   return {
     hasLoadedAppData,
+    isImportedScoreReconciliationInProgress,
   };
 }

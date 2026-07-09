@@ -4,6 +4,7 @@ import type { Song } from "../types/score";
 import {
   createImportedScoreReconcileEntries,
   reconcilePersistedImportedScores,
+  reconcilePersistedImportedScoresWithProgress,
   resetImportedScoreReconciliationForTests,
   type ImportedScoreReconciliationText,
 } from "./importedScoreReconciliation";
@@ -154,6 +155,70 @@ describe("reconcilePersistedImportedScores", () => {
     await Promise.all([firstRun, duplicateRun]);
 
     expect(reconcileImportedScoreFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets reconciliation progress before the command starts and resets after success", async () => {
+    const progressStates: boolean[] = [];
+    const reconcileImportedScoreFiles = vi.fn(async () => {
+      expect(progressStates).toEqual([true]);
+      return createReconcileReport();
+    });
+
+    await reconcilePersistedImportedScoresWithProgress({
+      appendLog: vi.fn(),
+      librarySongs: [createLibrarySong()],
+      reconcileImportedScoreFiles,
+      setInProgress: (isInProgress) => progressStates.push(isInProgress),
+      text: reconciliationText,
+    });
+
+    expect(progressStates).toEqual([true, false]);
+  });
+
+  it("resets reconciliation progress after command failure", async () => {
+    const progressStates: boolean[] = [];
+    const reconcileImportedScoreFiles = vi.fn(async () => {
+      throw new Error("disk failed");
+    });
+
+    await reconcilePersistedImportedScoresWithProgress({
+      appendLog: vi.fn(),
+      librarySongs: [createLibrarySong()],
+      reconcileImportedScoreFiles,
+      setInProgress: (isInProgress) => progressStates.push(isInProgress),
+      text: reconciliationText,
+    });
+
+    expect(progressStates).toEqual([true, false]);
+  });
+
+  it("keeps duplicate Strict Mode progress calls on the same active command", async () => {
+    const localSong = createLibrarySong();
+    const progressStates: boolean[] = [];
+    let resolveReport: (report: ImportedScoreReconcileReport) => void = () => {};
+    const activeReport = new Promise<ImportedScoreReconcileReport>((resolve) => {
+      resolveReport = resolve;
+    });
+    const reconcileImportedScoreFiles = vi.fn(() => activeReport);
+    const runOptions = {
+      appendLog: vi.fn(),
+      librarySongs: [localSong],
+      reconcileImportedScoreFiles,
+      setInProgress: (isInProgress: boolean) =>
+        progressStates.push(isInProgress),
+      text: reconciliationText,
+    };
+
+    const firstRun = reconcilePersistedImportedScoresWithProgress(runOptions);
+    const duplicateRun =
+      reconcilePersistedImportedScoresWithProgress(runOptions);
+
+    resolveReport(createReconcileReport());
+
+    await Promise.all([firstRun, duplicateRun]);
+
+    expect(reconcileImportedScoreFiles).toHaveBeenCalledTimes(1);
+    expect(progressStates).toEqual([true, true, false, false]);
   });
 
   it("keeps library state, likes, playlists, selection, and playback settings unchanged on failures", async () => {

@@ -42,6 +42,7 @@ import {
   uiText,
   type LanguageCode,
 } from "./i18n/uiText";
+import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
 import { forceCloseApp } from "./lib/tauriApi";
 import "../font/iconfont.css";
 import "./App.css";
@@ -183,7 +184,7 @@ function App() {
     playbackQueue.playNext(songIndex);
     warmPlaybackPlan(songIndex);
   }
-  useAppPersistence({
+  const appPersistence = useAppPersistence({
     appendLog,
     applyExperimentalInputPreferences:
       experimentalInput.applyExperimentalInputPreferences,
@@ -238,9 +239,12 @@ function App() {
     onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
     onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
     playlists: scoreLibrary.playlists,
-    isLocalSongDeleteBlocked:
-      experimentalInput.isBackgroundHandoffPending ||
-      experimentalInput.isForegroundStartPending,
+    isLocalSongDeleteBlocked: shouldBlockLocalSongDeletion({
+      isBackgroundHandoffPending: experimentalInput.isBackgroundHandoffPending,
+      isForegroundStartPending: experimentalInput.isForegroundStartPending,
+      isImportedScoreReconciliationInProgress:
+        appPersistence.isImportedScoreReconciliationInProgress,
+    }),
     selectedSongId: scoreLibrary.selectedSongId,
     text: text.library,
   });
