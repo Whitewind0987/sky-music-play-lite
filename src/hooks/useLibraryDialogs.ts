@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
+import {
+  canCloseDeleteConfirmation,
+  runSingleFlightDelete,
+} from "../lib/deleteConfirmationFlow";
 import { formatText } from "../lib/formatText";
 import type {
   LibrarySong,
@@ -32,7 +36,7 @@ type UseLibraryDialogsOptions = {
     songIndex: number,
     songId: LibrarySongId,
     options: { stopPlaybackBeforeDelete: boolean },
-  ) => Promise<void> | void;
+  ) => Promise<boolean>;
   onDeletePlaylist: (playlistId: string) => void;
   onRenamePlaylist: (playlistId: string, nextName: string) => void;
   playlists: UserPlaylist[];
@@ -52,6 +56,8 @@ export function useLibraryDialogs({
 }: UseLibraryDialogsOptions) {
   const [pendingDeleteConfirmation, setPendingDeleteConfirmation] =
     useState<PendingDeleteConfirmation | null>(null);
+  const [isDeleteInProgress, setIsDeleteInProgress] = useState(false);
+  const isDeleteInProgressRef = useRef(false);
   const [pendingRenamePlaylist, setPendingRenamePlaylist] =
     useState<PendingRenamePlaylist | null>(null);
 
@@ -84,6 +90,10 @@ export function useLibraryDialogs({
   }
 
   function requestDeletePlaylist(playlistId: string) {
+    if (!canCloseDeleteConfirmation(isDeleteInProgressRef)) {
+      return;
+    }
+
     const playlist = playlists.find(
       (currentPlaylist) => currentPlaylist.id === playlistId,
     );
@@ -100,7 +110,10 @@ export function useLibraryDialogs({
   }
 
   function requestDeleteLocalSong(songIndex: number) {
-    if (isLocalSongDeleteBlocked) {
+    if (
+      isLocalSongDeleteBlocked ||
+      !canCloseDeleteConfirmation(isDeleteInProgressRef)
+    ) {
       return;
     }
 
@@ -144,18 +157,35 @@ export function useLibraryDialogs({
     const stopPlaybackBeforeDelete =
       selectedSongId === pendingDeleteConfirmation.songId;
 
-    if (currentSongIndex >= 0) {
-      await onDeleteLocalSong(
-        currentSongIndex,
-        pendingDeleteConfirmation.songId,
-        { stopPlaybackBeforeDelete },
-      );
+    const deleteResult = await runSingleFlightDelete(
+      isDeleteInProgressRef,
+      setIsDeleteInProgress,
+      () =>
+        onDeleteLocalSong(
+          currentSongIndex,
+          pendingDeleteConfirmation.songId,
+          { stopPlaybackBeforeDelete },
+        ),
+    );
+
+    if (deleteResult === "success") {
+      setPendingDeleteConfirmation(null);
+    }
+  }
+
+  function cancelDelete() {
+    if (!canCloseDeleteConfirmation(isDeleteInProgressRef)) {
+      return;
     }
 
     setPendingDeleteConfirmation(null);
   }
 
-  function cancelDelete() {
+  function handleDeleteDialogOpenChange(open: boolean) {
+    if (open || !canCloseDeleteConfirmation(isDeleteInProgressRef)) {
+      return;
+    }
+
     setPendingDeleteConfirmation(null);
   }
 
@@ -181,7 +211,9 @@ export function useLibraryDialogs({
     confirmRename,
     deleteDialogDescription,
     deleteDialogTitle,
+    handleDeleteDialogOpenChange,
     isDeleteDialogOpen: pendingDeleteConfirmation !== null,
+    isDeleteInProgress,
     pendingRenamePlaylist,
     requestDeleteLocalSong,
     requestDeletePlaylist,

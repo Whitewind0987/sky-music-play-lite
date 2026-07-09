@@ -26,6 +26,7 @@ import {
   removeSongFromPlaylist,
   toggleLikedSong,
 } from "../lib/libraryCollections";
+import { deleteLocalSongWithScoreFile } from "../lib/localSongDeletion";
 import {
   isSupportedScoreFileName,
   parseScoreFileContent,
@@ -633,53 +634,45 @@ export function useScoreLibrary({
     songIndex: number,
     onDeleted?: (deletedSongIndex: number, deletedSongId: LibrarySongId) => void,
     options: DeleteLocalSongOptions = {},
-  ) {
-    const librarySong = librarySongsRef.current[songIndex];
+  ): Promise<boolean> {
+    return deleteLocalSongWithScoreFile({
+      appendLog,
+      deleteScoreFile: deleteImportedScoreFile,
+      formatDeleteFailure: (songName, error) =>
+        formatText(text.logs.localScoreDeleteFailed, {
+          error: String(error instanceof Error ? error.message : error),
+          songName,
+        }),
+      librarySongs: librarySongsRef.current,
+      onBeforeLibraryMutation,
+      onDeleted,
+      onSuccessfulDelete: (librarySong) => {
+        const removedCollections = removeSongFromAllCollections({
+          likedSongs,
+          playlists,
+          songId: librarySong.id,
+        });
+        setLikedSongs(removedCollections.likedSongs);
+        setPlaylists(removedCollections.playlists);
+        setLocalLibrarySongs((currentSongs) => {
+          const nextSongs = currentSongs.filter(
+            (currentSong) => currentSong.id !== librarySong.id,
+          );
 
-    if (!librarySong || librarySong.source !== "local-import") {
-      return;
-    }
-
-    try {
-      await deleteImportedScoreFile(librarySong.id);
-    } catch (error) {
-      const message = formatText(text.logs.localScoreDeleteFailed, {
-        error: String(error instanceof Error ? error.message : error),
-        songName: librarySong.song.name,
-      });
-
-      appendLog(message);
-      showNotice?.(message);
-      return;
-    }
-
-    if (options.stopPlaybackBeforeDelete === true) {
-      onBeforeLibraryMutation();
-    }
-
-    onDeleted?.(songIndex, librarySong.id);
-
-    const removedCollections = removeSongFromAllCollections({
-      likedSongs,
-      playlists,
-      songId: librarySong.id,
+          localLibrarySongsRef.current = nextSongs;
+          return nextSongs;
+        });
+        if (selectedSongId === librarySong.id) {
+          setSelectedSongId(null);
+        }
+        if (playbackSongId === librarySong.id) {
+          setPlaybackSongId(null);
+        }
+      },
+      showNotice,
+      songIndex,
+      stopPlaybackBeforeDelete: options.stopPlaybackBeforeDelete,
     });
-    setLikedSongs(removedCollections.likedSongs);
-    setPlaylists(removedCollections.playlists);
-    setLocalLibrarySongs((currentSongs) => {
-      const nextSongs = currentSongs.filter(
-        (currentSong) => currentSong.id !== librarySong.id,
-      );
-
-      localLibrarySongsRef.current = nextSongs;
-      return nextSongs;
-    });
-    if (selectedSongId === librarySong.id) {
-      setSelectedSongId(null);
-    }
-    if (playbackSongId === librarySong.id) {
-      setPlaybackSongId(null);
-    }
   }
 
   function applyScoreLibrary(library: PersistedAppData["library"]) {

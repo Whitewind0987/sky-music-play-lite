@@ -271,7 +271,7 @@ export function usePlaybackCoordinator({
     _songId: LibrarySongId,
     options: { stopPlaybackBeforeDelete: boolean },
   ) {
-    await scoreLibrary.handleDeleteLocalSong(
+    return scoreLibrary.handleDeleteLocalSong(
       songIndex,
       (deletedSongIndex, deletedSongId) => {
         playbackQueue.removeSongIndex(deletedSongIndex);

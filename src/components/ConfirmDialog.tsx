@@ -6,6 +6,7 @@ type ConfirmDialogProps = {
   cancelLabel: string;
   confirmLabel: string;
   description?: string;
+  isConfirming?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
   onOpenChange?: (open: boolean) => void;
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   cancelLabel,
   confirmLabel,
   description,
+  isConfirming = false,
   onCancel,
   onConfirm,
   onOpenChange,
@@ -29,6 +31,10 @@ export function ConfirmDialog({
     <Dialog.Root
       open={open}
       onOpenChange={(nextOpen) => {
+        if (isConfirming) {
+          return;
+        }
+
         if (onOpenChange) {
           onOpenChange(nextOpen);
           return;
@@ -63,21 +69,36 @@ export function ConfirmDialog({
               ) : null}
             </div>
             <div className="confirm-dialog-actions">
-              <Dialog.Close asChild>
+              {isConfirming ? (
                 <button
                   className="confirm-dialog-secondary"
                   type="button"
-                  onClick={onCancel}
+                  disabled
                 >
                   {cancelLabel}
                 </button>
-              </Dialog.Close>
+              ) : (
+                <Dialog.Close asChild>
+                  <button
+                    className="confirm-dialog-secondary"
+                    type="button"
+                    onClick={onCancel}
+                  >
+                    {cancelLabel}
+                  </button>
+                </Dialog.Close>
+              )}
               <button
                 className={`confirm-dialog-primary${
                   variant === "danger" ? " is-danger" : ""
                 }`}
                 type="button"
-                onClick={onConfirm}
+                disabled={isConfirming}
+                onClick={() => {
+                  if (!isConfirming) {
+                    onConfirm();
+                  }
+                }}
               >
                 {confirmLabel}
               </button>

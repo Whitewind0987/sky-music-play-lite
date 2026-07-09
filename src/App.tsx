@@ -652,16 +652,13 @@ function App() {
         cancelLabel={text.library.cancelDelete}
         confirmLabel={text.library.confirmDelete}
         description={libraryDialogs.deleteDialogDescription}
+        isConfirming={libraryDialogs.isDeleteInProgress}
         open={libraryDialogs.isDeleteDialogOpen}
         title={libraryDialogs.deleteDialogTitle}
         variant="danger"
         onCancel={libraryDialogs.cancelDelete}
         onConfirm={libraryDialogs.confirmDelete}
-        onOpenChange={(open) => {
-          if (!open) {
-            libraryDialogs.cancelDelete();
-          }
-        }}
+        onOpenChange={libraryDialogs.handleDeleteDialogOpenChange}
       />
 
       <ConfirmDialog
