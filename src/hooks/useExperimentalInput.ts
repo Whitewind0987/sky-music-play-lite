@@ -14,6 +14,7 @@ import {
   getBackgroundPlaybackEventRoute,
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
+import { resolveBackgroundHandoffRollbackSongIndex } from "../lib/backgroundHandoffRollback";
 import type { PreparedPlaybackPlanCacheKey } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
@@ -44,7 +45,7 @@ import type {
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
-import type { LibrarySong } from "../types/library";
+import type { LibrarySong, LibrarySongId } from "../types/library";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type {
@@ -714,7 +715,10 @@ export function useExperimentalInput({
 
     const handoffToken = beginBackgroundHandoff();
     const timing = createBackgroundHandoffTiming("background handoff");
-    const rollbackPlaybackSongIndex = currentPlaybackSongIndex;
+    const rollbackPlaybackSongId =
+      currentPlaybackSongIndex === null
+        ? null
+        : librarySongsRef.current[currentPlaybackSongIndex]?.id ?? null;
 
     timing.mark("request received");
     setRequestedPlaybackSongIndex(songIndex);
@@ -724,14 +728,14 @@ export function useExperimentalInput({
     timing.mark("score resolution");
 
     if (!isLatestBackgroundHandoff(handoffToken)) {
-      rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongIndex);
+      rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongId);
       timing.finish("cancelled after score resolution");
       return false;
     }
 
     if (song === null) {
       finishBackgroundHandoff(handoffToken);
-      rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongIndex);
+      rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongId);
       timing.finish("score unavailable");
       return false;
     }
@@ -742,7 +746,7 @@ export function useExperimentalInput({
     return startExperimentalPlaybackForSong(songIndex, song, {
       handoffToken,
       initialSeekMs,
-      rollbackPlaybackSongIndex,
+      rollbackPlaybackSongId,
       timing,
     });
   }
@@ -818,9 +822,17 @@ export function useExperimentalInput({
 
   function rollbackRequestedPlaybackSong(
     handoffToken: number,
-    rollbackPlaybackSongIndex: number | null,
+    rollbackPlaybackSongId: LibrarySongId | null,
   ) {
-    if (backgroundHandoffTokenRef.current !== handoffToken) {
+    const rollbackPlaybackSongIndex =
+      resolveBackgroundHandoffRollbackSongIndex({
+        activeHandoffToken: backgroundHandoffTokenRef.current,
+        handoffToken,
+        librarySongs: librarySongsRef.current,
+        rollbackPlaybackSongId,
+      });
+
+    if (rollbackPlaybackSongIndex === undefined) {
       return;
     }
 
@@ -833,7 +845,7 @@ export function useExperimentalInput({
     options: {
       handoffToken: number;
       initialSeekMs?: number;
-      rollbackPlaybackSongIndex: number | null;
+      rollbackPlaybackSongId: LibrarySongId | null;
       timing: BackgroundHandoffTiming;
       preparedPlanRetryCount?: number;
     },
@@ -842,7 +854,7 @@ export function useExperimentalInput({
       finishBackgroundHandoff(options.handoffToken);
       rollbackRequestedPlaybackSong(
         options.handoffToken,
-        options.rollbackPlaybackSongIndex,
+        options.rollbackPlaybackSongId,
       );
       options.timing.finish("missing target");
       return false;
@@ -873,7 +885,7 @@ export function useExperimentalInput({
         preparedPlanId: preparedPlan.preparedPlanId,
         cacheKey: preparedPlan.cacheKey,
         preparedPlanRetryCount: options.preparedPlanRetryCount ?? 0,
-        rollbackPlaybackSongIndex: options.rollbackPlaybackSongIndex,
+        rollbackPlaybackSongId: options.rollbackPlaybackSongId,
         timing: options.timing,
       });
     } catch (error) {
@@ -886,7 +898,7 @@ export function useExperimentalInput({
       replayActiveSessionEventsAfterFailedHandoff();
       rollbackRequestedPlaybackSong(
         options.handoffToken,
-        options.rollbackPlaybackSongIndex,
+        options.rollbackPlaybackSongId,
       );
       options.timing.finish("prepare failed");
       return false;
@@ -902,7 +914,7 @@ export function useExperimentalInput({
       preparedPlanId: number;
       cacheKey: PreparedPlaybackPlanCacheKey;
       preparedPlanRetryCount: number;
-      rollbackPlaybackSongIndex: number | null;
+      rollbackPlaybackSongId: LibrarySongId | null;
       timing: BackgroundHandoffTiming;
     },
   ): Promise<boolean> {
@@ -911,7 +923,7 @@ export function useExperimentalInput({
       finishBackgroundHandoff(options.handoffToken);
       rollbackRequestedPlaybackSong(
         options.handoffToken,
-        options.rollbackPlaybackSongIndex,
+        options.rollbackPlaybackSongId,
       );
       options.timing.finish("missing target before start");
       return false;
@@ -950,7 +962,7 @@ export function useExperimentalInput({
         void stopBackgroundPlayback(response.sessionId);
         rollbackRequestedPlaybackSong(
           options.handoffToken,
-          options.rollbackPlaybackSongIndex,
+          options.rollbackPlaybackSongId,
         );
         options.timing.finish("stale response stopped");
         return false;
@@ -993,7 +1005,7 @@ export function useExperimentalInput({
       if (!isLatestBackgroundHandoff(options.handoffToken)) {
         rollbackRequestedPlaybackSong(
           options.handoffToken,
-          options.rollbackPlaybackSongIndex,
+          options.rollbackPlaybackSongId,
         );
         options.timing.finish("stale failure ignored");
         return false;
@@ -1009,7 +1021,7 @@ export function useExperimentalInput({
           handoffToken: options.handoffToken,
           initialSeekMs: options.initialSeekMs,
           preparedPlanRetryCount: 1,
-          rollbackPlaybackSongIndex: options.rollbackPlaybackSongIndex,
+          rollbackPlaybackSongId: options.rollbackPlaybackSongId,
           timing: options.timing,
         });
       }
@@ -1039,7 +1051,7 @@ export function useExperimentalInput({
       replayActiveSessionEventsAfterFailedHandoff();
       rollbackRequestedPlaybackSong(
         options.handoffToken,
-        options.rollbackPlaybackSongIndex,
+        options.rollbackPlaybackSongId,
       );
       options.timing.finish("start failed");
       return false;
