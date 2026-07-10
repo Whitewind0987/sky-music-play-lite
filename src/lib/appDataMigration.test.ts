@@ -28,6 +28,7 @@ function createAppData(): PersistedAppData {
 
   return {
     appDataVersion: 3,
+    confirmBeforeExit: true,
     keyMapping: defaultKeyMapping,
     language: "zh-CN",
     library: {

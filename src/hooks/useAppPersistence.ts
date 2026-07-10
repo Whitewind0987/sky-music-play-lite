@@ -44,6 +44,7 @@ const saveDebounceMs = 500;
 
 type UseAppPersistenceOptions = {
   appendLog: (entry: string) => void;
+  applyConfirmBeforeExit: (confirmBeforeExit: boolean) => void;
   applyExperimentalInputPreferences: (
     preferences: PersistedAppData["experimentalInputPreferences"],
   ) => void;
@@ -54,6 +55,7 @@ type UseAppPersistenceOptions = {
   applyPlaybackShortcuts: (playbackShortcuts: PlaybackShortcuts) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
   canSaveAppData?: boolean;
+  confirmBeforeExit: boolean;
   experimentalInputEnabled: boolean;
   experimentalInputMode: ExperimentalInputMode;
   isShuffleEnabled: boolean;
@@ -83,12 +85,14 @@ type UseAppPersistenceOptions = {
 
 export function useAppPersistence({
   appendLog,
+  applyConfirmBeforeExit,
   applyExperimentalInputPreferences,
   applyKeyMapping,
   applyPlaybackSettings,
   applyPlaybackShortcuts,
   applyScoreLibrary,
   canSaveAppData = true,
+  confirmBeforeExit,
   experimentalInputEnabled,
   experimentalInputMode,
   isShuffleEnabled,
@@ -116,6 +120,7 @@ export function useAppPersistence({
   validCollectionSongIds,
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
+  const explicitlySavedAppDataSnapshotRef = useRef<string | null>(null);
   const [hasLoadedAppData, setHasLoadedAppData] = useState(false);
   const [isNormalPersistenceEnabled, setIsNormalPersistenceEnabled] =
     useState(false);
@@ -123,6 +128,38 @@ export function useAppPersistence({
     isImportedScoreReconciliationInProgress,
     setIsImportedScoreReconciliationInProgress,
   ] = useState(false);
+
+  function buildCurrentPersistedAppData(
+    nextConfirmBeforeExit = confirmBeforeExit,
+  ) {
+    return buildPersistedAppData({
+      confirmBeforeExit: nextConfirmBeforeExit,
+      experimentalInputPreferences: {
+        experimentalInputEnabled,
+        experimentalInputMode,
+        selectedWindowHwnd,
+        selectedWindowSnapshot,
+        targetWindowCompatibilityProfile,
+        targetWindowKeyHoldMs,
+        targetWindowMessageMethod,
+      },
+      isShuffleEnabled,
+      keyMapping,
+      language,
+      librarySongs,
+      likedSongs,
+      migrationFallbackSongs,
+      noteIntervalDelayMs,
+      playbackMode,
+      playbackShortcuts,
+      playbackSpeed,
+      playlists,
+      selectedLibraryCategory,
+      selectedPlaylistId,
+      selectedSongIndex,
+      validCollectionSongIds,
+    });
+  }
 
   useEffect(() => {
     let isCancelled = false;
@@ -204,6 +241,7 @@ export function useAppPersistence({
         }
 
         setLanguage(runtimeAppData.language);
+        applyConfirmBeforeExit(runtimeAppData.confirmBeforeExit);
         applyKeyMapping(runtimeAppData.keyMapping);
         applyPlaybackSettings(runtimeAppData.playbackSettings);
         applyPlaybackShortcuts(runtimeAppData.playbackShortcuts);
@@ -247,32 +285,13 @@ export function useAppPersistence({
     }
 
     saveTimerRef.current = window.setTimeout(() => {
-      const appData = buildPersistedAppData({
-        experimentalInputPreferences: {
-          experimentalInputEnabled,
-          experimentalInputMode,
-          selectedWindowHwnd,
-          selectedWindowSnapshot,
-          targetWindowCompatibilityProfile,
-          targetWindowKeyHoldMs,
-          targetWindowMessageMethod,
-        },
-        isShuffleEnabled,
-        keyMapping,
-        language,
-        librarySongs,
-        likedSongs,
-        migrationFallbackSongs,
-        noteIntervalDelayMs,
-        playbackMode,
-        playbackShortcuts,
-        playbackSpeed,
-        playlists,
-        selectedLibraryCategory,
-        selectedPlaylistId,
-        selectedSongIndex,
-        validCollectionSongIds,
-      });
+      const appData = buildCurrentPersistedAppData();
+      const appDataSnapshot = JSON.stringify(appData);
+
+      if (explicitlySavedAppDataSnapshotRef.current === appDataSnapshot) {
+        explicitlySavedAppDataSnapshotRef.current = null;
+        return;
+      }
 
       void saveAppData(appData).catch((error) => {
         appendLog(
@@ -290,6 +309,7 @@ export function useAppPersistence({
     };
   }, [
     canSaveAppData,
+    confirmBeforeExit,
     experimentalInputMode,
     experimentalInputEnabled,
     hasLoadedAppData,
@@ -319,5 +339,18 @@ export function useAppPersistence({
   return {
     hasLoadedAppData,
     isImportedScoreReconciliationInProgress,
+    async saveConfirmBeforeExitPreference(nextConfirmBeforeExit: boolean) {
+      if (
+        !hasLoadedAppData ||
+        !canSaveAppData ||
+        !isNormalPersistenceEnabled
+      ) {
+        throw new Error("Application data is not ready to save.");
+      }
+
+      const appData = buildCurrentPersistedAppData(nextConfirmBeforeExit);
+      await saveAppData(appData);
+      explicitlySavedAppDataSnapshotRef.current = JSON.stringify(appData);
+    },
   };
 }

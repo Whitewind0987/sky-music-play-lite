@@ -91,6 +91,29 @@ describe("buildPersistedAppData", () => {
     expect(buildMinimalPersistedAppData().appDataVersion).toBe(appDataVersion);
   });
 
+  it("defaults confirmBeforeExit to true and preserves explicit values", () => {
+    expect(buildMinimalPersistedAppData().confirmBeforeExit).toBe(true);
+    expect(
+      buildMinimalPersistedAppData({ confirmBeforeExit: false })
+        .confirmBeforeExit,
+    ).toBe(false);
+  });
+
+  it("preserves unrelated settings when updating confirmBeforeExit", () => {
+    const baseSettings = {
+      language: "en-US" as const,
+      librarySongs: [createLocalLibrarySong("local-preserved")],
+      playbackMode: "repeat-all" as const,
+    };
+    const before = buildMinimalPersistedAppData(baseSettings);
+    const after = buildMinimalPersistedAppData({
+      ...baseSettings,
+      confirmBeforeExit: false,
+    });
+
+    expect({ ...after, confirmBeforeExit: true }).toEqual(before);
+  });
+
   it("keeps valid library songs and collection references", () => {
     const songA = createLocalLibrarySong("local-1");
     const songB = createLocalLibrarySong("local-2");
@@ -259,6 +282,7 @@ describe("sanitizePersistedAppData current version", () => {
       playbackMode: defaultPlaybackMode,
       playbackSpeed: defaultPlaybackSpeed,
     });
+    expect(result?.confirmBeforeExit).toBe(true);
     expect(result?.library.librarySongs).toEqual([]);
   });
 
@@ -270,6 +294,30 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.language).toBe("zh-CN");
+  });
+
+  it("sanitizes the exit confirmation preference", () => {
+    expect(
+      sanitizePersistedAppData({
+        appDataVersion,
+        confirmBeforeExit: true,
+        library: {},
+      })?.confirmBeforeExit,
+    ).toBe(true);
+    expect(
+      sanitizePersistedAppData({
+        appDataVersion,
+        confirmBeforeExit: false,
+        library: {},
+      })?.confirmBeforeExit,
+    ).toBe(false);
+    expect(
+      sanitizePersistedAppData({
+        appDataVersion,
+        confirmBeforeExit: "no",
+        library: {},
+      })?.confirmBeforeExit,
+    ).toBe(true);
   });
 
   it("clears an invalid selectedSongIndex", () => {

@@ -38,6 +38,7 @@ export type ExperimentalInputPreferences = {
 
 export type PersistedAppData = {
   appDataVersion: typeof appDataVersion;
+  confirmBeforeExit: boolean;
   experimentalInputPreferences?: ExperimentalInputPreferences;
   keyMapping: KeyMapping;
   language: LanguageCode;

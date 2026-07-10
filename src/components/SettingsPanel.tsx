@@ -64,12 +64,14 @@ type ExperimentalInputPanelState = {
 
 type SettingsPlaceholderProps = {
   appRuntimeInfo: AppRuntimeInfo | null;
+  confirmBeforeExit: boolean;
   experimentalInput: ExperimentalInputPanelState;
   keyMapping: KeyMapping;
   language: LanguageCode;
   listeningSkyKey: SkyKeyName | null;
   onShortcutNoticeClear: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
+  onConfirmBeforeExitChange: (confirmBeforeExit: boolean) => void;
   onLanguageChange: (language: LanguageCode) => void;
   onOpenLogDirectory: () => void;
   onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
@@ -80,12 +82,14 @@ type SettingsPlaceholderProps = {
 
 export function SettingsPlaceholder({
   appRuntimeInfo,
+  confirmBeforeExit,
   experimentalInput,
   keyMapping,
   language,
   listeningSkyKey,
   onShortcutNoticeClear,
   onKeyMappingListenStart,
+  onConfirmBeforeExitChange,
   onLanguageChange,
   onOpenLogDirectory,
   onPlaybackShortcutsChange,
@@ -508,6 +512,25 @@ export function SettingsPlaceholder({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="setting-row">
+            <div>
+              <span>{text.confirmBeforeExit}</span>
+              <p className="experimental-setting-description">
+                {text.confirmBeforeExitDescription}
+              </p>
+            </div>
+            <button
+              className={`experimental-toggle${
+                confirmBeforeExit ? " is-on" : ""
+              }`}
+              type="button"
+              aria-label={text.confirmBeforeExit}
+              aria-pressed={confirmBeforeExit}
+              onClick={() => onConfirmBeforeExitChange(!confirmBeforeExit)}
+            >
+              <span className="visually-hidden">{text.confirmBeforeExit}</span>
+            </button>
           </div>
           <div className="setting-row">
             <span>{text.theme}</span>

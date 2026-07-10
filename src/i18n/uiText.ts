@@ -83,6 +83,7 @@ export const uiText = {
     closeConfirm: {
       title: "关闭 SkyMusicPlay Lite？",
       description: "关闭后当前播放会停止，未保存的操作可能会丢失。",
+      doNotAskAgain: "不再提示",
       cancel: "取消",
       confirm: "关闭",
     },
@@ -443,6 +444,8 @@ export const uiText = {
       logDirectory: "日志目录",
       appVersion: "SkyMusicPlay Lite 版本",
       language: "语言",
+      confirmBeforeExit: "退出应用前确认",
+      confirmBeforeExitDescription: "关闭应用时显示确认提示",
       theme: "主题",
       systemTheme: "跟随系统",
       defaultPage: "默认页面",
@@ -616,6 +619,7 @@ export const uiText = {
       title: "Close SkyMusicPlay Lite?",
       description:
         "Current playback will stop after closing. Unsaved actions may be lost.",
+      doNotAskAgain: "Don't ask again",
       cancel: "Cancel",
       confirm: "Close",
     },
@@ -996,6 +1000,9 @@ export const uiText = {
       logDirectory: "Log Directory",
       appVersion: "SkyMusicPlay Lite Version",
       language: "Language",
+      confirmBeforeExit: "Confirm before exiting",
+      confirmBeforeExitDescription:
+        "Show a confirmation prompt when closing the app.",
       theme: "Theme",
       systemTheme: "System",
       defaultPage: "Default page",

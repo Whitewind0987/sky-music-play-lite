@@ -1,9 +1,11 @@
 import * as Dialog from "@radix-ui/react-dialog";
+import type { ReactNode } from "react";
 
 type ConfirmDialogVariant = "danger" | "default";
 
 type ConfirmDialogProps = {
   cancelLabel: string;
+  children?: ReactNode;
   confirmLabel: string;
   description?: string;
   isConfirming?: boolean;
@@ -17,6 +19,7 @@ type ConfirmDialogProps = {
 
 export function ConfirmDialog({
   cancelLabel,
+  children,
   confirmLabel,
   description,
   isConfirming = false,
@@ -68,6 +71,7 @@ export function ConfirmDialog({
                 </Dialog.Description>
               ) : null}
             </div>
+            {children}
             <div className="confirm-dialog-actions">
               {isConfirming ? (
                 <button

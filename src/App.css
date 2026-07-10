@@ -1692,6 +1692,26 @@ button {
   line-height: 1.5;
 }
 
+.confirm-dialog-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.confirm-dialog-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.confirm-dialog-option:has(input:disabled) {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .confirm-dialog-actions {
   display: flex;
   flex-wrap: wrap;

@@ -42,6 +42,13 @@ import {
   uiText,
   type LanguageCode,
 } from "./i18n/uiText";
+import {
+  dismissExitConfirmationDialog,
+  getExitCloseRequestDecision,
+  openExitConfirmationDialog,
+  runExitConfirmationAction,
+} from "./lib/exitConfirmationFlow";
+import { formatText } from "./lib/formatText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
 import { getLibrarySongName } from "./lib/libraryCollections";
 import { forceCloseApp } from "./lib/tauriApi";
@@ -51,12 +58,19 @@ import "./App.css";
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
   const isClosingAfterConfirmRef = useRef(false);
+  const closeConfirmationGuardRef = useRef({ current: false });
+  const isCloseConfirmOpenRef = useRef(false);
+  const confirmBeforeExitRef = useRef(true);
   const closeRequestedUnlistenRef = useRef<(() => void) | null>(null);
   const fileLogContextRef = useRef<Record<string, unknown>>({});
   const dragDepthRef = useRef(0);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
-  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [confirmBeforeExit, setConfirmBeforeExit] = useState(true);
+  const [closeConfirmDialog, setCloseConfirmDialog] = useState(
+    dismissExitConfirmationDialog,
+  );
+  const [isCloseConfirmSaving, setIsCloseConfirmSaving] = useState(false);
   const [isDraggingScoreFiles, setIsDraggingScoreFiles] = useState(false);
   const [appNotice, setAppNotice] = useState<{
     id: number;
@@ -189,6 +203,7 @@ function App() {
   }
   const appPersistence = useAppPersistence({
     appendLog,
+    applyConfirmBeforeExit: handleConfirmBeforeExitChange,
     applyExperimentalInputPreferences:
       experimentalInput.applyExperimentalInputPreferences,
     applyKeyMapping,
@@ -196,6 +211,7 @@ function App() {
     applyPlaybackShortcuts: playbackShortcutsController.setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
     canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
+    confirmBeforeExit,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
     experimentalInputMode: experimentalInput.experimentalInputMode,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
@@ -269,12 +285,23 @@ function App() {
 
     void getCurrentWindow()
       .onCloseRequested((event) => {
-        if (isClosingAfterConfirmRef.current) {
+        const closeRequestDecision = getExitCloseRequestDecision({
+          confirmBeforeExit: confirmBeforeExitRef.current,
+          isDialogOpen: isCloseConfirmOpenRef.current,
+          isExitInProgress: isClosingAfterConfirmRef.current,
+        });
+
+        if (closeRequestDecision === "allow") {
           return;
         }
 
         event.preventDefault();
-        setIsCloseConfirmOpen(true);
+
+        if (closeRequestDecision === "ignore") {
+          return;
+        }
+
+        openCloseConfirmationDialog();
         appendDetailedLogRef.current({
           details: fileLogContextRef.current,
           message: "Native close requested; confirmation dialog opened",
@@ -436,8 +463,57 @@ function App() {
   }
 
   async function handleConfirmAppClose() {
+    const result = await runExitConfirmationAction(
+      closeConfirmationGuardRef.current,
+      setIsCloseConfirmSaving,
+      {
+        doNotAskAgain: closeConfirmDialog.doNotAskAgain,
+        exit: closeAppAfterConfirmation,
+        persistConfirmBeforeExit: async (nextConfirmBeforeExit) => {
+          await appPersistence.saveConfirmBeforeExitPreference(
+            nextConfirmBeforeExit,
+          );
+          handleConfirmBeforeExitChange(nextConfirmBeforeExit);
+        },
+      },
+    );
+
+    if (result.status === "preference-save-failed") {
+      const error = String(
+        result.error instanceof Error ? result.error.message : result.error,
+      );
+      const message = formatText(text.logs.appDataSaveFailed, { error });
+
+      appendLog(message);
+      showAppNotice(message);
+      appFileLogger.appendDetailedLog({
+        details: { error },
+        level: "error",
+        message: "Failed to save exit confirmation preference",
+        source: "window",
+      });
+      return;
+    }
+
+    if (result.status === "exit-failed") {
+      isClosingAfterConfirmRef.current = false;
+      openCloseConfirmationDialog();
+      appFileLogger.appendDetailedLog({
+        details: {
+          error: String(
+            result.error instanceof Error ? result.error.message : result.error,
+          ),
+        },
+        level: "error",
+        message: "Failed to close app after confirmation",
+        source: "window",
+      });
+    }
+  }
+
+  async function closeAppAfterConfirmation() {
     isClosingAfterConfirmRef.current = true;
-    setIsCloseConfirmOpen(false);
+    dismissCloseConfirmationDialog();
     appFileLogger.appendDetailedLog({
       details: fileLogContextRef.current,
       message: "Close confirmed",
@@ -458,21 +534,24 @@ function App() {
         await getCurrentWindow().close();
       } catch (fallbackError) {
         isClosingAfterConfirmRef.current = false;
-        appFileLogger.appendDetailedLog({
-          details: {
-            error: String(
-              fallbackError instanceof Error
-                ? fallbackError.message
-                : fallbackError,
-            ),
-          },
-          level: "error",
-          message: "Failed to close app after confirmation",
-          source: "window",
-        });
-        setIsCloseConfirmOpen(true);
+        throw fallbackError;
       }
     }
+  }
+
+  function handleConfirmBeforeExitChange(nextConfirmBeforeExit: boolean) {
+    confirmBeforeExitRef.current = nextConfirmBeforeExit;
+    setConfirmBeforeExit(nextConfirmBeforeExit);
+  }
+
+  function openCloseConfirmationDialog() {
+    isCloseConfirmOpenRef.current = true;
+    setCloseConfirmDialog(openExitConfirmationDialog());
+  }
+
+  function dismissCloseConfirmationDialog() {
+    isCloseConfirmOpenRef.current = false;
+    setCloseConfirmDialog(dismissExitConfirmationDialog());
   }
 
   function renderActiveSection() {
@@ -534,6 +613,7 @@ function App() {
     if (activeSection === "Settings") {
       return (
         <SettingsPlaceholder
+          confirmBeforeExit={confirmBeforeExit}
           experimentalInput={{
             candidateWindows: experimentalInput.candidateWindows,
             experimentalInputEnabled:
@@ -566,6 +646,7 @@ function App() {
           language={language}
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
+          onConfirmBeforeExitChange={handleConfirmBeforeExitChange}
           onLanguageChange={setLanguage}
           appRuntimeInfo={appFileLogger.runtimeInfo}
           onOpenLogDirectory={appFileLogger.openLogDirectory}
@@ -677,16 +758,32 @@ function App() {
         cancelLabel={text.closeConfirm.cancel}
         confirmLabel={text.closeConfirm.confirm}
         description={text.closeConfirm.description}
-        open={isCloseConfirmOpen}
+        isConfirming={isCloseConfirmSaving}
+        open={closeConfirmDialog.isOpen}
         title={text.closeConfirm.title}
-        onCancel={() => setIsCloseConfirmOpen(false)}
+        onCancel={dismissCloseConfirmationDialog}
         onConfirm={handleConfirmAppClose}
         onOpenChange={(open) => {
           if (!open) {
-            setIsCloseConfirmOpen(false);
+            dismissCloseConfirmationDialog();
           }
         }}
-      />
+      >
+        <label className="confirm-dialog-option">
+          <input
+            checked={closeConfirmDialog.doNotAskAgain}
+            disabled={isCloseConfirmSaving}
+            type="checkbox"
+            onChange={(event) => {
+              setCloseConfirmDialog((currentDialog) => ({
+                ...currentDialog,
+                doNotAskAgain: event.target.checked,
+              }));
+            }}
+          />
+          <span>{text.closeConfirm.doNotAskAgain}</span>
+        </label>
+      </ConfirmDialog>
 
       {libraryDialogs.pendingRenamePlaylist ? (
         <RenamePlaylistDialog

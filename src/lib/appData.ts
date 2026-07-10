@@ -60,6 +60,7 @@ const experimentalInputModes: ExperimentalInputMode[] = [
 const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
 const targetWindowKeyHoldMaxMs = 200;
+export const defaultConfirmBeforeExit = true;
 
 export type SupportedAppDataVersion = 1 | 2 | typeof appDataVersion;
 
@@ -104,6 +105,10 @@ export function sanitizePersistedAppData(
 
   return {
     appDataVersion,
+    confirmBeforeExit:
+      typeof rawData.confirmBeforeExit === "boolean"
+        ? rawData.confirmBeforeExit
+        : defaultConfirmBeforeExit,
     experimentalInputPreferences:
       sanitizeExperimentalInputPreferences(
         rawData.experimentalInputPreferences,
@@ -134,6 +139,7 @@ export function sanitizePersistedAppData(
 }
 
 export function buildPersistedAppData({
+  confirmBeforeExit = defaultConfirmBeforeExit,
   experimentalInputPreferences,
   librarySongs,
   likedSongs,
@@ -151,6 +157,7 @@ export function buildPersistedAppData({
   selectedPlaylistId,
   selectedSongIndex,
 }: {
+  confirmBeforeExit?: boolean;
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
   librarySongs: LocalLibrarySong[];
   likedSongs: LikedSongEntry[];
@@ -186,6 +193,7 @@ export function buildPersistedAppData({
 
   return {
     appDataVersion,
+    confirmBeforeExit,
     experimentalInputPreferences:
       experimentalInputPreferences === undefined
         ? undefined
