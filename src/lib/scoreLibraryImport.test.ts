@@ -229,4 +229,56 @@ describe("storeUniqueImportedSongs", () => {
 
     expect(result.storedLibrarySongs[0]?.song.name).toBe("First Success");
   });
+
+  it("can seed a newly imported song only after storage succeeds", async () => {
+    const song = createSong({ name: "Seeded" });
+    const order: string[] = [];
+    const seeded: Array<{ song: Song; songId: string }> = [];
+
+    const result = await storeUniqueImportedSongs({
+      createLibrarySong: createLibrarySongFactory(),
+      existingLibrarySongs: [],
+      importedSongs: [createImportedSong(song)],
+      saveImportedScoreSong: async (songId, savedSong) => {
+        order.push(`save:${songId}`);
+        await Promise.resolve();
+        order.push(`saved:${songId}`);
+        seeded.push({ song: savedSong, songId });
+        order.push(`seed:${songId}`);
+      },
+    });
+
+    expect(result.storedLibrarySongs.map((librarySong) => librarySong.id)).toEqual([
+      "local-test-1",
+    ]);
+    expect(seeded).toEqual([{ song, songId: "local-test-1" }]);
+    expect(order).toEqual([
+      "save:local-test-1",
+      "saved:local-test-1",
+      "seed:local-test-1",
+    ]);
+  });
+
+  it("does not seed a song when storage fails", async () => {
+    const seeded: string[] = [];
+
+    const result = await storeUniqueImportedSongs({
+      createLibrarySong: createLibrarySongFactory(),
+      existingLibrarySongs: [],
+      importedSongs: [createImportedSong(createSong({ name: "Broken" }))],
+      saveImportedScoreSong: async (songId) => {
+        await Promise.reject(new Error(`write failed before seed ${songId}`));
+        seeded.push(songId);
+      },
+    });
+
+    expect(result.storedLibrarySongs).toEqual([]);
+    expect(seeded).toEqual([]);
+    expect(result.failedImports).toEqual([
+      {
+        error: "write failed before seed local-test-1",
+        fileName: "song.json",
+      },
+    ]);
+  });
 });

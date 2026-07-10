@@ -355,6 +355,8 @@ export const uiText = {
         "播放进行中，已阻止导入曲谱。请先停止播放。",
       localScoreDeleteFailed:
         "删除本地曲谱文件失败：{songName}；{error}",
+      localScoreLoadFailed:
+        "读取本地曲谱文件失败：{songName} ({songId})；{error}",
       importedScoreReconcileSucceeded:
         "已整理本地曲谱文件：新增 {createdCount} 个，重命名 {renamedCount} 个。",
       importedScoreReconcileFailed:
@@ -896,6 +898,8 @@ export const uiText = {
         "Import was blocked while playback is active. Please stop playback first.",
       localScoreDeleteFailed:
         "Failed to delete local score file for {songName}: {error}",
+      localScoreLoadFailed:
+        "Failed to load local score file for {songName} ({songId}): {error}",
       importedScoreReconcileSucceeded:
         "Organized local score files: created {createdCount}, renamed {renamedCount}.",
       importedScoreReconcileFailed:

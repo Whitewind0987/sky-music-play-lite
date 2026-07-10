@@ -12,6 +12,7 @@ import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
 import { loadBuiltInLibrarySongs } from "../lib/builtinScores";
 import { formatText } from "../lib/formatText";
 import { InFlightByKey } from "../lib/inFlightByKey";
+import { ImportedScoreSongLoader } from "../lib/importedScoreSongLoader";
 import {
   formatImportError,
   formatImportFailureSummary,
@@ -26,6 +27,7 @@ import {
   removeSongFromPlaylist,
   toggleLikedSong,
 } from "../lib/libraryCollections";
+import { loadLocalImportedSongForPlayback } from "../lib/localImportedSongPlayback";
 import { deleteLocalSongWithScoreFile } from "../lib/localSongDeletion";
 import {
   isSupportedScoreFileName,
@@ -37,7 +39,8 @@ import {
 } from "../lib/scoreLibraryImport";
 import {
   deleteImportedScoreFile,
-  saveImportedScoreSong,
+  readImportedScoreSong,
+  saveImportedScoreSong as saveImportedScoreSongFile,
 } from "../lib/tauriApi";
 import type { PersistedAppData } from "../types/appData";
 import type {
@@ -88,7 +91,12 @@ export function useScoreLibrary({
   const [loadingBuiltInSongIds, setLoadingBuiltInSongIds] = useState<
     Set<LibrarySongId>
   >(new Set());
+  const [loadingLocalSongIds, setLoadingLocalSongIds] = useState<
+    Set<LibrarySongId>
+  >(new Set());
   const builtInSongLoadRef = useRef(new InFlightByKey<Song | null>());
+  const importedScoreSongLoaderRef = useRef(new ImportedScoreSongLoader());
+  const localSongLoadCountsRef = useRef(new Map<LibrarySongId, number>());
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [builtInPage, setBuiltInPage] = useState(1);
@@ -327,7 +335,10 @@ export function useScoreLibrary({
       const storedImportResult = await storeUniqueImportedSongs({
         existingLibrarySongs: librarySongsRef.current,
         importedSongs: importedSongsFromFiles,
-        saveImportedScoreSong,
+        saveImportedScoreSong: async (songId, song) => {
+          await saveImportedScoreSongFile(songId, song);
+          importedScoreSongLoaderRef.current.seed(songId, song);
+        },
       });
       const { skippedDuplicateSongs, storedLibrarySongs } = storedImportResult;
 
@@ -403,7 +414,7 @@ export function useScoreLibrary({
     selectSongByIndex(songIndex);
 
     if (songIndex !== null) {
-      void preloadBuiltInSong(songIndex);
+      void preloadSong(songIndex);
     }
   }
 
@@ -637,7 +648,14 @@ export function useScoreLibrary({
   ): Promise<boolean> {
     return deleteLocalSongWithScoreFile({
       appendLog,
-      deleteScoreFile: deleteImportedScoreFile,
+      deleteScoreFile: async (songId) => {
+        const deleteResult = await deleteImportedScoreFile(songId);
+
+        importedScoreSongLoaderRef.current.invalidate(songId);
+        clearLocalSongLoading(songId);
+
+        return deleteResult;
+      },
       formatDeleteFailure: (songName, error) =>
         formatText(text.logs.localScoreDeleteFailed, {
           error: String(error instanceof Error ? error.message : error),
@@ -690,6 +708,8 @@ export function useScoreLibrary({
 
     localLibrarySongsRef.current = nextLocalLibrarySongs;
     librarySongsRef.current = nextLibrarySongs;
+    importedScoreSongLoaderRef.current.clear();
+    clearAllLocalSongLoading();
     setLocalLibrarySongs(nextLocalLibrarySongs);
     setLikedSongs(library.likedSongs);
     setPlaylists(library.playlists);
@@ -705,12 +725,40 @@ export function useScoreLibrary({
     return loadingBuiltInSongIds.has(songId);
   }
 
+  function isSongLoading(songId: LibrarySongId) {
+    return loadingBuiltInSongIds.has(songId) || loadingLocalSongIds.has(songId);
+  }
+
+  function preloadSong(songIndex: number) {
+    return resolveLibrarySong(songIndex, { shouldLogFailure: false });
+  }
+
   function preloadBuiltInSong(songIndex: number) {
     return loadBuiltInSong(songIndex, { shouldLogFailure: false });
   }
 
   function resolveSongForPlayback(songIndex: number) {
-    return loadBuiltInSong(songIndex, { shouldLogFailure: true });
+    return resolveLibrarySong(songIndex, { shouldLogFailure: true });
+  }
+
+  function resolveLibrarySong(
+    songIndex: number,
+    { shouldLogFailure }: { shouldLogFailure: boolean },
+  ) {
+    const librarySong = librarySongsRef.current[songIndex];
+
+    if (!librarySong) {
+      if (shouldLogFailure) {
+        appendLog(text.logs.noSelectedScore);
+      }
+      return Promise.resolve(null);
+    }
+
+    if (librarySong.source === "built-in") {
+      return loadBuiltInSong(songIndex, { shouldLogFailure });
+    }
+
+    return loadLocalImportedSong(librarySong, { shouldLogFailure });
   }
 
   async function loadBuiltInSong(
@@ -786,8 +834,92 @@ export function useScoreLibrary({
     return loadedSong;
   }
 
+  async function loadLocalImportedSong(
+    librarySong: LibrarySong,
+    { shouldLogFailure }: { shouldLogFailure: boolean },
+  ) {
+    return loadLocalImportedSongForPlayback({
+      appendLog,
+      formatLoadFailure: (songName, failedSongId, error) =>
+        formatText(text.logs.localScoreLoadFailed, {
+          error: String(error instanceof Error ? error.message : error),
+          songId: failedSongId,
+          songName,
+        }),
+      isSongStillInLibrary: (currentSongId) =>
+        librarySongsRef.current.some(
+          (currentLibrarySong) =>
+            currentLibrarySong.id === currentSongId &&
+            currentLibrarySong.source === "local-import",
+        ),
+      librarySong,
+      loadSongById: (currentSongId) =>
+        importedScoreSongLoaderRef.current.load(
+          currentSongId,
+          async (loadingSongId) => {
+            const finishLoading = beginLocalSongLoading(loadingSongId);
+
+            try {
+              return await readImportedScoreSong(loadingSongId);
+            } finally {
+              finishLoading();
+            }
+          },
+        ),
+      onStaleLoad: (staleSongId) => {
+        importedScoreSongLoaderRef.current.invalidate(staleSongId);
+      },
+      shouldLogFailure,
+      showNotice,
+    });
+  }
+
   function setBuiltInSongLoading(songId: LibrarySongId, isLoading: boolean) {
     setLoadingBuiltInSongIds((currentLoadingIds) => {
+      const nextLoadingIds = new Set(currentLoadingIds);
+
+      if (isLoading) {
+        nextLoadingIds.add(songId);
+      } else {
+        nextLoadingIds.delete(songId);
+      }
+
+      return nextLoadingIds;
+    });
+  }
+
+  function beginLocalSongLoading(songId: LibrarySongId) {
+    localSongLoadCountsRef.current.set(
+      songId,
+      (localSongLoadCountsRef.current.get(songId) ?? 0) + 1,
+    );
+    setLocalSongLoading(songId, true);
+
+    return () => {
+      const nextCount = (localSongLoadCountsRef.current.get(songId) ?? 1) - 1;
+
+      if (nextCount <= 0) {
+        localSongLoadCountsRef.current.delete(songId);
+        setLocalSongLoading(songId, false);
+        return;
+      }
+
+      localSongLoadCountsRef.current.set(songId, nextCount);
+    };
+  }
+
+  function clearLocalSongLoading(songId: LibrarySongId) {
+    localSongLoadCountsRef.current.delete(songId);
+    setLocalSongLoading(songId, false);
+  }
+
+  function clearAllLocalSongLoading() {
+    localSongLoadCountsRef.current.clear();
+    setLoadingLocalSongIds(new Set());
+  }
+
+  function setLocalSongLoading(songId: LibrarySongId, isLoading: boolean) {
+    setLoadingLocalSongIds((currentLoadingIds) => {
       const nextLoadingIds = new Set(currentLoadingIds);
 
       if (isLoading) {
@@ -824,6 +956,7 @@ export function useScoreLibrary({
     importedSongs,
     importedSongsRef,
     isBuiltInSongLoading,
+    isSongLoading,
     librarySongs,
     likedSongs,
     localLibrarySongs,
@@ -832,6 +965,7 @@ export function useScoreLibrary({
     persistedSelectedSongIndex,
     playlists,
     preloadBuiltInSong,
+    preloadSong,
     resolveSongForPlayback,
     searchQuery,
     selectSongByIndex,

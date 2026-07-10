@@ -100,6 +100,18 @@ describe("buildPersistedAppData", () => {
     expect(result.library.selectedSongIndex).toBe(1);
   });
 
+  it("keeps complete local song notes in persisted AppData", () => {
+    const song = createLocalLibrarySong("song-1");
+
+    const result = buildMinimalPersistedAppData({
+      librarySongs: [song],
+    });
+
+    expect(result.library.librarySongs[0]?.song.songNotes).toEqual(
+      song.song.songNotes,
+    );
+  });
+
   it("removes invalid liked and playlist references", () => {
     const result = buildMinimalPersistedAppData({
       librarySongs: [createLocalLibrarySong("song-1")],

@@ -100,6 +100,27 @@ describe("deleteLocalSongWithScoreFile", () => {
     expect(notices).toEqual(["Local Song: permission denied"]);
   });
 
+  it("does not invalidate cache when filesystem deletion fails", async () => {
+    const invalidatedSongIds: LibrarySongId[] = [];
+
+    const didDelete = await deleteLocalSongWithScoreFile({
+      appendLog: () => {},
+      deleteScoreFile: async (songId) => {
+        throw new Error(`delete failed ${songId}`);
+      },
+      formatDeleteFailure: () => "failed",
+      librarySongs: [createLocalSong()],
+      onBeforeLibraryMutation: () => {},
+      onSuccessfulDelete: () => {
+        invalidatedSongIds.push("local-1");
+      },
+      songIndex: 0,
+    });
+
+    expect(didDelete).toBe(false);
+    expect(invalidatedSongIds).toEqual([]);
+  });
+
   it("treats a missing score file as a successful deletion", async () => {
     const order: string[] = [];
 
@@ -127,14 +148,38 @@ describe("deleteLocalSongWithScoreFile", () => {
     ]);
   });
 
+  it("allows cache invalidation when a missing score file still counts as deleted", async () => {
+    const invalidatedSongIds: LibrarySongId[] = [];
+
+    const didDelete = await deleteLocalSongWithScoreFile({
+      appendLog: () => {},
+      deleteScoreFile: async (songId) => {
+        invalidatedSongIds.push(songId);
+        return false;
+      },
+      formatDeleteFailure: () => "failed",
+      librarySongs: [createLocalSong()],
+      onBeforeLibraryMutation: () => {},
+      onSuccessfulDelete: () => {},
+      songIndex: 0,
+    });
+
+    expect(didDelete).toBe(true);
+    expect(invalidatedSongIds).toEqual(["local-1"]);
+  });
+
   it("runs playback and library cleanup exactly once after successful deletion", async () => {
     let queueCleanupCount = 0;
     let playbackOrderCleanupCount = 0;
     let libraryCleanupCount = 0;
+    const invalidatedSongIds: LibrarySongId[] = [];
 
     const didDelete = await deleteLocalSongWithScoreFile({
       appendLog: () => {},
-      deleteScoreFile: async () => true,
+      deleteScoreFile: async (songId) => {
+        invalidatedSongIds.push(songId);
+        return true;
+      },
       formatDeleteFailure: () => "failed",
       librarySongs: [createLocalSong()],
       onBeforeLibraryMutation: () => {},
@@ -154,5 +199,6 @@ describe("deleteLocalSongWithScoreFile", () => {
     expect(queueCleanupCount).toBe(1);
     expect(playbackOrderCleanupCount).toBe(1);
     expect(libraryCleanupCount).toBe(1);
+    expect(invalidatedSongIds).toEqual(["local-1"]);
   });
 });
