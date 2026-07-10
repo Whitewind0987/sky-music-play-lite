@@ -15,15 +15,26 @@ export type ExitConfirmationActionResult =
   | { status: "preference-save-failed"; error: unknown }
   | { status: "success" };
 
+export type ConfirmBeforeExitPreferenceChangeResult =
+  | { status: "busy" }
+  | { status: "preference-save-failed"; error: unknown }
+  | { status: "success" };
+
 export function getExitCloseRequestDecision({
   confirmBeforeExit,
   isDialogOpen,
   isExitInProgress,
+  isPreferenceSaveInProgress = false,
 }: {
   confirmBeforeExit: boolean;
   isDialogOpen: boolean;
   isExitInProgress: boolean;
+  isPreferenceSaveInProgress?: boolean;
 }): ExitCloseRequestDecision {
+  if (isPreferenceSaveInProgress) {
+    return "ignore";
+  }
+
   if (isExitInProgress || !confirmBeforeExit) {
     return "allow";
   }
@@ -37,6 +48,38 @@ export function openExitConfirmationDialog(): ExitConfirmationDialogState {
 
 export function dismissExitConfirmationDialog(): ExitConfirmationDialogState {
   return { doNotAskAgain: false, isOpen: false };
+}
+
+export async function runConfirmBeforeExitPreferenceChange(
+  guard: ExitConfirmationGuard,
+  setIsSaving: (isSaving: boolean) => void,
+  {
+    applyConfirmBeforeExit,
+    nextConfirmBeforeExit,
+    persistConfirmBeforeExit,
+  }: {
+    applyConfirmBeforeExit: (confirmBeforeExit: boolean) => void;
+    nextConfirmBeforeExit: boolean;
+    persistConfirmBeforeExit: (confirmBeforeExit: boolean) => Promise<void>;
+  },
+): Promise<ConfirmBeforeExitPreferenceChangeResult> {
+  if (guard.current) {
+    return { status: "busy" };
+  }
+
+  guard.current = true;
+  setIsSaving(true);
+
+  try {
+    await persistConfirmBeforeExit(nextConfirmBeforeExit);
+    applyConfirmBeforeExit(nextConfirmBeforeExit);
+    return { status: "success" };
+  } catch (error) {
+    return { error, status: "preference-save-failed" };
+  } finally {
+    guard.current = false;
+    setIsSaving(false);
+  }
 }
 
 export async function runExitConfirmationAction(

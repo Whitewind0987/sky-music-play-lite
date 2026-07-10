@@ -46,6 +46,7 @@ import {
   dismissExitConfirmationDialog,
   getExitCloseRequestDecision,
   openExitConfirmationDialog,
+  runConfirmBeforeExitPreferenceChange,
   runExitConfirmationAction,
 } from "./lib/exitConfirmationFlow";
 import { formatText } from "./lib/formatText";
@@ -61,12 +62,16 @@ function App() {
   const closeConfirmationGuardRef = useRef({ current: false });
   const isCloseConfirmOpenRef = useRef(false);
   const confirmBeforeExitRef = useRef(true);
+  const confirmBeforeExitSettingGuardRef = useRef({ current: false });
+  const isConfirmBeforeExitSavingRef = useRef(false);
   const closeRequestedUnlistenRef = useRef<(() => void) | null>(null);
   const fileLogContextRef = useRef<Record<string, unknown>>({});
   const dragDepthRef = useRef(0);
   const [language, setLanguage] = useState<LanguageCode>(defaultLanguage);
   const [activeSection, setActiveSection] = useState<AppSection>("Library");
   const [confirmBeforeExit, setConfirmBeforeExit] = useState(true);
+  const [isConfirmBeforeExitSaving, setIsConfirmBeforeExitSaving] =
+    useState(false);
   const [closeConfirmDialog, setCloseConfirmDialog] = useState(
     dismissExitConfirmationDialog,
   );
@@ -289,6 +294,8 @@ function App() {
           confirmBeforeExit: confirmBeforeExitRef.current,
           isDialogOpen: isCloseConfirmOpenRef.current,
           isExitInProgress: isClosingAfterConfirmRef.current,
+          isPreferenceSaveInProgress:
+            isConfirmBeforeExitSavingRef.current,
         });
 
         if (closeRequestDecision === "allow") {
@@ -479,19 +486,7 @@ function App() {
     );
 
     if (result.status === "preference-save-failed") {
-      const error = String(
-        result.error instanceof Error ? result.error.message : result.error,
-      );
-      const message = formatText(text.logs.appDataSaveFailed, { error });
-
-      appendLog(message);
-      showAppNotice(message);
-      appFileLogger.appendDetailedLog({
-        details: { error },
-        level: "error",
-        message: "Failed to save exit confirmation preference",
-        source: "window",
-      });
+      reportConfirmBeforeExitSaveFailure(result.error);
       return;
     }
 
@@ -542,6 +537,48 @@ function App() {
   function handleConfirmBeforeExitChange(nextConfirmBeforeExit: boolean) {
     confirmBeforeExitRef.current = nextConfirmBeforeExit;
     setConfirmBeforeExit(nextConfirmBeforeExit);
+  }
+
+  async function handleConfirmBeforeExitSettingChange(
+    nextConfirmBeforeExit: boolean,
+  ) {
+    const result = await runConfirmBeforeExitPreferenceChange(
+      confirmBeforeExitSettingGuardRef.current,
+      setConfirmBeforeExitSavingState,
+      {
+        applyConfirmBeforeExit: handleConfirmBeforeExitChange,
+        nextConfirmBeforeExit,
+        persistConfirmBeforeExit:
+          appPersistence.saveConfirmBeforeExitPreference,
+      },
+    );
+
+    if (result.status === "preference-save-failed") {
+      reportConfirmBeforeExitSaveFailure(result.error);
+    }
+  }
+
+  function setConfirmBeforeExitSavingState(isSaving: boolean) {
+    isConfirmBeforeExitSavingRef.current = isSaving;
+    setIsConfirmBeforeExitSaving(isSaving);
+  }
+
+  function reportConfirmBeforeExitSaveFailure(error: unknown) {
+    const errorMessage = String(
+      error instanceof Error ? error.message : error,
+    );
+    const message = formatText(text.logs.appDataSaveFailed, {
+      error: errorMessage,
+    });
+
+    appendLog(message);
+    showAppNotice(message);
+    appFileLogger.appendDetailedLog({
+      details: { error: errorMessage },
+      level: "error",
+      message: "Failed to save exit confirmation preference",
+      source: "window",
+    });
   }
 
   function openCloseConfirmationDialog() {
@@ -614,6 +651,7 @@ function App() {
       return (
         <SettingsPlaceholder
           confirmBeforeExit={confirmBeforeExit}
+          isConfirmBeforeExitSaving={isConfirmBeforeExitSaving}
           experimentalInput={{
             candidateWindows: experimentalInput.candidateWindows,
             experimentalInputEnabled:
@@ -646,7 +684,7 @@ function App() {
           language={language}
           listeningSkyKey={listeningSkyKey}
           onKeyMappingListenStart={handleStartKeyMappingListen}
-          onConfirmBeforeExitChange={handleConfirmBeforeExitChange}
+          onConfirmBeforeExitChange={handleConfirmBeforeExitSettingChange}
           onLanguageChange={setLanguage}
           appRuntimeInfo={appFileLogger.runtimeInfo}
           onOpenLogDirectory={appFileLogger.openLogDirectory}

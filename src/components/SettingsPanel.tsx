@@ -65,6 +65,7 @@ type ExperimentalInputPanelState = {
 type SettingsPlaceholderProps = {
   appRuntimeInfo: AppRuntimeInfo | null;
   confirmBeforeExit: boolean;
+  isConfirmBeforeExitSaving: boolean;
   experimentalInput: ExperimentalInputPanelState;
   keyMapping: KeyMapping;
   language: LanguageCode;
@@ -83,6 +84,7 @@ type SettingsPlaceholderProps = {
 export function SettingsPlaceholder({
   appRuntimeInfo,
   confirmBeforeExit,
+  isConfirmBeforeExitSaving,
   experimentalInput,
   keyMapping,
   language,
@@ -527,6 +529,8 @@ export function SettingsPlaceholder({
               type="button"
               aria-label={text.confirmBeforeExit}
               aria-pressed={confirmBeforeExit}
+              aria-busy={isConfirmBeforeExitSaving}
+              disabled={isConfirmBeforeExitSaving}
               onClick={() => onConfirmBeforeExitChange(!confirmBeforeExit)}
             >
               <span className="visually-hidden">{text.confirmBeforeExit}</span>
