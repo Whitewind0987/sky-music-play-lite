@@ -408,6 +408,74 @@ describe("sanitizePersistedAppData v3 recovery", () => {
     });
   });
 
+  it("rebuilds invalid metadata from a valid fallback without losing the entry", () => {
+    const fallbackSong = createTestSong("Recovered Song");
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            id: "local-1",
+            importedAt: 123,
+            metadata: { name: "incomplete" },
+            source: "local-import",
+          },
+        ],
+        migrationFallbackSongs: { "local-1": fallbackSong },
+      },
+    });
+
+    expect(result?.library.librarySongs).toEqual([
+      {
+        id: "local-1",
+        importedAt: 123,
+        metadata: createLocalSongMetadata(fallbackSong),
+        source: "local-import",
+      },
+    ]);
+    expect(result?.library.migrationFallbackSongs).toEqual({
+      "local-1": fallbackSong,
+    });
+  });
+
+  it("keeps valid metadata when the corresponding fallback is invalid", () => {
+    const librarySong = createLocalLibrarySong("local-valid");
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [librarySong],
+        migrationFallbackSongs: {
+          "local-valid": { name: "broken fallback" },
+        },
+      },
+    });
+
+    expect(result?.library.librarySongs).toEqual([librarySong]);
+    expect(result?.library.migrationFallbackSongs).toBeUndefined();
+  });
+
+  it("drops an entry when both metadata and fallback are invalid", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            id: "local-invalid",
+            importedAt: 1,
+            metadata: { name: "incomplete" },
+            source: "local-import",
+          },
+        ],
+        migrationFallbackSongs: {
+          "local-invalid": { name: "broken fallback" },
+        },
+      },
+    });
+
+    expect(result?.library.librarySongs).toEqual([]);
+    expect(result?.library.migrationFallbackSongs).toBeUndefined();
+  });
+
   it("sanitizes 3000 metadata entries without invoking a file loader", () => {
     const fileLoader = vi.fn();
     const librarySongs = Array.from({ length: 3000 }, (_, index) =>

@@ -1,6 +1,26 @@
 import type { LibrarySongId, LocalLibrarySong } from "../types/library";
 import type { Song } from "../types/score";
-import { getLibrarySongName } from "./libraryCollections";
+import {
+  getLibrarySongName,
+  getSongFingerprint,
+} from "./libraryCollections";
+
+export function validateLoadedLocalSong(
+  librarySong: LocalLibrarySong,
+  loadedSong: Song,
+) {
+  const expectedFingerprint = librarySong.metadata.fingerprint;
+  const actualFingerprint = getSongFingerprint(loadedSong);
+
+  if (actualFingerprint !== expectedFingerprint) {
+    throw new Error(
+      `Loaded imported score does not match persisted metadata for ID ${librarySong.id}. ` +
+        `Expected fingerprint ${expectedFingerprint}, got ${actualFingerprint}.`,
+    );
+  }
+
+  return loadedSong;
+}
 
 type LoadLocalImportedSongForPlaybackOptions = {
   appendLog: (entry: string) => void;

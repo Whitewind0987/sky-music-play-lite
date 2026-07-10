@@ -28,7 +28,10 @@ import {
   removeSongFromPlaylist,
   toggleLikedSong,
 } from "../lib/libraryCollections";
-import { loadLocalImportedSongForPlayback } from "../lib/localImportedSongPlayback";
+import {
+  loadLocalImportedSongForPlayback,
+  validateLoadedLocalSong,
+} from "../lib/localImportedSongPlayback";
 import { deleteLocalSongWithScoreFile } from "../lib/localSongDeletion";
 import {
   isSupportedScoreFileName,
@@ -885,7 +888,9 @@ export function useScoreLibrary({
             const finishLoading = beginLocalSongLoading(loadingSongId);
 
             try {
-              return await readImportedScoreSong(loadingSongId);
+              const loadedSong = await readImportedScoreSong(loadingSongId);
+
+              return validateLoadedLocalSong(librarySong, loadedSong);
             } finally {
               finishLoading();
             }

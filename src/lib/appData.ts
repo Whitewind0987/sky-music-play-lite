@@ -463,49 +463,68 @@ function sanitizeV3Library(
   migrationFallbackSongs: MigrationFallbackSongs;
 } {
   const seenIds = new Set<string>();
-  const librarySongs = Array.isArray(rawLibrarySongs)
-    ? rawLibrarySongs.reduce<LocalLibrarySong[]>((nextSongs, rawLibrarySong) => {
+  const candidates = Array.isArray(rawLibrarySongs)
+    ? rawLibrarySongs.reduce<
+        Array<{
+          id: string;
+          importedAt: number;
+          rawMetadata: unknown;
+        }>
+      >((nextCandidates, rawLibrarySong) => {
         if (
           !isRecord(rawLibrarySong) ||
           !isValidLocalSongId(rawLibrarySong.id) ||
           seenIds.has(rawLibrarySong.id) ||
           rawLibrarySong.source !== "local-import"
         ) {
-          return nextSongs;
-        }
-
-        const metadata = sanitizeLocalSongMetadata(rawLibrarySong.metadata);
-
-        if (metadata === null) {
-          return nextSongs;
+          return nextCandidates;
         }
 
         seenIds.add(rawLibrarySong.id);
-        nextSongs.push({
+        nextCandidates.push({
           id: rawLibrarySong.id,
           importedAt: sanitizeImportedAt(rawLibrarySong.importedAt),
-          metadata,
-          source: "local-import",
+          rawMetadata: rawLibrarySong.metadata,
         });
 
-        return nextSongs;
+        return nextCandidates;
       }, [])
     : [];
-  const songById = new Map(librarySongs.map((song) => [song.id, song]));
+  const rawFallbackSongs = isRecord(rawMigrationFallbackSongs)
+    ? rawMigrationFallbackSongs
+    : {};
   const migrationFallbackSongs: MigrationFallbackSongs = {};
+  const librarySongs = candidates.reduce<LocalLibrarySong[]>(
+    (nextSongs, candidate) => {
+      const persistedMetadata = sanitizeLocalSongMetadata(
+        candidate.rawMetadata,
+      );
+      const rawFallbackSong = rawFallbackSongs[candidate.id];
+      const fallbackSong = isSong(rawFallbackSong) ? rawFallbackSong : null;
+      const metadata =
+        fallbackSong === null
+          ? persistedMetadata
+          : createLocalSongMetadata(fallbackSong);
 
-  if (isRecord(rawMigrationFallbackSongs)) {
-    Object.entries(rawMigrationFallbackSongs).forEach(([songId, rawSong]) => {
-      const librarySong = songById.get(songId);
-
-      if (!librarySong || !isSong(rawSong)) {
-        return;
+      if (metadata === null) {
+        return nextSongs;
       }
 
-      migrationFallbackSongs[songId] = rawSong;
-      librarySong.metadata = createLocalSongMetadata(rawSong);
-    });
-  }
+      if (fallbackSong !== null) {
+        migrationFallbackSongs[candidate.id] = fallbackSong;
+      }
+
+      nextSongs.push({
+        id: candidate.id,
+        importedAt: candidate.importedAt,
+        metadata,
+        source: "local-import",
+      });
+
+      return nextSongs;
+    },
+    [],
+  );
 
   return { librarySongs, migrationFallbackSongs };
 }

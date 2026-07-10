@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LocalLibrarySong } from "../types/library";
 import type { Song } from "../types/score";
-import { createLocalSongMetadata } from "./libraryCollections";
-import { loadLocalImportedSongForPlayback } from "./localImportedSongPlayback";
+import {
+  createLocalSongMetadata,
+  getSongFingerprint,
+} from "./libraryCollections";
+import {
+  loadLocalImportedSongForPlayback,
+  validateLoadedLocalSong,
+} from "./localImportedSongPlayback";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 
 function createSong(name: string): Song {
@@ -192,5 +198,145 @@ describe("loadLocalImportedSongForPlayback", () => {
     ).resolves.toBe(repairedSong);
     expect(loader.getCachedSong("local-1")).toBe(repairedSong);
     expect(readFromFile).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("validated local score file loading", () => {
+  function loadValidatedSong(
+    loader: ImportedScoreSongLoader,
+    librarySong: LocalLibrarySong,
+    readFromFile: () => Promise<Song>,
+  ) {
+    return loader.load(librarySong.id, async () =>
+      validateLoadedLocalSong(librarySong, await readFromFile()),
+    );
+  }
+
+  it("accepts and caches a matching file fingerprint", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const song = createSong("Matching");
+    const librarySong = createLibrarySong(song);
+    const readFromFile = vi.fn().mockResolvedValue(song);
+
+    await expect(
+      loadValidatedSong(loader, librarySong, readFromFile),
+    ).resolves.toBe(song);
+    await expect(
+      loadValidatedSong(loader, librarySong, readFromFile),
+    ).resolves.toBe(song);
+
+    expect(readFromFile).toHaveBeenCalledTimes(1);
+    expect(loader.getCachedSong(librarySong.id)).toBe(song);
+  });
+
+  it("rejects a mismatch before caching and retries after repair", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const expectedSong = createSong("Expected");
+    const mismatchingSong = createSong("Wrong File");
+    const librarySong = createLibrarySong(expectedSong);
+    const readFromFile = vi
+      .fn<() => Promise<Song>>()
+      .mockResolvedValueOnce(mismatchingSong)
+      .mockResolvedValueOnce(expectedSong);
+
+    await expect(
+      loadValidatedSong(loader, librarySong, readFromFile),
+    ).rejects.toThrow(
+      `ID local-1. Expected fingerprint ${getSongFingerprint(expectedSong)}, ` +
+        `got ${getSongFingerprint(mismatchingSong)}.`,
+    );
+    expect(loader.getCachedSong(librarySong.id)).toBeNull();
+
+    await expect(
+      loadValidatedSong(loader, librarySong, readFromFile),
+    ).resolves.toBe(expectedSong);
+    expect(readFromFile).toHaveBeenCalledTimes(2);
+    expect(loader.getCachedSong(librarySong.id)).toBe(expectedSong);
+  });
+
+  it("uses a fallback silently when a preload detects a mismatch", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const expectedSong = createSong("Expected");
+    const fallbackSong = createSong("Recovery");
+    const librarySong = createLibrarySong(expectedSong);
+    const appendLog = vi.fn();
+    const showNotice = vi.fn();
+
+    const result = await loadLocalImportedSongForPlayback({
+      appendLog,
+      formatLoadFailure: () => "failed",
+      formatRecoveryWarning: () => "using recovery",
+      getMigrationFallbackSong: () => fallbackSong,
+      isSongStillInLibrary: () => true,
+      librarySong,
+      loadSongById: () =>
+        loadValidatedSong(loader, librarySong, async () =>
+          createSong("Wrong File"),
+        ),
+      shouldLogFailure: false,
+      showNotice,
+    });
+
+    expect(result).toBe(fallbackSong);
+    expect(loader.getCachedSong(librarySong.id)).toBeNull();
+    expect(appendLog).not.toHaveBeenCalled();
+    expect(showNotice).not.toHaveBeenCalled();
+  });
+
+  it("logs one recovery warning for actual playback after a mismatch", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const expectedSong = createSong("Expected");
+    const fallbackSong = createSong("Recovery");
+    const librarySong = createLibrarySong(expectedSong);
+    const appendLog = vi.fn();
+    const showNotice = vi.fn();
+
+    const result = await loadLocalImportedSongForPlayback({
+      appendLog,
+      formatLoadFailure: () => "failed",
+      formatRecoveryWarning: () => "using recovery",
+      getMigrationFallbackSong: () => fallbackSong,
+      isSongStillInLibrary: () => true,
+      librarySong,
+      loadSongById: () =>
+        loadValidatedSong(loader, librarySong, async () =>
+          createSong("Wrong File"),
+        ),
+      shouldLogFailure: true,
+      showNotice,
+    });
+
+    expect(result).toBe(fallbackSong);
+    expect(loader.getCachedSong(librarySong.id)).toBeNull();
+    expect(appendLog).toHaveBeenCalledTimes(1);
+    expect(appendLog).toHaveBeenCalledWith("using recovery");
+    expect(showNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails once without fallback when actual playback detects a mismatch", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const expectedSong = createSong("Expected");
+    const librarySong = createLibrarySong(expectedSong);
+    const appendLog = vi.fn();
+    const showNotice = vi.fn();
+
+    const result = await loadLocalImportedSongForPlayback({
+      appendLog,
+      formatLoadFailure: () => "fingerprint mismatch",
+      isSongStillInLibrary: () => true,
+      librarySong,
+      loadSongById: () =>
+        loadValidatedSong(loader, librarySong, async () =>
+          createSong("Wrong File"),
+        ),
+      shouldLogFailure: true,
+      showNotice,
+    });
+
+    expect(result).toBeNull();
+    expect(loader.getCachedSong(librarySong.id)).toBeNull();
+    expect(appendLog).toHaveBeenCalledTimes(1);
+    expect(appendLog).toHaveBeenCalledWith("fingerprint mismatch");
+    expect(showNotice).toHaveBeenCalledTimes(1);
   });
 });
