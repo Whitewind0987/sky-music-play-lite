@@ -32,6 +32,10 @@ import {
   loadLocalImportedSongForPlayback,
   validateLoadedLocalSong,
 } from "../lib/localImportedSongPlayback";
+import {
+  cleanupMissingImportedScores,
+  resolveImportedScoreAfterExistenceCheck,
+} from "../lib/missingImportedScores";
 import { deleteLocalSongWithScoreFile } from "../lib/localSongDeletion";
 import {
   isSupportedScoreFileName,
@@ -43,6 +47,7 @@ import {
 } from "../lib/scoreLibraryImport";
 import {
   deleteImportedScoreFile,
+  importedScoreFileExists,
   readImportedScoreSong,
   saveImportedScoreSong as saveImportedScoreSongFile,
 } from "../lib/tauriApi";
@@ -96,7 +101,9 @@ export function useScoreLibrary({
   const [migrationFallbackSongs, setMigrationFallbackSongs] =
     useState<MigrationFallbackSongs>({});
   const [likedSongs, setLikedSongs] = useState<LikedSongEntry[]>([]);
+  const likedSongsRef = useRef<LikedSongEntry[]>([]);
   const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
+  const playlistsRef = useRef<UserPlaylist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
     null,
   );
@@ -116,9 +123,11 @@ export function useScoreLibrary({
   const [selectedSongId, setSelectedSongId] = useState<LibrarySongId | null>(
     null,
   );
+  const selectedSongIdRef = useRef<LibrarySongId | null>(null);
   const [playbackSongId, setPlaybackSongId] = useState<LibrarySongId | null>(
   null,
   );
+  const playbackSongIdRef = useRef<LibrarySongId | null>(null);
   const [locateScoreRequest, setLocateScoreRequest] =
     useState<LocateScoreRequest | null>(null);
   const [selectedLibraryCategory, setSelectedLibraryCategory] =
@@ -303,6 +312,32 @@ export function useScoreLibrary({
     localLibrarySongsRef.current = localLibrarySongs;
   }, [localLibrarySongs]);
 
+  useEffect(() => {
+    likedSongsRef.current = likedSongs;
+  }, [likedSongs]);
+
+  useEffect(() => {
+    playlistsRef.current = playlists;
+  }, [playlists]);
+
+  useEffect(() => {
+    selectedSongIdRef.current = selectedSongId;
+  }, [selectedSongId]);
+
+  useEffect(() => {
+    playbackSongIdRef.current = playbackSongId;
+  }, [playbackSongId]);
+
+  function updateSelectedSongId(songId: LibrarySongId | null) {
+    selectedSongIdRef.current = songId;
+    setSelectedSongId(songId);
+  }
+
+  function updatePlaybackSongId(songId: LibrarySongId | null) {
+    playbackSongIdRef.current = songId;
+    setPlaybackSongId(songId);
+  }
+
   async function handleImportScoreFiles(files: File[]) {
     if (files.length === 0) {
       return;
@@ -385,7 +420,7 @@ export function useScoreLibrary({
         });
 
         if (firstImportedLibrarySong) {
-          setSelectedSongId(firstImportedLibrarySong.id);
+          updateSelectedSongId(firstImportedLibrarySong.id);
           setSelectedLibraryCategory("local-imports");
           setSearchQuery("");
           requestLocateSong(firstImportedLibrarySong.id);
@@ -425,11 +460,13 @@ export function useScoreLibrary({
 
   function selectSongByIndex(songIndex: number | null) {
     if (songIndex === null) {
-      setSelectedSongId(null);
+      updateSelectedSongId(null);
       return;
     }
 
-    setSelectedSongId(librarySongsRef.current[songIndex]?.id ?? null);
+    const nextSelectedSongId = librarySongsRef.current[songIndex]?.id ?? null;
+
+    updateSelectedSongId(nextSelectedSongId);
   }
 
   function setSelectedSongIndex(songIndex: number | null) {
@@ -437,11 +474,13 @@ export function useScoreLibrary({
   }
   function setPlaybackSongIndex(songIndex: number | null) {
   if (songIndex === null) {
-    setPlaybackSongId(null);
+    updatePlaybackSongId(null);
     return;
   }
 
-  setPlaybackSongId(librarySongsRef.current[songIndex]?.id ?? null);
+  const nextPlaybackSongId = librarySongsRef.current[songIndex]?.id ?? null;
+
+  updatePlaybackSongId(nextPlaybackSongId);
   }
   function handleLibraryCategoryChange(category: LibraryCategoryId) {
     startTransition(() => {
@@ -693,16 +732,67 @@ export function useScoreLibrary({
           return nextSongs;
         });
         if (selectedSongId === librarySong.id) {
-          setSelectedSongId(null);
+          updateSelectedSongId(null);
         }
         if (playbackSongId === librarySong.id) {
-          setPlaybackSongId(null);
+          updatePlaybackSongId(null);
         }
       },
       showNotice,
       songIndex,
       stopPlaybackBeforeDelete: options.stopPlaybackBeforeDelete,
     });
+  }
+
+  function removeMissingLocalSongs(missingSongIds: LibrarySongId[]) {
+    const cleanup = cleanupMissingImportedScores({
+      likedSongs: likedSongsRef.current,
+      localLibrarySongs: localLibrarySongsRef.current,
+      migrationFallbackSongs: migrationFallbackSongsRef.current,
+      missingSongIds,
+      playbackSongId: playbackSongIdRef.current,
+      playlists: playlistsRef.current,
+      selectedSongId: selectedSongIdRef.current,
+    });
+
+    if (cleanup.removedSongIds.length === 0) {
+      return cleanup;
+    }
+
+    const removedSongIds = new Set(cleanup.removedSongIds);
+
+    cleanup.removedSongIds.forEach((songId) => {
+      importedScoreSongLoaderRef.current.invalidate(songId);
+      clearLocalSongLoading(songId);
+    });
+    localLibrarySongsRef.current = cleanup.localLibrarySongs;
+    librarySongsRef.current = librarySongsRef.current.filter(
+      (librarySong) => !removedSongIds.has(librarySong.id),
+    );
+    migrationFallbackSongsRef.current = cleanup.migrationFallbackSongs;
+    likedSongsRef.current = cleanup.likedSongs;
+    playlistsRef.current = cleanup.playlists;
+    setLocalLibrarySongs(cleanup.localLibrarySongs);
+    setMigrationFallbackSongs(cleanup.migrationFallbackSongs);
+    setLikedSongs(cleanup.likedSongs);
+    setPlaylists(cleanup.playlists);
+
+    if (cleanup.selectedSongId !== selectedSongIdRef.current) {
+      updateSelectedSongId(cleanup.selectedSongId);
+    }
+
+    if (cleanup.playbackSongId !== playbackSongIdRef.current) {
+      onBeforeLibraryMutation();
+      updatePlaybackSongId(cleanup.playbackSongId);
+    }
+
+    setLocateScoreRequest((currentRequest) =>
+      currentRequest !== null && removedSongIds.has(currentRequest.songId)
+        ? null
+        : currentRequest,
+    );
+
+    return cleanup;
   }
 
   function applyScoreLibrary(library: PersistedAppData["library"]) {
@@ -724,6 +814,9 @@ export function useScoreLibrary({
     const nextFallbackSongs = library.migrationFallbackSongs ?? {};
 
     migrationFallbackSongsRef.current = nextFallbackSongs;
+    likedSongsRef.current = library.likedSongs;
+    playlistsRef.current = library.playlists;
+    selectedSongIdRef.current = nextSelectedSongId;
     clearAllLocalSongLoading();
     setLocalLibrarySongs(nextLocalLibrarySongs);
     setMigrationFallbackSongs(nextFallbackSongs);
@@ -732,7 +825,7 @@ export function useScoreLibrary({
     setSelectedPlaylistId(nextSelectedPlaylistId);
     setSelectedLibraryCategory(library.selectedLibraryCategory);
     setBuiltInPage(1);
-    setSelectedSongId(nextSelectedSongId);
+    updateSelectedSongId(nextSelectedSongId);
     setImportError("");
     setSearchQuery("");
   }
@@ -858,7 +951,7 @@ export function useScoreLibrary({
     librarySong: LocalLibrarySong,
     { shouldLogFailure }: { shouldLogFailure: boolean },
   ) {
-    return loadLocalImportedSongForPlayback({
+    const loadSong = () => loadLocalImportedSongForPlayback({
       appendLog,
       formatLoadFailure: (songName, failedSongId, error) =>
         formatText(text.logs.localScoreLoadFailed, {
@@ -901,6 +994,30 @@ export function useScoreLibrary({
       },
       shouldLogFailure,
       showNotice,
+    });
+
+    if (!shouldLogFailure) {
+      return loadSong();
+    }
+
+    return resolveImportedScoreAfterExistenceCheck({
+      fileExists: () => importedScoreFileExists(librarySong.id),
+      load: loadSong,
+      onMissing: () => {
+        const cleanup = removeMissingLocalSongs([librarySong.id]);
+
+        if (!cleanup.removedSongIds.includes(librarySong.id)) {
+          return false;
+        }
+
+        const message = formatText(text.logs.localScoreMissingRemoved, {
+          songName: librarySong.metadata.name,
+        });
+
+        appendLog(message);
+        showNotice?.(message);
+        return true;
+      },
     });
   }
 
@@ -1006,7 +1123,7 @@ export function useScoreLibrary({
     selectedSongIndex,
     setSearchQuery: handleSearchQueryChange,
     setSelectedPlaylistId,
-    setSelectedSongId,
+    setSelectedSongId: updateSelectedSongId,
     setSelectedSongIndex,
     validCollectionSongIds,
     visibleLibraryItems,
@@ -1014,7 +1131,7 @@ export function useScoreLibrary({
     currentPlaybackSong,
     migrationFallbackSongs,
     playbackSongIndex,
-    setPlaybackSongId,
+    setPlaybackSongId: updatePlaybackSongId,
     setPlaybackSongIndex,
   };
 }

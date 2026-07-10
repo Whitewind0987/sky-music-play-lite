@@ -361,6 +361,10 @@ export const uiText = {
         "读取本地曲谱文件失败：{songName} ({songId})；{error}",
       localScoreRecoveryFallbackUsed:
         "本地曲谱文件不可用，正在使用迁移保底副本：{songName} ({songId})；{error}",
+      localScoreMissingRemoved: "曲谱文件不存在，已从曲库中移除：{songName}",
+      missingLocalScoresRemoved:
+        "已从曲库中移除 {count} 个文件缺失的本地曲谱。",
+      missingLocalScoresScanFailed: "检查本地曲谱文件失败，曲库数据已保留。",
       importedScoreReconcileSucceeded:
         "已整理本地曲谱文件：新增 {createdCount} 个，重命名 {renamedCount} 个。",
       importedScoreReconcileFailed:
@@ -910,6 +914,12 @@ export const uiText = {
         "Failed to load local score file for {songName} ({songId}): {error}",
       localScoreRecoveryFallbackUsed:
         "The local score file is unavailable. Using the migration recovery copy for {songName} ({songId}): {error}",
+      localScoreMissingRemoved:
+        "The score file is missing and was removed from the library: {songName}",
+      missingLocalScoresRemoved:
+        "Removed {count} local scores whose files were missing.",
+      missingLocalScoresScanFailed:
+        "Failed to check local score files. Library data was kept.",
       importedScoreReconcileSucceeded:
         "Organized local score files: created {createdCount}, renamed {renamedCount}.",
       importedScoreReconcileFailed:
