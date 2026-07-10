@@ -1,19 +1,20 @@
 import { useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
+import { getLibrarySongName } from "../lib/libraryCollections";
+import type { LibrarySong } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
-import type { Song } from "../types/score";
 
 type UsePlaybackQueueOptions = {
   appendLog: (entry: string) => void;
-  importedSongsRef: React.MutableRefObject<Song[]>;
+  librarySongsRef: React.MutableRefObject<LibrarySong[]>;
   showNotice?: (message: string) => void;
   text: UiText["logs"];
 };
 
 export function usePlaybackQueue({
   appendLog,
-  importedSongsRef,
+  librarySongsRef,
   showNotice,
   text,
 }: UsePlaybackQueueOptions) {
@@ -37,7 +38,11 @@ export function usePlaybackQueue({
   }
 
   function getSongName(songIndex: number) {
-    return importedSongsRef.current[songIndex]?.name ?? text.queueUnknownSong;
+    const librarySong = librarySongsRef.current[songIndex];
+
+    return librarySong
+      ? getLibrarySongName(librarySong)
+      : text.queueUnknownSong;
   }
 
   function logAlreadyQueued(songIndex: number) {

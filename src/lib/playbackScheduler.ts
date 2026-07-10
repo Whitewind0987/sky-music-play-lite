@@ -1,4 +1,5 @@
 import type { Note } from "../types/score";
+import type { LocalSongMetadata } from "../types/library";
 import {
   defaultNoteIntervalDelayMs,
   defaultPlaybackSpeed,
@@ -536,6 +537,44 @@ export function getAdjustedPreviewDurationMs(
       )
     );
   }, 0);
+}
+
+export function getAdjustedPreviewDurationFromMetadata(
+  metadata: Pick<
+    LocalSongMetadata,
+    | "lastNoteTimeMs"
+    | "noteGroupCount"
+    | "noteGroupDelaysMs"
+  >,
+  options: Pick<
+    PreviewPlaybackOptions,
+    "noteIntervalDelayMs" | "playbackSpeed"
+  > = {
+    noteIntervalDelayMs: defaultNoteIntervalDelayMs,
+    playbackSpeed: defaultPlaybackSpeed,
+  },
+) {
+  if (metadata.noteGroupCount === 0) {
+    return 0;
+  }
+
+  if (
+    metadata.noteGroupDelaysMs?.length === metadata.noteGroupCount
+  ) {
+    return metadata.noteGroupDelaysMs.reduce((durationMs, delayMs, index) => {
+      const adjustedDelayMs =
+        getScaledDelayMs(delayMs, options) +
+        (index === 0 ? 0 : options.noteIntervalDelayMs);
+
+      return durationMs + Math.max(0, adjustedDelayMs);
+    }, 0);
+  }
+
+  return Math.max(
+    0,
+    getScaledDelayMs(metadata.lastNoteTimeMs, options) +
+      (metadata.noteGroupCount - 1) * options.noteIntervalDelayMs,
+  );
 }
 
 function getScaledDelayMs(

@@ -1,5 +1,6 @@
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
+import { getLibrarySongName } from "../lib/libraryCollections";
 import type { LibrarySongId, LibrarySongListItem } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { useExperimentalInput } from "./useExperimentalInput";
@@ -145,7 +146,7 @@ export function usePlaybackCoordinator({
       return;
     }
 
-    const songs = scoreLibrary.importedSongsRef.current;
+    const songs = scoreLibrary.librarySongsRef.current;
     const shouldDeferQueueConsume =
       playbackOutput.mode === "experimental-target-window" ||
       playbackOutput.mode === "experimental-foreground";
@@ -173,7 +174,9 @@ export function usePlaybackCoordinator({
 
     appendLog(
       formatText(text.logs.manualNextTriggered, {
-        songName: songs[nextSongIndex]?.name ?? text.logs.queueUnknownSong,
+        songName: songs[nextSongIndex]
+          ? getLibrarySongName(songs[nextSongIndex])
+          : text.logs.queueUnknownSong,
       }),
     );
     const didStart = await startOutputSong(nextSongIndex);

@@ -15,7 +15,11 @@ import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import type { LocateScoreRequest } from "../hooks/useScoreLibrary";
 import type { UiText } from "../i18n/uiText";
-import { getAdjustedPreviewDurationMs } from "../lib/playbackScheduler";
+import { getLibrarySongName } from "../lib/libraryCollections";
+import {
+  getAdjustedPreviewDurationFromMetadata,
+  getAdjustedPreviewDurationMs,
+} from "../lib/playbackScheduler";
 import type {
   AddSongToPlaylistResult,
   LibrarySongId,
@@ -623,15 +627,16 @@ function LibrarySongTable({
       <div className="library-table-body">
         {items.map((item, displayIndex) => {
           const { librarySong, songIndex } = item;
-          const song = librarySong.song;
+          const songName = getLibrarySongName(librarySong);
           const isSelected = selectedSongIndex === songIndex;
           const isLoading = isBuiltInSongLoading(librarySong.id);
           const durationMs =
-            librarySong.source === "built-in" &&
-            !librarySong.isBuiltInLoaded &&
-            typeof librarySong.builtInDurationMs === "number"
-              ? librarySong.builtInDurationMs
-              : getAdjustedPreviewDurationMs(song.songNotes);
+            librarySong.source === "local-import"
+              ? getAdjustedPreviewDurationFromMetadata(librarySong.metadata)
+              : !librarySong.isBuiltInLoaded &&
+                  typeof librarySong.builtInDurationMs === "number"
+                ? librarySong.builtInDurationMs
+                : getAdjustedPreviewDurationMs(librarySong.song.songNotes);
           const duration = formatDuration(
             durationMs,
           );
@@ -665,7 +670,7 @@ function LibrarySongTable({
                 <button
                   className="library-row-play"
                   type="button"
-                  aria-label={`${text.playThisScoreAction}: ${song.name}`}
+                  aria-label={`${text.playThisScoreAction}: ${songName}`}
                   title={text.playThisScoreAction}
                   onFocus={() => onPrepareSong(songIndex)}
                   onPointerEnter={() => onPrepareSong(songIndex)}
@@ -686,7 +691,7 @@ function LibrarySongTable({
                 </button>
               </span>
               <span className="library-song-title">
-                <span className="library-song-title-text">{song.name}</span>
+                <span className="library-song-title-text">{songName}</span>
                 <span className="library-row-title-actions">
                   <button
                     className="library-title-icon-button"
@@ -801,7 +806,7 @@ function LibrarySongTable({
                   type="button"
                   aria-label={`${
                     item.isLiked ? text.unlikeAction : text.likeAction
-                  }: ${song.name}`}
+                  }: ${songName}`}
                   title={item.isLiked ? text.unlikeAction : text.likeAction}
                   onClick={(event) => {
                     event.stopPropagation();

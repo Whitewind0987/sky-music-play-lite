@@ -6,9 +6,15 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { UiText } from "../i18n/uiText";
+import {
+  getLibrarySongBpm,
+  getLibrarySongName,
+  getLibrarySongNoteCount,
+} from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
+import type { LibrarySong } from "../types/library";
 import {
   normalizeNoteIntervalDelay,
   normalizePlaybackSpeed,
@@ -18,7 +24,6 @@ import {
   type PlaybackMode,
   type PlaybackSpeed,
 } from "../types/playbackOptions";
-import type { Song } from "../types/score";
 import { QueuePanel } from "./QueuePanel";
 import {
   PauseIcon,
@@ -34,7 +39,7 @@ import {
 type BottomPlayerProps = {
   canPlay: boolean;
   canSeek: boolean;
-  currentSong: Song | null;
+  currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
@@ -61,7 +66,7 @@ type BottomPlayerProps = {
   progress: PreviewPlaybackProgress;
   queueItems: PlaybackQueueItem[];
   queueOpen: boolean;
-  songs: Song[];
+  songs: LibrarySong[];
   text: UiText["bottomPlayer"];
 };
 
@@ -493,7 +498,7 @@ export function BottomPlayer({
           <span className="bottom-player-label">{text.currentScore}</span>
           <div className="bottom-player-title-row">
             <strong className="bottom-player-title">
-              {currentSong?.name ?? text.noScore}
+              {currentSong ? getLibrarySongName(currentSong) : text.noScore}
             </strong>
             <span className="bottom-player-output-badge">
               {outputModeLabel}
@@ -511,10 +516,11 @@ export function BottomPlayer({
           </div>
           <div className="bottom-player-meta-line">
             <span className="bottom-player-meta-item">
-              {text.bpm}: {currentSong?.bpm ?? "--"}
+              {text.bpm}: {currentSong ? getLibrarySongBpm(currentSong) : "--"}
             </span>
             <span className="bottom-player-meta-item">
-              {text.notes}: {currentSong?.songNotes.length ?? "--"}
+              {text.notes}:{" "}
+              {currentSong ? getLibrarySongNoteCount(currentSong) : "--"}
             </span>
             <span className="bottom-player-meta-item">
               {text.state}: {text.states[playbackState]}

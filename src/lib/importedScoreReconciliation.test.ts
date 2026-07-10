@@ -1,50 +1,48 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LibrarySong } from "../types/library";
+import type {
+  LocalLibrarySong,
+  MigrationFallbackSongs,
+} from "../types/library";
 import type { Song } from "../types/score";
+import type { ImportedScoreReconcileReport } from "./tauriApi";
+import { createLocalSongMetadata } from "./libraryCollections";
 import {
   createImportedScoreReconcileEntries,
   reconcilePersistedImportedScores,
   reconcilePersistedImportedScoresWithProgress,
   resetImportedScoreReconciliationForTests,
+  retainUnverifiedMigrationFallbackSongs,
   type ImportedScoreReconciliationText,
 } from "./importedScoreReconciliation";
-import type { ImportedScoreReconcileReport } from "./tauriApi";
 
-const reconciliationText: ImportedScoreReconciliationText = {
-  importedScoreReconcileCommandFailed: "command failed: {error}",
-  importedScoreReconcileFailed:
-    "failed {songName} ({songId}): {error}",
+const text: ImportedScoreReconciliationText = {
+  importedScoreReconcileCommandFailed: "command: {error}",
+  importedScoreReconcileFailed: "{songName} {songId}: {error}",
   importedScoreReconcileFailedSummary: "{count} failures",
-  importedScoreReconcileSucceeded:
-    "created {createdCount}, renamed {renamedCount}",
+  importedScoreReconcileSucceeded: "created {createdCount}, renamed {renamedCount}",
 };
 
-function createSong(overrides: Partial<Song> = {}): Song {
+function createSong(name: string): Song {
   return {
-    name: "Test Song",
-    bpm: 120,
     bitsPerPage: 16,
-    pitchLevel: 0,
+    bpm: 120,
     isComposed: false,
-    songNotes: [
-      { time: 0, key: "1Key0" },
-      { time: 500, key: "1Key1" },
-    ],
-    ...overrides,
+    name,
+    pitchLevel: 0,
+    songNotes: [{ key: "1Key0", time: 0 }],
   };
 }
 
-function createLibrarySong(overrides: Partial<LibrarySong> = {}): LibrarySong {
+function createLibrarySong(id: string, name: string): LocalLibrarySong {
   return {
-    id: "local-test-1",
+    id,
     importedAt: 1,
-    song: createSong(),
+    metadata: createLocalSongMetadata(createSong(name)),
     source: "local-import",
-    ...overrides,
   };
 }
 
-function createReconcileReport(
+function createReport(
   overrides: Partial<ImportedScoreReconcileReport> = {},
 ): ImportedScoreReconcileReport {
   return {
@@ -52,294 +50,154 @@ function createReconcileReport(
     failed: [],
     renamedCount: 0,
     unchangedCount: 0,
+    verifiedSongIds: [],
     ...overrides,
   };
 }
 
-describe("createImportedScoreReconcileEntries", () => {
-  it("sends only persisted local imports to startup reconciliation", () => {
-    const localSong = createLibrarySong({
-      id: "local-keep",
-      song: createSong({ name: "Local" }),
-    });
-    const builtInSong = createLibrarySong({
-      id: "builtin-skip",
-      song: createSong({ name: "Built In" }),
-      source: "built-in",
-    });
-
-    expect(createImportedScoreReconcileEntries([builtInSong, localSong])).toEqual([
-      {
-        song: localSong.song,
-        songId: "local-keep",
-      },
-    ]);
-  });
-
-  it("passes internal ids and complete normalized song objects unchanged", () => {
-    const normalizedSong = createSong({
-      bitsPerPage: 15,
-      bpm: 90,
-      isComposed: true,
-      name: "Normalized",
-      pitchLevel: 1,
-      songNotes: [
-        { time: 0, key: "1Key0" },
-        { time: 250, key: "1Key1" },
-      ],
-    });
-    const localSong = createLibrarySong({
-      id: "local-normalized",
-      song: normalizedSong,
-    });
-    const [entry] = createImportedScoreReconcileEntries([localSong]);
-
-    expect(entry).toEqual({
-      song: normalizedSong,
-      songId: "local-normalized",
-    });
-    expect(entry?.song).toBe(normalizedSong);
-  });
-});
-
-describe("reconcilePersistedImportedScores", () => {
+describe("imported score migration reconciliation", () => {
   beforeEach(() => {
     resetImportedScoreReconciliationForTests();
   });
 
-  it("invokes startup reconciliation only once for the same loaded AppData", async () => {
-    const localSong = createLibrarySong();
-    const reconcileImportedScoreFiles = vi
-      .fn()
-      .mockResolvedValue(createReconcileReport());
-
-    await reconcilePersistedImportedScores({
-      appendLog: vi.fn(),
-      librarySongs: [localSong],
-      reconcileImportedScoreFiles,
-      text: reconciliationText,
-    });
-    await reconcilePersistedImportedScores({
-      appendLog: vi.fn(),
-      librarySongs: [localSong],
-      reconcileImportedScoreFiles,
-      text: reconciliationText,
-    });
-
-    expect(reconcileImportedScoreFiles).toHaveBeenCalledTimes(1);
+  it("creates zero entries for a clean metadata-only v3 library", () => {
+    expect(
+      createImportedScoreReconcileEntries(
+        [createLibrarySong("local-1", "One")],
+        {},
+      ),
+    ).toEqual([]);
   });
 
-  it("does not start a duplicate run while the same startup data is active", async () => {
-    const localSong = createLibrarySong();
-    let resolveReport: (report: ImportedScoreReconcileReport) => void = () => {};
-    const activeReport = new Promise<ImportedScoreReconcileReport>((resolve) => {
-      resolveReport = resolve;
-    });
-    const reconcileImportedScoreFiles = vi.fn(() => activeReport);
+  it("creates entries only for fallback songs that still have metadata", () => {
+    const one = createSong("One");
+    const orphan = createSong("Orphan");
 
-    const firstRun = reconcilePersistedImportedScores({
-      appendLog: vi.fn(),
-      librarySongs: [localSong],
-      reconcileImportedScoreFiles,
-      text: reconciliationText,
-    });
-    const duplicateRun = reconcilePersistedImportedScores({
-      appendLog: vi.fn(),
-      librarySongs: [localSong],
-      reconcileImportedScoreFiles,
-      text: reconciliationText,
-    });
-
-    resolveReport(createReconcileReport());
-
-    await Promise.all([firstRun, duplicateRun]);
-
-    expect(reconcileImportedScoreFiles).toHaveBeenCalledTimes(1);
+    expect(
+      createImportedScoreReconcileEntries(
+        [createLibrarySong("local-1", "One")],
+        { "local-1": one, "local-orphan": orphan },
+      ),
+    ).toEqual([{ song: one, songId: "local-1" }]);
   });
 
-  it("sets reconciliation progress before the command starts and resets after success", async () => {
-    const progressStates: boolean[] = [];
-    const reconcileImportedScoreFiles = vi.fn(async () => {
-      expect(progressStates).toEqual([true]);
-      return createReconcileReport();
-    });
-
-    await reconcilePersistedImportedScoresWithProgress({
-      appendLog: vi.fn(),
-      librarySongs: [createLibrarySong()],
-      reconcileImportedScoreFiles,
-      setInProgress: (isInProgress) => progressStates.push(isInProgress),
-      text: reconciliationText,
-    });
-
-    expect(progressStates).toEqual([true, false]);
-  });
-
-  it("resets reconciliation progress after command failure", async () => {
-    const progressStates: boolean[] = [];
-    const reconcileImportedScoreFiles = vi.fn(async () => {
-      throw new Error("disk failed");
-    });
-
-    await reconcilePersistedImportedScoresWithProgress({
-      appendLog: vi.fn(),
-      librarySongs: [createLibrarySong()],
-      reconcileImportedScoreFiles,
-      setInProgress: (isInProgress) => progressStates.push(isInProgress),
-      text: reconciliationText,
-    });
-
-    expect(progressStates).toEqual([true, false]);
-  });
-
-  it("keeps duplicate Strict Mode progress calls on the same active command", async () => {
-    const localSong = createLibrarySong();
-    const progressStates: boolean[] = [];
-    let resolveReport: (report: ImportedScoreReconcileReport) => void = () => {};
-    const activeReport = new Promise<ImportedScoreReconcileReport>((resolve) => {
-      resolveReport = resolve;
-    });
-    const reconcileImportedScoreFiles = vi.fn(() => activeReport);
-    const runOptions = {
-      appendLog: vi.fn(),
-      librarySongs: [localSong],
-      reconcileImportedScoreFiles,
-      setInProgress: (isInProgress: boolean) =>
-        progressStates.push(isInProgress),
-      text: reconciliationText,
+  it("removes only explicitly verified fallback IDs", () => {
+    const fallbacks: MigrationFallbackSongs = {
+      "local-1": createSong("One"),
+      "local-2": createSong("Two"),
+      "local-3": createSong("Three"),
     };
 
-    const firstRun = reconcilePersistedImportedScoresWithProgress(runOptions);
-    const duplicateRun =
-      reconcilePersistedImportedScoresWithProgress(runOptions);
-
-    resolveReport(createReconcileReport());
-
-    await Promise.all([firstRun, duplicateRun]);
-
-    expect(reconcileImportedScoreFiles).toHaveBeenCalledTimes(1);
-    expect(progressStates).toEqual([true, true, false, false]);
+    expect(
+      retainUnverifiedMigrationFallbackSongs(
+        fallbacks,
+        createReport({ verifiedSongIds: ["local-1", "local-3"] }),
+      ),
+    ).toEqual({ "local-2": fallbacks["local-2"] });
   });
 
-  it("keeps library state, likes, playlists, selection, and playback settings unchanged on failures", async () => {
-    const persistedState = {
-      librarySongs: [
-        createLibrarySong({
-          id: "local-failing",
-          song: createSong({ name: "Failing" }),
-        }),
-      ],
-      likedSongs: [{ likedAt: 10, songId: "local-failing" }],
-      playbackSettings: {
-        isShuffleEnabled: true,
-        noteIntervalDelayMs: 25,
-        playbackMode: "repeat-all",
-        playbackSpeed: 1.25,
-      },
-      playlists: [
-        {
-          createdAt: 1,
-          id: "playlist-1",
-          name: "Playlist",
-          songIds: ["local-failing"],
-          updatedAt: 2,
-        },
-      ],
-      selectedSongIndex: 0,
-    };
-    const beforeReconciliation = JSON.stringify(persistedState);
-    const reconcileImportedScoreFiles = vi.fn().mockResolvedValue(
-      createReconcileReport({
-        failed: [
-          {
-            error: "corrupt file",
-            songId: "local-failing",
-            songName: "Failing",
-          },
-        ],
-      }),
+  it("retains every fallback after a global command failure", () => {
+    const fallbacks = { "local-1": createSong("One") };
+
+    expect(retainUnverifiedMigrationFallbackSongs(fallbacks, null)).toEqual(
+      fallbacks,
     );
-
-    await reconcilePersistedImportedScores({
-      appendLog: vi.fn(),
-      librarySongs: persistedState.librarySongs,
-      reconcileImportedScoreFiles,
-      text: reconciliationText,
-    });
-
-    expect(JSON.stringify(persistedState)).toBe(beforeReconciliation);
   });
 
-  it("shows one notice for multiple per-song failures", async () => {
-    const appendLog = vi.fn();
-    const showNotice = vi.fn();
-    const reconcileImportedScoreFiles = vi.fn().mockResolvedValue(
-      createReconcileReport({
-        failed: [
-          {
-            error: "invalid JSON",
-            songId: "local-one",
-            songName: "One",
-          },
-          {
-            error: "permission denied",
-            songId: "local-two",
-            songName: "Two",
-          },
-        ],
-      }),
-    );
-
-    await reconcilePersistedImportedScores({
-      appendLog,
-      librarySongs: [
-        createLibrarySong({ id: "local-one", song: createSong({ name: "One" }) }),
-        createLibrarySong({ id: "local-two", song: createSong({ name: "Two" }) }),
-      ],
-      reconcileImportedScoreFiles,
-      showNotice,
-      text: reconciliationText,
-    });
-
-    expect(appendLog).toHaveBeenCalledTimes(2);
-    expect(showNotice).toHaveBeenCalledTimes(1);
-    expect(showNotice).toHaveBeenCalledWith("2 failures");
-  });
-
-  it("logs a summary when files are created or renamed", async () => {
-    const appendLog = vi.fn();
-    const reconcileImportedScoreFiles = vi.fn().mockResolvedValue(
-      createReconcileReport({
-        createdCount: 1,
-        renamedCount: 2,
-      }),
-    );
-
-    await reconcilePersistedImportedScores({
-      appendLog,
-      librarySongs: [createLibrarySong()],
-      reconcileImportedScoreFiles,
-      text: reconciliationText,
-    });
-
-    expect(appendLog).toHaveBeenCalledWith("created 1, renamed 2");
-  });
-
-  it("does not invoke Rust reconciliation when there are no local imports", async () => {
+  it("does not invoke Rust for metadata-only v3 startup", async () => {
     const reconcileImportedScoreFiles = vi.fn();
 
     await reconcilePersistedImportedScores({
       appendLog: vi.fn(),
-      librarySongs: [
-        createLibrarySong({
-          id: "builtin-only",
-          source: "built-in",
-        }),
-      ],
+      librarySongs: [createLibrarySong("local-1", "One")],
+      migrationFallbackSongs: {},
       reconcileImportedScoreFiles,
-      text: reconciliationText,
+      text,
     });
 
     expect(reconcileImportedScoreFiles).not.toHaveBeenCalled();
+  });
+
+  it("logs per-song failures and only one summary notice", async () => {
+    const appendLog = vi.fn();
+    const showNotice = vi.fn();
+    const song = createSong("One");
+
+    await reconcilePersistedImportedScores({
+      appendLog,
+      librarySongs: [createLibrarySong("local-1", "One")],
+      migrationFallbackSongs: { "local-1": song },
+      reconcileImportedScoreFiles: vi.fn().mockResolvedValue(
+        createReport({
+          failed: [
+            { error: "mismatch", songId: "local-1", songName: "One" },
+          ],
+        }),
+      ),
+      showNotice,
+      text,
+    });
+
+    expect(appendLog).toHaveBeenCalledWith("One local-1: mismatch");
+    expect(showNotice).toHaveBeenCalledTimes(1);
+    expect(showNotice).toHaveBeenCalledWith("1 failures");
+  });
+
+  it("reports a global command failure without verifying IDs", async () => {
+    const appendLog = vi.fn();
+    const song = createSong("One");
+    const report = await reconcilePersistedImportedScores({
+      appendLog,
+      librarySongs: [createLibrarySong("local-1", "One")],
+      migrationFallbackSongs: { "local-1": song },
+      reconcileImportedScoreFiles: vi.fn().mockRejectedValue(new Error("IPC")),
+      text,
+    });
+
+    expect(report).toBeNull();
+    expect(appendLog).toHaveBeenCalledWith("command: Error: IPC");
+  });
+
+  it("deduplicates concurrent reconciliation for the same fallback set", async () => {
+    const song = createSong("One");
+    let resolveReport: (report: ImportedScoreReconcileReport) => void = () => {};
+    const activeReport = new Promise<ImportedScoreReconcileReport>((resolve) => {
+      resolveReport = resolve;
+    });
+    const reconcileImportedScoreFiles = vi.fn(() => activeReport);
+    const options = {
+      appendLog: vi.fn(),
+      librarySongs: [createLibrarySong("local-1", "One")],
+      migrationFallbackSongs: { "local-1": song },
+      reconcileImportedScoreFiles,
+      text,
+    };
+
+    const first = reconcilePersistedImportedScores(options);
+    const second = reconcilePersistedImportedScores(options);
+
+    resolveReport(createReport({ verifiedSongIds: ["local-1"] }));
+    await Promise.all([first, second]);
+
+    expect(reconcileImportedScoreFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps deletion blocked for the duration of reconciliation", async () => {
+    const progressStates: boolean[] = [];
+    const song = createSong("One");
+
+    await reconcilePersistedImportedScoresWithProgress({
+      appendLog: vi.fn(),
+      librarySongs: [createLibrarySong("local-1", "One")],
+      migrationFallbackSongs: { "local-1": song },
+      reconcileImportedScoreFiles: vi.fn(async () => {
+        expect(progressStates).toEqual([true]);
+        return createReport({ verifiedSongIds: ["local-1"] });
+      }),
+      setInProgress: (inProgress) => progressStates.push(inProgress),
+      text,
+    });
+
+    expect(progressStates).toEqual([true, false]);
   });
 });

@@ -4,6 +4,7 @@ import type { Song } from "../types/score";
 import {
   addSongToPlaylist,
   createLibrarySong,
+  createLocalSongMetadata,
   filterSongsByQuery,
   getSongFingerprint,
   removeSongFromAllCollections,
@@ -42,8 +43,28 @@ describe("createLibrarySong", () => {
 
     expect(librarySong.source).toBe("local-import");
     expect(librarySong.importedAt).toBe(12345);
-    expect(librarySong.song).toBe(song);
+    expect(librarySong.metadata).toEqual(createLocalSongMetadata(song));
     expect(librarySong.id).toContain("local-12345-");
+  });
+});
+
+describe("createLocalSongMetadata", () => {
+  it("calculates note counts, groups, last time, delays, and fingerprint", () => {
+    const song = createTestSong("Metadata");
+    song.songNotes.push({ key: "Key2", time: 500 });
+
+    expect(createLocalSongMetadata(song)).toEqual({
+      bitsPerPage: 15,
+      bpm: 120,
+      fingerprint: getSongFingerprint(song),
+      isComposed: true,
+      lastNoteTimeMs: 500,
+      name: "Metadata",
+      noteCount: 3,
+      noteGroupCount: 2,
+      noteGroupDelaysMs: [0, 500],
+      pitchLevel: 0,
+    });
   });
 });
 

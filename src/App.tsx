@@ -43,6 +43,7 @@ import {
   type LanguageCode,
 } from "./i18n/uiText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
+import { getLibrarySongName } from "./lib/libraryCollections";
 import { forceCloseApp } from "./lib/tauriApi";
 import "../font/iconfont.css";
 import "./App.css";
@@ -109,7 +110,7 @@ function App() {
   const playbackOrder = usePlaybackOrder();
   const playbackQueue = usePlaybackQueue({
     appendLog,
-    importedSongsRef: scoreLibrary.importedSongsRef,
+    librarySongsRef: scoreLibrary.librarySongsRef,
     showNotice: showAppNotice,
     text: text.logs,
   });
@@ -127,7 +128,7 @@ function App() {
         ...options,
         librarySongs: scoreLibrary.librarySongs,
       }),
-    importedSongsRef: scoreLibrary.importedSongsRef,
+    librarySongsRef: scoreLibrary.librarySongsRef,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: handlePlaybackSongIndexChange,
@@ -149,7 +150,7 @@ function App() {
       }),
     getSongIdentityForPlayback: (songIndex) =>
       scoreLibrary.librarySongs[songIndex]?.id ?? null,
-    importedSongsRef: scoreLibrary.importedSongsRef,
+    librarySongsRef: scoreLibrary.librarySongsRef,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
@@ -158,6 +159,8 @@ function App() {
     peekNextQueueItemAfterCurrent:
       playbackQueue.peekNextQueueItemAfterCurrent,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
+    resolveSongForWarmPreparation:
+      scoreLibrary.resolveSongForWarmPreparation,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setRequestedPlaybackSongIndex: scoreLibrary.setPlaybackSongIndex,
     setSelectedSongIndex: handlePlaybackSongIndexChange,
@@ -200,6 +203,7 @@ function App() {
     language,
     librarySongs: scoreLibrary.localLibrarySongs,
     likedSongs: scoreLibrary.likedSongs,
+    migrationFallbackSongs: scoreLibrary.migrationFallbackSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
     playbackMode: previewPlayback.playbackMode,
     playbackShortcuts: playbackShortcutsController.playbackShortcuts,
@@ -316,7 +320,10 @@ function App() {
       playbackSpeed: playbackOutput.playbackSpeed,
       playbackState: playbackOutput.playbackState,
       selectedSongIndex: scoreLibrary.selectedSongIndex,
-      selectedSongName: scoreLibrary.currentSelectedSong?.name ?? null,
+      selectedSongName:
+        scoreLibrary.currentSelectedSong === null
+          ? null
+          : getLibrarySongName(scoreLibrary.currentSelectedSong),
       targetWindowCompatibilityProfile:
         experimentalInput.targetWindowCompatibilityProfile,
       targetWindowHwnd: experimentalInput.selectedWindowHwnd,
@@ -743,7 +750,7 @@ function App() {
         progress={playbackOutput.progress}
         queueItems={playbackQueue.queueItems}
         queueOpen={queueOpen}
-        songs={scoreLibrary.importedSongs}
+        songs={scoreLibrary.librarySongs}
         text={text.bottomPlayer}
       />
       {isCreatingPlaylistFromSidebar ? (

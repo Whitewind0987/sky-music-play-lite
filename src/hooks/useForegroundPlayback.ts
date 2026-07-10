@@ -6,7 +6,9 @@ import {
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
 import { formatText } from "../lib/formatText";
+import { getLibrarySongName } from "../lib/libraryCollections";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
+import { prepareWarmPlaybackPlan } from "../lib/warmPlaybackPreparation";
 import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackPlanErrors";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import {
@@ -20,6 +22,7 @@ import {
   type BackgroundPlaybackEventPayload,
 } from "../lib/tauriApi";
 import type { ForegroundPlaybackState } from "../types/experimentalInput";
+import type { LibrarySong } from "../types/library";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type {
@@ -35,7 +38,7 @@ import type {
 type UseForegroundPlaybackOptions = {
   appendLog: (message: string) => void;
   consumeQueuedItemAfterCurrent: (queueItemId: string, songCount: number) => PlaybackQueueItem | null;
-  currentSong: Song | null;
+  currentSong: LibrarySong | null;
   experimentalInputEnabled: boolean;
   getOrPreparePlaybackPlan: (options: {
     priority: "direct" | "warm";
@@ -47,7 +50,7 @@ type UseForegroundPlaybackOptions = {
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
-  importedSongsRef: React.MutableRefObject<Song[]>;
+  librarySongsRef: React.MutableRefObject<LibrarySong[]>;
   invalidatePlaybackPlan: (cacheKey: PreparedPlaybackPlan["cacheKey"]) => void;
   isShuffleEnabled: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
@@ -56,6 +59,7 @@ type UseForegroundPlaybackOptions = {
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
+  resolveSongForWarmPreparation: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
   startQueuePlayback: (songIndex: number) => void;
@@ -78,7 +82,7 @@ export function useForegroundPlayback({
   experimentalInputEnabled,
   getOrPreparePlaybackPlan,
   getPlaybackOrderNextSongIndex,
-  importedSongsRef,
+  librarySongsRef,
   invalidatePlaybackPlan,
   isShuffleEnabled,
   noteIntervalDelayMs,
@@ -87,6 +91,7 @@ export function useForegroundPlayback({
   playbackMode,
   playbackSpeed,
   resolveSongForPlayback,
+  resolveSongForWarmPreparation,
   selectedSongIndex,
   setSelectedSongIndex,
   startQueuePlayback,
@@ -357,7 +362,6 @@ export function useForegroundPlayback({
 
     if (!song) {
       setForegroundStartPending(false);
-      appendLog(text.logs.noSelectedScore);
       return false;
     }
 
@@ -576,11 +580,11 @@ export function useForegroundPlayback({
   }
 
   function handleForegroundPlaybackFinished(songIndex: number, song: Song) {
-    const currentImportedSongs = importedSongsRef.current;
+    const currentLibrarySongs = librarySongsRef.current;
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : peekNextQueueItemAfterCurrent(currentImportedSongs.length);
+        : peekNextQueueItemAfterCurrent(currentLibrarySongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
@@ -595,7 +599,7 @@ export function useForegroundPlayback({
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
       queuedSongIndex: queuedItem?.songIndex ?? playbackOrderNextSongIndex ?? null,
-      songCount: currentImportedSongs.length,
+      songCount: currentLibrarySongs.length,
     });
 
     if (finishDecision.type === "repeat-current") {
@@ -611,11 +615,13 @@ export function useForegroundPlayback({
     }
 
     if (finishDecision.type === "play-next") {
-      const nextSong = currentImportedSongs[finishDecision.nextSongIndex] ?? song;
+      const nextSong = currentLibrarySongs[finishDecision.nextSongIndex] ?? null;
       appendLog(
         formatText(
           queuedItem === null ? text.logs.repeatAllTriggered : text.logs.queueNextTriggered,
-          { songName: nextSong.name },
+          {
+            songName: nextSong ? getLibrarySongName(nextSong) : song.name,
+          },
         ),
       );
       void startForegroundPlaybackForSong(finishDecision.nextSongIndex, {
@@ -627,7 +633,7 @@ export function useForegroundPlayback({
           return;
         }
         if (queuedItem) {
-          consumeQueuedItemAfterCurrent(queuedItem.id, currentImportedSongs.length);
+          consumeQueuedItemAfterCurrent(queuedItem.id, currentLibrarySongs.length);
         } else {
           startQueuePlayback(finishDecision.nextSongIndex);
         }
@@ -640,7 +646,7 @@ export function useForegroundPlayback({
   }
 
   function warmLikelyForegroundSong(currentSongIndex: number) {
-    const queuedItem = peekNextQueueItemAfterCurrent(importedSongsRef.current.length);
+    const queuedItem = peekNextQueueItemAfterCurrent(librarySongsRef.current.length);
     const nextSongIndex = queuedItem?.songIndex ?? getPlaybackOrderNextSongIndex({
         currentSongIndex,
         isShuffleEnabled: isShuffleEnabledRef.current,
@@ -648,8 +654,14 @@ export function useForegroundPlayback({
       });
 
     if (nextSongIndex !== null) {
-      void getOrPreparePlaybackPlan({
-        priority: "warm",
+      void prepareWarmPlaybackPlan({
+        prepareResolvedSong: (resolvedSong) =>
+          getOrPreparePlaybackPlan({
+                priority: "warm",
+                resolvedSong,
+                songIndex: nextSongIndex,
+          }),
+        resolveSongForWarmPreparation,
         songIndex: nextSongIndex,
       }).catch(() => {});
     }

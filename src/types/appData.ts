@@ -12,9 +12,14 @@ import type {
   PlaybackSpeed,
 } from "./playbackOptions";
 import type { PlaybackShortcuts } from "./playbackShortcuts";
-import type { LibrarySong, LikedSongEntry, UserPlaylist } from "./library";
+import type {
+  LikedSongEntry,
+  LocalLibrarySong,
+  MigrationFallbackSongs,
+  UserPlaylist,
+} from "./library";
 
-export const appDataVersion = 2;
+export const appDataVersion = 3;
 
 export type ExperimentalInputPreferences = {
   experimentalInputEnabled: boolean;
@@ -37,8 +42,9 @@ export type PersistedAppData = {
   keyMapping: KeyMapping;
   language: LanguageCode;
   library: {
-    librarySongs: LibrarySong[];
+    librarySongs: LocalLibrarySong[];
     likedSongs: LikedSongEntry[];
+    migrationFallbackSongs?: MigrationFallbackSongs;
     playlists: UserPlaylist[];
     selectedLibraryCategory: LibraryCategoryId;
     selectedPlaylistId: string | null;

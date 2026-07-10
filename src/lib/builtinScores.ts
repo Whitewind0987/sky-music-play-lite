@@ -1,14 +1,14 @@
-import type { LibrarySong } from "../types/library";
+import type { BuiltInLibrarySong } from "../types/library";
 import { loadBuiltInScoreIndex } from "./builtinScoreIndex";
 
 export type BuiltInLibraryLoadResult = {
   fileCount: number;
-  songs: LibrarySong[];
+  songs: BuiltInLibrarySong[];
 };
 
 export async function loadBuiltInLibrarySongs(): Promise<BuiltInLibraryLoadResult> {
   const index = await loadBuiltInScoreIndex();
-  const builtInSongs = index.entries.map<LibrarySong>((entry) => ({
+  const builtInSongs = index.entries.map<BuiltInLibrarySong>((entry) => ({
     builtInFileName: entry.fileName,
     builtInDurationMs: entry.durationMs,
     builtInNoteCount: entry.noteCount,

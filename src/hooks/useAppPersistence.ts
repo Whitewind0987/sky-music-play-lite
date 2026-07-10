@@ -3,10 +3,15 @@ import type { LibraryCategoryId } from "../components/AppShell";
 import type { UiText, LanguageCode } from "../i18n/uiText";
 import {
   buildPersistedAppData,
+  getPersistedAppDataVersion,
   sanitizePersistedAppData,
 } from "../lib/appData";
 import { formatText } from "../lib/formatText";
-import { reconcilePersistedImportedScoresWithProgress } from "../lib/importedScoreReconciliation";
+import { finalizeAppDataMigration } from "../lib/appDataMigration";
+import {
+  createImportedScoreReconcileEntries,
+  reconcilePersistedImportedScores,
+} from "../lib/importedScoreReconciliation";
 import {
   loadAppData,
   reconcileImportedScoreFiles,
@@ -28,7 +33,12 @@ import type {
   PlaybackSpeed,
 } from "../types/playbackOptions";
 import type { PlaybackShortcuts } from "../types/playbackShortcuts";
-import type { LibrarySong, LikedSongEntry, UserPlaylist } from "../types/library";
+import type {
+  LikedSongEntry,
+  LocalLibrarySong,
+  MigrationFallbackSongs,
+  UserPlaylist,
+} from "../types/library";
 
 const saveDebounceMs = 500;
 
@@ -49,8 +59,9 @@ type UseAppPersistenceOptions = {
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   language: LanguageCode;
-  librarySongs: LibrarySong[];
+  librarySongs: LocalLibrarySong[];
   likedSongs: LikedSongEntry[];
+  migrationFallbackSongs: MigrationFallbackSongs;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackShortcuts: PlaybackShortcuts;
@@ -85,6 +96,7 @@ export function useAppPersistence({
   language,
   librarySongs,
   likedSongs,
+  migrationFallbackSongs,
   noteIntervalDelayMs,
   playbackMode,
   playbackShortcuts,
@@ -105,6 +117,8 @@ export function useAppPersistence({
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
   const [hasLoadedAppData, setHasLoadedAppData] = useState(false);
+  const [isNormalPersistenceEnabled, setIsNormalPersistenceEnabled] =
+    useState(false);
   const [
     isImportedScoreReconciliationInProgress,
     setIsImportedScoreReconciliationInProgress,
@@ -123,41 +137,83 @@ export function useAppPersistence({
 
         if (rawAppData === null) {
           appendLog(text.appDataMissing);
+          setIsNormalPersistenceEnabled(true);
           setHasLoadedAppData(true);
           return;
         }
 
+        const sourceVersion = getPersistedAppDataVersion(rawAppData);
         const appData = sanitizePersistedAppData(rawAppData);
 
-        if (appData === null) {
+        if (appData === null || sourceVersion === null) {
           appendLog(text.appDataInvalid);
+          setIsNormalPersistenceEnabled(true);
           setHasLoadedAppData(true);
           return;
         }
 
-        const reconciliationPromise =
-          reconcilePersistedImportedScoresWithProgress({
+        const originalFallbackSongs =
+          appData.library.migrationFallbackSongs ?? {};
+        const reconciliationEntries = createImportedScoreReconcileEntries(
+          appData.library.librarySongs,
+          originalFallbackSongs,
+        );
+        const isMigrationActive =
+          sourceVersion !== 3 || reconciliationEntries.length > 0;
+        let runtimeAppData = appData;
+        let canEnableNormalPersistence = true;
+
+        if (isMigrationActive) {
+          setIsImportedScoreReconciliationInProgress(true);
+        }
+
+        try {
+          const report = await reconcilePersistedImportedScores({
             appendLog,
             librarySongs: appData.library.librarySongs,
+            migrationFallbackSongs: originalFallbackSongs,
             reconcileImportedScoreFiles,
-            setInProgress: (isInProgress) => {
-              if (!isCancelled) {
-                setIsImportedScoreReconciliationInProgress(isInProgress);
-              }
-            },
             showNotice,
             text,
           });
+          const migrationResult = await finalizeAppDataMigration({
+            appData,
+            reconcileReport: report,
+            saveAppData,
+            sourceVersion,
+          });
 
-        setLanguage(appData.language);
-        applyKeyMapping(appData.keyMapping);
-        applyPlaybackSettings(appData.playbackSettings);
-        applyPlaybackShortcuts(appData.playbackShortcuts);
-        applyScoreLibrary(appData.library);
-        applyExperimentalInputPreferences(appData.experimentalInputPreferences);
+          runtimeAppData = migrationResult.appData;
+
+          if (migrationResult.persistenceError !== null) {
+            canEnableNormalPersistence = false;
+            appendLog(
+              formatText(text.appDataSaveFailed, {
+                error: String(migrationResult.persistenceError),
+              }),
+            );
+          }
+        } finally {
+          if (isMigrationActive && !isCancelled) {
+            setIsImportedScoreReconciliationInProgress(false);
+          }
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        setLanguage(runtimeAppData.language);
+        applyKeyMapping(runtimeAppData.keyMapping);
+        applyPlaybackSettings(runtimeAppData.playbackSettings);
+        applyPlaybackShortcuts(runtimeAppData.playbackShortcuts);
+        applyScoreLibrary(runtimeAppData.library);
+        applyExperimentalInputPreferences(
+          runtimeAppData.experimentalInputPreferences,
+        );
         appendLog(text.appDataLoaded);
+        setIsNormalPersistenceEnabled(canEnableNormalPersistence);
         setHasLoadedAppData(true);
-        await reconciliationPromise;
       } catch (error) {
         if (!isCancelled) {
           appendLog(
@@ -178,7 +234,11 @@ export function useAppPersistence({
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedAppData || !canSaveAppData) {
+    if (
+      !hasLoadedAppData ||
+      !canSaveAppData ||
+      !isNormalPersistenceEnabled
+    ) {
       return;
     }
 
@@ -202,6 +262,7 @@ export function useAppPersistence({
         language,
         librarySongs,
         likedSongs,
+        migrationFallbackSongs,
         noteIntervalDelayMs,
         playbackMode,
         playbackShortcuts,
@@ -232,11 +293,13 @@ export function useAppPersistence({
     experimentalInputMode,
     experimentalInputEnabled,
     hasLoadedAppData,
+    isNormalPersistenceEnabled,
     isShuffleEnabled,
     keyMapping,
     language,
     librarySongs,
     likedSongs,
+    migrationFallbackSongs,
     noteIntervalDelayMs,
     playbackMode,
     playbackShortcuts,

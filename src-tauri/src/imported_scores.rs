@@ -41,6 +41,7 @@ pub struct ImportedScoreReconcileReport {
     failed: Vec<ImportedScoreReconcileFailure>,
     renamed_count: usize,
     unchanged_count: usize,
+    verified_song_ids: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -70,6 +71,23 @@ struct ManagedScoreFile {
 struct ParsedManagedScoreFileName {
     id: String,
     kind: ManagedScoreFileKind,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct SemanticSong {
+    bits_per_page: f64,
+    bpm: f64,
+    is_composed: bool,
+    name: String,
+    pitch_level: f64,
+    song_notes: Vec<SemanticNote>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct SemanticNote {
+    key: String,
+    time: f64,
 }
 
 type ManagedScoreFileIndex = BTreeMap<String, Vec<ManagedScoreFile>>;
@@ -329,6 +347,7 @@ where
         failed: Vec::new(),
         renamed_count: 0,
         unchanged_count: 0,
+        verified_song_ids: Vec::new(),
     };
 
     for entry in entries {
@@ -340,9 +359,17 @@ where
             &entry.song_id,
             &entry.song,
         ) {
-            Ok(ReconcileAction::Created) => report.created_count += 1,
-            Ok(ReconcileAction::Renamed) => report.renamed_count += 1,
-            Ok(ReconcileAction::Unchanged) => report.unchanged_count += 1,
+            Ok(action) => {
+                if !report.verified_song_ids.contains(&entry.song_id) {
+                    report.verified_song_ids.push(entry.song_id.clone());
+                }
+
+                match action {
+                    ReconcileAction::Created => report.created_count += 1,
+                    ReconcileAction::Renamed => report.renamed_count += 1,
+                    ReconcileAction::Unchanged => report.unchanged_count += 1,
+                }
+            }
             Err(error) => report.failed.push(ImportedScoreReconcileFailure {
                 error,
                 song_id: entry.song_id,
@@ -373,6 +400,7 @@ fn reconcile_one_imported_score_file(
 
     if files.is_empty() {
         write_imported_score_song_file(&canonical_path, song_id, song)?;
+        read_and_verify_expected_song(&canonical_path, song)?;
         insert_indexed_managed_score_file(
             file_index,
             managed_score_file_from_path(
@@ -385,13 +413,13 @@ fn reconcile_one_imported_score_file(
     }
 
     if let Some(exact_canonical_file) = files.iter().find(|file| file.path == canonical_path) {
-        read_one_song_from_file(&exact_canonical_file.path)?;
-        let removed_paths = remove_valid_redundant_managed_files(&files, &canonical_path)?;
+        read_and_verify_expected_song(&exact_canonical_file.path, song)?;
+        let removed_paths = remove_valid_redundant_managed_files(&files, &canonical_path, song)?;
         remove_indexed_managed_score_file_paths(file_index, song_id, &removed_paths);
         return Ok(ReconcileAction::Unchanged);
     }
 
-    let selected_file = select_valid_reconcile_source_file(&files)?;
+    let selected_file = select_valid_reconcile_source_file(&files, song)?;
 
     fs::rename(&selected_file.path, &canonical_path).map_err(|error| {
         format!(
@@ -407,7 +435,8 @@ fn reconcile_one_imported_score_file(
         song_id.to_string(),
         ManagedScoreFileKind::Canonical,
     )?;
-    let removed_paths = remove_valid_redundant_managed_files(&files, &canonical_path)?;
+    read_and_verify_expected_song(&canonical_path, song)?;
+    let removed_paths = remove_valid_redundant_managed_files(&files, &canonical_path, song)?;
 
     remove_indexed_managed_score_file_path(file_index, song_id, &selected_file.path);
     remove_indexed_managed_score_file_paths(file_index, song_id, &removed_paths);
@@ -418,15 +447,18 @@ fn reconcile_one_imported_score_file(
 
 fn select_valid_reconcile_source_file(
     files: &[ManagedScoreFile],
+    expected_song: &Value,
 ) -> Result<ManagedScoreFile, String> {
     let canonical_files = files
         .iter()
-        .filter(|file| file.kind == ManagedScoreFileKind::Canonical);
+        .filter(|file| file.kind == ManagedScoreFileKind::Canonical)
+        .collect::<Vec<_>>();
     let mut canonical_failures = Vec::new();
+    let mut matching_canonical_file = None;
 
     for file in canonical_files {
-        match read_one_song_from_file(&file.path) {
-            Ok(_) => return Ok(file.clone()),
+        match read_and_verify_expected_song(&file.path, expected_song) {
+            Ok(_) => matching_canonical_file = Some((*file).clone()),
             Err(error) => canonical_failures.push(format!("{}: {}", file.path.display(), error)),
         }
     }
@@ -438,13 +470,17 @@ fn select_valid_reconcile_source_file(
         ));
     }
 
+    if let Some(file) = matching_canonical_file {
+        return Ok(file);
+    }
+
     let mut legacy_failures = Vec::new();
 
     for file in files
         .iter()
         .filter(|file| file.kind == ManagedScoreFileKind::Legacy)
     {
-        match read_one_song_from_file(&file.path) {
+        match read_and_verify_expected_song(&file.path, expected_song) {
             Ok(_) => return Ok(file.clone()),
             Err(error) => legacy_failures.push(format!("{}: {}", file.path.display(), error)),
         }
@@ -459,6 +495,7 @@ fn select_valid_reconcile_source_file(
 fn remove_valid_redundant_managed_files(
     files: &[ManagedScoreFile],
     keep_path: &Path,
+    expected_song: &Value,
 ) -> Result<Vec<PathBuf>, String> {
     let mut removed_paths = Vec::new();
 
@@ -467,7 +504,7 @@ fn remove_valid_redundant_managed_files(
             continue;
         }
 
-        if read_one_song_from_file(&file.path).is_err() {
+        if read_and_verify_expected_song(&file.path, expected_song).is_err() {
             continue;
         }
 
@@ -587,6 +624,37 @@ fn read_one_song_from_file(file_path: &Path) -> Result<Value, String> {
     validate_managed_song(file_path, &songs[0])?;
 
     Ok(songs[0].clone())
+}
+
+fn read_and_verify_expected_song(file_path: &Path, expected_song: &Value) -> Result<Value, String> {
+    let actual_song = read_one_song_from_file(file_path)?;
+    let expected_semantics = semantic_song_from_value(expected_song).map_err(|error| {
+        format!(
+            "Expected imported score for verification is invalid: {}",
+            error
+        )
+    })?;
+    let actual_semantics = semantic_song_from_value(&actual_song).map_err(|error| {
+        format!(
+            "Imported score file at {} cannot be compared semantically: {}",
+            file_path.display(),
+            error
+        )
+    })?;
+
+    if actual_semantics != expected_semantics {
+        return Err(format!(
+            "Imported score file at {} does not match the expected song content",
+            file_path.display()
+        ));
+    }
+
+    Ok(actual_song)
+}
+
+fn semantic_song_from_value(song: &Value) -> Result<SemanticSong, String> {
+    serde_json::from_value(song.clone())
+        .map_err(|error| format!("Failed to normalize song semantics: {}", error))
 }
 
 fn validate_managed_song(file_path: &Path, song: &Value) -> Result<(), String> {
@@ -1504,6 +1572,11 @@ mod tests {
         .unwrap();
 
         assert_eq!(report.created_count, 1);
+        assert_eq!(report.verified_song_ids, vec!["local-1"]);
+        assert_eq!(
+            read_imported_score_song_at(&test_dir.path, "local-1").unwrap(),
+            sample_song("Created")
+        );
         assert!(test_dir.path.join("Created__local-1.json").exists());
     }
 
@@ -1586,7 +1659,7 @@ mod tests {
     fn reconciliation_renames_valid_legacy_file() {
         let test_dir = unique_test_dir("reconcile_rename_legacy");
 
-        write_score_file(&test_dir.path, "local-1.json", &sample_song("Legacy"));
+        write_score_file(&test_dir.path, "local-1.json", &sample_song("Current Name"));
 
         let report = reconcile_imported_score_files_at(
             &test_dir.path,
@@ -1598,6 +1671,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(report.renamed_count, 1);
+        assert_eq!(report.verified_song_ids, vec!["local-1"]);
         assert!(!test_dir.path.join("local-1.json").exists());
         assert!(test_dir.path.join("Current Name__local-1.json").exists());
     }
@@ -1610,13 +1684,14 @@ mod tests {
             song: sample_song("Current Name"),
         };
 
-        write_score_file(&test_dir.path, "local-1.json", &sample_song("Legacy"));
+        write_score_file(&test_dir.path, "local-1.json", &sample_song("Current Name"));
 
         let report =
             reconcile_imported_score_files_at(&test_dir.path, vec![entry(), entry()]).unwrap();
 
         assert_eq!(report.renamed_count, 1);
         assert_eq!(report.unchanged_count, 1);
+        assert_eq!(report.verified_song_ids, vec!["local-1"]);
         assert_eq!(scan_managed_score_files(&test_dir.path).unwrap().len(), 1);
         assert!(test_dir.path.join("Current Name__local-1.json").exists());
     }
@@ -1628,7 +1703,7 @@ mod tests {
         write_score_file(
             &test_dir.path,
             "Old Name__local-1.json",
-            &sample_song("Old Name"),
+            &sample_song("Current Name"),
         );
 
         let report = reconcile_imported_score_files_at(
@@ -1710,6 +1785,7 @@ mod tests {
 
         assert_eq!(report.failed.len(), 1);
         assert_eq!(report.created_count, 1);
+        assert_eq!(report.verified_song_ids, vec!["local-2"]);
         assert!(test_dir.path.join("Created__local-2.json").exists());
     }
 
@@ -1731,6 +1807,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(report.failed.len(), 1);
+        assert!(report.verified_song_ids.is_empty());
         assert!(test_dir.path.join("Broken__local-1.json").exists());
         assert!(test_dir.path.join("local-1.json").exists());
         assert_eq!(
@@ -1795,11 +1872,11 @@ mod tests {
     fn reconciliation_handles_legacy_and_canonical_for_one_id_safely() {
         let test_dir = unique_test_dir("reconcile_duplicate_formats");
 
-        write_score_file(&test_dir.path, "local-1.json", &sample_song("Legacy"));
+        write_score_file(&test_dir.path, "local-1.json", &sample_song("Current"));
         write_score_file(
             &test_dir.path,
             "Current__local-1.json",
-            &sample_song("Canonical"),
+            &sample_song("Current"),
         );
 
         let report = reconcile_imported_score_files_at(
@@ -1812,8 +1889,125 @@ mod tests {
         .unwrap();
 
         assert_eq!(report.unchanged_count, 1);
+        assert_eq!(report.verified_song_ids, vec!["local-1"]);
         assert!(test_dir.path.join("Current__local-1.json").exists());
         assert!(!test_dir.path.join("local-1.json").exists());
+    }
+
+    #[test]
+    fn reconciliation_ignores_unknown_fields_when_semantics_match() {
+        let test_dir = unique_test_dir("reconcile_unknown_fields");
+        let expected = sample_song("Expected");
+        let mut actual = expected.clone();
+
+        actual
+            .as_object_mut()
+            .unwrap()
+            .insert("harmlessExtra".to_string(), serde_json::json!(true));
+        write_score_file(&test_dir.path, "Expected__local-1.json", &actual);
+
+        let report = reconcile_imported_score_files_at(
+            &test_dir.path,
+            vec![ImportedScoreReconcileEntry {
+                song_id: "local-1".to_string(),
+                song: expected,
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(report.unchanged_count, 1);
+        assert_eq!(report.verified_song_ids, vec!["local-1"]);
+    }
+
+    #[test]
+    fn reconciliation_rejects_content_mismatched_canonical_without_modifying_it() {
+        let test_dir = unique_test_dir("reconcile_mismatched_canonical");
+        let expected = sample_song("Expected");
+        let mut actual = expected.clone();
+        actual["songNotes"][0]["key"] = serde_json::json!("1Key9");
+        let file_path = test_dir.path.join("Expected__local-1.json");
+
+        write_score_file(&test_dir.path, "Expected__local-1.json", &actual);
+        let original_content = fs::read_to_string(&file_path).unwrap();
+
+        let report = reconcile_imported_score_files_at(
+            &test_dir.path,
+            vec![ImportedScoreReconcileEntry {
+                song_id: "local-1".to_string(),
+                song: expected,
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(report.failed.len(), 1);
+        assert!(report.verified_song_ids.is_empty());
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), original_content);
+        assert!(file_path.exists());
+    }
+
+    #[test]
+    fn reconciliation_rejects_different_note_order() {
+        let test_dir = unique_test_dir("reconcile_note_order");
+        let expected = serde_json::json!({
+            "name": "Ordered",
+            "bpm": 120,
+            "bitsPerPage": 16,
+            "pitchLevel": 0,
+            "isComposed": false,
+            "songNotes": [
+                { "time": 0, "key": "1Key0" },
+                { "time": 500, "key": "1Key1" }
+            ]
+        });
+        let actual = serde_json::json!({
+            "name": "Ordered",
+            "bpm": 120,
+            "bitsPerPage": 16,
+            "pitchLevel": 0,
+            "isComposed": false,
+            "songNotes": [
+                { "time": 500, "key": "1Key1" },
+                { "time": 0, "key": "1Key0" }
+            ]
+        });
+
+        write_score_file(&test_dir.path, "Ordered__local-1.json", &actual);
+        let report = reconcile_imported_score_files_at(
+            &test_dir.path,
+            vec![ImportedScoreReconcileEntry {
+                song_id: "local-1".to_string(),
+                song: expected,
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(report.failed.len(), 1);
+        assert!(report.verified_song_ids.is_empty());
+    }
+
+    #[test]
+    fn reconciliation_preserves_unrelated_json_while_verifying_managed_file() {
+        let test_dir = unique_test_dir("reconcile_preserve_unrelated");
+
+        fs::create_dir_all(&test_dir.path).unwrap();
+        fs::write(test_dir.path.join("notes.json"), "[]").unwrap();
+        write_score_file(
+            &test_dir.path,
+            "Expected__local-1.json",
+            &sample_song("Expected"),
+        );
+
+        let report = reconcile_imported_score_files_at(
+            &test_dir.path,
+            vec![ImportedScoreReconcileEntry {
+                song_id: "local-1".to_string(),
+                song: sample_song("Expected"),
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(report.verified_song_ids, vec!["local-1"]);
+        assert!(test_dir.path.join("notes.json").exists());
     }
 
     #[test]

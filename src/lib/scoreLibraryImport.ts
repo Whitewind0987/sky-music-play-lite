@@ -1,4 +1,7 @@
-import type { LibrarySong } from "../types/library";
+import type {
+  LibrarySong,
+  LocalLibrarySong,
+} from "../types/library";
 import type { Song } from "../types/score";
 import type { ImportFailure } from "./importErrors";
 import {
@@ -13,9 +16,9 @@ export type ParsedImportedSong = {
   song: Song;
 };
 
-type CreateLibrarySong = (song: Song) => LibrarySong;
+type CreateLibrarySong = (song: Song) => LocalLibrarySong;
 type SaveImportedScoreSong = (
-  songId: LibrarySong["id"],
+  songId: LocalLibrarySong["id"],
   song: Song,
 ) => Promise<unknown>;
 
@@ -29,7 +32,7 @@ type StoreUniqueImportedSongsOptions = {
 export type StoreUniqueImportedSongsResult = {
   failedImports: ImportFailure[];
   skippedDuplicateSongs: Song[];
-  storedLibrarySongs: LibrarySong[];
+  storedLibrarySongs: LocalLibrarySong[];
 };
 
 export async function storeUniqueImportedSongs({
@@ -45,7 +48,7 @@ export async function storeUniqueImportedSongs({
   );
   const failedImports: ImportFailure[] = [];
   const skippedDuplicateSongs: Song[] = [];
-  const storedLibrarySongs: LibrarySong[] = [];
+  const storedLibrarySongs: LocalLibrarySong[] = [];
 
   for (const { fileName, song } of importedSongs) {
     const fingerprint = getSongFingerprint(song);

@@ -33,8 +33,17 @@ import {
   type PlaybackShortcutBinding,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
-import { ensureLibrarySongs } from "./libraryCollections";
-import type { LibrarySong, LikedSongEntry, UserPlaylist } from "../types/library";
+import {
+  createLocalSongMetadata,
+  ensureLibrarySongs,
+} from "./libraryCollections";
+import type {
+  LikedSongEntry,
+  LocalLibrarySong,
+  LocalSongMetadata,
+  MigrationFallbackSongs,
+  UserPlaylist,
+} from "../types/library";
 import type { Song } from "../types/score";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
@@ -52,6 +61,22 @@ const defaultTargetWindowKeyHoldMs = 30;
 const targetWindowKeyHoldMinMs = 10;
 const targetWindowKeyHoldMaxMs = 200;
 
+export type SupportedAppDataVersion = 1 | 2 | typeof appDataVersion;
+
+export function getPersistedAppDataVersion(
+  rawData: unknown,
+): SupportedAppDataVersion | null {
+  if (!isRecord(rawData)) {
+    return null;
+  }
+
+  const rawVersion = rawData.appDataVersion;
+
+  return rawVersion === 1 || rawVersion === 2 || rawVersion === appDataVersion
+    ? rawVersion
+    : null;
+}
+
 export function sanitizePersistedAppData(
   rawData: unknown,
 ): PersistedAppData | null {
@@ -59,17 +84,17 @@ export function sanitizePersistedAppData(
     return null;
   }
 
-  const rawVersion = rawData.appDataVersion;
+  const rawVersion = getPersistedAppDataVersion(rawData);
 
-  if (rawVersion !== 1 && rawVersion !== appDataVersion) {
+  if (rawVersion === null) {
     return null;
   }
 
   const rawLibrary = isRecord(rawData.library) ? rawData.library : {};
-  const librarySongs =
-    rawVersion === 1
-      ? ensureLibrarySongs(sanitizeSongs(rawLibrary.importedSongs))
-      : sanitizeLibrarySongs(rawLibrary.librarySongs);
+  const { librarySongs, migrationFallbackSongs } = sanitizeLibraryForVersion(
+    rawVersion,
+    rawLibrary,
+  );
   const likedSongs = sanitizeLikedSongs(rawLibrary.likedSongs, null);
   const playlists = sanitizePlaylists(rawLibrary.playlists, null);
   const selectedPlaylistId = sanitizeSelectedPlaylistId(
@@ -88,6 +113,9 @@ export function sanitizePersistedAppData(
     library: {
       librarySongs,
       likedSongs,
+      ...(Object.keys(migrationFallbackSongs).length > 0
+        ? { migrationFallbackSongs }
+        : {}),
       playlists,
       selectedLibraryCategory: sanitizeEnum(
         rawLibrary.selectedLibraryCategory,
@@ -112,6 +140,7 @@ export function buildPersistedAppData({
   isShuffleEnabled,
   keyMapping,
   language,
+  migrationFallbackSongs = {},
   noteIntervalDelayMs,
   playbackMode,
   playbackShortcuts,
@@ -123,11 +152,12 @@ export function buildPersistedAppData({
   selectedSongIndex,
 }: {
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
-  librarySongs: LibrarySong[];
+  librarySongs: LocalLibrarySong[];
   likedSongs: LikedSongEntry[];
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   language: LanguageCode;
+  migrationFallbackSongs?: MigrationFallbackSongs;
   noteIntervalDelayMs: number;
   playbackMode: PlaybackMode;
   playbackShortcuts: PlaybackShortcuts;
@@ -138,7 +168,11 @@ export function buildPersistedAppData({
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
 }): PersistedAppData {
-  const sanitizedLibrarySongs = sanitizeLibrarySongs(librarySongs);
+  const sanitizedLibrary = sanitizeV3Library(
+    librarySongs,
+    migrationFallbackSongs,
+  );
+  const sanitizedLibrarySongs = sanitizedLibrary.librarySongs;
   const validSongIds = new Set(
     sanitizedLibrarySongs.map((librarySong) => librarySong.id),
   );
@@ -161,6 +195,12 @@ export function buildPersistedAppData({
     library: {
       librarySongs: sanitizedLibrarySongs,
       likedSongs: sanitizeLikedSongs(likedSongs, validCollectionSongIdSet),
+      ...(Object.keys(sanitizedLibrary.migrationFallbackSongs).length > 0
+        ? {
+            migrationFallbackSongs:
+              sanitizedLibrary.migrationFallbackSongs,
+          }
+        : {}),
       playlists: sanitizedPlaylists,
       selectedLibraryCategory,
       selectedPlaylistId: sanitizeSelectedPlaylistId(
@@ -341,34 +381,231 @@ function sanitizeSongs(rawSongs: unknown): Song[] {
   return rawSongs.filter(isSong);
 }
 
-function sanitizeLibrarySongs(rawLibrarySongs: unknown): LibrarySong[] {
-  if (!Array.isArray(rawLibrarySongs)) {
-    return [];
+function sanitizeLibraryForVersion(
+  version: SupportedAppDataVersion,
+  rawLibrary: Record<string, unknown>,
+): {
+  librarySongs: LocalLibrarySong[];
+  migrationFallbackSongs: MigrationFallbackSongs;
+} {
+  if (version === 1) {
+    const songs = sanitizeSongs(rawLibrary.importedSongs);
+    const librarySongs = ensureLibrarySongs(songs);
+
+    return {
+      librarySongs,
+      migrationFallbackSongs: Object.fromEntries(
+        librarySongs.map((librarySong, index) => [
+          librarySong.id,
+          songs[index] as Song,
+        ]),
+      ),
+    };
   }
 
-  return rawLibrarySongs.reduce<LibrarySong[]>((nextSongs, rawLibrarySong) => {
-    if (
-      !isRecord(rawLibrarySong) ||
-      typeof rawLibrarySong.id !== "string" ||
-      !isSong(rawLibrarySong.song) ||
-      (rawLibrarySong.source !== undefined &&
-        rawLibrarySong.source !== "local-import")
-    ) {
+  if (version === 2) {
+    return sanitizeV2Library(rawLibrary.librarySongs);
+  }
+
+  return sanitizeV3Library(
+    rawLibrary.librarySongs,
+    rawLibrary.migrationFallbackSongs,
+  );
+}
+
+function sanitizeV2Library(rawLibrarySongs: unknown): {
+  librarySongs: LocalLibrarySong[];
+  migrationFallbackSongs: MigrationFallbackSongs;
+} {
+  if (!Array.isArray(rawLibrarySongs)) {
+    return { librarySongs: [], migrationFallbackSongs: {} };
+  }
+
+  const seenIds = new Set<string>();
+  const migrationFallbackSongs: MigrationFallbackSongs = {};
+  const librarySongs = rawLibrarySongs.reduce<LocalLibrarySong[]>(
+    (nextSongs, rawLibrarySong) => {
+      if (
+        !isRecord(rawLibrarySong) ||
+        !isValidLocalSongId(rawLibrarySong.id) ||
+        seenIds.has(rawLibrarySong.id) ||
+        !isSong(rawLibrarySong.song) ||
+        (rawLibrarySong.source !== undefined &&
+          rawLibrarySong.source !== "local-import")
+      ) {
+        return nextSongs;
+      }
+
+      seenIds.add(rawLibrarySong.id);
+      const song = rawLibrarySong.song;
+
+      nextSongs.push({
+        id: rawLibrarySong.id,
+        importedAt: sanitizeImportedAt(rawLibrarySong.importedAt),
+        metadata: createLocalSongMetadata(song),
+        source: "local-import",
+      });
+      migrationFallbackSongs[rawLibrarySong.id] = song;
+
       return nextSongs;
-    }
+    },
+    [],
+  );
 
-    nextSongs.push({
-      id: rawLibrarySong.id,
-      importedAt:
-        typeof rawLibrarySong.importedAt === "number"
-          ? rawLibrarySong.importedAt
-          : Date.now(),
-      song: rawLibrarySong.song,
-      source: "local-import",
+  return { librarySongs, migrationFallbackSongs };
+}
+
+function sanitizeV3Library(
+  rawLibrarySongs: unknown,
+  rawMigrationFallbackSongs: unknown,
+): {
+  librarySongs: LocalLibrarySong[];
+  migrationFallbackSongs: MigrationFallbackSongs;
+} {
+  const seenIds = new Set<string>();
+  const librarySongs = Array.isArray(rawLibrarySongs)
+    ? rawLibrarySongs.reduce<LocalLibrarySong[]>((nextSongs, rawLibrarySong) => {
+        if (
+          !isRecord(rawLibrarySong) ||
+          !isValidLocalSongId(rawLibrarySong.id) ||
+          seenIds.has(rawLibrarySong.id) ||
+          rawLibrarySong.source !== "local-import"
+        ) {
+          return nextSongs;
+        }
+
+        const metadata = sanitizeLocalSongMetadata(rawLibrarySong.metadata);
+
+        if (metadata === null) {
+          return nextSongs;
+        }
+
+        seenIds.add(rawLibrarySong.id);
+        nextSongs.push({
+          id: rawLibrarySong.id,
+          importedAt: sanitizeImportedAt(rawLibrarySong.importedAt),
+          metadata,
+          source: "local-import",
+        });
+
+        return nextSongs;
+      }, [])
+    : [];
+  const songById = new Map(librarySongs.map((song) => [song.id, song]));
+  const migrationFallbackSongs: MigrationFallbackSongs = {};
+
+  if (isRecord(rawMigrationFallbackSongs)) {
+    Object.entries(rawMigrationFallbackSongs).forEach(([songId, rawSong]) => {
+      const librarySong = songById.get(songId);
+
+      if (!librarySong || !isSong(rawSong)) {
+        return;
+      }
+
+      migrationFallbackSongs[songId] = rawSong;
+      librarySong.metadata = createLocalSongMetadata(rawSong);
     });
+  }
 
-    return nextSongs;
-  }, []);
+  return { librarySongs, migrationFallbackSongs };
+}
+
+function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | null {
+  if (!isRecord(rawMetadata)) {
+    return null;
+  }
+
+  const scalarFields = [
+    "bpm",
+    "bitsPerPage",
+    "pitchLevel",
+    "lastNoteTimeMs",
+  ] as const;
+
+  if (
+    typeof rawMetadata.name !== "string" ||
+    typeof rawMetadata.isComposed !== "boolean" ||
+    typeof rawMetadata.fingerprint !== "string" ||
+    rawMetadata.fingerprint.length === 0 ||
+    !scalarFields.every(
+      (field) =>
+        typeof rawMetadata[field] === "number" &&
+        Number.isFinite(rawMetadata[field]),
+    ) ||
+    !isNonnegativeInteger(rawMetadata.noteCount) ||
+    !isNonnegativeInteger(rawMetadata.noteGroupCount) ||
+    rawMetadata.noteGroupCount > rawMetadata.noteCount ||
+    (rawMetadata.lastNoteTimeMs as number) < 0
+  ) {
+    return null;
+  }
+
+  const noteGroupDelaysMs = sanitizeNoteGroupDelays(
+    rawMetadata.noteGroupDelaysMs,
+    rawMetadata.noteGroupCount,
+  );
+
+  if (rawMetadata.noteGroupDelaysMs !== undefined && noteGroupDelaysMs === null) {
+    return null;
+  }
+
+  return {
+    bitsPerPage: rawMetadata.bitsPerPage as number,
+    bpm: rawMetadata.bpm as number,
+    fingerprint: rawMetadata.fingerprint,
+    isComposed: rawMetadata.isComposed,
+    lastNoteTimeMs: rawMetadata.lastNoteTimeMs as number,
+    name: rawMetadata.name,
+    noteCount: rawMetadata.noteCount,
+    noteGroupCount: rawMetadata.noteGroupCount,
+    ...(noteGroupDelaysMs === null ? {} : { noteGroupDelaysMs }),
+    pitchLevel: rawMetadata.pitchLevel as number,
+  };
+}
+
+function sanitizeNoteGroupDelays(
+  rawDelays: unknown,
+  noteGroupCount: number,
+) {
+  if (rawDelays === undefined) {
+    return null;
+  }
+
+  if (
+    !Array.isArray(rawDelays) ||
+    rawDelays.length !== noteGroupCount ||
+    !rawDelays.every(
+      (delay) =>
+        typeof delay === "number" && Number.isFinite(delay) && delay >= 0,
+    )
+  ) {
+    return null;
+  }
+
+  return [...rawDelays] as number[];
+}
+
+function sanitizeImportedAt(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : Date.now();
+}
+
+function isNonnegativeInteger(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    Number.isFinite(value) &&
+    value >= 0
+  );
+}
+
+function isValidLocalSongId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= 128 &&
+    /^(?:local|legacy)-[A-Za-z0-9_-]+$/.test(value)
+  );
 }
 
 function sanitizeLikedSongs(
@@ -508,9 +745,9 @@ function isSong(value: unknown): value is Song {
 
   return (
     typeof value.name === "string" &&
-    typeof value.bpm === "number" &&
-    typeof value.bitsPerPage === "number" &&
-    typeof value.pitchLevel === "number" &&
+    isFiniteNumber(value.bpm) &&
+    isFiniteNumber(value.bitsPerPage) &&
+    isFiniteNumber(value.pitchLevel) &&
     typeof value.isComposed === "boolean" &&
     value.songNotes.every(isNote)
   );
@@ -519,9 +756,13 @@ function isSong(value: unknown): value is Song {
 function isNote(value: unknown) {
   return (
     isRecord(value) &&
-    typeof value.time === "number" &&
+    isFiniteNumber(value.time) &&
     typeof value.key === "string"
   );
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

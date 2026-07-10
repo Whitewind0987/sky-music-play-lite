@@ -2,20 +2,54 @@ import type {
   LibrarySong,
   LibrarySongId,
   LikedSongEntry,
+  LocalLibrarySong,
+  LocalSongMetadata,
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
 
 let generatedIdCounter = 0;
 
-export function createLibrarySong(song: Song, now = Date.now()): LibrarySong {
+export function createLibrarySong(
+  song: Song,
+  now = Date.now(),
+): LocalLibrarySong {
   generatedIdCounter += 1;
 
   return {
     id: `local-${now}-${generatedIdCounter}`,
     importedAt: now,
-    song,
+    metadata: createLocalSongMetadata(song),
     source: "local-import",
+  };
+}
+
+export function createLocalSongMetadata(song: Song): LocalSongMetadata {
+  const noteGroupTimes = Array.from(
+    new Set(
+      song.songNotes
+        .map((note) => note.time)
+        .filter((time) => Number.isFinite(time)),
+    ),
+  ).sort((left, right) => left - right);
+  const noteGroupDelaysMs = noteGroupTimes.map((time, index) =>
+    index === 0 ? Math.max(0, time) : Math.max(0, time - noteGroupTimes[index - 1]),
+  );
+
+  return {
+    bitsPerPage: song.bitsPerPage,
+    bpm: song.bpm,
+    fingerprint: getSongFingerprint(song),
+    isComposed: song.isComposed,
+    lastNoteTimeMs:
+      noteGroupTimes.length === 0
+        ? 0
+        : Math.max(0, noteGroupTimes[noteGroupTimes.length - 1] ?? 0),
+    name: song.name,
+    noteCount: song.songNotes.length,
+    noteGroupCount: noteGroupTimes.length,
+    noteGroupDelaysMs,
+    pitchLevel: song.pitchLevel,
   };
 }
 
@@ -25,33 +59,72 @@ export function getSongFingerprint(song: Song) {
       bpm: song.bpm,
       bitsPerPage: song.bitsPerPage,
       isComposed: song.isComposed,
-      name: song.name.trim().toLocaleLowerCase(),
-      noteCount: song.songNotes.length,
-      notes: song.songNotes.map((note) => `${note.time}:${note.key}`),
+      name: song.name.trim().toLowerCase(),
+      notes: song.songNotes.map((note) => [note.time, note.key]),
       pitchLevel: song.pitchLevel,
     }),
   );
 }
 
 export function getLibrarySongFingerprint(librarySong: LibrarySong) {
-  return getSongFingerprint(librarySong.song);
+  return librarySong.source === "local-import"
+    ? librarySong.metadata.fingerprint
+    : getSongFingerprint(librarySong.song);
 }
 
 export function hasReliableDuplicateFingerprint(librarySong: LibrarySong) {
   if (librarySong.source === "local-import") {
-    return librarySong.song.songNotes.length > 0;
+    return librarySong.metadata.noteCount > 0;
   }
 
   return librarySong.isBuiltInLoaded === true && librarySong.song.songNotes.length > 0;
 }
 
-export function ensureLibrarySongs(rawSongs: Song[]): LibrarySong[] {
+export function ensureLibrarySongs(rawSongs: Song[]): LocalLibrarySong[] {
   return rawSongs.map((song, index) => ({
     id: `legacy-${index}-${hashSong(song)}`,
     importedAt: Date.now(),
-    song,
+    metadata: createLocalSongMetadata(song),
     source: "local-import",
   }));
+}
+
+export function getLibrarySongName(librarySong: LibrarySong) {
+  return librarySong.source === "local-import"
+    ? librarySong.metadata.name
+    : librarySong.song.name;
+}
+
+export function getLibrarySongBpm(librarySong: LibrarySong) {
+  return librarySong.source === "local-import"
+    ? librarySong.metadata.bpm
+    : librarySong.song.bpm;
+}
+
+export function getLibrarySongNoteCount(librarySong: LibrarySong) {
+  if (librarySong.source === "local-import") {
+    return librarySong.metadata.noteCount;
+  }
+
+  return librarySong.isBuiltInLoaded
+    ? librarySong.song.songNotes.length
+    : (librarySong.builtInNoteCount ?? 0);
+}
+
+export function getLibrarySongRawDurationMs(librarySong: LibrarySong) {
+  if (librarySong.source === "local-import") {
+    return librarySong.metadata.lastNoteTimeMs;
+  }
+
+  if (!librarySong.isBuiltInLoaded && librarySong.builtInDurationMs !== undefined) {
+    return librarySong.builtInDurationMs;
+  }
+
+  return librarySong.song.songNotes.reduce(
+    (lastTimeMs, note) =>
+      Number.isFinite(note.time) ? Math.max(lastTimeMs, note.time, 0) : lastTimeMs,
+    0,
+  );
 }
 
 export function findSongIndexById(
@@ -74,7 +147,9 @@ export function filterSongsByQuery<T extends { librarySong: LibrarySong }>(
   }
 
   return items.filter((item) =>
-    item.librarySong.song.name.toLocaleLowerCase().includes(normalizedQuery),
+    getLibrarySongName(item.librarySong)
+      .toLocaleLowerCase()
+      .includes(normalizedQuery),
   );
 }
 

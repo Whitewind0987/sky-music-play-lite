@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibrarySongListItem } from "../types/library";
+import { createLocalSongMetadata } from "../lib/libraryCollections";
 import {
   buildPlaybackOrderFromVisibleItems,
   getOrderedNextSongId,
@@ -11,14 +12,14 @@ function createLibraryItem(id: string): LibrarySongListItem {
     librarySong: {
       id,
       importedAt: 0,
-      song: {
+      metadata: createLocalSongMetadata({
         bitsPerPage: 16,
         bpm: 120,
         isComposed: false,
         name: id,
         pitchLevel: 0,
         songNotes: [],
-      },
+      }),
       source: "local-import",
     },
     songIndex: 0,

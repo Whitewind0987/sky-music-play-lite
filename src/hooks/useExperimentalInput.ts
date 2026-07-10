@@ -16,9 +16,11 @@ import {
 } from "../lib/backgroundPlaybackEvents";
 import type { PreparedPlaybackPlanCacheKey } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
+import { getLibrarySongName } from "../lib/libraryCollections";
 import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackPlanErrors";
 import { PreparationCancelledError } from "../lib/playbackPreparationScheduler";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
+import { prepareWarmPlaybackPlan } from "../lib/warmPlaybackPreparation";
 import {
   type PreviewPlaybackController,
   type PreviewPlaybackProgress,
@@ -42,6 +44,7 @@ import type {
   TargetWindowMessageMethod,
 } from "../types/experimentalInput";
 import type { KeyMapping } from "../types/keyMapping";
+import type { LibrarySong } from "../types/library";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type {
@@ -66,14 +69,14 @@ type UseExperimentalInputOptions = {
     queueItemId: string,
     songCount: number,
   ) => PlaybackQueueItem | null;
-  currentSong: Song | null;
+  currentSong: LibrarySong | null;
   currentPlaybackSongIndex: number | null;
   getPlaybackOrderNextSongIndex: (options: {
     currentSongIndex: number;
     isShuffleEnabled: boolean;
     playbackMode: PlaybackMode;
   }) => number | null;
-  importedSongsRef: React.MutableRefObject<Song[]>;
+  librarySongsRef: React.MutableRefObject<LibrarySong[]>;
   isShuffleEnabled: boolean;
   keyMapping: KeyMapping;
   getSongIdentityForPlayback: (songIndex: number) => string | null;
@@ -82,6 +85,7 @@ type UseExperimentalInputOptions = {
   playbackSpeed: PlaybackSpeed;
   peekNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
+  resolveSongForWarmPreparation: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setRequestedPlaybackSongIndex: (songIndex: number | null) => void;
   setSelectedSongIndex: (songIndex: number | null) => void;
@@ -113,7 +117,7 @@ export function useExperimentalInput({
   currentPlaybackSongIndex,
   getPlaybackOrderNextSongIndex,
   getSongIdentityForPlayback,
-  importedSongsRef,
+  librarySongsRef,
   isShuffleEnabled,
   keyMapping,
   noteIntervalDelayMs,
@@ -121,6 +125,7 @@ export function useExperimentalInput({
   playbackSpeed,
   peekNextQueueItemAfterCurrent,
   resolveSongForPlayback,
+  resolveSongForWarmPreparation,
   selectedSongIndex,
   setRequestedPlaybackSongIndex,
   setSelectedSongIndex,
@@ -228,7 +233,7 @@ export function useExperimentalInput({
     currentSong,
     experimentalInputEnabled,
     getPlaybackOrderNextSongIndex,
-    importedSongsRef,
+    librarySongsRef,
     isShuffleEnabled,
     noteIntervalDelayMs,
     onBeforeStart: () => {
@@ -238,6 +243,7 @@ export function useExperimentalInput({
     playbackMode,
     playbackSpeed,
     resolveSongForPlayback,
+    resolveSongForWarmPreparation,
     getOrPreparePlaybackPlan,
     invalidatePlaybackPlan,
     selectedSongIndex,
@@ -747,10 +753,20 @@ export function useExperimentalInput({
     }
 
     try {
-      const prepared = await getOrPreparePlaybackPlan({
-        priority: "warm",
+      const prepared = await prepareWarmPlaybackPlan({
+        prepareResolvedSong: (resolvedSong) =>
+          getOrPreparePlaybackPlan({
+            priority: "warm",
+            resolvedSong,
+            songIndex,
+          }),
+        resolveSongForWarmPreparation,
         songIndex,
       });
+
+      if (prepared === null) {
+        return false;
+      }
       return prepared.preparedPlanId > 0;
     } catch (error) {
       if (import.meta.env.DEV && !(error instanceof PreparationCancelledError)) {
@@ -1035,11 +1051,11 @@ export function useExperimentalInput({
     backgroundPlaybackContextRef.current = null;
     activeBackgroundSessionIdRef.current = null;
 
-    const currentImportedSongs = importedSongsRef.current;
+    const currentLibrarySongs = librarySongsRef.current;
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : peekNextQueueItemAfterCurrent(currentImportedSongs.length);
+        : peekNextQueueItemAfterCurrent(currentLibrarySongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
@@ -1054,7 +1070,7 @@ export function useExperimentalInput({
       isShuffleEnabled: isShuffleEnabledRef.current,
       playbackMode: playbackModeRef.current,
       queuedSongIndex: queuedItem?.songIndex ?? playbackOrderNextSongIndex ?? null,
-      songCount: currentImportedSongs.length,
+      songCount: currentLibrarySongs.length,
     });
 
     if (finishDecision.type === "repeat-current") {
@@ -1071,7 +1087,7 @@ export function useExperimentalInput({
     }
 
     if (finishDecision.type === "play-next") {
-      const nextSong = currentImportedSongs[finishDecision.nextSongIndex] ?? song;
+      const nextSong = currentLibrarySongs[finishDecision.nextSongIndex] ?? null;
       const logTemplate =
         queuedItem === null
           ? text.logs.repeatAllTriggered
@@ -1079,7 +1095,7 @@ export function useExperimentalInput({
 
       appendLog(
         formatText(logTemplate, {
-          songName: nextSong.name,
+          songName: nextSong ? getLibrarySongName(nextSong) : song.name,
         }),
       );
       void startExperimentalPlaybackWithPreflight(
@@ -1098,7 +1114,7 @@ export function useExperimentalInput({
 
         consumeQueuedItemAfterCurrent(
           queuedItem.id,
-          currentImportedSongs.length,
+          currentLibrarySongs.length,
         );
       });
       return;
@@ -1160,11 +1176,11 @@ export function useExperimentalInput({
   }
 
   function warmNextLikelyExperimentalSong(currentSongIndex: number) {
-    const currentImportedSongs = importedSongsRef.current;
+    const currentLibrarySongs = librarySongsRef.current;
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : peekNextQueueItemAfterCurrent(currentImportedSongs.length);
+        : peekNextQueueItemAfterCurrent(currentLibrarySongs.length);
     const nextSongIndex =
       queuedItem?.songIndex ??
       getPlaybackOrderNextSongIndex({

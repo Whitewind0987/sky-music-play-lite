@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import type { LibrarySong, UserPlaylist } from "../types/library";
+import { describe, expect, it, vi } from "vitest";
+import type { LocalLibrarySong, UserPlaylist } from "../types/library";
 import type { Song } from "../types/score";
 import { appDataVersion } from "../types/appData";
 import { defaultKeyMapping } from "../types/keyMapping";
@@ -15,6 +15,8 @@ import {
   buildPersistedAppData,
   sanitizePersistedAppData,
 } from "./appData";
+import { createLocalSongMetadata } from "./libraryCollections";
+import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 
 function createTestSong(name = "Test Song"): Song {
   return {
@@ -30,11 +32,22 @@ function createTestSong(name = "Test Song"): Song {
   };
 }
 
-function createLocalLibrarySong(id = "song-1"): LibrarySong {
+function createLocalLibrarySong(id = "local-1"): LocalLibrarySong {
+  const song = createTestSong();
+
   return {
     id,
     importedAt: 123,
-    song: createTestSong(),
+    metadata: createLocalSongMetadata(song),
+    source: "local-import",
+  };
+}
+
+function createV2LibrarySong(id = "local-1", song = createTestSong()) {
+  return {
+    id,
+    importedAt: 123,
+    song,
     source: "local-import",
   };
 }
@@ -79,13 +92,13 @@ describe("buildPersistedAppData", () => {
   });
 
   it("keeps valid library songs and collection references", () => {
-    const songA = createLocalLibrarySong("song-1");
-    const songB = createLocalLibrarySong("song-2");
-    const playlist = createPlaylist("playlist-a", ["song-1", "song-2"]);
+    const songA = createLocalLibrarySong("local-1");
+    const songB = createLocalLibrarySong("local-2");
+    const playlist = createPlaylist("playlist-a", ["local-1", "local-2"]);
 
     const result = buildMinimalPersistedAppData({
       librarySongs: [songA, songB],
-      likedSongs: [{ likedAt: 10, songId: "song-1" }],
+      likedSongs: [{ likedAt: 10, songId: "local-1" }],
       playlists: [playlist],
       selectedPlaylistId: "playlist-a",
       selectedSongIndex: 1,
@@ -93,39 +106,72 @@ describe("buildPersistedAppData", () => {
 
     expect(result.library.librarySongs).toEqual([songA, songB]);
     expect(result.library.likedSongs).toEqual([
-      { likedAt: 10, songId: "song-1" },
+      { likedAt: 10, songId: "local-1" },
     ]);
-    expect(result.library.playlists[0]?.songIds).toEqual(["song-1", "song-2"]);
+    expect(result.library.playlists[0]?.songIds).toEqual(["local-1", "local-2"]);
     expect(result.library.selectedPlaylistId).toBe("playlist-a");
     expect(result.library.selectedSongIndex).toBe(1);
   });
 
-  it("keeps complete local song notes in persisted AppData", () => {
-    const song = createLocalLibrarySong("song-1");
+  it("persists normal local metadata without songNotes", () => {
+    const song = createLocalLibrarySong("local-1");
 
     const result = buildMinimalPersistedAppData({
       librarySongs: [song],
     });
 
-    expect(result.library.librarySongs[0]?.song.songNotes).toEqual(
-      song.song.songNotes,
+    expect(result.library.librarySongs[0]).toEqual(song);
+    expect(JSON.stringify(result.library.librarySongs[0])).not.toContain(
+      "songNotes",
     );
+  });
+
+  it("never serializes a file-loaded song from the runtime cache", () => {
+    const loader = new ImportedScoreSongLoader();
+    const loadedSong = createTestSong("Loaded From File");
+    const librarySong: LocalLibrarySong = {
+      id: "local-cached",
+      importedAt: 1,
+      metadata: createLocalSongMetadata(loadedSong),
+      source: "local-import",
+    };
+
+    loader.seed(librarySong.id, loadedSong);
+    const result = buildMinimalPersistedAppData({
+      librarySongs: [librarySong],
+    });
+
+    expect(loader.getCachedSong(librarySong.id)).toBe(loadedSong);
+    expect(JSON.stringify(result)).not.toContain("songNotes");
+  });
+
+  it("keeps complete songs only in migration fallback records", () => {
+    const fallbackSong = createTestSong("Recovery");
+    const result = buildMinimalPersistedAppData({
+      librarySongs: [createLocalLibrarySong("local-1")],
+      migrationFallbackSongs: { "local-1": fallbackSong },
+    });
+
+    expect(result.library.migrationFallbackSongs?.["local-1"]).toEqual(
+      fallbackSong,
+    );
+    expect(result.library.librarySongs[0]?.metadata.name).toBe("Recovery");
   });
 
   it("removes invalid liked and playlist references", () => {
     const result = buildMinimalPersistedAppData({
-      librarySongs: [createLocalLibrarySong("song-1")],
+      librarySongs: [createLocalLibrarySong("local-1")],
       likedSongs: [
-        { likedAt: 10, songId: "song-1" },
+        { likedAt: 10, songId: "local-1" },
         { likedAt: 11, songId: "missing-song" },
       ],
-      playlists: [createPlaylist("playlist-a", ["song-1", "missing-song"])],
+      playlists: [createPlaylist("playlist-a", ["local-1", "missing-song"])],
     });
 
     expect(result.library.likedSongs).toEqual([
-      { likedAt: 10, songId: "song-1" },
+      { likedAt: 10, songId: "local-1" },
     ]);
-    expect(result.library.playlists[0]?.songIds).toEqual(["song-1"]);
+    expect(result.library.playlists[0]?.songIds).toEqual(["local-1"]);
   });
 
   it("normalizes playback settings", () => {
@@ -230,7 +276,7 @@ describe("sanitizePersistedAppData current version", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
       library: {
-        librarySongs: [createLocalLibrarySong("song-1")],
+        librarySongs: [createLocalLibrarySong("local-1")],
         selectedSongIndex: 99,
       },
     });
@@ -273,7 +319,12 @@ describe("sanitizePersistedAppData legacy v1 migration", () => {
     expect(result?.appDataVersion).toBe(appDataVersion);
     expect(result?.library.librarySongs).toHaveLength(1);
     expect(result?.library.librarySongs[0]?.source).toBe("local-import");
-    expect(result?.library.librarySongs[0]?.song.name).toBe("Legacy Song");
+    expect(result?.library.librarySongs[0]?.metadata.name).toBe("Legacy Song");
+    const legacyId = result?.library.librarySongs[0]?.id;
+    expect(legacyId).toMatch(/^legacy-0-/);
+    expect(result?.library.migrationFallbackSongs?.[legacyId ?? ""]).toEqual(
+      createTestSong("Legacy Song"),
+    );
     expect(result?.library.selectedSongIndex).toBe(0);
   });
 
@@ -286,7 +337,118 @@ describe("sanitizePersistedAppData legacy v1 migration", () => {
     });
 
     expect(result?.library.librarySongs).toHaveLength(1);
-    expect(result?.library.librarySongs[0]?.song.name).toBe("Valid Song");
+    expect(result?.library.librarySongs[0]?.metadata.name).toBe("Valid Song");
+  });
+});
+
+describe("sanitizePersistedAppData v2 migration", () => {
+  it("converts complete v2 songs to metadata plus recovery candidates", () => {
+    const song = createTestSong("V2 Song");
+    const result = sanitizePersistedAppData({
+      appDataVersion: 2,
+      language: "en-US",
+      library: {
+        librarySongs: [createV2LibrarySong("local-v2", song)],
+        likedSongs: [{ likedAt: 5, songId: "local-v2" }],
+        playlists: [createPlaylist("playlist-a", ["local-v2"])],
+        selectedSongIndex: 0,
+      },
+    });
+
+    expect(result?.library.librarySongs).toEqual([
+      {
+        id: "local-v2",
+        importedAt: 123,
+        metadata: createLocalSongMetadata(song),
+        source: "local-import",
+      },
+    ]);
+    expect(result?.library.migrationFallbackSongs).toEqual({
+      "local-v2": song,
+    });
+    expect(result?.library.likedSongs).toEqual([
+      { likedAt: 5, songId: "local-v2" },
+    ]);
+    expect(result?.library.playlists[0]?.songIds).toEqual(["local-v2"]);
+    expect(result?.library.selectedSongIndex).toBe(0);
+    expect(result?.language).toBe("en-US");
+  });
+});
+
+describe("sanitizePersistedAppData v3 recovery", () => {
+  it("does not create recovery songs for metadata-only input", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [createLocalLibrarySong("local-clean")],
+      },
+    });
+
+    expect(result?.library.migrationFallbackSongs).toBeUndefined();
+  });
+
+  it("recomputes metadata from a valid fallback and ignores orphans", () => {
+    const fallbackSong = createTestSong("Recovery Truth");
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [createLocalLibrarySong("local-recovery")],
+        migrationFallbackSongs: {
+          "local-orphan": createTestSong("Orphan"),
+          "local-recovery": fallbackSong,
+        },
+      },
+    });
+
+    expect(result?.library.librarySongs[0]?.metadata).toEqual(
+      createLocalSongMetadata(fallbackSong),
+    );
+    expect(result?.library.migrationFallbackSongs).toEqual({
+      "local-recovery": fallbackSong,
+    });
+  });
+
+  it("sanitizes 3000 metadata entries without invoking a file loader", () => {
+    const fileLoader = vi.fn();
+    const librarySongs = Array.from({ length: 3000 }, (_, index) =>
+      createLocalLibrarySong(`local-${index}`),
+    );
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: { librarySongs },
+    });
+
+    expect(result?.library.librarySongs).toHaveLength(3000);
+    expect(fileLoader).not.toHaveBeenCalled();
+    expect(JSON.stringify(result?.library.librarySongs)).not.toContain(
+      "songNotes",
+    );
+  });
+
+  it("round trips collections, selection, language, settings, and shortcuts", () => {
+    const original = buildMinimalPersistedAppData({
+      isShuffleEnabled: true,
+      language: "en-US",
+      librarySongs: [createLocalLibrarySong("local-roundtrip")],
+      likedSongs: [{ likedAt: 7, songId: "local-roundtrip" }],
+      noteIntervalDelayMs: 50,
+      playbackMode: "repeat-all",
+      playbackShortcuts: {
+        next: { code: "KeyN", scope: "global" },
+        pauseResume: { code: "Space", scope: "in-app" },
+        stop: { code: "KeyS", scope: "global" },
+      },
+      playbackSpeed: 1.5,
+      playlists: [createPlaylist("playlist-a", ["local-roundtrip"])],
+      selectedLibraryCategory: "playlists",
+      selectedPlaylistId: "playlist-a",
+      selectedSongIndex: 0,
+    });
+    const restored = sanitizePersistedAppData(
+      JSON.parse(JSON.stringify(original)),
+    );
+
+    expect(restored).toEqual(original);
   });
 });
 

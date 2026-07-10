@@ -57,7 +57,11 @@ export function usePlaybackPlanPreparation({
         songIdentity,
       };
       const schedulerKey = serializePreparedPlanCacheKey(cacheKey);
-      const song = resolvedSong ?? (await resolveSongForPlayback(songIndex));
+      const song =
+        resolvedSong ??
+        (priority === "warm"
+          ? null
+          : await resolveSongForPlayback(songIndex));
 
       if (!song || song.songNotes.length === 0) {
         throw new Error("Score could not be prepared for real playback.");

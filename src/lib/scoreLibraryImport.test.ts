@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { LibrarySong } from "../types/library";
+import type { LocalLibrarySong } from "../types/library";
 import type { Song } from "../types/score";
 import { parseScoreFileContent } from "./scoreFileImport";
+import { createLocalSongMetadata } from "./libraryCollections";
 import {
   storeUniqueImportedSongs,
   type ParsedImportedSong,
@@ -44,23 +45,23 @@ function createImportedSong(song: Song, fileName = "song.json"): ParsedImportedS
 function createLibrarySongFactory() {
   let nextId = 0;
 
-  return (song: Song): LibrarySong => {
+  return (song: Song): LocalLibrarySong => {
     nextId += 1;
 
     return {
       id: `local-test-${nextId}`,
       importedAt: nextId,
-      song,
+      metadata: createLocalSongMetadata(song),
       source: "local-import",
     };
   };
 }
 
-function createExistingLibrarySong(song: Song): LibrarySong {
+function createExistingLibrarySong(song: Song): LocalLibrarySong {
   return {
     id: "local-existing",
     importedAt: 1,
-    song,
+    metadata: createLocalSongMetadata(song),
     source: "local-import",
   };
 }
@@ -83,6 +84,7 @@ describe("storeUniqueImportedSongs", () => {
     expect(result.storedLibrarySongs.map((librarySong) => librarySong.id)).toEqual([
       "local-test-1",
     ]);
+    expect(JSON.stringify(result.storedLibrarySongs)).not.toContain("songNotes");
     expect(result.failedImports).toEqual([]);
   });
 
@@ -147,7 +149,7 @@ describe("storeUniqueImportedSongs", () => {
     });
 
     expect(writes).toEqual(["local-test-1", "local-test-2"]);
-    expect(result.storedLibrarySongs.map((librarySong) => librarySong.song.name)).toEqual([
+    expect(result.storedLibrarySongs.map((librarySong) => librarySong.metadata.name)).toEqual([
       "First",
       "Second",
     ]);
@@ -185,7 +187,7 @@ describe("storeUniqueImportedSongs", () => {
       },
     });
 
-    expect(result.storedLibrarySongs.map((librarySong) => librarySong.song.name)).toEqual([
+    expect(result.storedLibrarySongs.map((librarySong) => librarySong.metadata.name)).toEqual([
       "First",
       "Third",
     ]);
@@ -227,7 +229,7 @@ describe("storeUniqueImportedSongs", () => {
       },
     });
 
-    expect(result.storedLibrarySongs[0]?.song.name).toBe("First Success");
+    expect(result.storedLibrarySongs[0]?.metadata.name).toBe("First Success");
   });
 
   it("can seed a newly imported song only after storage succeeds", async () => {

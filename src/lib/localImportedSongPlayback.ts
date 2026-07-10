@@ -1,5 +1,6 @@
-import type { LibrarySong, LibrarySongId } from "../types/library";
+import type { LibrarySongId, LocalLibrarySong } from "../types/library";
 import type { Song } from "../types/score";
+import { getLibrarySongName } from "./libraryCollections";
 
 type LoadLocalImportedSongForPlaybackOptions = {
   appendLog: (entry: string) => void;
@@ -8,8 +9,14 @@ type LoadLocalImportedSongForPlaybackOptions = {
     songId: LibrarySongId,
     error: unknown,
   ) => string;
+  formatRecoveryWarning?: (
+    songName: string,
+    songId: LibrarySongId,
+    error: unknown,
+  ) => string;
+  getMigrationFallbackSong?: (songId: LibrarySongId) => Song | null;
   isSongStillInLibrary: (songId: LibrarySongId) => boolean;
-  librarySong: LibrarySong;
+  librarySong: LocalLibrarySong;
   loadSongById: (songId: LibrarySongId) => Promise<Song | null>;
   onStaleLoad?: (songId: LibrarySongId) => void;
   shouldLogFailure: boolean;
@@ -19,6 +26,8 @@ type LoadLocalImportedSongForPlaybackOptions = {
 export async function loadLocalImportedSongForPlayback({
   appendLog,
   formatLoadFailure,
+  formatRecoveryWarning,
+  getMigrationFallbackSong,
   isSongStillInLibrary,
   librarySong,
   loadSongById,
@@ -40,9 +49,31 @@ export async function loadLocalImportedSongForPlayback({
 
     return loadedSong;
   } catch (error) {
+    const fallbackSong = getMigrationFallbackSong?.(librarySong.id) ?? null;
+
+    if (fallbackSong !== null) {
+      if (!isSongStillInLibrary(librarySong.id)) {
+        onStaleLoad?.(librarySong.id);
+        return null;
+      }
+
+      if (shouldLogFailure && formatRecoveryWarning) {
+        const message = formatRecoveryWarning(
+          getLibrarySongName(librarySong),
+          librarySong.id,
+          error,
+        );
+
+        appendLog(message);
+        showNotice?.(message);
+      }
+
+      return fallbackSong;
+    }
+
     if (shouldLogFailure) {
       const message = formatLoadFailure(
-        librarySong.song.name,
+        getLibrarySongName(librarySong),
         librarySong.id,
         error,
       );

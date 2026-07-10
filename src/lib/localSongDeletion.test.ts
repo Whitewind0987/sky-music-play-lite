@@ -1,26 +1,43 @@
 import { describe, expect, it } from "vitest";
 import type { LibrarySong, LibrarySongId } from "../types/library";
+import { createLocalSongMetadata } from "./libraryCollections";
 import { deleteLocalSongWithScoreFile } from "./localSongDeletion";
+import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
+import type { Song } from "../types/score";
+
+function createCompleteSong(): Song {
+  return {
+    name: "Local Song",
+    bpm: 120,
+    bitsPerPage: 16,
+    pitchLevel: 0,
+    isComposed: false,
+    songNotes: [{ time: 0, key: "1Key0" }],
+  };
+}
 
 function createLocalSong(id: LibrarySongId = "local-1"): LibrarySong {
   return {
     id,
     importedAt: 1,
-    song: {
-      name: "Local Song",
-      bpm: 120,
-      bitsPerPage: 16,
-      pitchLevel: 0,
-      isComposed: false,
-      songNotes: [{ time: 0, key: "1Key0" }],
-    },
+    metadata: createLocalSongMetadata(createCompleteSong()),
     source: "local-import",
   };
 }
 
 function createBuiltInSong(): LibrarySong {
   return {
-    ...createLocalSong("builtin-1"),
+    id: "builtin-1",
+    importedAt: 0,
+    isBuiltInLoaded: false,
+    song: {
+      name: "Built In",
+      bpm: 120,
+      bitsPerPage: 16,
+      pitchLevel: 0,
+      isComposed: false,
+      songNotes: [],
+    },
     source: "built-in",
   };
 }
@@ -200,5 +217,57 @@ describe("deleteLocalSongWithScoreFile", () => {
     expect(playbackOrderCleanupCount).toBe(1);
     expect(libraryCleanupCount).toBe(1);
     expect(invalidatedSongIds).toEqual(["local-1"]);
+  });
+
+  it("removes fallback and cache only after successful deletion", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const fallbacks: Record<string, Song> = {
+      "local-1": createCompleteSong(),
+    };
+    loader.seed("local-1", createCompleteSong());
+
+    const didDelete = await deleteLocalSongWithScoreFile({
+      appendLog: () => {},
+      deleteScoreFile: async (songId) => {
+        loader.invalidate(songId);
+      },
+      formatDeleteFailure: () => "failed",
+      librarySongs: [createLocalSong()],
+      onBeforeLibraryMutation: () => {},
+      onSuccessfulDelete: (song) => {
+        delete fallbacks[song.id];
+      },
+      songIndex: 0,
+    });
+
+    expect(didDelete).toBe(true);
+    expect(loader.getCachedSong("local-1")).toBeNull();
+    expect(fallbacks).toEqual({});
+  });
+
+  it("preserves fallback and cache after filesystem deletion failure", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const cachedSong = createCompleteSong();
+    const fallbacks: Record<string, Song> = { "local-1": cachedSong };
+    loader.seed("local-1", cachedSong);
+
+    const didDelete = await deleteLocalSongWithScoreFile({
+      appendLog: () => {},
+      deleteScoreFile: async () => {
+        throw new Error("permission denied");
+      },
+      formatDeleteFailure: () => "failed",
+      librarySongs: [createLocalSong()],
+      onBeforeLibraryMutation: () => {},
+      onSuccessfulDelete: (song) => {
+        loader.invalidate(song.id);
+        delete fallbacks[song.id];
+      },
+      songIndex: 0,
+    });
+
+    expect(didDelete).toBe(false);
+    expect(loader.getCachedSong("local-1")).toBe(cachedSong);
+    expect(fallbacks).toEqual({ "local-1": cachedSong });
   });
 });

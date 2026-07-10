@@ -11,6 +11,7 @@ import type {
   LibrarySongId,
   UserPlaylist,
 } from "../types/library";
+import { getLibrarySongName } from "../lib/libraryCollections";
 
 type PendingDeleteConfirmation =
   | {
@@ -136,7 +137,7 @@ export function useLibraryDialogs({
     setPendingDeleteConfirmation({
       songId: librarySong.id,
       songIndex,
-      songName: librarySong.song.name,
+      songName: getLibrarySongName(librarySong),
       type: "local-song",
     });
   }

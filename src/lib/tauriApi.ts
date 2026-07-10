@@ -49,6 +49,7 @@ export type ImportedScoreReconcileReport = {
   createdCount: number;
   renamedCount: number;
   unchangedCount: number;
+  verifiedSongIds: LibrarySongId[];
   failed: ImportedScoreReconcileFailure[];
 };
 

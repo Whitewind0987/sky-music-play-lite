@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Note } from "../types/score";
 import {
+  getAdjustedPreviewDurationFromMetadata,
   getAdjustedPreviewDurationMs,
   schedulePreviewPlayback,
 } from "./playbackScheduler";
+import { createLocalSongMetadata } from "./libraryCollections";
+import type { Song } from "../types/score";
 
 const notes: Note[] = [
   { time: 0, key: "Key0" },
@@ -56,6 +59,75 @@ describe("getAdjustedPreviewDurationMs", () => {
         playbackSpeed: 2,
       }),
     ).toBe(600);
+  });
+});
+
+describe("getAdjustedPreviewDurationFromMetadata", () => {
+  const cases: Array<{
+    name: string;
+    notes: Note[];
+    options: { noteIntervalDelayMs: number; playbackSpeed: number };
+  }> = [
+    {
+      name: "empty song",
+      notes: [],
+      options: { noteIntervalDelayMs: 0, playbackSpeed: 1 },
+    },
+    {
+      name: "one note group",
+      notes: [{ key: "Key0", time: 250 }],
+      options: { noteIntervalDelayMs: 0, playbackSpeed: 1 },
+    },
+    {
+      name: "simultaneous notes",
+      notes: [
+        { key: "Key0", time: 500 },
+        { key: "Key1", time: 500 },
+      ],
+      options: { noteIntervalDelayMs: 0, playbackSpeed: 1 },
+    },
+    {
+      name: "multiple groups",
+      notes,
+      options: { noteIntervalDelayMs: 0, playbackSpeed: 1 },
+    },
+    {
+      name: "non-default speed",
+      notes,
+      options: { noteIntervalDelayMs: 0, playbackSpeed: 1.25 },
+    },
+    {
+      name: "positive interval delay",
+      notes,
+      options: { noteIntervalDelayMs: 50, playbackSpeed: 1.5 },
+    },
+    {
+      name: "negative interval delay with short gaps",
+      notes: [
+        { key: "Key0", time: 0 },
+        { key: "Key1", time: 50 },
+        { key: "Key2", time: 500 },
+      ],
+      options: { noteIntervalDelayMs: -100, playbackSpeed: 1 },
+    },
+  ];
+
+  it.each(cases)("matches full-note duration for $name", ({ notes, options }) => {
+    const song: Song = {
+      bitsPerPage: 16,
+      bpm: 120,
+      isComposed: false,
+      name: "Duration",
+      pitchLevel: 0,
+      songNotes: notes,
+    };
+
+    expect(
+      getAdjustedPreviewDurationFromMetadata(
+        createLocalSongMetadata(song),
+        options,
+      ),
+    ).toBe(getAdjustedPreviewDurationMs(notes, options));
   });
 });
 

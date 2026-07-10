@@ -1,13 +1,18 @@
 import type { UiText } from "../i18n/uiText";
+import {
+  getLibrarySongBpm,
+  getLibrarySongName,
+  getLibrarySongNoteCount,
+} from "../lib/libraryCollections";
+import type { LibrarySong } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
-import type { Song } from "../types/score";
 
 type QueuePanelProps = {
   onClearQueue: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onRemoveQueueItem: (queueItemId: string) => void;
   queueItems: PlaybackQueueItem[];
-  songs: Song[];
+  songs: LibrarySong[];
   text: UiText["bottomPlayer"];
 };
 
@@ -56,7 +61,7 @@ export function QueuePanel({
                 >
                   <strong className="queue-panel-song-title">
                     <span className="queue-panel-song-name">
-                      {song?.name ?? text.queueMissingSong}
+                      {song ? getLibrarySongName(song) : text.queueMissingSong}
                     </span>
                     {index === 0 ? (
                       <span className="queue-current-badge">
@@ -66,7 +71,7 @@ export function QueuePanel({
                   </strong>
                   <span className="queue-panel-song-meta">
                     {song
-                      ? `${text.bpm}: ${song.bpm} / ${text.notes}: ${song.songNotes.length}`
+                      ? `${text.bpm}: ${getLibrarySongBpm(song)} / ${text.notes}: ${getLibrarySongNoteCount(song)}`
                       : text.queueMissingSongDescription}
                   </span>
                 </button>
@@ -74,7 +79,7 @@ export function QueuePanel({
                   className="queue-panel-remove"
                   type="button"
                   aria-label={`${text.queueRemove}: ${
-                    song?.name ?? text.queueMissingSong
+                    song ? getLibrarySongName(song) : text.queueMissingSong
                   }`}
                   onClick={() => onRemoveQueueItem(queueItem.id)}
                 >

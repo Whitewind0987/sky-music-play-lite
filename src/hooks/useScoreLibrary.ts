@@ -22,6 +22,7 @@ import {
   addSongToPlaylist,
   createPlaylist,
   filterSongsByQuery,
+  getLibrarySongName,
   isSongLiked,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
@@ -45,9 +46,12 @@ import {
 import type { PersistedAppData } from "../types/appData";
 import type {
   AddSongToPlaylistResult,
+  BuiltInLibrarySong,
   LibrarySong,
   LibrarySongId,
   LikedSongEntry,
+  LocalLibrarySong,
+  MigrationFallbackSongs,
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
@@ -76,12 +80,18 @@ export function useScoreLibrary({
   showNotice,
   text,
 }: UseScoreLibraryOptions) {
-  const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<LibrarySong[]>([]);
+  const [builtInLibrarySongs, setBuiltInLibrarySongs] = useState<
+    BuiltInLibrarySong[]
+  >([]);
   const [hasLoadedBuiltInSongs, setHasLoadedBuiltInSongs] = useState(false);
-  const importedSongsRef = useRef<Song[]>([]);
   const librarySongsRef = useRef<LibrarySong[]>([]);
-  const localLibrarySongsRef = useRef<LibrarySong[]>([]);
-  const [localLibrarySongs, setLocalLibrarySongs] = useState<LibrarySong[]>([]);
+  const localLibrarySongsRef = useRef<LocalLibrarySong[]>([]);
+  const [localLibrarySongs, setLocalLibrarySongs] = useState<
+    LocalLibrarySong[]
+  >([]);
+  const migrationFallbackSongsRef = useRef<MigrationFallbackSongs>({});
+  const [migrationFallbackSongs, setMigrationFallbackSongs] =
+    useState<MigrationFallbackSongs>({});
   const [likedSongs, setLikedSongs] = useState<LikedSongEntry[]>([]);
   const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
@@ -136,14 +146,10 @@ export function useScoreLibrary({
 
   return index >= 0 ? index : null;
   }, [librarySongs, playbackSongId]);
-  const importedSongs = useMemo(
-    () => librarySongs.map((librarySong) => librarySong.song),
-    [librarySongs],
-  );
   const currentSelectedSong =
-    selectedSongIndex === null ? null : importedSongs[selectedSongIndex] ?? null;
+    selectedSongIndex === null ? null : librarySongs[selectedSongIndex] ?? null;
   const currentPlaybackSong =
-  playbackSongIndex === null ? null : importedSongs[playbackSongIndex] ?? null;
+  playbackSongIndex === null ? null : librarySongs[playbackSongIndex] ?? null;
 
   const currentPlaybackLibrarySong =
   playbackSongIndex === null ? null : librarySongs[playbackSongIndex] ?? null;
@@ -285,10 +291,6 @@ export function useScoreLibrary({
       isCancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    importedSongsRef.current = importedSongs;
-  }, [importedSongs]);
 
   useEffect(() => {
     librarySongsRef.current = librarySongs;
@@ -589,7 +591,7 @@ export function useScoreLibrary({
 
     if (playlist.songIds.includes(librarySong.id)) {
       const message = formatText(text.logs.playlistSongAlreadyExists, {
-        songName: librarySong.song.name,
+        songName: getLibrarySongName(librarySong),
       });
 
       appendLog(message);
@@ -665,6 +667,13 @@ export function useScoreLibrary({
       onBeforeLibraryMutation,
       onDeleted,
       onSuccessfulDelete: (librarySong) => {
+        const nextFallbackSongs = {
+          ...migrationFallbackSongsRef.current,
+        };
+
+        delete nextFallbackSongs[librarySong.id];
+        migrationFallbackSongsRef.current = nextFallbackSongs;
+        setMigrationFallbackSongs(nextFallbackSongs);
         const removedCollections = removeSongFromAllCollections({
           likedSongs,
           playlists,
@@ -709,8 +718,12 @@ export function useScoreLibrary({
     localLibrarySongsRef.current = nextLocalLibrarySongs;
     librarySongsRef.current = nextLibrarySongs;
     importedScoreSongLoaderRef.current.clear();
+    const nextFallbackSongs = library.migrationFallbackSongs ?? {};
+
+    migrationFallbackSongsRef.current = nextFallbackSongs;
     clearAllLocalSongLoading();
     setLocalLibrarySongs(nextLocalLibrarySongs);
+    setMigrationFallbackSongs(nextFallbackSongs);
     setLikedSongs(library.likedSongs);
     setPlaylists(library.playlists);
     setSelectedPlaylistId(nextSelectedPlaylistId);
@@ -739,6 +752,10 @@ export function useScoreLibrary({
 
   function resolveSongForPlayback(songIndex: number) {
     return resolveLibrarySong(songIndex, { shouldLogFailure: true });
+  }
+
+  function resolveSongForWarmPreparation(songIndex: number) {
+    return resolveLibrarySong(songIndex, { shouldLogFailure: false });
   }
 
   function resolveLibrarySong(
@@ -774,7 +791,11 @@ export function useScoreLibrary({
       return null;
     }
 
-    if (librarySong.source !== "built-in" || librarySong.isBuiltInLoaded) {
+    if (librarySong.source !== "built-in") {
+      return null;
+    }
+
+    if (librarySong.isBuiltInLoaded) {
       return librarySong.song;
     }
 
@@ -808,10 +829,6 @@ export function useScoreLibrary({
             ];
 
             librarySongsRef.current = nextLibrarySongs;
-            importedSongsRef.current = nextLibrarySongs.map(
-              (currentSong) => currentSong.song,
-            );
-
             return nextBuiltInLibrarySongs;
           });
 
@@ -835,7 +852,7 @@ export function useScoreLibrary({
   }
 
   async function loadLocalImportedSong(
-    librarySong: LibrarySong,
+    librarySong: LocalLibrarySong,
     { shouldLogFailure }: { shouldLogFailure: boolean },
   ) {
     return loadLocalImportedSongForPlayback({
@@ -846,6 +863,14 @@ export function useScoreLibrary({
           songId: failedSongId,
           songName,
         }),
+      formatRecoveryWarning: (songName, recoveredSongId, error) =>
+        formatText(text.logs.localScoreRecoveryFallbackUsed, {
+          error: String(error instanceof Error ? error.message : error),
+          songId: recoveredSongId,
+          songName,
+        }),
+      getMigrationFallbackSong: (currentSongId) =>
+        migrationFallbackSongsRef.current[currentSongId] ?? null,
       isSongStillInLibrary: (currentSongId) =>
         librarySongsRef.current.some(
           (currentLibrarySong) =>
@@ -953,11 +978,10 @@ export function useScoreLibrary({
     hasSearchQuery,
     hasLoadedBuiltInSongs,
     importError,
-    importedSongs,
-    importedSongsRef,
     isBuiltInSongLoading,
     isSongLoading,
     librarySongs,
+    librarySongsRef,
     likedSongs,
     localLibrarySongs,
     locateScoreRequest,
@@ -967,6 +991,7 @@ export function useScoreLibrary({
     preloadBuiltInSong,
     preloadSong,
     resolveSongForPlayback,
+    resolveSongForWarmPreparation,
     searchQuery,
     selectSongByIndex,
     selectedLibraryCategory,
@@ -982,6 +1007,7 @@ export function useScoreLibrary({
     visibleLibraryItems,
     currentPlaybackLibrarySong,
     currentPlaybackSong,
+    migrationFallbackSongs,
     playbackSongIndex,
     setPlaybackSongId,
     setPlaybackSongIndex,

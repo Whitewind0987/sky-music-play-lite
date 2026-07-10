@@ -3,7 +3,20 @@ import type { Song } from "./score";
 export type LibrarySongId = string;
 export type LibrarySongSource = "built-in" | "local-import";
 
-export type LibrarySong = {
+export type LocalSongMetadata = {
+  bitsPerPage: number;
+  bpm: number;
+  fingerprint: string;
+  isComposed: boolean;
+  lastNoteTimeMs: number;
+  name: string;
+  noteCount: number;
+  noteGroupCount: number;
+  noteGroupDelaysMs?: number[];
+  pitchLevel: number;
+};
+
+export type BuiltInLibrarySong = {
   builtInDurationMs?: number;
   builtInFileName?: string;
   builtInNoteCount?: number;
@@ -12,8 +25,19 @@ export type LibrarySong = {
   importedAt: number;
   isBuiltInLoaded?: boolean;
   song: Song;
-  source: LibrarySongSource;
+  source: "built-in";
 };
+
+export type LocalLibrarySong = {
+  id: LibrarySongId;
+  importedAt: number;
+  metadata: LocalSongMetadata;
+  source: "local-import";
+};
+
+export type LibrarySong = BuiltInLibrarySong | LocalLibrarySong;
+
+export type MigrationFallbackSongs = Record<LibrarySongId, Song>;
 
 export type LikedSongEntry = {
   likedAt: number;

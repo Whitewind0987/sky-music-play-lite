@@ -1,5 +1,9 @@
-import type { LibrarySong } from "../types/library";
+import type {
+  LocalLibrarySong,
+  MigrationFallbackSongs,
+} from "../types/library";
 import { formatText } from "./formatText";
+import { getSongFingerprint } from "./libraryCollections";
 import type {
   ImportedScoreReconcileEntry,
   ImportedScoreReconcileReport,
@@ -18,7 +22,8 @@ type ReconcileImportedScoreFiles = (
 
 type ReconcilePersistedImportedScoresOptions = {
   appendLog: (entry: string) => void;
-  librarySongs: LibrarySong[];
+  librarySongs: LocalLibrarySong[];
+  migrationFallbackSongs: MigrationFallbackSongs;
   reconcileImportedScoreFiles: ReconcileImportedScoreFiles;
   showNotice?: (message: string) => void;
   text: ImportedScoreReconciliationText;
@@ -36,24 +41,51 @@ const activeReconciliationRuns = new Map<
 >();
 
 export function createImportedScoreReconcileEntries(
-  librarySongs: LibrarySong[],
+  librarySongs: LocalLibrarySong[],
+  migrationFallbackSongs: MigrationFallbackSongs,
 ): ImportedScoreReconcileEntry[] {
-  return librarySongs
-    .filter((librarySong) => librarySong.source === "local-import")
-    .map((librarySong) => ({
-      song: librarySong.song,
-      songId: librarySong.id,
-    }));
+  const localSongIds = new Set(librarySongs.map((librarySong) => librarySong.id));
+
+  return Object.entries(migrationFallbackSongs).reduce<
+    ImportedScoreReconcileEntry[]
+  >((entries, [songId, song]) => {
+    if (localSongIds.has(songId)) {
+      entries.push({ song, songId });
+    }
+
+    return entries;
+  }, []);
+}
+
+export function retainUnverifiedMigrationFallbackSongs(
+  migrationFallbackSongs: MigrationFallbackSongs,
+  report: ImportedScoreReconcileReport | null,
+): MigrationFallbackSongs {
+  if (report === null) {
+    return { ...migrationFallbackSongs };
+  }
+
+  const verifiedSongIds = new Set(report.verifiedSongIds);
+
+  return Object.fromEntries(
+    Object.entries(migrationFallbackSongs).filter(
+      ([songId]) => !verifiedSongIds.has(songId),
+    ),
+  );
 }
 
 export async function reconcilePersistedImportedScores({
   appendLog,
   librarySongs,
+  migrationFallbackSongs,
   reconcileImportedScoreFiles,
   showNotice,
   text,
 }: ReconcilePersistedImportedScoresOptions): Promise<ImportedScoreReconcileReport | null> {
-  const entries = createImportedScoreReconcileEntries(librarySongs);
+  const entries = createImportedScoreReconcileEntries(
+    librarySongs,
+    migrationFallbackSongs,
+  );
 
   if (entries.length === 0) {
     return null;
@@ -88,7 +120,12 @@ export async function reconcilePersistedImportedScoresWithProgress({
   setInProgress,
   ...options
 }: ReconcilePersistedImportedScoresWithProgressOptions): Promise<ImportedScoreReconcileReport | null> {
-  if (createImportedScoreReconcileEntries(options.librarySongs).length === 0) {
+  if (
+    createImportedScoreReconcileEntries(
+      options.librarySongs,
+      options.migrationFallbackSongs,
+    ).length === 0
+  ) {
     return null;
   }
 
@@ -123,13 +160,9 @@ async function runImportedScoreReconciliation({
 }) {
   try {
     const report = await reconcileImportedScoreFiles(entries);
+
     completedReconciliationSignatures.add(signature);
-    logReconciliationReport({
-      appendLog,
-      report,
-      showNotice,
-      text,
-    });
+    logReconciliationReport({ appendLog, report, showNotice, text });
 
     return report;
   } catch (error) {
@@ -186,14 +219,6 @@ function logReconciliationReport({
 
 function buildReconciliationSignature(entries: ImportedScoreReconcileEntry[]) {
   return JSON.stringify(
-    entries.map(({ song, songId }) => [
-      songId,
-      song.name,
-      song.bpm,
-      song.bitsPerPage,
-      song.pitchLevel,
-      song.isComposed,
-      song.songNotes.length,
-    ]),
+    entries.map(({ song, songId }) => [songId, getSongFingerprint(song)]),
   );
 }

@@ -1,4 +1,5 @@
 import type { LibrarySong, LibrarySongId } from "../types/library";
+import { getLibrarySongName } from "./libraryCollections";
 
 type DeleteLocalSongWithScoreFileOptions = {
   appendLog: (entry: string) => void;
@@ -34,7 +35,7 @@ export async function deleteLocalSongWithScoreFile({
   try {
     await deleteScoreFile(librarySong.id);
   } catch (error) {
-    const message = formatDeleteFailure(librarySong.song.name, error);
+    const message = formatDeleteFailure(getLibrarySongName(librarySong), error);
 
     appendLog(message);
     showNotice?.(message);

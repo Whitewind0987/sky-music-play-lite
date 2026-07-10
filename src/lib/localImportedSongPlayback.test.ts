@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LibrarySong } from "../types/library";
+import type { LocalLibrarySong } from "../types/library";
 import type { Song } from "../types/score";
+import { createLocalSongMetadata } from "./libraryCollections";
 import { loadLocalImportedSongForPlayback } from "./localImportedSongPlayback";
+import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 
 function createSong(name: string): Song {
   return {
@@ -14,11 +16,13 @@ function createSong(name: string): Song {
   };
 }
 
-function createLibrarySong(song: Song = createSong("Local")): LibrarySong {
+function createLibrarySong(
+  song: Song = createSong("Local"),
+): LocalLibrarySong {
   return {
     id: "local-1",
     importedAt: 1,
-    song,
+    metadata: createLocalSongMetadata(song),
     source: "local-import",
   };
 }
@@ -100,5 +104,93 @@ describe("loadLocalImportedSongForPlayback", () => {
 
     expect(result).toBeNull();
     expect(onStaleLoad).toHaveBeenCalledWith("local-1");
+  });
+
+  it("uses a migration fallback silently during preload", async () => {
+    const fallbackSong = createSong("Recovery");
+    const appendLog = vi.fn();
+    const showNotice = vi.fn();
+
+    const result = await loadLocalImportedSongForPlayback({
+      appendLog,
+      formatLoadFailure: () => "failed",
+      formatRecoveryWarning: () => "using recovery",
+      getMigrationFallbackSong: () => fallbackSong,
+      isSongStillInLibrary: () => true,
+      librarySong: createLibrarySong(),
+      loadSongById: async () => {
+        throw new Error("missing file");
+      },
+      shouldLogFailure: false,
+      showNotice,
+    });
+
+    expect(result).toBe(fallbackSong);
+    expect(appendLog).not.toHaveBeenCalled();
+    expect(showNotice).not.toHaveBeenCalled();
+  });
+
+  it("logs one warning when actual playback uses a migration fallback", async () => {
+    const fallbackSong = createSong("Recovery");
+    const appendLog = vi.fn();
+    const showNotice = vi.fn();
+
+    const result = await loadLocalImportedSongForPlayback({
+      appendLog,
+      formatLoadFailure: () => "failed",
+      formatRecoveryWarning: (name, id, error) =>
+        `${name} (${id}) recovery: ${String(error)}`,
+      getMigrationFallbackSong: () => fallbackSong,
+      isSongStillInLibrary: () => true,
+      librarySong: createLibrarySong(createSong("Broken")),
+      loadSongById: async () => {
+        throw new Error("mismatch");
+      },
+      shouldLogFailure: true,
+      showNotice,
+    });
+
+    expect(result).toBe(fallbackSong);
+    expect(appendLog).toHaveBeenCalledTimes(1);
+    expect(showNotice).toHaveBeenCalledTimes(1);
+    expect(appendLog).toHaveBeenCalledWith(
+      "Broken (local-1) recovery: Error: mismatch",
+    );
+  });
+
+  it("does not cache a fallback and retries a repaired file later", async () => {
+    const loader = new ImportedScoreSongLoader();
+    const fallbackSong = createSong("Recovery");
+    const repairedSong = createSong("Repaired File");
+    const readFromFile = vi
+      .fn<() => Promise<Song>>()
+      .mockRejectedValueOnce(new Error("missing file"))
+      .mockResolvedValueOnce(repairedSong);
+    const options = {
+      appendLog: vi.fn(),
+      formatLoadFailure: () => "failed",
+      formatRecoveryWarning: () => "recovery",
+      getMigrationFallbackSong: () => fallbackSong,
+      isSongStillInLibrary: () => true,
+      librarySong: createLibrarySong(),
+      shouldLogFailure: false,
+    };
+
+    await expect(
+      loadLocalImportedSongForPlayback({
+        ...options,
+        loadSongById: (songId) => loader.load(songId, readFromFile),
+      }),
+    ).resolves.toBe(fallbackSong);
+    expect(loader.getCachedSong("local-1")).toBeNull();
+
+    await expect(
+      loadLocalImportedSongForPlayback({
+        ...options,
+        loadSongById: (songId) => loader.load(songId, readFromFile),
+      }),
+    ).resolves.toBe(repairedSong);
+    expect(loader.getCachedSong("local-1")).toBe(repairedSong);
+    expect(readFromFile).toHaveBeenCalledTimes(2);
   });
 });
