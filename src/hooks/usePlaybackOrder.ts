@@ -46,20 +46,10 @@ export function usePlaybackOrder() {
   }
 
   function removeSongFromPlaybackContext(songId: LibrarySongId) {
-    const currentContext = activePlaybackContextRef.current;
-
-    if (!currentContext) {
-      return;
-    }
-
-    const nextSongIds = currentContext.songIds.filter(
-      (currentSongId) => currentSongId !== songId,
+    activePlaybackContextRef.current = removeSongFromActivePlaybackContext(
+      activePlaybackContextRef.current,
+      songId,
     );
-
-    activePlaybackContextRef.current =
-      nextSongIds.length === 0 || currentContext.currentSongId === songId
-        ? null
-        : { ...currentContext, songIds: nextSongIds };
   }
 
   function markCurrentSong(songId: LibrarySongId) {
@@ -114,6 +104,31 @@ export function usePlaybackOrder() {
     removeSongFromPlaybackContext,
     setPlaybackContext,
   };
+}
+
+export function removeSongFromActivePlaybackContext(
+  currentContext: ActivePlaybackContext | null,
+  songId: LibrarySongId,
+): ActivePlaybackContext | null {
+  if (!currentContext) {
+    return currentContext;
+  }
+
+  if (currentContext.currentSongId === songId) {
+    return null;
+  }
+
+  if (!currentContext.songIds.includes(songId)) {
+    return currentContext;
+  }
+
+  const nextSongIds = currentContext.songIds.filter(
+    (currentSongId) => currentSongId !== songId,
+  );
+
+  return nextSongIds.length === 0
+    ? null
+    : { ...currentContext, songIds: nextSongIds };
 }
 
 export function buildPlaybackOrderFromVisibleItems(

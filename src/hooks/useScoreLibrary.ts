@@ -36,6 +36,10 @@ import {
   cleanupMissingImportedScores,
   resolveImportedScoreAfterExistenceCheck,
 } from "../lib/missingImportedScores";
+import {
+  collectRemovedLibrarySongs,
+  type RemovedLibrarySong,
+} from "../lib/missingScorePlaybackSync";
 import { deleteLocalSongWithScoreFile } from "../lib/localSongDeletion";
 import {
   isSupportedScoreFileName,
@@ -67,6 +71,7 @@ import type { Song } from "../types/score";
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
   onBeforeLibraryMutation: () => void;
+  onMissingLocalSongsRemoved?: (removedSongs: RemovedLibrarySong[]) => void;
   showNotice?: (message: string) => void;
   text: UiText;
 };
@@ -85,6 +90,7 @@ const BUILT_IN_PAGE_SIZE = 100;
 export function useScoreLibrary({
   appendLog,
   onBeforeLibraryMutation,
+  onMissingLocalSongsRemoved,
   showNotice,
   text,
 }: UseScoreLibraryOptions) {
@@ -760,6 +766,10 @@ export function useScoreLibrary({
     }
 
     const removedSongIds = new Set(cleanup.removedSongIds);
+    const removedLibrarySongs = collectRemovedLibrarySongs(
+      librarySongsRef.current,
+      cleanup.removedSongIds,
+    );
 
     cleanup.removedSongIds.forEach((songId) => {
       importedScoreSongLoaderRef.current.invalidate(songId);
@@ -785,6 +795,8 @@ export function useScoreLibrary({
       onBeforeLibraryMutation();
       updatePlaybackSongId(cleanup.playbackSongId);
     }
+
+    onMissingLocalSongsRemoved?.(removedLibrarySongs);
 
     setLocateScoreRequest((currentRequest) =>
       currentRequest !== null && removedSongIds.has(currentRequest.songId)

@@ -53,6 +53,10 @@ import {
 import { formatText } from "./lib/formatText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
 import { getLibrarySongName } from "./lib/libraryCollections";
+import {
+  synchronizeRemovedLibrarySongsWithPlayback,
+  type RemovedLibrarySong,
+} from "./lib/missingScorePlaybackSync";
 import { forceCloseApp } from "./lib/tauriApi";
 import "../font/iconfont.css";
 import "./App.css";
@@ -87,6 +91,9 @@ function App() {
   const text = uiText[language];
   const appFileLogger = useAppFileLogger(language);
   const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
+  const missingLocalSongsRemovedRef = useRef<
+    (removedSongs: RemovedLibrarySong[]) => void
+  >(() => {});
 
   useEffect(() => {
     appendDetailedLogRef.current = appFileLogger.appendDetailedLog;
@@ -124,6 +131,8 @@ function App() {
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
+    onMissingLocalSongsRemoved: (removedSongs) =>
+      missingLocalSongsRemovedRef.current(removedSongs),
     showNotice: showAppNotice,
     text,
   });
@@ -134,6 +143,13 @@ function App() {
     showNotice: showAppNotice,
     text: text.logs,
   });
+  missingLocalSongsRemovedRef.current = (removedSongs) => {
+    synchronizeRemovedLibrarySongsWithPlayback(removedSongs, {
+      removeSongFromPlaybackContext:
+        playbackOrder.removeSongFromPlaybackContext,
+      removeSongIndices: playbackQueue.removeSongIndices,
+    });
+  };
   function handlePlaybackSongIndexChange(songIndex: number | null) {
     scoreLibrary.setPlaybackSongIndex(songIndex);
     scoreLibrary.setSelectedSongIndex(songIndex);

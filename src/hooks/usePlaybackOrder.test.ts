@@ -4,6 +4,7 @@ import { createLocalSongMetadata } from "../lib/libraryCollections";
 import {
   buildPlaybackOrderFromVisibleItems,
   getOrderedNextSongId,
+  removeSongFromActivePlaybackContext,
 } from "./usePlaybackOrder";
 
 function createLibraryItem(id: string): LibrarySongListItem {
@@ -63,5 +64,40 @@ describe("getOrderedNextSongId", () => {
 
   it("allows a one-song repeat-all context to repeat itself", () => {
     expect(getOrderedNextSongId(["A"], 0, "repeat-all")).toBe("A");
+  });
+});
+
+describe("removeSongFromActivePlaybackContext", () => {
+  const context = {
+    currentSongId: "B",
+    songIds: ["A", "B", "C", "D"],
+    source: "search" as const,
+  };
+
+  it("removes a missing ID while preserving unrelated IDs in order", () => {
+    expect(removeSongFromActivePlaybackContext(context, "C")).toEqual({
+      ...context,
+      songIds: ["A", "B", "D"],
+    });
+  });
+
+  it("clears the context when its current song is removed", () => {
+    expect(removeSongFromActivePlaybackContext(context, "B")).toBeNull();
+  });
+
+  it("is safe to apply multiple removals repeatedly", () => {
+    const afterFirstRemoval = removeSongFromActivePlaybackContext(context, "C");
+    const afterSecondRemoval = removeSongFromActivePlaybackContext(
+      afterFirstRemoval,
+      "D",
+    );
+
+    expect(afterSecondRemoval).toEqual({
+      ...context,
+      songIds: ["A", "B"],
+    });
+    expect(
+      removeSongFromActivePlaybackContext(afterSecondRemoval, "D"),
+    ).toBe(afterSecondRemoval);
   });
 });
