@@ -84,6 +84,7 @@ export const uiText = {
       title: "关闭 SkyMusicPlay Lite？",
       description: "关闭后当前播放会停止，未保存的操作可能会丢失。",
       doNotAskAgain: "不再提示",
+      closeFailed: "关闭应用失败，请重试。",
       cancel: "取消",
       confirm: "关闭",
     },
@@ -620,6 +621,7 @@ export const uiText = {
       description:
         "Current playback will stop after closing. Unsaved actions may be lost.",
       doNotAskAgain: "Don't ask again",
+      closeFailed: "Failed to close the app. Please try again.",
       cancel: "Cancel",
       confirm: "Close",
     },

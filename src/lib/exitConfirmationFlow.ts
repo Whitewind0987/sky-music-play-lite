@@ -7,7 +7,7 @@ export type ExitConfirmationDialogState = {
   isOpen: boolean;
 };
 
-export type ExitCloseRequestDecision = "allow" | "ignore" | "open";
+export type ExitCloseRequestDecision = "force-close" | "ignore" | "open";
 
 export type ExitConfirmationActionResult =
   | { status: "busy" }
@@ -18,6 +18,11 @@ export type ExitConfirmationActionResult =
 export type ConfirmBeforeExitPreferenceChangeResult =
   | { status: "busy" }
   | { status: "preference-save-failed"; error: unknown }
+  | { status: "success" };
+
+export type ForceCloseActionResult =
+  | { status: "busy" }
+  | { status: "failure"; error: unknown }
   | { status: "success" };
 
 export function getExitCloseRequestDecision({
@@ -35,8 +40,12 @@ export function getExitCloseRequestDecision({
     return "ignore";
   }
 
-  if (isExitInProgress || !confirmBeforeExit) {
-    return "allow";
+  if (isExitInProgress) {
+    return "ignore";
+  }
+
+  if (!confirmBeforeExit) {
+    return "force-close";
   }
 
   return isDialogOpen ? "ignore" : "open";
@@ -48,6 +57,25 @@ export function openExitConfirmationDialog(): ExitConfirmationDialogState {
 
 export function dismissExitConfirmationDialog(): ExitConfirmationDialogState {
   return { doNotAskAgain: false, isOpen: false };
+}
+
+export async function runForceCloseAction(
+  guard: ExitConfirmationGuard,
+  forceClose: () => Promise<void>,
+): Promise<ForceCloseActionResult> {
+  if (guard.current) {
+    return { status: "busy" };
+  }
+
+  guard.current = true;
+
+  try {
+    await forceClose();
+    return { status: "success" };
+  } catch (error) {
+    guard.current = false;
+    return { error, status: "failure" };
+  }
 }
 
 export async function runConfirmBeforeExitPreferenceChange(

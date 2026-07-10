@@ -48,6 +48,7 @@ import {
   openExitConfirmationDialog,
   runConfirmBeforeExitPreferenceChange,
   runExitConfirmationAction,
+  runForceCloseAction,
 } from "./lib/exitConfirmationFlow";
 import { formatText } from "./lib/formatText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
@@ -298,13 +299,14 @@ function App() {
             isConfirmBeforeExitSavingRef.current,
         });
 
-        if (closeRequestDecision === "allow") {
-          return;
-        }
-
         event.preventDefault();
 
         if (closeRequestDecision === "ignore") {
+          return;
+        }
+
+        if (closeRequestDecision === "force-close") {
+          void requestAppShutdown().catch(() => {});
           return;
         }
 
@@ -491,23 +493,11 @@ function App() {
     }
 
     if (result.status === "exit-failed") {
-      isClosingAfterConfirmRef.current = false;
       openCloseConfirmationDialog();
-      appFileLogger.appendDetailedLog({
-        details: {
-          error: String(
-            result.error instanceof Error ? result.error.message : result.error,
-          ),
-        },
-        level: "error",
-        message: "Failed to close app after confirmation",
-        source: "window",
-      });
     }
   }
 
   async function closeAppAfterConfirmation() {
-    isClosingAfterConfirmRef.current = true;
     dismissCloseConfirmationDialog();
     appFileLogger.appendDetailedLog({
       details: fileLogContextRef.current,
@@ -515,22 +505,18 @@ function App() {
       source: "window",
     });
 
-    try {
-      await forceCloseApp();
-    } catch (error) {
-      appFileLogger.appendDetailedLog({
-        details: { error: String(error instanceof Error ? error.message : error) },
-        level: "warn",
-        message: "Force-close command failed; trying window close fallback",
-        source: "window",
-      });
+    await requestAppShutdown();
+  }
 
-      try {
-        await getCurrentWindow().close();
-      } catch (fallbackError) {
-        isClosingAfterConfirmRef.current = false;
-        throw fallbackError;
-      }
+  async function requestAppShutdown() {
+    const result = await runForceCloseAction(
+      isClosingAfterConfirmRef,
+      forceCloseApp,
+    );
+
+    if (result.status === "failure") {
+      reportAppShutdownFailure(result.error);
+      throw result.error;
     }
   }
 
@@ -577,6 +563,22 @@ function App() {
       details: { error: errorMessage },
       level: "error",
       message: "Failed to save exit confirmation preference",
+      source: "window",
+    });
+  }
+
+  function reportAppShutdownFailure(error: unknown) {
+    const errorMessage = String(
+      error instanceof Error ? error.message : error,
+    );
+    const message = text.closeConfirm.closeFailed;
+
+    appendLog(message);
+    showAppNotice(message);
+    appFileLogger.appendDetailedLog({
+      details: { error: errorMessage },
+      level: "error",
+      message: "Force-close command failed",
       source: "window",
     });
   }

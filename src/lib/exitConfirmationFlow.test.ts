@@ -5,18 +5,19 @@ import {
   openExitConfirmationDialog,
   runConfirmBeforeExitPreferenceChange,
   runExitConfirmationAction,
+  runForceCloseAction,
   type ExitConfirmationGuard,
 } from "./exitConfirmationFlow";
 
 describe("exit confirmation close requests", () => {
-  it("allows close requests when confirmation is disabled", () => {
+  it("requests an explicit force-close when confirmation is disabled", () => {
     expect(
       getExitCloseRequestDecision({
         confirmBeforeExit: false,
         isDialogOpen: false,
         isExitInProgress: false,
       }),
-    ).toBe("allow");
+    ).toBe("force-close");
   });
 
   it("opens the confirmation when the preference is enabled", () => {
@@ -67,6 +68,55 @@ describe("exit confirmation close requests", () => {
       doNotAskAgain: false,
       isOpen: true,
     });
+  });
+});
+
+describe("force-close action", () => {
+  it("runs the explicit shutdown once and keeps the guard active on success", async () => {
+    const guard: ExitConfirmationGuard = { current: false };
+    let resolveForceClose!: () => void;
+    const forceClose = vi.fn().mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveForceClose = resolve;
+      }),
+    );
+
+    const first = runForceCloseAction(guard, forceClose);
+    const second = runForceCloseAction(guard, forceClose);
+
+    expect(forceClose).toHaveBeenCalledTimes(1);
+    expect(guard.current).toBe(true);
+    await expect(second).resolves.toEqual({ status: "busy" });
+
+    resolveForceClose();
+
+    await expect(first).resolves.toEqual({ status: "success" });
+    expect(guard.current).toBe(true);
+  });
+
+  it("resets the guard after a shutdown failure so the close request can retry", async () => {
+    const guard: ExitConfirmationGuard = { current: false };
+    const forceClose = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("shutdown failed"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(runForceCloseAction(guard, forceClose)).resolves.toMatchObject({
+      status: "failure",
+    });
+    expect(guard.current).toBe(false);
+    expect(
+      getExitCloseRequestDecision({
+        confirmBeforeExit: false,
+        isDialogOpen: false,
+        isExitInProgress: guard.current,
+      }),
+    ).toBe("force-close");
+
+    await expect(runForceCloseAction(guard, forceClose)).resolves.toEqual({
+      status: "success",
+    });
+    expect(forceClose).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -157,7 +207,11 @@ describe("exit confirmation preference setting", () => {
 describe("exit confirmation action", () => {
   it("exits without saving when do-not-ask-again is not selected", async () => {
     const guard: ExitConfirmationGuard = { current: false };
-    const exit = vi.fn().mockResolvedValue(undefined);
+    const shutdownGuard: ExitConfirmationGuard = { current: false };
+    const forceClose = vi.fn().mockResolvedValue(undefined);
+    const exit = async () => {
+      await runForceCloseAction(shutdownGuard, forceClose);
+    };
     const persistConfirmBeforeExit = vi.fn().mockResolvedValue(undefined);
 
     await expect(
@@ -169,18 +223,22 @@ describe("exit confirmation action", () => {
     ).resolves.toEqual({ status: "success" });
 
     expect(persistConfirmBeforeExit).not.toHaveBeenCalled();
-    expect(exit).toHaveBeenCalledTimes(1);
+    expect(forceClose).toHaveBeenCalledTimes(1);
   });
 
-  it("saves false before exiting when do-not-ask-again is selected", async () => {
+  it("saves false before the shared force-close action when do-not-ask-again is selected", async () => {
     const guard: ExitConfirmationGuard = { current: false };
+    const shutdownGuard: ExitConfirmationGuard = { current: false };
     const order: string[] = [];
+    const forceClose = vi.fn().mockImplementation(async () => {
+      order.push("shutdown");
+    });
 
     await expect(
       runExitConfirmationAction(guard, () => {}, {
         doNotAskAgain: true,
         exit: async () => {
-          order.push("exit");
+          await runForceCloseAction(shutdownGuard, forceClose);
         },
         persistConfirmBeforeExit: async (confirmBeforeExit) => {
           expect(confirmBeforeExit).toBe(false);
@@ -189,7 +247,8 @@ describe("exit confirmation action", () => {
       }),
     ).resolves.toEqual({ status: "success" });
 
-    expect(order).toEqual(["save", "exit"]);
+    expect(order).toEqual(["save", "shutdown"]);
+    expect(forceClose).toHaveBeenCalledTimes(1);
   });
 
   it("does not exit or change runtime state when saving fails", async () => {
