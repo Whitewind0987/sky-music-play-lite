@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
+import { resolveActivePlaybackSongIndex } from "../lib/activePlaybackSong";
 import {
   getAdjustedPreviewDurationFromMetadata,
   getAdjustedPreviewDurationMs,
@@ -148,6 +149,7 @@ export function usePreviewPlayback({
     options: { initialSeekMs?: number } = {},
   ) {
     try {
+      const previewSongId = librarySongsRef.current[songIndex]?.id ?? null;
       const song = await resolveSongForPlayback(songIndex);
 
       if (!song) {
@@ -155,7 +157,6 @@ export function usePreviewPlayback({
       }
 
       const notes = song.songNotes;
-      const previewSongId = librarySongsRef.current[songIndex]?.id ?? null;
       const currentTimingOptions = {
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         playbackSpeed: playbackSpeedRef.current,
@@ -195,11 +196,23 @@ export function usePreviewPlayback({
           );
         },
         () => {
+          const completedSongId = activePreviewSongIdRef.current;
           setActiveKeys([]);
           playbackControllerRef.current = null;
           activePreviewSongIdRef.current = null;
 
           const currentLibrarySongs = librarySongsRef.current;
+          const currentSongIndex = resolveActivePlaybackSongIndex({
+            librarySongs: currentLibrarySongs,
+            songId: completedSongId,
+          });
+
+          if (currentSongIndex === null) {
+            setPlaybackState("finished");
+            appendLog(text.logs.previewFinished);
+            return;
+          }
+
           const queuedItem =
             playbackModeRef.current === "repeat-one"
               ? null
@@ -207,14 +220,14 @@ export function usePreviewPlayback({
           const playbackOrderNextSongIndex =
             queuedItem === null && playbackModeRef.current === "repeat-all"
               ? getPlaybackOrderNextSongIndex({
-                  currentSongIndex: songIndex,
+                  currentSongIndex,
                   isShuffleEnabled: isShuffleEnabledRef.current,
                   playbackMode: playbackModeRef.current,
                 })
               : null;
           const finishDecision = decidePlaybackFinish({
             allowLibraryFallback: false,
-            currentSongIndex: songIndex,
+            currentSongIndex,
             isShuffleEnabled: isShuffleEnabledRef.current,
             playbackMode: playbackModeRef.current,
             queuedSongIndex:
@@ -226,7 +239,7 @@ export function usePreviewPlayback({
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
-            void startPreviewForSong(songIndex);
+            void startPreviewForSong(currentSongIndex);
             return;
           }
 

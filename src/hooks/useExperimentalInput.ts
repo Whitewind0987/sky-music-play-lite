@@ -15,6 +15,7 @@ import {
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
 import { resolveBackgroundHandoffRollbackSongIndex } from "../lib/backgroundHandoffRollback";
+import { resolveActivePlaybackSongIndex } from "../lib/activePlaybackSong";
 import type { PreparedPlaybackPlanCacheKey } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
@@ -104,7 +105,6 @@ type BackgroundPlaybackContext = {
   sessionId: number;
   song: Song;
   songId: LibrarySongId | null;
-  songIndex: number;
 };
 
 type BackgroundHandoffTiming = {
@@ -716,6 +716,8 @@ export function useExperimentalInput({
 
     const handoffToken = beginBackgroundHandoff();
     const timing = createBackgroundHandoffTiming("background handoff");
+    const requestedPlaybackSongId =
+      librarySongsRef.current[songIndex]?.id ?? null;
     const rollbackPlaybackSongId =
       currentPlaybackSongIndex === null
         ? null
@@ -747,6 +749,7 @@ export function useExperimentalInput({
     return startExperimentalPlaybackForSong(songIndex, song, {
       handoffToken,
       initialSeekMs,
+      requestedPlaybackSongId,
       rollbackPlaybackSongId,
       timing,
     });
@@ -846,6 +849,7 @@ export function useExperimentalInput({
     options: {
       handoffToken: number;
       initialSeekMs?: number;
+      requestedPlaybackSongId: LibrarySongId | null;
       rollbackPlaybackSongId: LibrarySongId | null;
       timing: BackgroundHandoffTiming;
       preparedPlanRetryCount?: number;
@@ -886,6 +890,7 @@ export function useExperimentalInput({
         preparedPlanId: preparedPlan.preparedPlanId,
         cacheKey: preparedPlan.cacheKey,
         preparedPlanRetryCount: options.preparedPlanRetryCount ?? 0,
+        requestedPlaybackSongId: options.requestedPlaybackSongId,
         rollbackPlaybackSongId: options.rollbackPlaybackSongId,
         timing: options.timing,
       });
@@ -915,6 +920,7 @@ export function useExperimentalInput({
       preparedPlanId: number;
       cacheKey: PreparedPlaybackPlanCacheKey;
       preparedPlanRetryCount: number;
+      requestedPlaybackSongId: LibrarySongId | null;
       rollbackPlaybackSongId: LibrarySongId | null;
       timing: BackgroundHandoffTiming;
     },
@@ -973,8 +979,7 @@ export function useExperimentalInput({
       backgroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
         song,
-        songId: librarySongsRef.current[songIndex]?.id ?? null,
-        songIndex,
+        songId: options.requestedPlaybackSongId,
       };
       setSelectedSongIndex(songIndex);
       experimentalPlaybackControllerRef.current = createBackgroundPlaybackController(
@@ -1023,6 +1028,7 @@ export function useExperimentalInput({
           handoffToken: options.handoffToken,
           initialSeekMs: options.initialSeekMs,
           preparedPlanRetryCount: 1,
+          requestedPlaybackSongId: options.requestedPlaybackSongId,
           rollbackPlaybackSongId: options.rollbackPlaybackSongId,
           timing: options.timing,
         });
@@ -1060,12 +1066,26 @@ export function useExperimentalInput({
     }
   }
 
-  function handleExperimentalPlaybackFinished(songIndex: number, song: Song) {
+  function handleExperimentalPlaybackFinished(
+    songId: LibrarySongId | null,
+    song: Song,
+  ) {
     experimentalPlaybackControllerRef.current = null;
     backgroundPlaybackContextRef.current = null;
     activeBackgroundSessionIdRef.current = null;
 
     const currentLibrarySongs = librarySongsRef.current;
+    const songIndex = resolveActivePlaybackSongIndex({
+      librarySongs: currentLibrarySongs,
+      songId,
+    });
+
+    if (songIndex === null) {
+      setExperimentalPlaybackState("finished");
+      appendLog(text.logs.experimentalPlaybackFinished);
+      return;
+    }
+
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
@@ -1231,7 +1251,7 @@ export function useExperimentalInput({
       const context = backgroundPlaybackContextRef.current;
 
       if (context?.sessionId === payload.sessionId) {
-        handleExperimentalPlaybackFinished(context.songIndex, context.song);
+        handleExperimentalPlaybackFinished(context.songId, context.song);
       }
       return;
     }

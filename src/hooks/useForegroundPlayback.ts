@@ -5,6 +5,7 @@ import {
   getBackgroundPlaybackEventRoute,
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
+import { resolveActivePlaybackSongIndex } from "../lib/activePlaybackSong";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
@@ -70,7 +71,6 @@ type ForegroundPlaybackContext = {
   sessionId: number;
   song: Song;
   songId: LibrarySongId | null;
-  songIndex: number;
 };
 
 const COUNTDOWN_START_SECONDS = 3;
@@ -344,6 +344,7 @@ export function useForegroundPlayback({
       withCountdown,
     }: { initialSeekMs?: number; withCountdown: boolean },
   ): Promise<boolean> {
+    const foregroundSongId = librarySongsRef.current[songIndex]?.id ?? null;
     const requestToken = foregroundRequestTokenRef.current + 1;
     foregroundRequestTokenRef.current = requestToken;
     setForegroundStartPending(true);
@@ -365,8 +366,6 @@ export function useForegroundPlayback({
       setForegroundStartPending(false);
       return false;
     }
-
-    const foregroundSongId = librarySongsRef.current[songIndex]?.id ?? null;
 
     setSelectedSongIndex(songIndex);
     if (song.songNotes.length === 0) {
@@ -455,7 +454,6 @@ export function useForegroundPlayback({
         sessionId: response.sessionId,
         song: preparedPlan.song,
         songId,
-        songIndex,
       };
       setForegroundStartPending(false);
       setForegroundPlaybackState("playing");
@@ -582,13 +580,27 @@ export function useForegroundPlayback({
       const context = foregroundPlaybackContextRef.current;
       if (context?.sessionId === payload.sessionId) {
         resetForegroundPlayback("finished");
-        handleForegroundPlaybackFinished(context.songIndex, context.song);
+        handleForegroundPlaybackFinished(context.songId, context.song);
       }
     }
   }
 
-  function handleForegroundPlaybackFinished(songIndex: number, song: Song) {
+  function handleForegroundPlaybackFinished(
+    songId: LibrarySongId | null,
+    song: Song,
+  ) {
     const currentLibrarySongs = librarySongsRef.current;
+    const songIndex = resolveActivePlaybackSongIndex({
+      librarySongs: currentLibrarySongs,
+      songId,
+    });
+
+    if (songIndex === null) {
+      setForegroundPlaybackState("finished");
+      appendLog(text.logs.foregroundPlaybackFinished);
+      return;
+    }
+
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
