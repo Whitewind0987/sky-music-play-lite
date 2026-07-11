@@ -94,6 +94,12 @@ export function usePlaybackOrder() {
     return transaction;
   }
 
+  function beginPlaybackContextValue(context: ActivePlaybackContext) {
+    const transaction = transactionStoreRef.current!.begin(context);
+    syncContextRef();
+    return transaction;
+  }
+
   function beginCurrentSongTransaction(songId: LibrarySongId) {
     const transaction = transactionStoreRef.current!.beginCurrentSong(songId);
     syncContextRef();
@@ -158,6 +164,7 @@ export function usePlaybackOrder() {
   return {
     beginCurrentSongTransaction,
     beginPlaybackContext,
+    beginPlaybackContextValue,
     commitPlaybackContext,
     activePlaybackContextRef,
     clearPlaybackContext,

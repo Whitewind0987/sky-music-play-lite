@@ -1,7 +1,7 @@
 export interface ActivePlaybackContext {
   currentSongId: string;
   songIds: string[];
-  source: "local-imports" | "liked" | "playlist" | "search";
+  source: "local-imports" | "liked" | "playlist" | "queue" | "search";
 }
 
 export interface PlaybackContextTransaction {

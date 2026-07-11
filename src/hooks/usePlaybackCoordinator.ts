@@ -3,6 +3,7 @@ import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
 import { resolveManualNextCurrentSong } from "../lib/manualNextPlayback";
 import { runPlaybackContextTransaction } from "../lib/playbackContextTransaction";
+import { getQueueSongIds } from "../lib/playbackQueueDecision";
 import type { LibrarySongId, LibrarySongListItem } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { useExperimentalInput } from "./useExperimentalInput";
@@ -97,15 +98,37 @@ export function usePlaybackCoordinator({
   }
 
   async function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
-    if (!(await ensureTargetWindowReadyForPlayback())) {
+    const songs = scoreLibrary.librarySongsRef.current;
+    const queueContextItems = playbackQueue.getValidQueueItemsFromItem(
+      queueItem.id,
+      songs.length,
+    );
+    const queueContextSongIds = getQueueSongIds(queueContextItems, songs);
+    const currentSongId = songs[queueItem.songIndex]?.id;
+    if (!currentSongId || queueContextSongIds[0] !== currentSongId) {
+      return;
+    }
+
+    const transaction = playbackOrder.beginPlaybackContextValue({
+      currentSongId,
+      songIds: queueContextSongIds,
+      source: "queue",
+    });
+    const transactionResult = await runPlaybackContextTransaction({
+      commit: playbackOrder.commitPlaybackContext,
+      rollback: playbackOrder.rollbackPlaybackContext,
+      start: async () =>
+        (await ensureTargetWindowReadyForPlayback()) &&
+        (await startOutputSong(queueItem.songIndex)),
+      transaction,
+    });
+
+    if (transactionResult !== "started") {
       return;
     }
 
     scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
-    playbackOrder.clearPlaybackContext();
-    startPlaybackFromSongIndex(queueItem.songIndex, {
-      skipTargetWindowGuard: true,
-    });
+    playbackQueue.consumeQueuedItemAfterCurrent(queueItem.id, songs.length);
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
@@ -177,13 +200,20 @@ export function usePlaybackCoordinator({
       currentSongResolution.status === "resolved"
         ? currentSongResolution.songIndex
         : null;
-    const queuedItem =
+    const queueDecision =
       currentSongIndex === null
-        ? null
-        : playbackQueue.peekNextQueueItemAfterCurrent(songs.length);
+        ? { status: "current-unavailable" as const }
+        : playbackQueue.resolveNextQueueForCurrent(
+            currentSongIndex,
+            songs.length,
+          );
+    const queuedItem =
+      queueDecision.status === "next" ? queueDecision.nextItem : null;
 
     const playbackOrderDecision =
-      currentSongResolution.status === "resolved"
+      queuedItem !== null
+        ? null
+        : currentSongResolution.status === "resolved"
         ? playbackOrder.getNextPlaybackOrderDecision({
             currentSongId: currentSongResolution.songId,
             currentSongIndex: currentSongResolution.songIndex,
@@ -198,9 +228,13 @@ export function usePlaybackCoordinator({
 
     const nextSongIndex =
       queuedItem?.songIndex ??
-      (playbackOrderDecision.status === "next"
+      (playbackOrderDecision?.status === "next"
         ? playbackOrderDecision.songIndex
         : null);
+    const queueContextSongIds =
+      queueDecision.status === "next"
+        ? getQueueSongIds(queueDecision.remainingItems, songs)
+        : [];
     onManualNextDecision?.({
       outputMode: playbackOutput.mode,
       activeForegroundSongId,
@@ -210,9 +244,31 @@ export function usePlaybackCoordinator({
       selectedSongIndex: scoreLibrary.selectedSongIndex,
       contextStatus: currentSongResolution.status,
       currentSongResolution,
-      decisionStatus: playbackOrderDecision.status,
+      actualCurrentSongId:
+        currentSongResolution.status === "resolved"
+          ? currentSongResolution.songId
+          : null,
+      actualCurrentSongIndex: currentSongIndex,
+      queueDecisionStatus: queueDecision.status,
+      matchedQueueCurrentItemId:
+        queueDecision.status === "next" || queueDecision.status === "no-next"
+          ? queueDecision.currentItem.id
+          : null,
+      matchedQueueCurrentSongIndex:
+        queueDecision.status === "next" || queueDecision.status === "no-next"
+          ? queueDecision.currentItem.songIndex
+          : null,
+      queueItemCount: playbackQueue.getQueueItemCount(),
+      queueDerivedContextSongIds: queueContextSongIds,
+      finalNextSource:
+        nextSongIndex === null
+          ? null
+          : queuedItem
+            ? "queue"
+            : "playback-order",
+      decisionStatus: playbackOrderDecision?.status ?? "queue-next",
       decisionReason:
-        playbackOrderDecision.status === "context-unavailable"
+        playbackOrderDecision?.status === "context-unavailable"
           ? playbackOrderDecision.reason
           : null,
       playbackOrderDecision,
@@ -226,7 +282,7 @@ export function usePlaybackCoordinator({
 
     if (
       currentSongResolution.status === "context-unavailable" ||
-      playbackOrderDecision.status === "context-unavailable"
+      playbackOrderDecision?.status === "context-unavailable"
     ) {
       return;
     }
@@ -249,8 +305,13 @@ export function usePlaybackCoordinator({
     if (!nextSongId) {
       return;
     }
-    const transaction =
-      playbackOrder.beginCurrentSongTransaction(nextSongId);
+    const transaction = queuedItem
+      ? playbackOrder.beginPlaybackContextValue({
+          currentSongId: nextSongId,
+          songIds: queueContextSongIds,
+          source: "queue",
+        })
+      : playbackOrder.beginCurrentSongTransaction(nextSongId);
     if (!transaction) {
       return;
     }
@@ -267,7 +328,8 @@ export function usePlaybackCoordinator({
 
     if (queuedItem) {
       playbackQueue.consumeQueuedItemAfterCurrent(queuedItem.id, songs.length);
-      playbackOrder.clearPlaybackContext();
+    } else if (queueDecision.status === "current-not-in-queue") {
+      playbackQueue.replaceQueueWithCurrent(nextSongIndex);
     } else {
       playbackQueue.startQueuePlayback(nextSongIndex);
     }

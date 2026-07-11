@@ -2,6 +2,10 @@ import { useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
+import {
+  getValidQueueItemsFrom,
+  resolveNextQueueItemForCurrent,
+} from "../lib/playbackQueueDecision";
 import type { LibrarySong } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 
@@ -205,6 +209,32 @@ export function usePlaybackQueue({
       : null;
   }
 
+  function resolveNextQueueForCurrent(
+    currentSongIndex: number,
+    songCount: number,
+  ) {
+    return resolveNextQueueItemForCurrent({
+      currentSongIndex,
+      queueItems: queueItemsRef.current,
+      songCount,
+    });
+  }
+
+  function getValidQueueItemsFromItem(
+    currentItemId: string,
+    songCount: number,
+  ) {
+    return getValidQueueItemsFrom({
+      currentItemId,
+      queueItems: queueItemsRef.current,
+      songCount,
+    });
+  }
+
+  function getQueueItemCount() {
+    return queueItemsRef.current.length;
+  }
+
   function consumeQueuedItemAfterCurrent(
     queueItemId: string,
     songCount: number,
@@ -279,10 +309,13 @@ export function usePlaybackQueue({
     clearQueue,
     consumeQueuedItemAfterCurrent,
     consumeNextQueueItemAfterCurrent,
+    getValidQueueItemsFromItem,
+    getQueueItemCount,
     peekNextQueueItemAfterCurrent,
     playNext,
     queueItems,
     replaceQueueWithCurrent,
+    resolveNextQueueForCurrent,
     removeSongIndex,
     removeSongIndices,
     removeQueueItem,
