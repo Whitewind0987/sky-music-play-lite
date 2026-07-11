@@ -22,6 +22,25 @@ function deferredBoolean() {
 }
 
 describe("PlaybackContextTransactionStore", () => {
+  it("keeps committed, pending, and effective contexts distinct", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("B"));
+    expect(store.getCommittedCurrentSongId()).toBe("B");
+    expect(store.getPendingCurrentSongId()).toBeNull();
+    expect(store.getCurrentSongId()).toBe("B");
+
+    const transaction = store.begin(context("C"));
+    expect(store.getCommittedCurrentSongId()).toBe("B");
+    expect(store.getPendingCurrentSongId()).toBe("C");
+    expect(store.getCurrentSongId()).toBe("C");
+    expect(store.hasPendingTransaction()).toBe(true);
+
+    expect(store.commit(transaction)).toBe(true);
+    expect(store.getCommittedCurrentSongId()).toBe("C");
+    expect(store.getPendingCurrentSongId()).toBeNull();
+    expect(store.getCurrentSongId()).toBe("C");
+  });
+
   it("installs pending context synchronously and commits success", async () => {
     const store = new PlaybackContextTransactionStore();
     store.replace(context("A"));
@@ -125,6 +144,61 @@ describe("PlaybackContextTransactionStore", () => {
     expect(store.getCurrentSongId()).toBe("B");
   });
 
+  it("rolls a superseding failed D back to committed B instead of abandoned C", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("B"));
+    const transactionC = store.begin(context("C"));
+    const transactionD = store.begin({
+      ...context("D"),
+      songIds: ["A", "B", "C", "D"],
+    });
+
+    expect(store.getCommittedCurrentSongId()).toBe("B");
+    expect(store.rollback(transactionD)).toBe(true);
+    expect(store.getCurrentSongId()).toBe("B");
+    expect(store.getPendingContext()).toBeNull();
+    expect(store.commit(transactionC)).toBe(false);
+    expect(store.rollback(transactionC)).toBe(false);
+  });
+
+  it("replace invalidates pending ownership and installs committed context", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("B"));
+    const transaction = store.begin(context("C"));
+    store.replace(context("A"));
+
+    expect(store.hasPendingTransaction()).toBe(false);
+    expect(store.getCurrentSongId()).toBe("A");
+    expect(store.commit(transaction)).toBe(false);
+    expect(store.rollback(transaction)).toBe(false);
+  });
+
+  it("replace with null clears committed and pending contexts", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("B"));
+    const transaction = store.begin(context("C"));
+    store.replace(null);
+
+    expect(store.getContext()).toBeNull();
+    expect(store.getCommittedContext()).toBeNull();
+    expect(store.getPendingContext()).toBeNull();
+    expect(store.commit(transaction)).toBe(false);
+    expect(store.rollback(transaction)).toBe(false);
+  });
+
+  it("marks the effective context without changing transaction ownership", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("A"));
+    const transaction = store.begin(context("B"));
+    store.markCurrentSong("C");
+
+    expect(store.getCommittedCurrentSongId()).toBe("A");
+    expect(store.getPendingCurrentSongId()).toBe("C");
+    expect(store.hasPendingTransaction()).toBe(true);
+    expect(store.rollback(transaction)).toBe(true);
+    expect(store.getCurrentSongId()).toBe("A");
+  });
+
   it("removes missing songs from pending and rollback contexts", () => {
     const store = new PlaybackContextTransactionStore();
     store.replace(context("A"));
@@ -132,5 +206,44 @@ describe("PlaybackContextTransactionStore", () => {
     store.removeSong("C");
     expect(store.rollback(transaction)).toBe(true);
     expect(store.getContext()?.songIds).toEqual(["A", "B"]);
+  });
+
+  it("updates committed and pending contexts independently during removal", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace({ ...context("B"), songIds: ["A", "B", "D"] });
+    const transaction = store.begin({
+      ...context("C"),
+      songIds: ["A", "C", "D"],
+    });
+    store.removeSong("A");
+
+    expect(store.getCommittedContext()?.songIds).toEqual(["B", "D"]);
+    expect(store.getPendingContext()?.songIds).toEqual(["C", "D"]);
+    expect(store.rollback(transaction)).toBe(true);
+    expect(store.getContext()?.songIds).toEqual(["B", "D"]);
+  });
+
+  it("removing a pending current song cancels pending without corrupting committed", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("B"));
+    const transaction = store.begin(context("C"));
+    store.removeSong("C");
+
+    expect(store.getCommittedCurrentSongId()).toBe("B");
+    expect(store.getPendingContext()).toBeNull();
+    expect(store.getCurrentSongId()).toBe("B");
+    expect(store.commit(transaction)).toBe(false);
+  });
+
+  it("removing committed current does not commit pending state", () => {
+    const store = new PlaybackContextTransactionStore();
+    store.replace(context("B"));
+    const transaction = store.begin(context("C"));
+    store.removeSong("B");
+
+    expect(store.getCommittedContext()).toBeNull();
+    expect(store.getPendingCurrentSongId()).toBe("C");
+    expect(store.rollback(transaction)).toBe(true);
+    expect(store.getContext()).toBeNull();
   });
 });

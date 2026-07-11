@@ -9,7 +9,7 @@ export interface PlaybackContextTransaction {
 }
 
 interface ActiveTransaction extends PlaybackContextTransaction {
-  previousContext: ActivePlaybackContext | null;
+  pendingContext: ActivePlaybackContext;
 }
 
 function cloneContext(
@@ -55,44 +55,64 @@ export function removeSongFromActivePlaybackContext(
 
 export class PlaybackContextTransactionStore {
   private activeTransaction: ActiveTransaction | null = null;
-  private context: ActivePlaybackContext | null = null;
+  private committedContext: ActivePlaybackContext | null = null;
   private nextToken = 0;
 
   getContext(): ActivePlaybackContext | null {
-    return this.context;
+    return this.activeTransaction?.pendingContext ?? this.committedContext;
+  }
+
+  getCommittedContext(): ActivePlaybackContext | null {
+    return this.committedContext;
+  }
+
+  getPendingContext(): ActivePlaybackContext | null {
+    return this.activeTransaction?.pendingContext ?? null;
   }
 
   getCurrentSongId(): string | null {
-    return this.context?.currentSongId ?? null;
+    return this.getContext()?.currentSongId ?? null;
+  }
+
+  getCommittedCurrentSongId(): string | null {
+    return this.committedContext?.currentSongId ?? null;
+  }
+
+  getPendingCurrentSongId(): string | null {
+    return this.activeTransaction?.pendingContext.currentSongId ?? null;
+  }
+
+  hasPendingTransaction(): boolean {
+    return this.activeTransaction !== null;
   }
 
   replace(context: ActivePlaybackContext | null): void {
     this.nextToken += 1;
     this.activeTransaction = null;
-    this.context = cloneContext(context);
+    this.committedContext = cloneContext(context);
   }
 
   begin(context: ActivePlaybackContext): PlaybackContextTransaction {
     const transaction = { token: ++this.nextToken };
     this.activeTransaction = {
       ...transaction,
-      previousContext: cloneContext(this.context),
+      pendingContext: cloneContext(context)!,
     };
-    this.context = cloneContext(context);
     return transaction;
   }
 
   beginCurrentSong(songId: string): PlaybackContextTransaction | null {
-    if (!this.context) {
+    const context = this.getContext();
+    if (!context) {
       return null;
     }
 
     return this.begin({
-      ...this.context,
+      ...context,
       currentSongId: songId,
-      songIds: this.context.songIds.includes(songId)
-        ? this.context.songIds
-        : [...this.context.songIds, songId],
+      songIds: context.songIds.includes(songId)
+        ? context.songIds
+        : [...context.songIds, songId],
     });
   }
 
@@ -101,6 +121,9 @@ export class PlaybackContextTransactionStore {
       return false;
     }
 
+    this.committedContext = cloneContext(
+      this.activeTransaction.pendingContext,
+    );
     this.activeTransaction = null;
     return true;
   }
@@ -110,30 +133,42 @@ export class PlaybackContextTransactionStore {
       return false;
     }
 
-    this.context = cloneContext(this.activeTransaction.previousContext);
     this.activeTransaction = null;
     return true;
   }
 
   markCurrentSong(songId: string): void {
-    if (!this.context?.songIds.includes(songId)) {
+    const context = this.getContext();
+    if (!context?.songIds.includes(songId)) {
       return;
     }
 
-    this.context = {
-      ...this.context,
+    const nextContext = {
+      ...context,
       currentSongId: songId,
     };
+    if (this.activeTransaction) {
+      this.activeTransaction.pendingContext = nextContext;
+    } else {
+      this.committedContext = nextContext;
+    }
   }
 
   removeSong(songId: string): void {
-    this.context = removeSongFromActivePlaybackContext(this.context, songId);
+    this.committedContext = removeSongFromActivePlaybackContext(
+      this.committedContext,
+      songId,
+    );
     if (this.activeTransaction) {
-      this.activeTransaction.previousContext =
-        removeSongFromActivePlaybackContext(
-          this.activeTransaction.previousContext,
-          songId,
-        );
+      const pendingContext = removeSongFromActivePlaybackContext(
+        this.activeTransaction.pendingContext,
+        songId,
+      );
+      if (pendingContext) {
+        this.activeTransaction.pendingContext = pendingContext;
+      } else {
+        this.activeTransaction = null;
+      }
     }
   }
 }

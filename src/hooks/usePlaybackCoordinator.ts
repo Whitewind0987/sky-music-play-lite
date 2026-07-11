@@ -188,11 +188,16 @@ export function usePlaybackCoordinator({
       experimentalInput.getActiveForegroundPlaybackSongId();
     const activeTargetWindowSongId =
       experimentalInput.getActiveTargetWindowPlaybackSongId();
+    const pendingPlaybackContextSongId =
+      playbackOrder.getPendingPlaybackContextSongId();
+    const effectivePlaybackContextSongId =
+      playbackOrder.getCurrentPlaybackContextSongId();
     const currentSongResolution = resolveManualNextCurrentSong({
       activeForegroundSongId,
       activeTargetWindowSongId,
-      contextSongId: playbackOrder.getCurrentPlaybackContextSongId(),
+      contextSongId: effectivePlaybackContextSongId,
       librarySongs: songs,
+      pendingContextSongId: pendingPlaybackContextSongId,
       playbackSongIndex: scoreLibrary.playbackSongIndex,
       selectedSongIndex: scoreLibrary.selectedSongIndex,
     });
@@ -239,11 +244,18 @@ export function usePlaybackCoordinator({
       outputMode: playbackOutput.mode,
       activeForegroundSongId,
       activeTargetWindowSongId,
-      playbackContextSongId: playbackOrder.getCurrentPlaybackContextSongId(),
+      playbackContextSongId: effectivePlaybackContextSongId,
+      pendingPlaybackContextSongId,
+      effectivePlaybackContextSongId,
+      committedPlaybackContextSongId:
+        playbackOrder.getCommittedPlaybackContextSongId(),
+      hasPendingPlaybackContextTransaction:
+        playbackOrder.hasPendingPlaybackContextTransaction(),
       playbackSongIndex: scoreLibrary.playbackSongIndex,
       selectedSongIndex: scoreLibrary.selectedSongIndex,
       contextStatus: currentSongResolution.status,
       currentSongResolution,
+      currentSongResolutionSource: currentSongResolution.source,
       actualCurrentSongId:
         currentSongResolution.status === "resolved"
           ? currentSongResolution.songId

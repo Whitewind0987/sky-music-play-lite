@@ -137,6 +137,18 @@ export function usePlaybackOrder() {
     return transactionStoreRef.current!.getCurrentSongId();
   }
 
+  function getCommittedPlaybackContextSongId() {
+    return transactionStoreRef.current!.getCommittedCurrentSongId();
+  }
+
+  function getPendingPlaybackContextSongId() {
+    return transactionStoreRef.current!.getPendingCurrentSongId();
+  }
+
+  function hasPendingPlaybackContextTransaction() {
+    return transactionStoreRef.current!.hasPendingTransaction();
+  }
+
   function getNextPlaybackOrderDecision(
     options: PlaybackOrderNextOptions,
   ): PlaybackOrderNextDecision {
@@ -168,9 +180,12 @@ export function usePlaybackOrder() {
     commitPlaybackContext,
     activePlaybackContextRef,
     clearPlaybackContext,
+    getCommittedPlaybackContextSongId,
     getCurrentPlaybackContextSongId,
     getNextPlaybackOrderDecision,
     getNextPlaybackOrderSongIndex,
+    getPendingPlaybackContextSongId,
+    hasPendingPlaybackContextTransaction,
     markCurrentSong,
     removeSongFromPlaybackContext,
     rollbackPlaybackContext,

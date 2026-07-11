@@ -6,6 +6,7 @@ export type ManualNextCurrentSongResolution =
       songId: LibrarySongId;
       songIndex: number;
       source:
+        | "pending-playback-context"
         | "foreground"
         | "target-window"
         | "playback-context"
@@ -16,6 +17,7 @@ export type ManualNextCurrentSongResolution =
       status: "context-unavailable";
       reason: "missing-current-song" | "missing-fallback";
       source:
+        | "pending-playback-context"
         | "foreground"
         | "target-window"
         | "playback-context"
@@ -28,6 +30,7 @@ export function resolveManualNextCurrentSong({
   activeForegroundSongId,
   activeTargetWindowSongId,
   contextSongId,
+  pendingContextSongId,
   librarySongs,
   playbackSongIndex,
   selectedSongIndex,
@@ -35,11 +38,16 @@ export function resolveManualNextCurrentSong({
   activeForegroundSongId: LibrarySongId | null;
   activeTargetWindowSongId: LibrarySongId | null;
   contextSongId: LibrarySongId | null;
+  pendingContextSongId: LibrarySongId | null;
   librarySongs: LibrarySong[];
   playbackSongIndex: number | null;
   selectedSongIndex: number | null;
 }): ManualNextCurrentSongResolution {
   const stableCandidates = [
+    {
+      songId: pendingContextSongId,
+      source: "pending-playback-context" as const,
+    },
     { songId: activeForegroundSongId, source: "foreground" as const },
     { songId: activeTargetWindowSongId, source: "target-window" as const },
     { songId: contextSongId, source: "playback-context" as const },

@@ -27,6 +27,7 @@ describe("resolveManualNextCurrentSong", () => {
     activeForegroundSongId: null,
     activeTargetWindowSongId: null,
     contextSongId: null,
+    pendingContextSongId: null,
     librarySongs,
     playbackSongIndex: null,
     selectedSongIndex: null,
@@ -83,5 +84,34 @@ describe("resolveManualNextCurrentSong", () => {
         selectedSongIndex: 0,
       }),
     ).toMatchObject({ source: "foreground", songId: "C" });
+  });
+
+  it("prioritizes pending C over accepted foreground or target-window B", () => {
+    expect(
+      resolveManualNextCurrentSong({
+        ...defaults,
+        pendingContextSongId: "C",
+        activeForegroundSongId: "B",
+        activeTargetWindowSongId: "B",
+      }),
+    ).toMatchObject({
+      status: "resolved",
+      source: "pending-playback-context",
+      songId: "C",
+    });
+  });
+
+  it("does not fall back when pending identity is missing", () => {
+    expect(
+      resolveManualNextCurrentSong({
+        ...defaults,
+        pendingContextSongId: "removed",
+        activeForegroundSongId: "B",
+      }),
+    ).toEqual({
+      status: "context-unavailable",
+      reason: "missing-current-song",
+      source: "pending-playback-context",
+    });
   });
 });
