@@ -6,6 +6,7 @@ import {
   takePendingBackgroundPlaybackEvents,
 } from "../lib/backgroundPlaybackEvents";
 import { resolveActivePlaybackSongIndex } from "../lib/activePlaybackSong";
+import { resolveForegroundPlaybackBeforeHandoff } from "../lib/foregroundPlaybackHandoff";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
@@ -350,22 +351,31 @@ export function useForegroundPlayback({
     setForegroundStartPending(true);
     clearCountdownTimer();
 
-    const activeSessionId = activeForegroundSessionIdRef.current;
-    if (activeSessionId !== null) {
-      activeForegroundSessionIdRef.current = null;
-      foregroundPlaybackContextRef.current = null;
-      void stopForegroundPlaybackSession(activeSessionId).catch(() => {});
-    }
+    const handoffResult = await resolveForegroundPlaybackBeforeHandoff({
+      isRequestCurrent: () =>
+        foregroundRequestTokenRef.current === requestToken,
+      replaceActiveSession: () => {
+        const activeSessionId = activeForegroundSessionIdRef.current;
 
-    const song = await resolveSongForPlayback(songIndex);
-    if (foregroundRequestTokenRef.current !== requestToken) {
+        if (activeSessionId !== null) {
+          activeForegroundSessionIdRef.current = null;
+          foregroundPlaybackContextRef.current = null;
+          void stopForegroundPlaybackSession(activeSessionId).catch(() => {});
+        }
+      },
+      resolveRequestedSong: () => resolveSongForPlayback(songIndex),
+    });
+
+    if (handoffResult.status === "stale") {
       return false;
     }
 
-    if (!song) {
+    if (handoffResult.status === "unavailable") {
       setForegroundStartPending(false);
       return false;
     }
+
+    const song = handoffResult.song;
 
     setSelectedSongIndex(songIndex);
     if (song.songNotes.length === 0) {

@@ -1,6 +1,7 @@
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
+import { resolveManualNextCurrentSongIndex } from "../lib/manualNextPlayback";
 import type { LibrarySongId, LibrarySongListItem } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { useExperimentalInput } from "./useExperimentalInput";
@@ -147,19 +148,32 @@ export function usePlaybackCoordinator({
     }
 
     const songs = scoreLibrary.librarySongsRef.current;
+    const activeForegroundSongId =
+      playbackOutput.mode === "experimental-foreground"
+        ? experimentalInput.getActiveForegroundPlaybackSongId()
+        : null;
+    const currentSongIndex = resolveManualNextCurrentSongIndex({
+      activeSongId: activeForegroundSongId,
+      librarySongs: songs,
+      playbackSongIndex: scoreLibrary.playbackSongIndex,
+      selectedSongIndex: scoreLibrary.selectedSongIndex,
+    });
     const shouldDeferQueueConsume =
       playbackOutput.mode === "experimental-target-window" ||
       playbackOutput.mode === "experimental-foreground";
-    const queuedItem = shouldDeferQueueConsume
-      ? playbackQueue.peekNextQueueItemAfterCurrent(songs.length)
-      : playbackQueue.consumeNextQueueItemAfterCurrent(songs.length);
+    const queuedItem =
+      currentSongIndex === null
+        ? null
+        : shouldDeferQueueConsume
+          ? playbackQueue.peekNextQueueItemAfterCurrent(songs.length)
+          : playbackQueue.consumeNextQueueItemAfterCurrent(songs.length);
 
     const playbackOrderNextSongIndex =
-      queuedItem === null && scoreLibrary.selectedSongIndex !== null
+      queuedItem === null && currentSongIndex !== null
         ? playbackOrder.getNextPlaybackOrderSongIndex({
-            currentSongIndex: scoreLibrary.selectedSongIndex,
+            currentSongIndex,
             isShuffleEnabled: playbackOutput.isShuffleEnabled,
-            librarySongs: scoreLibrary.librarySongs,
+            librarySongs: songs,
             playbackMode: playbackOutput.playbackMode,
           })
         : null;
