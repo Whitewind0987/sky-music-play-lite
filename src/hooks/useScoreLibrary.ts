@@ -71,6 +71,7 @@ import type { Song } from "../types/score";
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
   onBeforeLibraryMutation: () => void;
+  onBeforeMissingPlaybackSongRemoval?: (songId: LibrarySongId) => void;
   onMissingLocalSongsRemoved?: (removedSongs: RemovedLibrarySong[]) => void;
   showNotice?: (message: string) => void;
   text: UiText;
@@ -90,6 +91,7 @@ const BUILT_IN_PAGE_SIZE = 100;
 export function useScoreLibrary({
   appendLog,
   onBeforeLibraryMutation,
+  onBeforeMissingPlaybackSongRemoval,
   onMissingLocalSongsRemoved,
   showNotice,
   text,
@@ -791,8 +793,11 @@ export function useScoreLibrary({
       updateSelectedSongId(cleanup.selectedSongId);
     }
 
-    if (cleanup.playbackSongId !== playbackSongIdRef.current) {
-      onBeforeLibraryMutation();
+    const removedPlaybackSongId = playbackSongIdRef.current;
+    if (cleanup.playbackSongId !== removedPlaybackSongId) {
+      if (removedPlaybackSongId !== null) {
+        onBeforeMissingPlaybackSongRemoval?.(removedPlaybackSongId);
+      }
       updatePlaybackSongId(cleanup.playbackSongId);
     }
 

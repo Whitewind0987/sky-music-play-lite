@@ -57,7 +57,9 @@ import {
   synchronizeRemovedLibrarySongsWithPlayback,
   type RemovedLibrarySong,
 } from "./lib/missingScorePlaybackSync";
+import { shouldStopPlaybackForRemovedSong } from "./lib/missingScorePlaybackActivity";
 import { forceCloseApp } from "./lib/tauriApi";
+import type { LibrarySongId } from "./types/library";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -93,6 +95,9 @@ function App() {
   const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
   const missingLocalSongsRemovedRef = useRef<
     (removedSongs: RemovedLibrarySong[]) => void
+  >(() => {});
+  const missingPlaybackSongRemovalRef = useRef<
+    (songId: LibrarySongId) => void
   >(() => {});
 
   useEffect(() => {
@@ -131,6 +136,8 @@ function App() {
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
+    onBeforeMissingPlaybackSongRemoval: (songId) =>
+      missingPlaybackSongRemovalRef.current(songId),
     onMissingLocalSongsRemoved: (removedSongs) =>
       missingLocalSongsRemovedRef.current(removedSongs),
     showNotice: showAppNotice,
@@ -266,6 +273,20 @@ function App() {
     previewPlayback,
     text: text.bottomPlayer,
   });
+  missingPlaybackSongRemovalRef.current = (removedPlaybackSongId) => {
+    if (
+      shouldStopPlaybackForRemovedSong({
+        activePlaybackSongIds: [
+          previewPlayback.getActivePreviewPlaybackSongId(),
+          experimentalInput.getActiveForegroundPlaybackSongId(),
+          experimentalInput.getActiveTargetWindowPlaybackSongId(),
+        ],
+        removedPlaybackSongId,
+      })
+    ) {
+      playbackOutput.onStop();
+    }
+  };
   const playbackCoordinator = usePlaybackCoordinator({
     appendLog,
     experimentalInput,

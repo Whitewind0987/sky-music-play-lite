@@ -22,7 +22,7 @@ import {
   type BackgroundPlaybackEventPayload,
 } from "../lib/tauriApi";
 import type { ForegroundPlaybackState } from "../types/experimentalInput";
-import type { LibrarySong } from "../types/library";
+import type { LibrarySong, LibrarySongId } from "../types/library";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type {
@@ -69,6 +69,7 @@ type UseForegroundPlaybackOptions = {
 type ForegroundPlaybackContext = {
   sessionId: number;
   song: Song;
+  songId: LibrarySongId | null;
   songIndex: number;
 };
 
@@ -365,6 +366,8 @@ export function useForegroundPlayback({
       return false;
     }
 
+    const foregroundSongId = librarySongsRef.current[songIndex]?.id ?? null;
+
     setSelectedSongIndex(songIndex);
     if (song.songNotes.length === 0) {
       setForegroundStartPending(false);
@@ -410,6 +413,7 @@ export function useForegroundPlayback({
       preparedPlan,
       requestToken,
       retryCount: 0,
+      songId: foregroundSongId,
       songIndex,
     });
   }
@@ -419,12 +423,14 @@ export function useForegroundPlayback({
     preparedPlan,
     requestToken,
     retryCount,
+    songId,
     songIndex,
   }: {
     initialSeekMs?: number;
     preparedPlan: PreparedPlaybackPlan;
     requestToken: number;
     retryCount: number;
+    songId: LibrarySongId | null;
     songIndex: number;
   }): Promise<boolean> {
     if (foregroundRequestTokenRef.current !== requestToken) {
@@ -448,6 +454,7 @@ export function useForegroundPlayback({
       foregroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
         song: preparedPlan.song,
+        songId,
         songIndex,
       };
       setForegroundStartPending(false);
@@ -489,6 +496,7 @@ export function useForegroundPlayback({
             preparedPlan: replacement,
             requestToken,
             retryCount: 1,
+            songId,
             songIndex,
           });
         } catch (retryError) {
@@ -645,6 +653,12 @@ export function useForegroundPlayback({
     appendLog(text.logs.foregroundPlaybackFinished);
   }
 
+  function getActiveForegroundPlaybackSongId() {
+    return activeForegroundSessionIdRef.current === null
+      ? null
+      : foregroundPlaybackContextRef.current?.songId ?? null;
+  }
+
   function warmLikelyForegroundSong(currentSongIndex: number) {
     const queuedItem = peekNextQueueItemAfterCurrent(librarySongsRef.current.length);
     const nextSongIndex = queuedItem?.songIndex ?? getPlaybackOrderNextSongIndex({
@@ -693,6 +707,7 @@ export function useForegroundPlayback({
     handleSeekForegroundPlayback,
     handleStartForegroundPlayback,
     handleStopForegroundPlayback,
+    getActiveForegroundPlaybackSongId,
     isForegroundPlaybackActive,
     isForegroundStartPending,
   };

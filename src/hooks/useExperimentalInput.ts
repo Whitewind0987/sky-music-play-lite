@@ -103,6 +103,7 @@ const targetWindowKeyHoldMaxMs = 200;
 type BackgroundPlaybackContext = {
   sessionId: number;
   song: Song;
+  songId: LibrarySongId | null;
   songIndex: number;
 };
 
@@ -972,6 +973,7 @@ export function useExperimentalInput({
       backgroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
         song,
+        songId: librarySongsRef.current[songIndex]?.id ?? null,
         songIndex,
       };
       setSelectedSongIndex(songIndex);
@@ -1136,6 +1138,12 @@ export function useExperimentalInput({
     appendLog(text.logs.experimentalPlaybackFinished);
   }
 
+  function getActiveTargetWindowPlaybackSongId() {
+    return activeBackgroundSessionIdRef.current === null
+      ? null
+      : backgroundPlaybackContextRef.current?.songId ?? null;
+  }
+
   function handleBackgroundPlaybackEvent(
     payload: BackgroundPlaybackEventPayload,
   ) {
@@ -1296,6 +1304,9 @@ export function useExperimentalInput({
     foregroundCountdown: foregroundPlayback.foregroundCountdown,
     foregroundPlaybackProgress: foregroundPlayback.foregroundPlaybackProgress,
     foregroundPlaybackState: foregroundPlayback.foregroundPlaybackState,
+    getActiveForegroundPlaybackSongId:
+      foregroundPlayback.getActiveForegroundPlaybackSongId,
+    getActiveTargetWindowPlaybackSongId,
     handleDetectSkyWindow,
     ensureTargetWindowAvailableForPlayback,
     handleExperimentalInputModeChange,
