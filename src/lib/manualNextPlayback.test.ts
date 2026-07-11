@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getOrderedNextSongId } from "../hooks/usePlaybackOrder";
 import type { LocalLibrarySong } from "../types/library";
-import { resolveManualNextCurrentSongIndex } from "./manualNextPlayback";
+import { resolveManualNextCurrentSong } from "./manualNextPlayback";
 
 function createLocalSong(id: string): LocalLibrarySong {
   return {
@@ -22,97 +21,67 @@ function createLocalSong(id: string): LocalLibrarySong {
   };
 }
 
-describe("resolveManualNextCurrentSongIndex", () => {
+describe("resolveManualNextCurrentSong", () => {
   const librarySongs = ["A", "B", "C"].map(createLocalSong);
+  const defaults = {
+    activeForegroundSongId: null,
+    activeTargetWindowSongId: null,
+    contextSongId: null,
+    librarySongs,
+    playbackSongIndex: null,
+    selectedSongIndex: null,
+  };
 
-  it("uses active foreground B when UI selection is also B", () => {
-    const currentSongIndex = resolveManualNextCurrentSongIndex({
-      activeSongId: "B",
-      librarySongs,
-      playbackSongIndex: 1,
-      selectedSongIndex: 1,
+  it.each([
+    ["foreground", { activeForegroundSongId: "B" }],
+    ["target-window", { activeTargetWindowSongId: "B" }],
+    ["playback-context", { contextSongId: "B" }],
+    ["playback", { playbackSongIndex: 1 }],
+    ["selected", { selectedSongIndex: 1 }],
+  ] as const)("resolves the %s identity source", (source, overrides) => {
+    expect(resolveManualNextCurrentSong({ ...defaults, ...overrides })).toEqual({
+      status: "resolved",
+      songId: "B",
+      songIndex: 1,
+      source,
     });
-
-    expect(currentSongIndex).toBe(1);
-    expect(
-      getOrderedNextSongId(
-        librarySongs.map((song) => song.id),
-        currentSongIndex ?? -1,
-        "sequence",
-      ),
-    ).toBe("C");
   });
 
-  it("uses active foreground B even when UI selection changed to A", () => {
-    const currentSongIndex = resolveManualNextCurrentSongIndex({
-      activeSongId: "B",
-      librarySongs,
-      playbackSongIndex: 1,
-      selectedSongIndex: 0,
-    });
-
-    expect(currentSongIndex).toBe(1);
-    expect(librarySongs[(currentSongIndex ?? -1) + 1]?.id).toBe("C");
-  });
-
-  it("resolves B at its latest index after an earlier song is removed", () => {
-    const latestLibrary = [createLocalSong("B"), createLocalSong("C")];
-
+  it("uses the latest index for a stable song ID", () => {
     expect(
-      resolveManualNextCurrentSongIndex({
-        activeSongId: "B",
-        librarySongs: latestLibrary,
-        playbackSongIndex: 0,
-        selectedSongIndex: 1,
+      resolveManualNextCurrentSong({
+        ...defaults,
+        activeForegroundSongId: "B",
+        librarySongs: [createLocalSong("B"), createLocalSong("C")],
       }),
-    ).toBe(0);
+    ).toMatchObject({ status: "resolved", songId: "B", songIndex: 0 });
   });
 
-  it("does not fall back to an unrelated selection when active B is missing", () => {
+  it("does not fall back when a higher-priority stable ID is missing", () => {
     expect(
-      resolveManualNextCurrentSongIndex({
-        activeSongId: "B-removed",
-        librarySongs: [createLocalSong("A"), createLocalSong("C")],
+      resolveManualNextCurrentSong({
+        ...defaults,
+        activeForegroundSongId: "removed",
         playbackSongIndex: 1,
         selectedSongIndex: 0,
       }),
-    ).toBeNull();
+    ).toEqual({
+      status: "context-unavailable",
+      reason: "missing-current-song",
+      source: "foreground",
+    });
   });
 
-  it("falls back to current playback before UI selection without an active session", () => {
+  it("prioritizes foreground, target, context, playback, then selection", () => {
     expect(
-      resolveManualNextCurrentSongIndex({
-        activeSongId: null,
-        librarySongs,
+      resolveManualNextCurrentSong({
+        ...defaults,
+        activeForegroundSongId: "C",
+        activeTargetWindowSongId: "B",
+        contextSongId: "A",
         playbackSongIndex: 1,
         selectedSongIndex: 0,
       }),
-    ).toBe(1);
-    expect(
-      resolveManualNextCurrentSongIndex({
-        activeSongId: null,
-        librarySongs,
-        playbackSongIndex: null,
-        selectedSongIndex: 0,
-      }),
-    ).toBe(0);
-  });
-
-  it("preserves genuine end-of-list behavior", () => {
-    const currentSongIndex = resolveManualNextCurrentSongIndex({
-      activeSongId: "C",
-      librarySongs,
-      playbackSongIndex: 2,
-      selectedSongIndex: 0,
-    });
-
-    expect(currentSongIndex).toBe(2);
-    expect(
-      getOrderedNextSongId(
-        librarySongs.map((song) => song.id),
-        currentSongIndex ?? -1,
-        "sequence",
-      ),
-    ).toBeNull();
+    ).toMatchObject({ source: "foreground", songId: "C" });
   });
 });

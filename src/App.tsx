@@ -290,6 +290,12 @@ function App() {
   const playbackCoordinator = usePlaybackCoordinator({
     appendLog,
     experimentalInput,
+    onManualNextDecision: (details) =>
+      appFileLogger.appendDetailedLog({
+        details,
+        message: "Manual next decision",
+        source: "playback",
+      }),
     playbackOrder,
     playbackOutput,
     playbackQueue,

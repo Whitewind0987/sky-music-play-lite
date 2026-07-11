@@ -6,22 +6,61 @@ import type {
   LibrarySongListItem,
 } from "../types/library";
 import type { PlaybackMode } from "../types/playbackOptions";
+import {
+  PlaybackContextTransactionStore,
+  removeSongFromActivePlaybackContext,
+  type ActivePlaybackContext,
+  type PlaybackContextTransaction,
+} from "../lib/playbackContextTransaction";
 
-export type ActivePlaybackContext = {
-  currentSongId: LibrarySongId;
-  songIds: LibrarySongId[];
-  source: "local-imports" | "liked" | "playlist" | "search";
-};
+export type { ActivePlaybackContext, PlaybackContextTransaction };
 
 type PlaybackOrderNextOptions = {
   currentSongIndex: number;
+  currentSongId?: LibrarySongId | null;
   isShuffleEnabled: boolean;
   librarySongs: LibrarySong[];
   playbackMode: PlaybackMode;
 };
 
+export type PlaybackOrderNextDecision =
+  | { status: "next"; songId: LibrarySongId; songIndex: number }
+  | { status: "end-of-order" }
+  | {
+      status: "context-unavailable";
+      reason: "empty-order" | "missing-context" | "missing-current-song";
+    };
+
 export function usePlaybackOrder() {
   const activePlaybackContextRef = useRef<ActivePlaybackContext | null>(null);
+  const transactionStoreRef = useRef<PlaybackContextTransactionStore | null>(
+    null,
+  );
+  if (!transactionStoreRef.current) {
+    transactionStoreRef.current = new PlaybackContextTransactionStore();
+  }
+
+  function syncContextRef() {
+    activePlaybackContextRef.current = transactionStoreRef.current!.getContext();
+  }
+
+  function buildPlaybackContext({
+    currentSongId,
+    selectedCategory,
+    songIds,
+    usesSearch,
+  }: {
+    currentSongId: LibrarySongId;
+    selectedCategory: LibraryCategoryId;
+    songIds: LibrarySongId[];
+    usesSearch: boolean;
+  }): ActivePlaybackContext {
+    return {
+      currentSongId,
+      songIds,
+      source: usesSearch ? "search" : normalizeCategorySource(selectedCategory),
+    };
+  }
 
   function setPlaybackContext({
     currentSongId,
@@ -34,33 +73,71 @@ export function usePlaybackOrder() {
     songIds: LibrarySongId[];
     usesSearch: boolean;
   }) {
-    activePlaybackContextRef.current = {
-      currentSongId,
-      songIds,
-      source: usesSearch ? "search" : normalizeCategorySource(selectedCategory),
-    };
+    transactionStoreRef.current!.replace(
+      buildPlaybackContext({
+        currentSongId,
+        selectedCategory,
+        songIds,
+        usesSearch,
+      }),
+    );
+    syncContextRef();
+  }
+
+  function beginPlaybackContext(
+    options: Parameters<typeof buildPlaybackContext>[0],
+  ) {
+    const transaction = transactionStoreRef.current!.begin(
+      buildPlaybackContext(options),
+    );
+    syncContextRef();
+    return transaction;
+  }
+
+  function beginCurrentSongTransaction(songId: LibrarySongId) {
+    const transaction = transactionStoreRef.current!.beginCurrentSong(songId);
+    syncContextRef();
+    return transaction;
+  }
+
+  function commitPlaybackContext(transaction: PlaybackContextTransaction) {
+    const didCommit = transactionStoreRef.current!.commit(transaction);
+    syncContextRef();
+    return didCommit;
+  }
+
+  function rollbackPlaybackContext(transaction: PlaybackContextTransaction) {
+    const didRollback = transactionStoreRef.current!.rollback(transaction);
+    syncContextRef();
+    return didRollback;
   }
 
   function clearPlaybackContext() {
-    activePlaybackContextRef.current = null;
+    transactionStoreRef.current!.replace(null);
+    syncContextRef();
   }
 
   function removeSongFromPlaybackContext(songId: LibrarySongId) {
-    activePlaybackContextRef.current = removeSongFromActivePlaybackContext(
-      activePlaybackContextRef.current,
-      songId,
-    );
+    transactionStoreRef.current!.removeSong(songId);
+    syncContextRef();
   }
 
   function markCurrentSong(songId: LibrarySongId) {
-    if (!activePlaybackContextRef.current) {
-      return;
-    }
+    transactionStoreRef.current!.markCurrentSong(songId);
+    syncContextRef();
+  }
 
-    activePlaybackContextRef.current = {
-      ...activePlaybackContextRef.current,
-      currentSongId: songId,
-    };
+  function getCurrentPlaybackContextSongId() {
+    return transactionStoreRef.current!.getCurrentSongId();
+  }
+
+  function getNextPlaybackOrderDecision(
+    options: PlaybackOrderNextOptions,
+  ): PlaybackOrderNextDecision {
+    return resolvePlaybackOrderNextDecision({
+      ...options,
+      context: transactionStoreRef.current!.getContext(),
+    });
   }
 
   function getNextPlaybackOrderSongIndex({
@@ -69,66 +146,77 @@ export function usePlaybackOrder() {
     librarySongs,
     playbackMode,
   }: PlaybackOrderNextOptions) {
-    const currentContext = activePlaybackContextRef.current;
-
-    if (!currentContext) {
-      return null;
-    }
-
-    const currentSongId =
-      librarySongs[currentSongIndex]?.id ?? currentContext.currentSongId;
-    const visibleSongIds = currentContext.songIds.filter((songId) =>
-      librarySongs.some((librarySong) => librarySong.id === songId),
-    );
-    const currentPosition = visibleSongIds.indexOf(currentSongId);
-
-    if (currentPosition === -1) {
-      return null;
-    }
-
-    const nextSongId =
-      isShuffleEnabled && playbackMode === "repeat-all"
-        ? getRandomNextSongId(visibleSongIds, currentSongId)
-        : getOrderedNextSongId(visibleSongIds, currentPosition, playbackMode);
-
-    return nextSongId === null
-      ? null
-      : librarySongs.findIndex((librarySong) => librarySong.id === nextSongId);
+    const decision = getNextPlaybackOrderDecision({
+      currentSongIndex,
+      isShuffleEnabled,
+      librarySongs,
+      playbackMode,
+    });
+    return decision.status === "next" ? decision.songIndex : null;
   }
 
   return {
+    beginCurrentSongTransaction,
+    beginPlaybackContext,
+    commitPlaybackContext,
     activePlaybackContextRef,
     clearPlaybackContext,
+    getCurrentPlaybackContextSongId,
+    getNextPlaybackOrderDecision,
     getNextPlaybackOrderSongIndex,
     markCurrentSong,
     removeSongFromPlaybackContext,
+    rollbackPlaybackContext,
     setPlaybackContext,
   };
 }
 
-export function removeSongFromActivePlaybackContext(
-  currentContext: ActivePlaybackContext | null,
-  songId: LibrarySongId,
-): ActivePlaybackContext | null {
-  if (!currentContext) {
-    return currentContext;
+export { removeSongFromActivePlaybackContext };
+
+export function resolvePlaybackOrderNextDecision({
+  context,
+  currentSongId: explicitCurrentSongId,
+  currentSongIndex,
+  isShuffleEnabled,
+  librarySongs,
+  playbackMode,
+}: PlaybackOrderNextOptions & {
+  context: ActivePlaybackContext | null;
+}): PlaybackOrderNextDecision {
+  if (!context) {
+    return { status: "context-unavailable", reason: "missing-context" };
   }
 
-  if (currentContext.currentSongId === songId) {
-    return null;
-  }
-
-  if (!currentContext.songIds.includes(songId)) {
-    return currentContext;
-  }
-
-  const nextSongIds = currentContext.songIds.filter(
-    (currentSongId) => currentSongId !== songId,
+  const visibleSongIds = context.songIds.filter((songId) =>
+    librarySongs.some((librarySong) => librarySong.id === songId),
   );
+  if (visibleSongIds.length === 0) {
+    return { status: "context-unavailable", reason: "empty-order" };
+  }
 
-  return nextSongIds.length === 0
-    ? null
-    : { ...currentContext, songIds: nextSongIds };
+  const currentSongId =
+    explicitCurrentSongId ??
+    librarySongs[currentSongIndex]?.id ??
+    context.currentSongId;
+  const currentPosition = visibleSongIds.indexOf(currentSongId);
+  if (currentPosition === -1) {
+    return { status: "context-unavailable", reason: "missing-current-song" };
+  }
+
+  const nextSongId =
+    isShuffleEnabled && playbackMode === "repeat-all"
+      ? getRandomNextSongId(visibleSongIds, currentSongId)
+      : getOrderedNextSongId(visibleSongIds, currentPosition, playbackMode);
+  if (nextSongId === null) {
+    return { status: "end-of-order" };
+  }
+
+  const songIndex = librarySongs.findIndex(
+    (librarySong) => librarySong.id === nextSongId,
+  );
+  return songIndex === -1
+    ? { status: "context-unavailable", reason: "missing-current-song" }
+    : { status: "next", songId: nextSongId, songIndex };
 }
 
 export function buildPlaybackOrderFromVisibleItems(

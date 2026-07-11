@@ -1,7 +1,8 @@
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
-import { resolveManualNextCurrentSongIndex } from "../lib/manualNextPlayback";
+import { resolveManualNextCurrentSong } from "../lib/manualNextPlayback";
+import { runPlaybackContextTransaction } from "../lib/playbackContextTransaction";
 import type { LibrarySongId, LibrarySongListItem } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { useExperimentalInput } from "./useExperimentalInput";
@@ -21,6 +22,7 @@ type ScoreLibraryController = ReturnType<typeof useScoreLibrary>;
 
 type UsePlaybackCoordinatorOptions = {
   appendLog: (entry: string) => void;
+  onManualNextDecision?: (details: Record<string, unknown>) => void;
   experimentalInput: ExperimentalInputController;
   playbackOrder: PlaybackOrderController;
   playbackOutput: PlaybackOutputController;
@@ -31,6 +33,7 @@ type UsePlaybackCoordinatorOptions = {
 
 export function usePlaybackCoordinator({
   appendLog,
+  onManualNextDecision,
   experimentalInput,
   playbackOrder,
   playbackOutput,
@@ -62,20 +65,30 @@ export function usePlaybackCoordinator({
   }
 
   async function handlePlayLibraryItem(item: LibrarySongListItem) {
-    if (!(await ensureTargetWindowReadyForPlayback())) {
-      return;
-    }
-
     if (isAcceptedStartOutputMode(playbackOutput.mode)) {
-      const didStart = await startOutputSong(item.songIndex);
+      const transaction = playbackOrder.beginPlaybackContext(
+        getPlaybackContextOptions(item),
+      );
+      const transactionResult = await runPlaybackContextTransaction({
+        commit: playbackOrder.commitPlaybackContext,
+        rollback: playbackOrder.rollbackPlaybackContext,
+        start: async () =>
+          (await ensureTargetWindowReadyForPlayback()) &&
+          (await startOutputSong(item.songIndex)),
+        transaction,
+      });
 
-      if (!didStart) {
+      if (transactionResult !== "started") {
         return;
       }
+    } else {
+      if (!(await ensureTargetWindowReadyForPlayback())) {
+        return;
+      }
+      setPlaybackContextForLibraryItem(item);
     }
 
     scoreLibrary.setSelectedSongId(item.librarySong.id);
-    setPlaybackContextForLibraryItem(item);
     playbackQueue.replaceQueueWithCurrent(item.songIndex);
 
     if (!isAcceptedStartOutputMode(playbackOutput.mode)) {
@@ -149,35 +162,74 @@ export function usePlaybackCoordinator({
 
     const songs = scoreLibrary.librarySongsRef.current;
     const activeForegroundSongId =
-      playbackOutput.mode === "experimental-foreground"
-        ? experimentalInput.getActiveForegroundPlaybackSongId()
-        : null;
-    const currentSongIndex = resolveManualNextCurrentSongIndex({
-      activeSongId: activeForegroundSongId,
+      experimentalInput.getActiveForegroundPlaybackSongId();
+    const activeTargetWindowSongId =
+      experimentalInput.getActiveTargetWindowPlaybackSongId();
+    const currentSongResolution = resolveManualNextCurrentSong({
+      activeForegroundSongId,
+      activeTargetWindowSongId,
+      contextSongId: playbackOrder.getCurrentPlaybackContextSongId(),
       librarySongs: songs,
       playbackSongIndex: scoreLibrary.playbackSongIndex,
       selectedSongIndex: scoreLibrary.selectedSongIndex,
     });
-    const shouldDeferQueueConsume =
-      playbackOutput.mode === "experimental-target-window" ||
-      playbackOutput.mode === "experimental-foreground";
+    const currentSongIndex =
+      currentSongResolution.status === "resolved"
+        ? currentSongResolution.songIndex
+        : null;
     const queuedItem =
       currentSongIndex === null
         ? null
-        : shouldDeferQueueConsume
-          ? playbackQueue.peekNextQueueItemAfterCurrent(songs.length)
-          : playbackQueue.consumeNextQueueItemAfterCurrent(songs.length);
+        : playbackQueue.peekNextQueueItemAfterCurrent(songs.length);
 
-    const playbackOrderNextSongIndex =
-      queuedItem === null && currentSongIndex !== null
-        ? playbackOrder.getNextPlaybackOrderSongIndex({
-            currentSongIndex,
+    const playbackOrderDecision =
+      currentSongResolution.status === "resolved"
+        ? playbackOrder.getNextPlaybackOrderDecision({
+            currentSongId: currentSongResolution.songId,
+            currentSongIndex: currentSongResolution.songIndex,
             isShuffleEnabled: playbackOutput.isShuffleEnabled,
             librarySongs: songs,
             playbackMode: playbackOutput.playbackMode,
           })
-        : null;
-    const nextSongIndex = queuedItem?.songIndex ?? playbackOrderNextSongIndex;
+        : {
+            status: "context-unavailable" as const,
+            reason: currentSongResolution.reason,
+          };
+
+    const nextSongIndex =
+      queuedItem?.songIndex ??
+      (playbackOrderDecision.status === "next"
+        ? playbackOrderDecision.songIndex
+        : null);
+    onManualNextDecision?.({
+      outputMode: playbackOutput.mode,
+      activeForegroundSongId,
+      activeTargetWindowSongId,
+      playbackContextSongId: playbackOrder.getCurrentPlaybackContextSongId(),
+      playbackSongIndex: scoreLibrary.playbackSongIndex,
+      selectedSongIndex: scoreLibrary.selectedSongIndex,
+      contextStatus: currentSongResolution.status,
+      currentSongResolution,
+      decisionStatus: playbackOrderDecision.status,
+      decisionReason:
+        playbackOrderDecision.status === "context-unavailable"
+          ? playbackOrderDecision.reason
+          : null,
+      playbackOrderDecision,
+      nextSongId: nextSongIndex === null ? null : songs[nextSongIndex]?.id ?? null,
+      nextSongIndex,
+      queueCandidateId: queuedItem?.id ?? null,
+      queueCandidateSongId:
+        queuedItem === null ? null : songs[queuedItem.songIndex]?.id ?? null,
+      queueCandidateSongIndex: queuedItem?.songIndex ?? null,
+    });
+
+    if (
+      currentSongResolution.status === "context-unavailable" ||
+      playbackOrderDecision.status === "context-unavailable"
+    ) {
+      return;
+    }
 
     if (nextSongIndex === null) {
       playbackOrder.clearPlaybackContext();
@@ -193,19 +245,28 @@ export function usePlaybackCoordinator({
           : text.logs.queueUnknownSong,
       }),
     );
-    const didStart = await startOutputSong(nextSongIndex);
+    const nextSongId = songs[nextSongIndex]?.id;
+    if (!nextSongId) {
+      return;
+    }
+    const transaction =
+      playbackOrder.beginCurrentSongTransaction(nextSongId);
+    if (!transaction) {
+      return;
+    }
+    const transactionResult = await runPlaybackContextTransaction({
+      commit: playbackOrder.commitPlaybackContext,
+      rollback: playbackOrder.rollbackPlaybackContext,
+      start: () => startOutputSong(nextSongIndex),
+      transaction,
+    });
 
-    if (!didStart) {
+    if (transactionResult !== "started") {
       return;
     }
 
     if (queuedItem) {
-      if (shouldDeferQueueConsume) {
-        playbackQueue.consumeQueuedItemAfterCurrent(
-          queuedItem.id,
-          songs.length,
-        );
-      }
+      playbackQueue.consumeQueuedItemAfterCurrent(queuedItem.id, songs.length);
       playbackOrder.clearPlaybackContext();
     } else {
       playbackQueue.startQueuePlayback(nextSongIndex);
@@ -304,7 +365,11 @@ export function usePlaybackCoordinator({
   }
 
   function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
-    playbackOrder.setPlaybackContext({
+    playbackOrder.setPlaybackContext(getPlaybackContextOptions(item));
+  }
+
+  function getPlaybackContextOptions(item: LibrarySongListItem) {
+    return {
       currentSongId: item.librarySong.id,
       selectedCategory: scoreLibrary.selectedLibraryCategory,
       songIds: buildPlaybackOrderFromVisibleItems(
@@ -313,7 +378,7 @@ export function usePlaybackCoordinator({
         { usesSearch: scoreLibrary.hasSearchQuery },
       ),
       usesSearch: scoreLibrary.hasSearchQuery,
-    });
+    };
   }
 
   function getCurrentDisplayedLibraryItems() {
