@@ -2,6 +2,10 @@ import { useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
+import {
+  getValidQueueItemsFrom,
+  resolveNextQueueItemForCurrent,
+} from "../lib/playbackQueueDecision";
 import type { LibrarySong } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 
@@ -11,6 +15,51 @@ type UsePlaybackQueueOptions = {
   showNotice?: (message: string) => void;
   text: UiText["logs"];
 };
+
+export function removeSongIndicesFromPlaybackQueue(
+  queueItems: PlaybackQueueItem[],
+  removedSongIndices: number[],
+) {
+  const normalizedRemovedIndices = Array.from(
+    new Set(
+      removedSongIndices.filter(
+        (songIndex) => Number.isInteger(songIndex) && songIndex >= 0,
+      ),
+    ),
+  ).sort((left, right) => left - right);
+
+  if (normalizedRemovedIndices.length === 0) {
+    return queueItems;
+  }
+
+  const removedIndexSet = new Set(normalizedRemovedIndices);
+  let hasChanged = false;
+  const nextItems = queueItems.reduce<PlaybackQueueItem[]>((items, item) => {
+    if (removedIndexSet.has(item.songIndex)) {
+      hasChanged = true;
+      return items;
+    }
+
+    const removedBeforeItemCount = normalizedRemovedIndices.findIndex(
+      (removedSongIndex) => removedSongIndex >= item.songIndex,
+    );
+    const songIndexOffset =
+      removedBeforeItemCount === -1
+        ? normalizedRemovedIndices.length
+        : removedBeforeItemCount;
+
+    if (songIndexOffset === 0) {
+      items.push(item);
+      return items;
+    }
+
+    hasChanged = true;
+    items.push({ ...item, songIndex: item.songIndex - songIndexOffset });
+    return items;
+  }, []);
+
+  return hasChanged ? nextItems : queueItems;
+}
 
 export function usePlaybackQueue({
   appendLog,
@@ -131,26 +180,18 @@ export function usePlaybackQueue({
   }
 
   function removeSongIndex(deletedSongIndex: number) {
-    const nextItems = queueItemsRef.current.reduce<PlaybackQueueItem[]>(
-      (items, item) => {
-        if (item.songIndex === deletedSongIndex) {
-          return items;
-        }
+    removeSongIndices([deletedSongIndex]);
+  }
 
-        items.push({
-          ...item,
-          songIndex:
-            item.songIndex > deletedSongIndex
-              ? item.songIndex - 1
-              : item.songIndex,
-        });
-
-        return items;
-      },
-      [],
+  function removeSongIndices(removedSongIndices: number[]) {
+    const nextItems = removeSongIndicesFromPlaybackQueue(
+      queueItemsRef.current,
+      removedSongIndices,
     );
 
-    setQueueItemsAndRef(nextItems);
+    if (nextItems !== queueItemsRef.current) {
+      setQueueItemsAndRef(nextItems);
+    }
   }
 
   function peekNextQueueItemAfterCurrent(songCount: number) {
@@ -166,6 +207,32 @@ export function usePlaybackQueue({
     return currentItem && nextItemIndex >= 0
       ? currentItems[nextItemIndex]
       : null;
+  }
+
+  function resolveNextQueueForCurrent(
+    currentSongIndex: number,
+    songCount: number,
+  ) {
+    return resolveNextQueueItemForCurrent({
+      currentSongIndex,
+      queueItems: queueItemsRef.current,
+      songCount,
+    });
+  }
+
+  function getValidQueueItemsFromItem(
+    currentItemId: string,
+    songCount: number,
+  ) {
+    return getValidQueueItemsFrom({
+      currentItemId,
+      queueItems: queueItemsRef.current,
+      songCount,
+    });
+  }
+
+  function getQueueItemCount() {
+    return queueItemsRef.current.length;
   }
 
   function consumeQueuedItemAfterCurrent(
@@ -242,11 +309,15 @@ export function usePlaybackQueue({
     clearQueue,
     consumeQueuedItemAfterCurrent,
     consumeNextQueueItemAfterCurrent,
+    getValidQueueItemsFromItem,
+    getQueueItemCount,
     peekNextQueueItemAfterCurrent,
     playNext,
     queueItems,
     replaceQueueWithCurrent,
+    resolveNextQueueForCurrent,
     removeSongIndex,
+    removeSongIndices,
     removeQueueItem,
     startQueuePlayback,
   };

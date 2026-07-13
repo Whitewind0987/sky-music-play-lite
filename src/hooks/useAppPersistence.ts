@@ -13,7 +13,11 @@ import {
   reconcilePersistedImportedScores,
 } from "../lib/importedScoreReconciliation";
 import {
+  cleanupMissingImportedScoresFromPersistedLibrary,
+} from "../lib/missingImportedScores";
+import {
   loadAppData,
+  listImportedScoreFiles,
   reconcileImportedScoreFiles,
   saveAppData,
 } from "../lib/tauriApi";
@@ -238,6 +242,54 @@ export function useAppPersistence({
 
         if (isCancelled) {
           return;
+        }
+
+        if (
+          canEnableNormalPersistence &&
+          runtimeAppData.library.librarySongs.length > 0 &&
+          Object.keys(runtimeAppData.library.migrationFallbackSongs ?? {})
+            .length === 0
+        ) {
+          try {
+            const fileMetadata = await listImportedScoreFiles();
+
+            if (isCancelled) {
+              return;
+            }
+
+            const cleanup = cleanupMissingImportedScoresFromPersistedLibrary({
+              fileMetadata,
+              library: runtimeAppData.library,
+            });
+
+            if (cleanup.removedSongIds.length > 0) {
+              runtimeAppData = {
+                ...runtimeAppData,
+                library: cleanup.library,
+              };
+              appendLog(
+                formatText(text.missingLocalScoresRemoved, {
+                  count: cleanup.removedSongIds.length,
+                }),
+              );
+
+              try {
+                await saveAppData(runtimeAppData);
+                explicitlySavedAppDataSnapshotRef.current = JSON.stringify(
+                  runtimeAppData,
+                );
+              } catch (persistenceError) {
+                const message = formatText(text.appDataSaveFailed, {
+                  error: String(persistenceError),
+                });
+
+                appendLog(message);
+                showNotice?.(message);
+              }
+            }
+          } catch {
+            appendLog(text.missingLocalScoresScanFailed);
+          }
         }
 
         setLanguage(runtimeAppData.language);

@@ -4,6 +4,8 @@ import { createLocalSongMetadata } from "../lib/libraryCollections";
 import {
   buildPlaybackOrderFromVisibleItems,
   getOrderedNextSongId,
+  removeSongFromActivePlaybackContext,
+  resolvePlaybackOrderNextDecision,
 } from "./usePlaybackOrder";
 
 function createLibraryItem(id: string): LibrarySongListItem {
@@ -63,5 +65,115 @@ describe("getOrderedNextSongId", () => {
 
   it("allows a one-song repeat-all context to repeat itself", () => {
     expect(getOrderedNextSongId(["A"], 0, "repeat-all")).toBe("A");
+  });
+});
+
+describe("removeSongFromActivePlaybackContext", () => {
+  const context = {
+    currentSongId: "B",
+    songIds: ["A", "B", "C", "D"],
+    source: "search" as const,
+  };
+
+  it("removes a missing ID while preserving unrelated IDs in order", () => {
+    expect(removeSongFromActivePlaybackContext(context, "C")).toEqual({
+      ...context,
+      songIds: ["A", "B", "D"],
+    });
+  });
+
+  it("clears the context when its current song is removed", () => {
+    expect(removeSongFromActivePlaybackContext(context, "B")).toBeNull();
+  });
+
+  it("is safe to apply multiple removals repeatedly", () => {
+    const afterFirstRemoval = removeSongFromActivePlaybackContext(context, "C");
+    const afterSecondRemoval = removeSongFromActivePlaybackContext(
+      afterFirstRemoval,
+      "D",
+    );
+
+    expect(afterSecondRemoval).toEqual({
+      ...context,
+      songIds: ["A", "B"],
+    });
+    expect(
+      removeSongFromActivePlaybackContext(afterSecondRemoval, "D"),
+    ).toBe(afterSecondRemoval);
+  });
+});
+
+describe("resolvePlaybackOrderNextDecision", () => {
+  const librarySongs = ["A", "B", "C"].map(
+    (id) => createLibraryItem(id).librarySong,
+  );
+  const context = {
+    currentSongId: "B",
+    songIds: ["A", "B", "C"],
+    source: "local-imports" as const,
+  };
+  const defaults = {
+    context,
+    currentSongId: "B",
+    currentSongIndex: 1,
+    isShuffleEnabled: false,
+    librarySongs,
+    playbackMode: "sequence" as const,
+  };
+
+  it("distinguishes a next song from the genuine end of the order", () => {
+    expect(resolvePlaybackOrderNextDecision(defaults)).toEqual({
+      status: "next",
+      songId: "C",
+      songIndex: 2,
+    });
+    expect(
+      resolvePlaybackOrderNextDecision({
+        ...defaults,
+        currentSongId: "C",
+        currentSongIndex: 2,
+      }),
+    ).toEqual({ status: "end-of-order" });
+  });
+
+  it("distinguishes unavailable context and current identity", () => {
+    expect(
+      resolvePlaybackOrderNextDecision({ ...defaults, context: null }),
+    ).toEqual({ status: "context-unavailable", reason: "missing-context" });
+    expect(
+      resolvePlaybackOrderNextDecision({
+        ...defaults,
+        currentSongId: "missing",
+      }),
+    ).toEqual({
+      status: "context-unavailable",
+      reason: "missing-current-song",
+    });
+    expect(
+      resolvePlaybackOrderNextDecision({
+        ...defaults,
+        context: { ...context, songIds: [] },
+      }),
+    ).toEqual({ status: "context-unavailable", reason: "empty-order" });
+  });
+
+  it("wraps only when repeat-all requests it", () => {
+    expect(
+      resolvePlaybackOrderNextDecision({
+        ...defaults,
+        currentSongId: "C",
+        currentSongIndex: 2,
+        playbackMode: "repeat-all",
+      }),
+    ).toEqual({ status: "next", songId: "A", songIndex: 0 });
+  });
+
+  it("keeps repeat-one manual Next behavior unchanged", () => {
+    expect(
+      resolvePlaybackOrderNextDecision({
+        ...defaults,
+        playbackMode: "repeat-one",
+      }),
+    ).toEqual({ status: "next", songId: "C", songIndex: 2 });
   });
 });
