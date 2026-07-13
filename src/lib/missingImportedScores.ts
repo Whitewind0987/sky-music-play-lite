@@ -57,19 +57,23 @@ export function getMissingImportedScoreIds({
   fileMetadata,
   localLibrarySongs,
   migrationFallbackSongs,
+  protectedSongIds = [],
 }: {
   fileMetadata: ImportedScoreFileMetadata[];
   localLibrarySongs: LocalLibrarySong[];
   migrationFallbackSongs: MigrationFallbackSongs;
+  protectedSongIds?: Iterable<LibrarySongId>;
 }): LibrarySongId[] {
   const existingSongIds = new Set(
     fileMetadata.map((metadata) => metadata.id),
   );
+  const protectedIds = new Set(protectedSongIds);
 
   return localLibrarySongs
     .filter(
       (librarySong) =>
         !existingSongIds.has(librarySong.id) &&
+        !protectedIds.has(librarySong.id) &&
         migrationFallbackSongs[librarySong.id] === undefined,
     )
     .map((librarySong) => librarySong.id);
@@ -148,15 +152,18 @@ export function cleanupMissingImportedScores({
 export function cleanupMissingImportedScoresFromPersistedLibrary({
   fileMetadata,
   library,
+  protectedSongIds = [],
 }: {
   fileMetadata: ImportedScoreFileMetadata[];
   library: PersistedAppData["library"];
+  protectedSongIds?: Iterable<LibrarySongId>;
 }): PersistedMissingImportedScoresCleanupResult {
   const migrationFallbackSongs = library.migrationFallbackSongs ?? {};
   const missingSongIds = getMissingImportedScoreIds({
     fileMetadata,
     localLibrarySongs: library.librarySongs,
     migrationFallbackSongs,
+    protectedSongIds,
   });
 
   if (missingSongIds.length === 0) {

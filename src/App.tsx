@@ -231,6 +231,7 @@ function App() {
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
+    appendDetailedLog: appFileLogger.appendDetailedLog,
     appendLog,
     applyConfirmBeforeExit: handleConfirmBeforeExitChange,
     applyExperimentalInputPreferences:
