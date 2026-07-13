@@ -35,8 +35,10 @@ export function createLocalSongMetadata(song: Song): LocalSongMetadata {
   const noteGroupDelaysMs = noteGroupTimes.map((time, index) =>
     index === 0 ? Math.max(0, time) : Math.max(0, time - noteGroupTimes[index - 1]),
   );
+  const sustainTailMs = getSustainTailMs(song.songNotes);
 
   return {
+    ...(sustainTailMs > 0 ? { sustainTailMs } : {}),
     bitsPerPage: song.bitsPerPage,
     bpm: song.bpm,
     fingerprint: getSongFingerprint(song),
@@ -53,6 +55,23 @@ export function createLocalSongMetadata(song: Song): LocalSongMetadata {
   };
 }
 
+export function getSustainTailMs(notes: Song["songNotes"]): number {
+  const lastGroupTimeMs = notes.reduce(
+    (lastTime, note) =>
+      Number.isFinite(note.time) ? Math.max(lastTime, note.time) : lastTime,
+    0,
+  );
+  const maxNoteEndMs = notes.reduce((maxEnd, note) => {
+    if (!Number.isFinite(note.time) || note.duration === undefined) {
+      return maxEnd;
+    }
+
+    return Math.max(maxEnd, note.time + note.duration);
+  }, 0);
+
+  return Math.max(0, maxNoteEndMs - lastGroupTimeMs);
+}
+
 export function getSongFingerprint(song: Song) {
   return hashString(
     JSON.stringify({
@@ -60,7 +79,11 @@ export function getSongFingerprint(song: Song) {
       bitsPerPage: song.bitsPerPage,
       isComposed: song.isComposed,
       name: song.name.trim().toLowerCase(),
-      notes: song.songNotes.map((note) => [note.time, note.key]),
+      notes: song.songNotes.map((note) =>
+        note.duration === undefined
+          ? [note.time, note.key]
+          : [note.time, note.key, note.duration],
+      ),
       pitchLevel: song.pitchLevel,
     }),
   );
@@ -113,7 +136,10 @@ export function getLibrarySongNoteCount(librarySong: LibrarySong) {
 
 export function getLibrarySongRawDurationMs(librarySong: LibrarySong) {
   if (librarySong.source === "local-import") {
-    return librarySong.metadata.lastNoteTimeMs;
+    return (
+      librarySong.metadata.lastNoteTimeMs +
+      (librarySong.metadata.sustainTailMs ?? 0)
+    );
   }
 
   if (!librarySong.isBuiltInLoaded && librarySong.builtInDurationMs !== undefined) {

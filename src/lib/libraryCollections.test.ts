@@ -6,6 +6,7 @@ import {
   createLibrarySong,
   createLocalSongMetadata,
   filterSongsByQuery,
+  getLibrarySongRawDurationMs,
   getSongFingerprint,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
@@ -65,6 +66,69 @@ describe("createLocalSongMetadata", () => {
       noteGroupDelaysMs: [0, 500],
       pitchLevel: 0,
     });
+  });
+});
+
+describe("scores-v2 sustain metadata", () => {
+  function createSustainSong(notes: Song["songNotes"]): Song {
+    return {
+      name: "Sustain Song",
+      bpm: 120,
+      bitsPerPage: 16,
+      pitchLevel: 0,
+      isComposed: true,
+      songNotes: notes,
+    };
+  }
+
+  it("computes sustainTailMs from the longest tail past the last group", () => {
+    const metadata = createLocalSongMetadata(
+      createSustainSong([
+        { time: 0, key: "Key0", duration: 5000 },
+        { time: 1000, key: "Key1", duration: 500 },
+      ]),
+    );
+
+    expect(metadata.sustainTailMs).toBe(4000);
+    expect(metadata.lastNoteTimeMs).toBe(1000);
+  });
+
+  it("counts tails from notes at the last group", () => {
+    const metadata = createLocalSongMetadata(
+      createSustainSong([
+        { time: 0, key: "Key0" },
+        { time: 1000, key: "Key1", duration: 200 },
+      ]),
+    );
+
+    expect(metadata.sustainTailMs).toBe(200);
+  });
+
+  it("omits sustainTailMs for songs without durations", () => {
+    const metadata = createLocalSongMetadata(
+      createSustainSong([{ time: 0, key: "Key0" }]),
+    );
+
+    expect(metadata.sustainTailMs).toBeUndefined();
+  });
+
+  it("keeps v1 fingerprints unchanged and differentiates v2 durations", () => {
+    const v1Song = createSustainSong([{ time: 0, key: "Key0" }]);
+    const v1Fingerprint = getSongFingerprint(v1Song);
+    const v2Fingerprint = getSongFingerprint(
+      createSustainSong([{ time: 0, key: "Key0", duration: 800 }]),
+    );
+
+    expect(v2Fingerprint).not.toBe(v1Fingerprint);
+    expect(getSongFingerprint(v1Song)).toBe(v1Fingerprint);
+  });
+
+  it("includes the sustain tail in raw duration for local imports", () => {
+    const librarySong = createLibrarySong(
+      createSustainSong([{ time: 1000, key: "Key0", duration: 2500 }]),
+    );
+
+    expect(getLibrarySongRawDurationMs(librarySong)).toBe(3500);
   });
 });
 

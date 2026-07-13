@@ -14,6 +14,7 @@ export type LocalSongMetadata = {
   noteGroupCount: number;
   noteGroupDelaysMs?: number[];
   pitchLevel: number;
+  sustainTailMs?: number;
 };
 
 export type BuiltInLibrarySong = {
