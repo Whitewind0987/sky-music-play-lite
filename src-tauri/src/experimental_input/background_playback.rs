@@ -13,11 +13,19 @@ const NOTE_HIGHLIGHT_MS: f64 = 300.0;
 const PROGRESS_EVENT_INTERVAL_MS: f64 = 150.0;
 const MAX_PREPARED_PLAYBACK_PLANS: usize = 32;
 
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedKey {
+    pub key: String,
+    #[serde(default)]
+    pub hold_ms: Option<f64>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackgroundPlaybackPlanEvent {
     pub time_ms: f64,
-    pub keys: Vec<String>,
+    pub keys: Vec<PlannedKey>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -113,7 +121,7 @@ struct PlaybackOptions {
 struct TimelineGroup {
     source_time_ms: f64,
     adjusted_start_ms: f64,
-    keys: Arc<[String]>,
+    keys: Arc<[PlannedKey]>,
 }
 
 #[derive(Debug, Clone)]
@@ -892,8 +900,12 @@ impl BackgroundPlaybackWorker {
     }
 
     fn play_group(&mut self, group: &TimelineGroup) -> Result<(), String> {
-        let keys = unique_keys(&group.keys);
-        let keys_to_release = keys
+        let key_names = group
+            .keys
+            .iter()
+            .map(|key| key.key.clone())
+            .collect::<Vec<_>>();
+        let keys_to_release = key_names
             .iter()
             .filter(|key| self.active_generations.contains_key(*key))
             .cloned()
@@ -906,8 +918,8 @@ impl BackgroundPlaybackWorker {
             }
         }
 
-        if let Err(error) = self.send_key_down_group(&keys) {
-            let _ = self.send_key_up_group(&keys);
+        if let Err(error) = self.send_key_down_group(&key_names) {
+            let _ = self.send_key_up_group(&key_names);
             return Err(error);
         }
 
@@ -920,14 +932,21 @@ impl BackgroundPlaybackWorker {
             );
         }
 
-        for key in keys {
+        for key in group.keys.iter() {
             let generation = self.next_generation;
             self.next_generation = self.next_generation.saturating_add(1).max(1);
-            self.active_generations.insert(key.clone(), generation);
+            self.active_generations.insert(key.key.clone(), generation);
             self.scheduled_key_ups.push(ScheduledKeyUp {
-                deadline_at: key_up_deadline_from_actual_send(Instant::now(), self.key_hold_ms),
+                deadline_at: key_up_deadline_from_actual_send(
+                    Instant::now(),
+                    effective_hold_ms(
+                        key.hold_ms,
+                        self.options.playback_speed,
+                        self.key_hold_ms,
+                    ),
+                ),
                 generation,
-                key,
+                key: key.key.clone(),
             });
         }
 
@@ -1129,7 +1148,7 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
     let mut grouped_events = plan.to_vec();
     grouped_events.sort_by(|left, right| left.time_ms.total_cmp(&right.time_ms));
 
-    let mut grouped_keys = Vec::<(f64, Vec<String>)>::new();
+    let mut grouped_keys = Vec::<(f64, Vec<PlannedKey>)>::new();
 
     for event in grouped_events {
         if !event.time_ms.is_finite() {
@@ -1138,6 +1157,17 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
 
         if event.keys.is_empty() {
             return Err("Background playback event must contain at least one key.".to_string());
+        }
+
+        for key in &event.keys {
+            if let Some(hold_ms) = key.hold_ms {
+                if !hold_ms.is_finite() || hold_ms <= 0.0 {
+                    return Err(
+                        "Background playback key hold duration must be a positive number."
+                            .to_string(),
+                    );
+                }
+            }
         }
 
         if let Some((last_time_ms, last_keys)) = grouped_keys.last_mut() {
@@ -1155,9 +1185,27 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
         .map(|(source_time_ms, keys)| TimelineGroup {
             source_time_ms,
             adjusted_start_ms: 0.0,
-            keys: Arc::from(keys),
+            keys: Arc::from(dedupe_planned_keys(keys)),
         })
         .collect())
+}
+
+fn dedupe_planned_keys(keys: Vec<PlannedKey>) -> Vec<PlannedKey> {
+    let mut deduped = Vec::<PlannedKey>::new();
+
+    for key in keys {
+        if let Some(existing) = deduped.iter_mut().find(|entry| entry.key == key.key) {
+            existing.hold_ms = match (existing.hold_ms, key.hold_ms) {
+                (Some(left), Some(right)) => Some(left.max(right)),
+                (None, Some(right)) => Some(right),
+                (left, None) => left,
+            };
+        } else {
+            deduped.push(key);
+        }
+    }
+
+    deduped
 }
 
 fn build_prepared_plan(
@@ -1185,6 +1233,7 @@ fn build_timeline_from_groups(
     let mut adjusted_groups = Vec::with_capacity(groups.len());
     let mut adjusted_start_ms = 0.0;
     let mut previous_source_time_ms = 0.0;
+    let mut max_source_end_ms = 0.0_f64;
 
     for (index, group) in groups.iter().enumerate() {
         if index == 0 {
@@ -1197,6 +1246,14 @@ fn build_timeline_from_groups(
         }
 
         previous_source_time_ms = group.source_time_ms;
+
+        let group_max_hold_ms = group
+            .keys
+            .iter()
+            .filter_map(|key| key.hold_ms)
+            .fold(0.0_f64, f64::max);
+        max_source_end_ms = max_source_end_ms.max(group.source_time_ms + group_max_hold_ms);
+
         adjusted_groups.push(TimelineGroup {
             adjusted_start_ms,
             keys: group.keys.clone(),
@@ -1204,11 +1261,18 @@ fn build_timeline_from_groups(
         });
     }
 
-    let total_ms = adjusted_groups
+    let last_adjusted_start_ms = adjusted_groups
         .last()
         .map(|group| group.adjusted_start_ms)
         .unwrap_or(0.0);
-    let finish_ms = total_ms + NOTE_HIGHLIGHT_MS / options.playback_speed;
+    let last_source_time_ms = groups
+        .last()
+        .map(|group| group.source_time_ms)
+        .unwrap_or(0.0);
+    let tail_source_ms = (max_source_end_ms - last_source_time_ms).max(0.0);
+    let total_ms = last_adjusted_start_ms + tail_source_ms / options.playback_speed;
+    let finish_ms = last_adjusted_start_ms
+        + tail_source_ms.max(NOTE_HIGHLIGHT_MS) / options.playback_speed;
 
     Ok(PlaybackTimeline {
         finish_ms,
@@ -1306,6 +1370,13 @@ fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Insta
     sent_at + Duration::from_secs_f64(key_hold_ms.max(0.0) / 1000.0)
 }
 
+fn effective_hold_ms(hold_ms: Option<f64>, playback_speed: f64, key_hold_ms: f64) -> f64 {
+    match hold_ms {
+        Some(hold) => hold / playback_speed,
+        None => key_hold_ms,
+    }
+}
+
 fn should_apply_key_release(
     active_generations: &HashMap<String, u64>,
     key: &str,
@@ -1336,27 +1407,14 @@ fn should_clear_current_session(
     current_session_id.is_some_and(|session_id| session_id == finishing_session_id)
 }
 
-fn unique_keys(keys: &[String]) -> Vec<String> {
-    let mut seen_keys = HashSet::new();
-    let mut unique = Vec::new();
-
-    for key in keys {
-        if seen_keys.insert(key.clone()) {
-            unique.push(key.clone());
-        }
-    }
-
-    unique
-}
-
 fn unique_timeline_keys(groups: &[TimelineGroup]) -> Vec<String> {
     let mut seen_keys = HashSet::new();
     let mut unique = Vec::new();
 
     for group in groups {
         for key in group.keys.iter() {
-            if seen_keys.insert(key.clone()) {
-                unique.push(key.clone());
+            if seen_keys.insert(key.key.clone()) {
+                unique.push(key.key.clone());
             }
         }
     }
@@ -1396,23 +1454,41 @@ mod tests {
         }
     }
 
+    fn planned_key(key: &str) -> PlannedKey {
+        PlannedKey {
+            key: key.to_string(),
+            hold_ms: None,
+        }
+    }
+
+    fn held_key(key: &str, hold_ms: f64) -> PlannedKey {
+        PlannedKey {
+            key: key.to_string(),
+            hold_ms: Some(hold_ms),
+        }
+    }
+
+    fn group_key_names(group: &TimelineGroup) -> Vec<String> {
+        group.keys.iter().map(|key| key.key.clone()).collect()
+    }
+
     fn plan() -> Vec<BackgroundPlaybackPlanEvent> {
         vec![
             BackgroundPlaybackPlanEvent {
                 time_ms: 1000.0,
-                keys: vec!["Key3".to_string()],
+                keys: vec![planned_key("Key3")],
             },
             BackgroundPlaybackPlanEvent {
                 time_ms: 0.0,
-                keys: vec!["Key0".to_string()],
+                keys: vec![planned_key("Key0")],
             },
             BackgroundPlaybackPlanEvent {
                 time_ms: 500.0,
-                keys: vec!["Key1".to_string()],
+                keys: vec![planned_key("Key1")],
             },
             BackgroundPlaybackPlanEvent {
                 time_ms: 500.0,
-                keys: vec!["Key2".to_string()],
+                keys: vec![planned_key("Key2")],
             },
         ]
     }
@@ -1447,9 +1523,9 @@ mod tests {
         let timeline = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
 
         assert_eq!(timeline.groups.len(), 3);
-        assert_eq!(timeline.groups[0].keys.as_ref(), ["Key0"]);
-        assert_eq!(timeline.groups[1].keys.as_ref(), ["Key1", "Key2"]);
-        assert_eq!(timeline.groups[2].keys.as_ref(), ["Key3"]);
+        assert_eq!(group_key_names(&timeline.groups[0]), ["Key0"]);
+        assert_eq!(group_key_names(&timeline.groups[1]), ["Key1", "Key2"]);
+        assert_eq!(group_key_names(&timeline.groups[2]), ["Key3"]);
     }
 
     #[test]
@@ -1543,16 +1619,76 @@ mod tests {
     }
 
     #[test]
-    fn unique_keys_prevents_duplicate_same_group_downs() {
-        assert_eq!(
-            unique_keys(&[
-                "A".to_string(),
-                "A".to_string(),
-                "B".to_string(),
-                "A".to_string(),
-            ]),
-            vec!["A".to_string(), "B".to_string()],
-        );
+    fn build_source_groups_dedupes_same_key_keeping_longest_hold() {
+        let groups = build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![
+                held_key("y", 500.0),
+                planned_key("y"),
+                held_key("y", 1500.0),
+                planned_key("u"),
+            ],
+        }])
+        .unwrap();
+
+        assert_eq!(groups[0].keys.len(), 2);
+        assert_eq!(groups[0].keys[0], held_key("y", 1500.0));
+        assert_eq!(groups[0].keys[1], planned_key("u"));
+    }
+
+    #[test]
+    fn build_source_groups_rejects_invalid_holds() {
+        for hold in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let result = build_source_groups(&[BackgroundPlaybackPlanEvent {
+                time_ms: 0.0,
+                keys: vec![held_key("y", hold)],
+            }]);
+
+            assert!(result.is_err(), "hold {hold} should be rejected");
+        }
+    }
+
+    #[test]
+    fn timeline_total_includes_scaled_sustain_tail() {
+        let timeline = build_timeline(
+            &[
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 0.0,
+                    keys: vec![held_key("y", 5000.0)],
+                },
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 1000.0,
+                    keys: vec![planned_key("u")],
+                },
+            ],
+            &options(0.0, 2.0),
+        )
+        .unwrap();
+
+        assert_eq!(timeline.total_ms, 2500.0);
+        assert_eq!(timeline.finish_ms, 2500.0);
+    }
+
+    #[test]
+    fn timeline_without_holds_keeps_note_highlight_finish() {
+        let timeline = build_timeline(
+            &[BackgroundPlaybackPlanEvent {
+                time_ms: 0.0,
+                keys: vec![planned_key("y")],
+            }],
+            &options(0.0, 1.0),
+        )
+        .unwrap();
+
+        assert_eq!(timeline.total_ms, 0.0);
+        assert_eq!(timeline.finish_ms, NOTE_HIGHLIGHT_MS);
+    }
+
+    #[test]
+    fn effective_hold_scales_with_playback_speed() {
+        assert_eq!(effective_hold_ms(Some(1000.0), 2.0, 40.0), 500.0);
+        assert_eq!(effective_hold_ms(Some(1000.0), 0.5, 40.0), 2000.0);
+        assert_eq!(effective_hold_ms(None, 2.0, 40.0), 40.0);
     }
 
     #[test]
@@ -1784,8 +1920,8 @@ mod tests {
             &second.groups[1].keys,
             &prepared_plan.groups[1].keys
         ));
-        assert_eq!(first.groups[1].keys.as_ref(), ["Key1", "Key2"]);
-        assert_eq!(second.groups[1].keys.as_ref(), ["Key1", "Key2"]);
+        assert_eq!(group_key_names(&first.groups[1]), ["Key1", "Key2"]);
+        assert_eq!(group_key_names(&second.groups[1]), ["Key1", "Key2"]);
         assert_eq!(first.groups[1].adjusted_start_ms, 500.0);
         assert_eq!(second.groups[1].adjusted_start_ms, 300.0);
     }
