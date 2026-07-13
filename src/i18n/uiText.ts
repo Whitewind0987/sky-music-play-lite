@@ -387,6 +387,9 @@ export const uiText = {
       experimentalSkyWindowDetected: "已检测到光遇窗口：{title}",
       experimentalSkyWindowNotFound: "未检测到光遇窗口，可手动选择候选窗口。",
       experimentalSkyWindowFailed: "检测光遇窗口失败：{error}",
+      experimentalSkyWindowConnected: "已自动连接光遇窗口。",
+      experimentalSkyWindowDisconnected: "光遇已关闭，已清除旧窗口并等待重新连接。",
+      experimentalSkyWindowReconnected: "光遇窗口已重新连接；播放不会自动恢复。",
       experimentalInputEnabled: "实验性输入已启用。",
       experimentalInputDisabled: "实验性输入已关闭。",
       experimentalPlaybackStarted:
@@ -467,6 +470,13 @@ export const uiText = {
       experimentalInputRefreshing: "正在刷新...",
       experimentalInputDetectSkyWindow: "检测光遇窗口",
       experimentalInputDetecting: "正在检测...",
+      experimentalSkyMonitorStatuses: {
+        inactive: "自动监听未启用",
+        waiting: "正在等待光遇启动",
+        connected: "已自动连接：光遇",
+        reconnecting: "光遇已关闭，正在等待重新连接",
+        "manual-target": "当前使用手动选择的目标窗口",
+      },
       experimentalInputEnable: "真实播放",
       experimentalInputOffDescription: "关闭时，只在软件内预览按键。",
       experimentalInputOnDescription: "开启后，将按键发送到游戏窗口。",
@@ -941,6 +951,9 @@ export const uiText = {
         "Refreshed candidate windows: {count}.",
       experimentalWindowListFailed: "Failed to refresh windows: {error}",
       experimentalSkyWindowDetected: "Detected Sky window: {title}",
+      experimentalSkyWindowConnected: "Automatically connected to the Sky window.",
+      experimentalSkyWindowDisconnected: "Sky closed; cleared the stale window and waiting to reconnect.",
+      experimentalSkyWindowReconnected: "Reconnected to the Sky window; playback was not resumed automatically.",
       experimentalSkyWindowNotFound:
         "Sky window was not detected. You can select a candidate manually.",
       experimentalSkyWindowFailed: "Failed to detect Sky window: {error}",
@@ -1032,6 +1045,13 @@ export const uiText = {
       experimentalInputRefreshing: "Refreshing...",
       experimentalInputDetectSkyWindow: "Detect Sky Window",
       experimentalInputDetecting: "Detecting...",
+      experimentalSkyMonitorStatuses: {
+        inactive: "Automatic monitoring is inactive",
+        waiting: "Waiting for Sky to start",
+        connected: "Automatically connected to Sky",
+        reconnecting: "Sky closed; waiting to reconnect",
+        "manual-target": "Using a manually selected target window",
+      },
       experimentalInputEnable: "Real playback",
       experimentalInputOffDescription:
         "When off, keys are previewed only inside the app.",

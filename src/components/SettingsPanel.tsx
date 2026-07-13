@@ -42,6 +42,7 @@ type ExperimentalInputPanelState = {
   isExperimentalPlaybackRunning: boolean;
   isRefreshingWindows: boolean;
   lastError: string | null;
+  skyMonitorStatus: "inactive" | "waiting" | "connected" | "reconnecting" | "manual-target";
   onDetectSkyWindow: () => void;
   onExperimentalInputEnabledChange: (enabled: boolean) => void;
   onExperimentalInputModeChange: (mode: ExperimentalInputMode) => void;
@@ -283,6 +284,9 @@ export function SettingsPlaceholder({
               <>
                 <p className="experimental-setting-description">
                   {text.experimentalTargetWindowModeHelp}
+                </p>
+                <p className="experimental-setting-description" aria-live="polite">
+                  {text.experimentalSkyMonitorStatuses[experimentalInput.skyMonitorStatus]}
                 </p>
                 <div className="setting-row">
                   <span>

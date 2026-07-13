@@ -23,13 +23,16 @@ import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackP
 import { PreparationCancelledError } from "../lib/playbackPreparationScheduler";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
 import { prepareWarmPlaybackPlan } from "../lib/warmPlaybackPreparation";
+import { isSkySnapshot, isSkyWindow, reconcileSkyWindow } from "../lib/skyWindowLifecycle";
 import {
   type PreviewPlaybackController,
   type PreviewPlaybackProgress,
 } from "../lib/playbackScheduler";
 import {
   findSkyWindow,
+  getSkyWindowMonitorState,
   listenBackgroundPlaybackEvents,
+  listenSkyWindowLifecycleEvents,
   listCandidateWindows,
   pauseBackgroundPlayback,
   resumeBackgroundPlayback,
@@ -38,6 +41,7 @@ import {
   stopBackgroundPlayback,
   updateBackgroundPlaybackOptions,
   type BackgroundPlaybackEventPayload,
+  type SkyWindowMonitorSnapshot,
 } from "../lib/tauriApi";
 import type {
   CandidateWindow,
@@ -161,6 +165,14 @@ export function useExperimentalInput({
       defaultTargetWindowCompatibilityProfile,
     );
   const targetWindowKeyHoldMsRef = useRef(defaultTargetWindowKeyHoldMs);
+  const selectedWindowHwndRef = useRef<string | null>(null);
+  const selectedWindowSnapshotRef = useRef<SelectedWindowSnapshot>(undefined);
+  const experimentalInputEnabledRef = useRef(defaultExperimentalInputEnabled);
+  const experimentalInputModeRef = useRef<ExperimentalInputMode>(defaultExperimentalInputMode);
+  const monitorSnapshotRef = useRef<SkyWindowMonitorSnapshot>({ revision: 0, window: null });
+  const appliedMonitorRevisionRef = useRef(0);
+  const preferencesAppliedRef = useRef(false);
+  const monitorHandlerRef = useRef<(snapshot: SkyWindowMonitorSnapshot) => void>(() => {});
   const [candidateWindows, setCandidateWindows] = useState<CandidateWindow[]>(
     [],
   );
@@ -203,6 +215,7 @@ export function useExperimentalInput({
       totalMs: 0,
     });
   const [lastError, setLastError] = useState<string | null>(null);
+  const [skyMonitorStatus, setSkyMonitorStatus] = useState<"inactive" | "waiting" | "connected" | "reconnecting" | "manual-target">("inactive");
   const { getOrPreparePlaybackPlan, invalidatePlaybackPlan } =
     usePlaybackPlanPreparation({
       getSongIdentityForPlayback,
@@ -257,6 +270,7 @@ export function useExperimentalInput({
   });
 
   backgroundPlaybackEventHandlerRef.current = handleBackgroundPlaybackEvent;
+  monitorHandlerRef.current = applySkyMonitorSnapshot;
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -272,6 +286,54 @@ export function useExperimentalInput({
       stopExperimentalPlayback({ logStopped: false });
     };
   }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    void listenSkyWindowLifecycleEvents((event) => monitorHandlerRef.current(event.payload)).then((nextUnlisten) => {
+      if (disposed) nextUnlisten(); else unlisten = nextUnlisten;
+    });
+    void getSkyWindowMonitorState().then((snapshot) => monitorHandlerRef.current(snapshot)).catch(() => undefined);
+    return () => { disposed = true; unlisten?.(); };
+  }, []);
+
+  function updateTargetSelection(hwnd: string | null, snapshot: SelectedWindowSnapshot) {
+    selectedWindowHwndRef.current = hwnd;
+    selectedWindowSnapshotRef.current = snapshot;
+    setSelectedWindowHwnd(hwnd);
+    setSelectedWindowSnapshot(snapshot);
+  }
+
+  function applySkyMonitorSnapshot(snapshot: SkyWindowMonitorSnapshot) {
+    if (snapshot.revision < monitorSnapshotRef.current.revision) return;
+    monitorSnapshotRef.current = snapshot;
+    if (!preferencesAppliedRef.current) return;
+    const decision = reconcileSkyWindow({
+      appliedRevision: appliedMonitorRevisionRef.current,
+      candidateWindows,
+      experimentalInputEnabled: experimentalInputEnabledRef.current,
+      experimentalInputMode: experimentalInputModeRef.current,
+      monitor: snapshot,
+      selectedWindowHwnd: selectedWindowHwndRef.current,
+      selectedWindowSnapshot: selectedWindowSnapshotRef.current,
+    });
+    if (decision.ignored) return;
+    const previousRevision = appliedMonitorRevisionRef.current;
+    appliedMonitorRevisionRef.current = snapshot.revision;
+    setCandidateWindows(decision.candidateWindows);
+    if (decision.stopTargetPlayback) stopExperimentalPlayback({ logStopped: false });
+    if (decision.clear) {
+      updateTargetSelection(null, undefined);
+      setSkyMonitorStatus("reconnecting");
+      if (snapshot.revision > previousRevision) appendLog(text.logs.experimentalSkyWindowDisconnected);
+    } else if (decision.bindWindow) {
+      const wasSky = isSkySnapshot(selectedWindowSnapshotRef.current);
+      updateTargetSelection(decision.bindWindow.hwnd, candidateWindowToSnapshot(decision.bindWindow));
+      setSkyMonitorStatus("connected");
+      if (snapshot.revision > previousRevision) appendLog(wasSky ? text.logs.experimentalSkyWindowReconnected : text.logs.experimentalSkyWindowConnected);
+    } else if (selectedWindowHwndRef.current !== null && !isSkySnapshot(selectedWindowSnapshotRef.current)) setSkyMonitorStatus("manual-target");
+    else setSkyMonitorStatus(experimentalInputEnabledRef.current && experimentalInputModeRef.current === "target-window-message" ? "waiting" : "inactive");
+  }
 
   useEffect(() => {
     isShuffleEnabledRef.current = isShuffleEnabled;
@@ -359,8 +421,7 @@ export function useExperimentalInput({
 
         return [skyWindow, ...currentWindows];
       });
-      setSelectedWindowSnapshot(candidateWindowToSnapshot(skyWindow));
-      setSelectedWindowHwnd(skyWindow.hwnd);
+      updateTargetSelection(skyWindow.hwnd, candidateWindowToSnapshot(skyWindow));
       appendLog(
         formatText(text.logs.experimentalSkyWindowDetected, {
           title: skyWindow.title || skyWindow.class_name,
@@ -381,15 +442,15 @@ export function useExperimentalInput({
 
   async function ensureTargetWindowAvailableForPlayback() {
     if (
-      !experimentalInputEnabled ||
-      experimentalInputMode !== "target-window-message"
+      !experimentalInputEnabledRef.current ||
+      experimentalInputModeRef.current !== "target-window-message"
     ) {
       return true;
     }
 
-    if (selectedWindowHwnd === null) {
-      logMissingTargetWindow();
-      return false;
+    if (selectedWindowHwndRef.current === null || isSkySnapshot(selectedWindowSnapshotRef.current)) {
+      applySkyMonitorSnapshot(monitorSnapshotRef.current);
+      if (selectedWindowHwndRef.current !== null) return true;
     }
 
     setLastError(null);
@@ -399,7 +460,7 @@ export function useExperimentalInput({
       setCandidateWindows(windows);
 
       const refreshedSelectedWindow = windows.find(
-        (window) => window.hwnd === selectedWindowHwnd,
+        (window) => window.hwnd === selectedWindowHwndRef.current,
       );
 
       if (refreshedSelectedWindow) {
@@ -411,8 +472,7 @@ export function useExperimentalInput({
 
       appendLog(text.logs.experimentalSavedTargetWindowUnavailable);
       showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
-      setSelectedWindowHwnd(null);
-      setSelectedWindowSnapshot(undefined);
+      updateTargetSelection(null, undefined);
       return false;
     } catch (error) {
       const errorMessage = String(error instanceof Error ? error.message : error);
@@ -433,7 +493,9 @@ export function useExperimentalInput({
       foregroundPlayback.handleStopForegroundPlayback();
     }
 
+    experimentalInputEnabledRef.current = enabled;
     setExperimentalInputEnabled(enabled);
+    queueMicrotask(() => applySkyMonitorSnapshot(monitorSnapshotRef.current));
     appendLog(
       enabled
         ? text.logs.experimentalInputEnabled
@@ -460,7 +522,9 @@ export function useExperimentalInput({
       setTargetWindowCompatibilityProfile(normalizedProfile);
     }
 
+    experimentalInputModeRef.current = mode;
     setExperimentalInputMode(mode);
+    queueMicrotask(() => applySkyMonitorSnapshot(monitorSnapshotRef.current));
     appendLog(
       formatText(text.logs.experimentalInputModeSelected, {
         mode:
@@ -535,14 +599,14 @@ export function useExperimentalInput({
       (window) => window.hwnd === hwnd,
     );
 
-    setSelectedWindowHwnd(hwnd);
-    setSelectedWindowSnapshot(
+    updateTargetSelection(hwnd,
       candidateWindow
         ? candidateWindowToSnapshot(candidateWindow)
         : hwnd === selectedWindowHwnd
           ? selectedWindowSnapshot
           : undefined,
     );
+    setSkyMonitorStatus(isSkyWindow(candidateWindow) ? "connected" : "manual-target");
   }
 
   function applyExperimentalInputPreferences(
@@ -559,9 +623,12 @@ export function useExperimentalInput({
       | undefined,
   ) {
     if (!preferences) {
+      preferencesAppliedRef.current = true;
+      experimentalInputEnabledRef.current = defaultExperimentalInputEnabled;
+      experimentalInputModeRef.current = defaultExperimentalInputMode;
       setExperimentalInputEnabled(defaultExperimentalInputEnabled);
-      setSelectedWindowHwnd(null);
-      setSelectedWindowSnapshot(undefined);
+      updateTargetSelection(null, undefined);
+      queueMicrotask(() => applySkyMonitorSnapshot(monitorSnapshotRef.current));
       return;
     }
 
@@ -577,15 +644,18 @@ export function useExperimentalInput({
     targetWindowCompatibilityProfileRef.current =
       normalizedPreferences.targetWindowCompatibilityProfile;
     targetWindowKeyHoldMsRef.current = clampedKeyHoldMs;
+    preferencesAppliedRef.current = true;
+    experimentalInputEnabledRef.current = normalizedPreferences.experimentalInputEnabled;
+    experimentalInputModeRef.current = normalizedPreferences.experimentalInputMode;
     setExperimentalInputEnabled(normalizedPreferences.experimentalInputEnabled);
-    setSelectedWindowHwnd(normalizedPreferences.selectedWindowHwnd);
-    setSelectedWindowSnapshot(normalizedPreferences.selectedWindowSnapshot);
+    updateTargetSelection(normalizedPreferences.selectedWindowHwnd, normalizedPreferences.selectedWindowSnapshot);
     setExperimentalInputMode(normalizedPreferences.experimentalInputMode);
     setTargetWindowMessageMethod(normalizedPreferences.targetWindowMessageMethod);
     setTargetWindowCompatibilityProfile(
       normalizedPreferences.targetWindowCompatibilityProfile,
     );
     setTargetWindowKeyHoldMs(clampedKeyHoldMs);
+    queueMicrotask(() => applySkyMonitorSnapshot(monitorSnapshotRef.current));
     appendLog(text.logs.experimentalInputPreferencesRestored);
 
     if (normalizedPreferences.selectedWindowHwnd !== null) {
@@ -925,7 +995,7 @@ export function useExperimentalInput({
       timing: BackgroundHandoffTiming;
     },
   ): Promise<boolean> {
-    const targetWindowHwnd = selectedWindowHwnd;
+    const targetWindowHwnd = selectedWindowHwndRef.current;
     if (targetWindowHwnd === null) {
       finishBackgroundHandoff(options.handoffToken);
       rollbackRequestedPlaybackSong(
@@ -1363,6 +1433,7 @@ export function useExperimentalInput({
     selectedWindow,
     selectedWindowHwnd,
     selectedWindowSnapshot,
+    skyMonitorStatus,
     setExperimentalInputEnabled: handleExperimentalInputEnabledChange,
     setSelectedWindowHwnd: handleSelectedWindowChange,
     setTargetWindowCompatibilityProfile:

@@ -22,6 +22,11 @@ fn find_sky_window() -> Result<Option<CandidateWindow>, String> {
 }
 
 #[tauri::command]
+fn get_sky_window_monitor_state() -> Result<experimental_input::SkyWindowMonitorSnapshot, String> {
+    experimental_input::get_sky_window_monitor_state()
+}
+
+#[tauri::command]
 fn send_key_group_to_window_message(
     hwnd: String,
     keys: Vec<String>,
@@ -137,10 +142,20 @@ pub fn run() {
         .setup(|app| {
             window_state::initialize(app.handle())
                 .map_err(|error| Box::<dyn std::error::Error>::from(error))?;
+            if let Err(error) = experimental_input::start_sky_window_monitor(app.handle().clone()) {
+                let _ = app_log::append_internal_log(
+                    app.handle(),
+                    "warn",
+                    "sky-window-monitor",
+                    "Sky window lifecycle monitor failed to start",
+                    Some(serde_json::json!({ "error": error })),
+                );
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             find_sky_window,
+            get_sky_window_monitor_state,
             app_data::load_app_data,
             app_log::append_app_log,
             app_log::get_app_runtime_info,

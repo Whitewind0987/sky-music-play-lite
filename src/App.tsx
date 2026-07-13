@@ -709,6 +709,7 @@ function App() {
               experimentalInput.isExperimentalPlaybackRunning,
             isRefreshingWindows: experimentalInput.isRefreshingWindows,
             lastError: experimentalInput.lastError,
+            skyMonitorStatus: experimentalInput.skyMonitorStatus,
             onDetectSkyWindow: experimentalInput.handleDetectSkyWindow,
             onExperimentalInputEnabledChange:
               experimentalInput.setExperimentalInputEnabled,

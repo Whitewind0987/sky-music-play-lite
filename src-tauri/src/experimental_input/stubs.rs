@@ -1,4 +1,25 @@
 use super::CandidateWindow;
+use serde::Serialize;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkyWindowMonitorSnapshot {
+    pub revision: u64,
+    pub window: Option<CandidateWindow>,
+}
+
+pub fn start_sky_window_monitor(_app: tauri::AppHandle) -> Result<(), String> {
+    Ok(())
+}
+pub fn stop_sky_window_monitor() -> Result<(), String> {
+    Ok(())
+}
+pub fn get_sky_window_monitor_state() -> Result<SkyWindowMonitorSnapshot, String> {
+    Ok(SkyWindowMonitorSnapshot {
+        revision: 0,
+        window: None,
+    })
+}
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
