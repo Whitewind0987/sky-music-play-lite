@@ -145,6 +145,7 @@ pub fn run() {
             imported_scores::ensure_imported_scores_directory,
             imported_scores::imported_score_file_exists,
             imported_scores::list_imported_score_files,
+            imported_scores::migrate_imported_score_storage,
             imported_scores::open_imported_scores_directory,
             imported_scores::read_imported_score_song,
             imported_scores::reconcile_imported_score_files,

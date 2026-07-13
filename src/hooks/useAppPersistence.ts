@@ -12,12 +12,14 @@ import {
   createImportedScoreReconcileEntries,
   reconcilePersistedImportedScores,
 } from "../lib/importedScoreReconciliation";
+import { migrateImportedScoreStorageBeforeListing } from "../lib/importedScoreStorageMigration";
 import {
   cleanupMissingImportedScoresFromPersistedLibrary,
 } from "../lib/missingImportedScores";
 import {
   loadAppData,
   listImportedScoreFiles,
+  migrateImportedScoreStorage,
   reconcileImportedScoreFiles,
   saveAppData,
 } from "../lib/tauriApi";
@@ -246,12 +248,18 @@ export function useAppPersistence({
 
         if (
           canEnableNormalPersistence &&
-          runtimeAppData.library.librarySongs.length > 0 &&
-          Object.keys(runtimeAppData.library.migrationFallbackSongs ?? {})
-            .length === 0
+          runtimeAppData.library.librarySongs.length > 0
         ) {
+          setIsImportedScoreReconciliationInProgress(true);
           try {
-            const fileMetadata = await listImportedScoreFiles();
+            const { fileMetadata } =
+              await migrateImportedScoreStorageBeforeListing({
+                librarySongs: runtimeAppData.library.librarySongs,
+                listFiles: listImportedScoreFiles,
+                migrateStorage: migrateImportedScoreStorage,
+                unresolvedFallbackSongs:
+                  runtimeAppData.library.migrationFallbackSongs ?? {},
+              });
 
             if (isCancelled) {
               return;
@@ -289,6 +297,10 @@ export function useAppPersistence({
             }
           } catch {
             appendLog(text.missingLocalScoresScanFailed);
+          } finally {
+            if (!isCancelled) {
+              setIsImportedScoreReconciliationInProgress(false);
+            }
           }
         }
 
