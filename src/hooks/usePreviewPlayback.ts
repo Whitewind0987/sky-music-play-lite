@@ -10,6 +10,12 @@ import {
 } from "../lib/playbackScheduler";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
+import {
+  applyNoteGroupToPreviewActiveKeys,
+  getNextPreviewExpiryMs,
+  prunePreviewActiveKeys,
+  type PreviewActiveKeyEntry,
+} from "../lib/previewActiveKeys";
 import type { LibrarySong } from "../types/library";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
@@ -55,6 +61,8 @@ export function usePreviewPlayback({
   text,
 }: UsePreviewPlaybackOptions) {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
+  const activeKeyEntriesRef = useRef<PreviewActiveKeyEntry[]>([]);
+  const activeKeyPruneTimerRef = useRef<number | null>(null);
   const isShuffleEnabledRef = useRef(false);
   const noteIntervalDelayMsRef = useRef(defaultNoteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(defaultPlaybackMode);
@@ -106,6 +114,11 @@ export function usePreviewPlayback({
   useEffect(() => {
     return () => {
       playbackControllerRef.current?.stop();
+
+      if (activeKeyPruneTimerRef.current !== null) {
+        window.clearTimeout(activeKeyPruneTimerRef.current);
+        activeKeyPruneTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -133,10 +146,43 @@ export function usePreviewPlayback({
     });
   }
 
+  function clearActiveKeyPruneTimer() {
+    if (activeKeyPruneTimerRef.current !== null) {
+      window.clearTimeout(activeKeyPruneTimerRef.current);
+      activeKeyPruneTimerRef.current = null;
+    }
+  }
+
+  function scheduleActiveKeyPrune() {
+    clearActiveKeyPruneTimer();
+    const nextExpiryMs = getNextPreviewExpiryMs(activeKeyEntriesRef.current);
+
+    if (nextExpiryMs === null) {
+      return;
+    }
+
+    const delayMs = Math.max(0, nextExpiryMs - performance.now());
+    activeKeyPruneTimerRef.current = window.setTimeout(() => {
+      activeKeyPruneTimerRef.current = null;
+      activeKeyEntriesRef.current = prunePreviewActiveKeys(
+        activeKeyEntriesRef.current,
+        performance.now(),
+      );
+      setActiveKeys(activeKeyEntriesRef.current.map((entry) => entry.key));
+      scheduleActiveKeyPrune();
+    }, delayMs);
+  }
+
+  function resetActiveKeys() {
+    clearActiveKeyPruneTimer();
+    activeKeyEntriesRef.current = [];
+    setActiveKeys([]);
+  }
+
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
     playbackControllerRef.current?.stop();
     playbackControllerRef.current = null;
-    setActiveKeys([]);
+    resetActiveKeys();
     setPlaybackState(nextState);
     resetPlaybackProgress();
   }
@@ -183,15 +229,22 @@ export function usePreviewPlayback({
       playbackControllerRef.current = schedulePreviewPlayback(
         notes,
         (noteGroup) => {
-          const keys = noteGroup.map((note) => note.key);
-
-          setActiveKeys(keys);
+          activeKeyEntriesRef.current = applyNoteGroupToPreviewActiveKeys(
+            activeKeyEntriesRef.current,
+            noteGroup,
+            performance.now(),
+            playbackSpeedRef.current,
+          );
+          setActiveKeys(activeKeyEntriesRef.current.map((entry) => entry.key));
+          scheduleActiveKeyPrune();
           appendLog(
-            formatText(text.logs.playingPreviewKey, { key: keys.join(", ") }),
+            formatText(text.logs.playingPreviewKey, {
+              key: noteGroup.map((note) => note.key).join(", "),
+            }),
           );
         },
         () => {
-          setActiveKeys([]);
+          resetActiveKeys();
           playbackControllerRef.current = null;
 
           const currentLibrarySongs = librarySongsRef.current;
@@ -286,7 +339,7 @@ export function usePreviewPlayback({
     }
 
     playbackControllerRef.current?.pause();
-    setActiveKeys([]);
+    resetActiveKeys();
     setPlaybackState("paused");
     appendLog(text.logs.previewPaused);
   }
