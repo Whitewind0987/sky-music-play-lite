@@ -90,6 +90,8 @@ struct RestoredGeometry {
     y: i32,
     inner_width: u32,
     inner_height: u32,
+    outer_width: u32,
+    outer_height: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -131,13 +133,17 @@ impl WindowStateManager {
         Ok(())
     }
 
-    fn initialize_cache(&self, persisted: Option<PersistedWindowState>) -> Result<(), String> {
+    fn initialize_cache(
+        &self,
+        normal: Option<NormalWindowState>,
+        maximized: bool,
+    ) -> Result<(), String> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| "Window state cache lock is poisoned".to_string())?;
-        state.normal = persisted.as_ref().map(|value| value.normal.clone());
-        state.maximized = persisted.is_some_and(|value| value.maximized);
+        state.normal = normal;
+        state.maximized = maximized;
         state.initialized = true;
         Ok(())
     }
@@ -218,25 +224,14 @@ pub fn save_before_exit(app: &AppHandle) -> Result<(), String> {
         .ok_or_else(|| "No valid normal window bounds are available".to_string())?;
     validate_normal_state(&normal)?;
 
-    let mut windows = load_state_file(app)
-        .ok()
-        .flatten()
-        .map(|file| file.windows)
-        .unwrap_or_default();
-    windows.insert(
-        MAIN_WINDOW_LABEL.to_string(),
+    let path = state_file_path(app)?;
+    merge_and_write_state(
+        &path,
         PersistedWindowState {
             normal,
             maximized: snapshot.maximized,
         },
-    );
-    let content = serde_json::to_vec_pretty(&WindowStateFile {
-        schema_version: SCHEMA_VERSION,
-        windows,
-    })
-    .map_err(|error| format!("Failed to serialize window state: {error}"))?;
-    let path = state_file_path(app)?;
-    write_state_file_atomically(&path, &content)
+    )
 }
 
 fn restore_main_window(app: &AppHandle, window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -260,16 +255,16 @@ fn restore_main_window(app: &AppHandle, window: &tauri::WebviewWindow) -> Result
             );
         }
         if let Some(geometry) = restore_geometry(&state.normal, &monitors) {
+            let selected_monitor = select_monitor(&state.normal, &monitors)
+                .ok_or_else(|| "No monitor is available for restored geometry".to_string())?;
             window
                 .set_size(PhysicalSize::new(
                     geometry.inner_width,
                     geometry.inner_height,
                 ))
                 .map_err(|error| format!("Failed to restore main window size: {error}"))?;
-            let corrected_position = if let (Some(selected), Ok(actual_outer)) = (
-                select_monitor(&state.normal, &monitors),
-                window.outer_size(),
-            ) {
+            let actual_outer = window.outer_size().ok();
+            let corrected_position = if let Some(actual_outer) = actual_outer {
                 let corrected = ensure_meaningful_visibility(
                     PhysicalRect {
                         x: geometry.x as f64,
@@ -278,7 +273,7 @@ fn restore_main_window(app: &AppHandle, window: &tauri::WebviewWindow) -> Result
                         height: actual_outer.height as f64,
                     },
                     &monitors,
-                    selected,
+                    selected_monitor,
                 );
                 (corrected.x.round() as i32, corrected.y.round() as i32)
             } else {
@@ -290,7 +285,15 @@ fn restore_main_window(app: &AppHandle, window: &tauri::WebviewWindow) -> Result
                     corrected_position.1,
                 ))
                 .map_err(|error| format!("Failed to restore main window position: {error}"))?;
-            manager.initialize_cache(Some(state.clone()))?;
+            let normalized = capture_normal_state(window).or_else(|_| {
+                normalize_applied_geometry(
+                    geometry,
+                    corrected_position,
+                    actual_outer.map(|size| (size.width, size.height)),
+                    selected_monitor,
+                )
+            })?;
+            manager.initialize_cache(Some(normalized), state.maximized)?;
             if state.maximized {
                 window
                     .maximize()
@@ -306,12 +309,16 @@ fn restore_main_window(app: &AppHandle, window: &tauri::WebviewWindow) -> Result
         );
     }
 
-    manager.initialize_cache(None)?;
+    manager.initialize_cache(None, false)?;
     capture_window_into_cache(app, window)
 }
 
 fn load_state_file(app: &AppHandle) -> Result<Option<WindowStateFile>, String> {
     let path = state_file_path(app)?;
+    load_state_file_at(&path)
+}
+
+fn load_state_file_at(path: &Path) -> Result<Option<WindowStateFile>, String> {
     let content = match fs::read_to_string(&path) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -323,6 +330,19 @@ fn load_state_file(app: &AppHandle) -> Result<Option<WindowStateFile>, String> {
         }
     };
     parse_state_content(&content).map(Some)
+}
+
+fn merge_and_write_state(path: &Path, main_state: PersistedWindowState) -> Result<(), String> {
+    let mut windows = load_state_file_at(path)?
+        .map(|file| file.windows)
+        .unwrap_or_default();
+    windows.insert(MAIN_WINDOW_LABEL.to_string(), main_state);
+    let content = serde_json::to_vec_pretty(&WindowStateFile {
+        schema_version: SCHEMA_VERSION,
+        windows,
+    })
+    .map_err(|error| format!("Failed to serialize window state: {error}"))?;
+    write_state_file_atomically(path, &content)
 }
 
 fn parse_state_content(content: &str) -> Result<WindowStateFile, String> {
@@ -474,7 +494,39 @@ fn restore_geometry(
         y: safe.y.round() as i32,
         inner_width: inner_width.round().max(1.0) as u32,
         inner_height: inner_height.round().max(1.0) as u32,
+        outer_width: outer_width.round().max(1.0) as u32,
+        outer_height: outer_height.round().max(1.0) as u32,
     })
+}
+
+fn normalize_applied_geometry(
+    geometry: RestoredGeometry,
+    position: (i32, i32),
+    actual_outer_size: Option<(u32, u32)>,
+    monitor: &MonitorGeometry,
+) -> Result<NormalWindowState, String> {
+    let scale = monitor.scale_factor;
+    if !scale.is_finite() || scale <= 0.0 {
+        return Err("Selected monitor scale factor is invalid".to_string());
+    }
+    let (outer_width, outer_height) =
+        actual_outer_size.unwrap_or((geometry.outer_width, geometry.outer_height));
+    let normalized = NormalWindowState {
+        monitor_name: monitor.name.clone(),
+        offset_x_logical: (position.0 - monitor.work_x) as f64 / scale,
+        offset_y_logical: (position.1 - monitor.work_y) as f64 / scale,
+        inner_width_logical: geometry.inner_width as f64 / scale,
+        inner_height_logical: geometry.inner_height as f64 / scale,
+        outer_width_logical: outer_width as f64 / scale,
+        outer_height_logical: outer_height as f64 / scale,
+        saved_scale_factor: scale,
+        saved_work_area_x_physical: monitor.work_x,
+        saved_work_area_y_physical: monitor.work_y,
+        saved_work_area_width_physical: monitor.work_width,
+        saved_work_area_height_physical: monitor.work_height,
+    };
+    validate_normal_state(&normalized)?;
+    Ok(normalized)
 }
 
 fn select_monitor<'a>(
@@ -613,29 +665,93 @@ fn write_state_file_atomically(path: &Path, content: &[u8]) -> Result<(), String
         let _ = fs::remove_file(&temp);
         return Err(error);
     }
-    match fs::rename(&temp, path) {
-        Ok(()) => Ok(()),
-        Err(first_error) if path.exists() => {
-            reject_non_regular_target(path)?;
-            remove_regular_file_if_exists(&backup)?;
-            fs::rename(path, &backup)
-                .map_err(|error| format!("Failed to back up state after {first_error}: {error}"))?;
-            match fs::rename(&temp, path) {
-                Ok(()) => remove_regular_file_if_exists(&backup),
-                Err(error) => match fs::rename(&backup, path) {
-                    Ok(()) => Err(format!(
-                        "Failed to install new state; restored backup: {error}"
-                    )),
-                    Err(rollback) => Err(format!(
-                        "Failed to install new state: {error}; rollback failed: {rollback}"
-                    )),
-                },
+    replace_synced_temp(path, &temp, &backup, |source, target| {
+        fs::rename(source, target)
+    })
+}
+
+fn replace_synced_temp<F>(
+    final_path: &Path,
+    temp_path: &Path,
+    backup_path: &Path,
+    mut rename: F,
+) -> Result<(), String>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<()>,
+{
+    reject_non_regular_target(temp_path)?;
+    reject_non_regular_target(final_path)?;
+    let final_exists = fs::symlink_metadata(final_path).is_ok();
+
+    if !final_exists {
+        return rename(temp_path, final_path).map_err(|error| {
+            let cleanup = remove_regular_file_if_exists(temp_path);
+            format!(
+                "Failed to install new window state at {}: {}. Temporary cleanup: {}",
+                final_path.display(),
+                error,
+                cleanup_result_description(cleanup, temp_path)
+            )
+        });
+    }
+
+    if let Err(error) = remove_regular_file_if_exists(backup_path) {
+        let cleanup = remove_regular_file_if_exists(temp_path);
+        return Err(format!(
+            "Cannot prepare backup path {}: {}. Temporary cleanup: {}",
+            backup_path.display(),
+            error,
+            cleanup_result_description(cleanup, temp_path)
+        ));
+    }
+    if let Err(error) = rename(final_path, backup_path) {
+        let cleanup = remove_regular_file_if_exists(temp_path);
+        return Err(format!(
+            "Failed to move previous window state {} to backup {}: {}. Previous final remains in place. Temporary cleanup: {}",
+            final_path.display(),
+            backup_path.display(),
+            error,
+            cleanup_result_description(cleanup, temp_path)
+        ));
+    }
+
+    match rename(temp_path, final_path) {
+        Ok(()) => remove_regular_file_if_exists(backup_path).map_err(|error| {
+            format!(
+                "New window state was installed at {}, but backup cleanup at {} failed: {}",
+                final_path.display(),
+                backup_path.display(),
+                error
+            )
+        }),
+        Err(install_error) => {
+            let temp_cleanup = remove_regular_file_if_exists(temp_path);
+            match rename(backup_path, final_path) {
+                Ok(()) => Err(format!(
+                    "Failed to install new window state at {}: {}. Previous state was restored from {}. Temporary cleanup: {}",
+                    final_path.display(),
+                    install_error,
+                    backup_path.display(),
+                    cleanup_result_description(temp_cleanup, temp_path)
+                )),
+                Err(rollback_error) => Err(format!(
+                    "Failed to install new window state at {}: {}. Rollback from {} also failed: {}. Backup was preserved at {}. Temporary cleanup: {}",
+                    final_path.display(),
+                    install_error,
+                    backup_path.display(),
+                    rollback_error,
+                    backup_path.display(),
+                    cleanup_result_description(temp_cleanup, temp_path)
+                )),
             }
         }
-        Err(error) => {
-            let _ = fs::remove_file(&temp);
-            Err(format!("Failed to install window state: {error}"))
-        }
+    }
+}
+
+fn cleanup_result_description(result: Result<(), String>, path: &Path) -> String {
+    match result {
+        Ok(()) => format!("removed safe artifact {}", path.display()),
+        Err(error) => format!("failed for {}: {}", path.display(), error),
     }
 }
 
@@ -672,6 +788,7 @@ fn log_window_state(app: &AppHandle, level: &str, message: &str, details: serde_
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn normal() -> NormalWindowState {
         NormalWindowState {
@@ -708,6 +825,17 @@ mod tests {
             work_height: height,
             primary,
         }
+    }
+
+    fn test_directory(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "sky-window-state-{name}-{}-{nonce}",
+            std::process::id()
+        ))
     }
 
     #[test]
@@ -857,6 +985,62 @@ mod tests {
     }
 
     #[test]
+    fn corrected_geometry_replaces_stale_bounds_even_when_restored_maximized() {
+        let mut stale = normal();
+        stale.monitor_name = Some("REMOVED".into());
+        stale.offset_x_logical = 9000.0;
+        stale.offset_y_logical = 9000.0;
+        stale.inner_width_logical = 5000.0;
+        stale.inner_height_logical = 4000.0;
+        let current = monitor(Some("CURRENT"), -1600, 100, 1200, 800, 1.5, true);
+        let geometry = restore_geometry(&stale, std::slice::from_ref(&current)).unwrap();
+        let normalized =
+            normalize_applied_geometry(geometry, (geometry.x, geometry.y), None, &current).unwrap();
+        let manager = WindowStateManager::new();
+        manager
+            .initialize_cache(Some(normalized.clone()), true)
+            .unwrap();
+        manager
+            .apply_capture(StableWindowMode::Minimized, None)
+            .unwrap();
+        let snapshot = manager.snapshot().unwrap();
+
+        assert_eq!(snapshot.normal, Some(normalized.clone()));
+        assert!(snapshot.maximized);
+        assert_ne!(normalized.monitor_name, stale.monitor_name);
+        assert!(normalized.inner_width_logical < stale.inner_width_logical);
+        assert!(normalized.offset_x_logical.abs() < 9000.0);
+        let json = serde_json::to_value(PersistedWindowState {
+            normal: snapshot.normal.unwrap(),
+            maximized: snapshot.maximized,
+        })
+        .unwrap();
+        assert_eq!(json["normal"]["monitorName"], "CURRENT");
+        assert_ne!(json["normal"]["offsetXLogical"], 9000.0);
+    }
+
+    #[test]
+    fn normalization_uses_final_resolution_work_area_and_dpi() {
+        let mut saved = normal();
+        saved.inner_width_logical = 2500.0;
+        saved.inner_height_logical = 1800.0;
+        let current = monitor(Some("DISPLAY1"), 0, 0, 1500, 900, 1.5, true);
+        let geometry = restore_geometry(&saved, std::slice::from_ref(&current)).unwrap();
+        let normalized = normalize_applied_geometry(
+            geometry,
+            (geometry.x, geometry.y),
+            Some((1500, 900)),
+            &current,
+        )
+        .unwrap();
+
+        assert_eq!(normalized.saved_scale_factor, 1.5);
+        assert_eq!(normalized.saved_work_area_width_physical, 1500);
+        assert!(normalized.inner_width_logical <= 1000.0);
+        assert!(normalized.inner_height_logical <= 600.0);
+    }
+
+    #[test]
     fn schema_rejects_unsupported_version_and_missing_fields() {
         let unsupported = r#"{"schemaVersion":2,"windows":{}}"#;
         assert!(parse_state_content(unsupported).is_err());
@@ -897,9 +1081,7 @@ mod tests {
 
     #[test]
     fn atomic_write_preserves_regular_target_and_refuses_directory() {
-        let directory =
-            std::env::temp_dir().join(format!("sky-window-state-test-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&directory);
+        let directory = test_directory("atomic-basic");
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join(FILE_NAME);
         write_state_file_atomically(&path, b"old").unwrap();
@@ -911,6 +1093,161 @@ mod tests {
         assert!(path.is_dir());
         assert!(!directory.join(TEMP_FILE_NAME).exists());
         assert!(!directory.join(BACKUP_FILE_NAME).exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn malformed_and_unsupported_files_remain_byte_for_byte_unchanged() {
+        let directory = test_directory("preserve-invalid");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join(FILE_NAME);
+        let main = PersistedWindowState {
+            normal: normal(),
+            maximized: false,
+        };
+        for content in [
+            b"malformed {".as_slice(),
+            br#"{"schemaVersion":9,"windows":{}}"#,
+        ] {
+            fs::write(&path, content).unwrap();
+            assert!(merge_and_write_state(&path, main.clone()).is_err());
+            assert_eq!(fs::read(&path).unwrap(), content);
+            assert!(!directory.join(TEMP_FILE_NAME).exists());
+            assert!(!directory.join(BACKUP_FILE_NAME).exists());
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn missing_state_is_created_and_valid_state_preserves_other_labels() {
+        let directory = test_directory("merge-state");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join(FILE_NAME);
+        let main = PersistedWindowState {
+            normal: normal(),
+            maximized: false,
+        };
+        merge_and_write_state(&path, main.clone()).unwrap();
+        let mut existing = load_state_file_at(&path).unwrap().unwrap();
+        existing.windows.insert("other".into(), main.clone());
+        fs::write(&path, serde_json::to_vec(&existing).unwrap()).unwrap();
+        merge_and_write_state(
+            &path,
+            PersistedWindowState {
+                maximized: true,
+                ..main
+            },
+        )
+        .unwrap();
+        let merged = load_state_file_at(&path).unwrap().unwrap();
+        assert!(merged.windows.contains_key("other"));
+        assert!(merged.windows[MAIN_WINDOW_LABEL].maximized);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn read_failure_does_not_reach_atomic_writer() {
+        let directory = test_directory("read-failure");
+        let path = directory.join(FILE_NAME);
+        fs::create_dir_all(&path).unwrap();
+        assert!(merge_and_write_state(
+            &path,
+            PersistedWindowState {
+                normal: normal(),
+                maximized: false,
+            }
+        )
+        .is_err());
+        assert!(path.is_dir());
+        assert!(!directory.join(TEMP_FILE_NAME).exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn replacement_failure_branches_cleanup_and_rollback_deterministically() {
+        let directory = test_directory("replace-failures");
+        fs::create_dir_all(&directory).unwrap();
+        let final_path = directory.join(FILE_NAME);
+        let temp = directory.join(TEMP_FILE_NAME);
+        let backup = directory.join(BACKUP_FILE_NAME);
+
+        fs::write(&final_path, "old").unwrap();
+        fs::write(&temp, "new").unwrap();
+        let error = replace_synced_temp(&final_path, &temp, &backup, |_, _| {
+            Err(std::io::Error::other("backup denied"))
+        })
+        .unwrap_err();
+        assert!(error.contains("Previous final remains"));
+        assert_eq!(fs::read_to_string(&final_path).unwrap(), "old");
+        assert!(!temp.exists());
+
+        fs::write(&temp, "new").unwrap();
+        let mut call = 0;
+        let error = replace_synced_temp(&final_path, &temp, &backup, |source, target| {
+            call += 1;
+            if call == 2 {
+                Err(std::io::Error::other("install denied"))
+            } else {
+                fs::rename(source, target)
+            }
+        })
+        .unwrap_err();
+        assert!(error.contains("Previous state was restored"));
+        assert_eq!(fs::read_to_string(&final_path).unwrap(), "old");
+        assert!(!temp.exists());
+        assert!(!backup.exists());
+
+        fs::write(&temp, "new").unwrap();
+        call = 0;
+        let error = replace_synced_temp(&final_path, &temp, &backup, |source, target| {
+            call += 1;
+            if call >= 2 {
+                Err(std::io::Error::other(if call == 2 {
+                    "install denied"
+                } else {
+                    "rollback denied"
+                }))
+            } else {
+                fs::rename(source, target)
+            }
+        })
+        .unwrap_err();
+        assert!(error.contains("rollback denied"));
+        assert!(!final_path.exists());
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "old");
+        assert!(!temp.exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn replacement_refuses_non_regular_temp_and_backup_artifacts() {
+        let directory = test_directory("replace-artifacts");
+        fs::create_dir_all(&directory).unwrap();
+        let final_path = directory.join(FILE_NAME);
+        let temp = directory.join(TEMP_FILE_NAME);
+        let backup = directory.join(BACKUP_FILE_NAME);
+        fs::create_dir(&temp).unwrap();
+        assert!(
+            replace_synced_temp(&final_path, &temp, &backup, |source, target| {
+                fs::rename(source, target)
+            })
+            .is_err()
+        );
+        assert!(temp.is_dir());
+        fs::remove_dir(&temp).unwrap();
+
+        fs::write(&final_path, "old").unwrap();
+        fs::write(&temp, "new").unwrap();
+        fs::create_dir(&backup).unwrap();
+        assert!(
+            replace_synced_temp(&final_path, &temp, &backup, |source, target| {
+                fs::rename(source, target)
+            })
+            .is_err()
+        );
+        assert!(backup.is_dir());
+        assert_eq!(fs::read_to_string(&final_path).unwrap(), "old");
+        assert!(!temp.exists());
         fs::remove_dir_all(directory).unwrap();
     }
 
