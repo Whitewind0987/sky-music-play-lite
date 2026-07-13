@@ -345,6 +345,50 @@ describe("sanitizePersistedAppData current version", () => {
   });
 });
 
+describe("sanitizePersistedAppData sustainTailMs", () => {
+  function sanitizeWithSustainTail(sustainTailMs: unknown) {
+    const librarySong = createLocalLibrarySong("local-sustain");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            ...librarySong,
+            metadata: { ...librarySong.metadata, sustainTailMs },
+          },
+        ],
+      },
+    });
+  }
+
+  it("keeps a valid sustainTailMs", () => {
+    const result = sanitizeWithSustainTail(1200);
+
+    expect(result?.library.librarySongs[0]?.metadata.sustainTailMs).toBe(1200);
+  });
+
+  it("drops songs with an invalid sustainTailMs", () => {
+    expect(sanitizeWithSustainTail(-1)?.library.librarySongs).toEqual([]);
+    expect(sanitizeWithSustainTail("bad")?.library.librarySongs).toEqual([]);
+    expect(
+      sanitizeWithSustainTail(Number.NaN)?.library.librarySongs,
+    ).toEqual([]);
+  });
+
+  it("restores metadata without sustainTailMs unchanged", () => {
+    const librarySong = createLocalLibrarySong("local-plain");
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: { librarySongs: [librarySong] },
+    });
+
+    expect(
+      result?.library.librarySongs[0]?.metadata.sustainTailMs,
+    ).toBeUndefined();
+  });
+});
+
 describe("sanitizePersistedAppData legacy v1 migration", () => {
   it("migrates v1 importedSongs to current librarySongs", () => {
     const result = sanitizePersistedAppData({
