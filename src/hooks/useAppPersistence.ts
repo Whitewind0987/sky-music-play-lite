@@ -22,6 +22,7 @@ import {
   migrateImportedScoreStorage,
   reconcileImportedScoreFiles,
   saveAppData,
+  type AppLogEntry,
 } from "../lib/tauriApi";
 import type {
   ExperimentalInputPreferences,
@@ -49,6 +50,7 @@ import type {
 const saveDebounceMs = 500;
 
 type UseAppPersistenceOptions = {
+  appendDetailedLog?: (entry: AppLogEntry) => void;
   appendLog: (entry: string) => void;
   applyConfirmBeforeExit: (confirmBeforeExit: boolean) => void;
   applyExperimentalInputPreferences: (
@@ -90,6 +92,7 @@ type UseAppPersistenceOptions = {
 };
 
 export function useAppPersistence({
+  appendDetailedLog,
   appendLog,
   applyConfirmBeforeExit,
   applyExperimentalInputPreferences,
@@ -252,11 +255,12 @@ export function useAppPersistence({
         ) {
           setIsImportedScoreReconciliationInProgress(true);
           try {
-            const { fileMetadata } =
+            const { fileMetadata, protectedSongIds } =
               await migrateImportedScoreStorageBeforeListing({
                 librarySongs: runtimeAppData.library.librarySongs,
                 listFiles: listImportedScoreFiles,
                 migrateStorage: migrateImportedScoreStorage,
+                onDetailedLog: appendDetailedLog,
                 unresolvedFallbackSongs:
                   runtimeAppData.library.migrationFallbackSongs ?? {},
               });
@@ -268,6 +272,7 @@ export function useAppPersistence({
             const cleanup = cleanupMissingImportedScoresFromPersistedLibrary({
               fileMetadata,
               library: runtimeAppData.library,
+              protectedSongIds,
             });
 
             if (cleanup.removedSongIds.length > 0) {

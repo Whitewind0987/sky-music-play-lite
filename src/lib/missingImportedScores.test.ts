@@ -52,6 +52,17 @@ function createPlaylist(songIds: string[]): UserPlaylist {
 }
 
 describe("missing imported score cleanup", () => {
+  it("does not mark storage-migration failures as missing", () => {
+    expect(
+      getMissingImportedScoreIds({
+        fileMetadata: [],
+        localLibrarySongs: [createLocalSong("local-protected")],
+        migrationFallbackSongs: {},
+        protectedSongIds: ["local-protected"],
+      }),
+    ).toEqual([]);
+  });
+
   it("keeps local records that have matching managed files", () => {
     const localLibrarySongs = [createLocalSong("local-1")];
 

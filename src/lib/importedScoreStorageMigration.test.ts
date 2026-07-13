@@ -58,16 +58,24 @@ describe("imported score storage migration", () => {
 
   it("rejects without consuming the missing-file list when migration fails", async () => {
     const listFiles = vi.fn();
+    const onDetailedLog = vi.fn();
 
     await expect(
       migrateImportedScoreStorageBeforeListing({
         librarySongs: [song("local-1")],
         listFiles,
         migrateStorage: vi.fn().mockRejectedValue(new Error("scan failed")),
+        onDetailedLog,
         unresolvedFallbackSongs: {},
       }),
     ).rejects.toThrow("scan failed");
     expect(listFiles).not.toHaveBeenCalled();
+    expect(onDetailedLog).toHaveBeenCalledWith({
+      details: { error: "Error: scan failed" },
+      level: "warn",
+      message: "Imported score storage migration failed",
+      source: "imported-score-storage",
+    });
   });
 
   it("protects per-song failures from missing-song cleanup", async () => {
@@ -80,7 +88,11 @@ describe("imported score storage migration", () => {
       unresolvedFallbackSongs: {},
     });
 
-    expect(result.fileMetadata.map((file) => file.id)).toEqual(["local-1"]);
+    expect(result.fileMetadata).toEqual([]);
+    expect(result.protectedSongIds).toEqual(["local-1"]);
+    expect(result.report.failed).toEqual([
+      { songId: "local-1", error: "conflict" },
+    ]);
   });
 
   it("completes migration before listing files", async () => {
@@ -100,5 +112,33 @@ describe("imported score storage migration", () => {
     });
 
     expect(order).toEqual(["migrate", "list"]);
+  });
+
+  it("writes one detailed completion entry with the complete report", async () => {
+    const migrationReport = report([
+      { songId: "local-1", error: "conflict details" },
+    ]);
+    migrationReport.migratedCount = 4;
+    migrationReport.renamedCount = 2;
+    migrationReport.deduplicatedCount = 1;
+    migrationReport.unchangedCount = 1;
+    const onDetailedLog = vi.fn();
+
+    const result = await migrateImportedScoreStorageBeforeListing({
+      librarySongs: [song("local-1")],
+      listFiles: vi.fn().mockResolvedValue([]),
+      migrateStorage: vi.fn().mockResolvedValue(migrationReport),
+      onDetailedLog,
+      unresolvedFallbackSongs: {},
+    });
+
+    expect(result.report).toBe(migrationReport);
+    expect(onDetailedLog).toHaveBeenCalledTimes(1);
+    expect(onDetailedLog).toHaveBeenCalledWith({
+      details: migrationReport,
+      level: "warn",
+      message: "Imported score storage migration completed",
+      source: "imported-score-storage",
+    });
   });
 });

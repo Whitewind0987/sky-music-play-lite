@@ -270,17 +270,8 @@ fn save_imported_score_song_at(
         read_and_verify_expected_song(&file_path, song)?;
     }
 
-    for file in files {
-        if file.path != file_path {
-            fs::remove_file(&file.path).map_err(|error| {
-                format!(
-                    "Failed to remove verified equivalent imported score file at {}: {}",
-                    file.path.display(),
-                    error
-                )
-            })?;
-        }
-    }
+    let mut file_index = managed_score_file_index_from_files(files.clone());
+    cleanup_verified_redundant_managed_files(&mut file_index, song_id, &files, &file_path, song)?;
 
     Ok(file_path)
 }
@@ -548,6 +539,13 @@ fn reconcile_one_imported_score_file(
     let files = indexed_managed_score_files_for_id(file_index, song_id);
 
     if files.is_empty() {
+        if canonical_path.exists() {
+            return Err(format!(
+                "Cannot create imported score {} because target {} already exists and is not a recognized regular managed file",
+                song_id,
+                canonical_path.display()
+            ));
+        }
         write_imported_score_song_file(&canonical_path, song_id, song)?;
         read_and_verify_expected_song(&canonical_path, song)?;
         insert_indexed_managed_score_file(
@@ -574,7 +572,13 @@ fn reconcile_one_imported_score_file(
     }
 
     if files.iter().any(|file| file.path == canonical_path) {
-        cleanup_verified_redundant_managed_files(file_index, song_id, &files, &canonical_path)?;
+        cleanup_verified_redundant_managed_files(
+            file_index,
+            song_id,
+            &files,
+            &canonical_path,
+            song,
+        )?;
         return Ok(ReconcileAction::Unchanged);
     }
 
@@ -588,39 +592,30 @@ fn reconcile_one_imported_score_file(
 
     let selected_file = files[0].clone();
 
-    fs::rename(&selected_file.path, &canonical_path).map_err(|error| {
-        format!(
-            "Failed to rename imported score file at {} to {}: {}",
-            selected_file.path.display(),
-            canonical_path.display(),
-            error
-        )
-    })?;
-
-    let canonical_file = managed_score_file_from_path(
-        canonical_path.clone(),
-        song_id.to_string(),
-        ManagedScoreFileNaming::Canonical,
-        ManagedScoreFileExtension::Txt,
+    let canonical_file = rename_and_validate_managed_score_file(
+        &selected_file.path,
+        &canonical_path,
+        |target_path| {
+            let canonical_file = managed_score_file_from_path(
+                target_path.to_path_buf(),
+                song_id.to_string(),
+                ManagedScoreFileNaming::Canonical,
+                ManagedScoreFileExtension::Txt,
+            )?;
+            read_and_verify_expected_song(target_path, song)?;
+            Ok(canonical_file)
+        },
     )?;
-    if let Err(verification_error) = read_and_verify_expected_song(&canonical_path, song) {
-        return match fs::rename(&canonical_path, &selected_file.path) {
-            Ok(()) => Err(format!(
-                "Renamed imported score target failed verification and the original source was restored: {}",
-                verification_error
-            )),
-            Err(rollback_error) => Err(format!(
-                "Renamed imported score target failed verification: {}. Rollback to {} also failed: {}",
-                verification_error,
-                selected_file.path.display(),
-                rollback_error
-            )),
-        };
-    }
     remove_indexed_managed_score_file_path(file_index, song_id, &selected_file.path);
     insert_indexed_managed_score_file(file_index, canonical_file);
     let updated_files = indexed_managed_score_files_for_id(file_index, song_id);
-    cleanup_verified_redundant_managed_files(file_index, song_id, &updated_files, &canonical_path)?;
+    cleanup_verified_redundant_managed_files(
+        file_index,
+        song_id,
+        &updated_files,
+        &canonical_path,
+        song,
+    )?;
 
     Ok(ReconcileAction::Renamed)
 }
@@ -630,11 +625,19 @@ fn cleanup_verified_redundant_managed_files(
     song_id: &str,
     files: &[ManagedScoreFile],
     keep_path: &Path,
+    expected_song: &Value,
 ) -> Result<(), String> {
     for file in files {
-        if file.path == keep_path || !file.path.exists() {
+        if file.path == keep_path {
             continue;
         }
+        read_and_verify_expected_song(&file.path, expected_song).map_err(|error| {
+            format!(
+                "Cannot remove redundant imported score candidate {} because fresh verification failed: {}",
+                file.path.display(),
+                error
+            )
+        })?;
         fs::remove_file(&file.path).map_err(|error| {
             format!(
                 "Failed to remove redundant imported score file at {}: {}",
@@ -646,6 +649,40 @@ fn cleanup_verified_redundant_managed_files(
     }
 
     Ok(())
+}
+
+fn rename_and_validate_managed_score_file<F>(
+    source_path: &Path,
+    target_path: &Path,
+    validate_target: F,
+) -> Result<ManagedScoreFile, String>
+where
+    F: FnOnce(&Path) -> Result<ManagedScoreFile, String>,
+{
+    fs::rename(source_path, target_path).map_err(|error| {
+        format!(
+            "Failed to rename imported score file at {} to {}: {}",
+            source_path.display(),
+            target_path.display(),
+            error
+        )
+    })?;
+
+    match validate_target(target_path) {
+        Ok(file) => Ok(file),
+        Err(validation_error) => match fs::rename(target_path, source_path) {
+            Ok(()) => Err(format!(
+                "Renamed imported score target failed post-rename validation and the original source was restored: {}",
+                validation_error
+            )),
+            Err(rollback_error) => Err(format!(
+                "Renamed imported score target failed post-rename validation: {}. Rollback to {} also failed: {}",
+                validation_error,
+                source_path.display(),
+                rollback_error
+            )),
+        },
+    }
 }
 
 fn write_imported_score_song_file(
@@ -698,6 +735,22 @@ fn write_imported_score_song_file(
     match fs::rename(&temp_file_path, file_path) {
         Ok(()) => Ok(()),
         Err(rename_error) if file_path.exists() => {
+            let target_metadata = fs::symlink_metadata(file_path).map_err(|metadata_error| {
+                let _ = fs::remove_file(&temp_file_path);
+                format!(
+                    "Failed to inspect existing imported score target at {} after replace failed ({}): {}",
+                    file_path.display(),
+                    rename_error,
+                    metadata_error
+                )
+            })?;
+            if !target_metadata.file_type().is_file() {
+                let _ = fs::remove_file(&temp_file_path);
+                return Err(format!(
+                    "Refusing to replace non-regular imported score target at {}",
+                    file_path.display()
+                ));
+            }
             replace_existing_imported_score_file(
                 file_path,
                 &temp_file_path,
@@ -2369,5 +2422,86 @@ mod tests {
         assert_eq!(report.failed.len(), 1);
         assert!(test_dir.path.join("Conflict__local-1.txt").exists());
         assert!(test_dir.path.join("local-1.json").exists());
+    }
+
+    #[test]
+    fn canonical_directory_collision_is_never_replaced_or_backed_up() {
+        let test_dir = unique_test_dir("canonical_directory_collision");
+        let song = sample_song("Occupied");
+        let target = test_dir.path.join("Occupied__local-1.txt");
+        let marker = target.join("keep.txt");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(&marker, "keep").unwrap();
+
+        let save_error = save_imported_score_song_at(&test_dir.path, "local-1", &song).unwrap_err();
+        let durable_write_error =
+            write_imported_score_song_file(&target, "local-1", &song).unwrap_err();
+        let reconcile_report = reconcile_imported_score_files_at(
+            &test_dir.path,
+            vec![ImportedScoreReconcileEntry {
+                song_id: "local-1".to_string(),
+                song,
+            }],
+        )
+        .unwrap();
+
+        assert!(save_error.contains("collides"));
+        assert!(durable_write_error.contains("non-regular"));
+        assert_eq!(reconcile_report.failed.len(), 1);
+        assert!(target.is_dir());
+        assert_eq!(fs::read_to_string(marker).unwrap(), "keep");
+        assert!(!test_dir.path.join("Occupied__local-1.txt.bak").exists());
+        assert!(!test_dir.path.join("Occupied__local-1.txt.tmp").exists());
+    }
+
+    #[test]
+    fn post_rename_validation_failure_rolls_back_without_updating_index() {
+        let test_dir = unique_test_dir("post_rename_rollback");
+        let source = test_dir.path.join("local-1.json");
+        let target = test_dir.path.join("Rollback__local-1.txt");
+        write_score_file(&test_dir.path, "local-1.json", &sample_song("Rollback"));
+        let file_index =
+            managed_score_file_index_from_files(scan_managed_score_files(&test_dir.path).unwrap());
+
+        let error = rename_and_validate_managed_score_file(&source, &target, |_| {
+            Err("injected metadata failure".to_string())
+        })
+        .err()
+        .unwrap();
+
+        assert!(error.contains("original source was restored"));
+        assert!(source.is_file());
+        assert!(!target.exists());
+        assert_eq!(file_index["local-1"][0].path, source);
+    }
+
+    #[test]
+    fn cleanup_revalidates_redundant_candidate_before_deleting() {
+        let test_dir = unique_test_dir("cleanup_revalidate");
+        let expected = sample_song("Expected");
+        let target = test_dir.path.join("Expected__local-1.txt");
+        let redundant = test_dir.path.join("local-1.json");
+        write_score_file(&test_dir.path, "Expected__local-1.txt", &expected);
+        write_score_file(&test_dir.path, "local-1.json", &expected);
+        let files = scan_managed_score_files(&test_dir.path).unwrap();
+        let mut file_index = managed_score_file_index_from_files(files.clone());
+        write_score_file(&test_dir.path, "local-1.json", &sample_song("Changed"));
+
+        let error = cleanup_verified_redundant_managed_files(
+            &mut file_index,
+            "local-1",
+            &files,
+            &target,
+            &expected,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("fresh verification failed"));
+        assert!(target.is_file());
+        assert!(redundant.is_file());
+        assert_eq!(
+            read_one_song_from_file(&redundant).unwrap()["name"],
+            "Changed"
+        );
     }
 }
