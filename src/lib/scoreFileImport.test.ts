@@ -5,6 +5,7 @@ import {
   sanitizeBuiltInScoreIndex,
   type BuiltInScoreIndex,
 } from "./builtinScoreIndex";
+import { getSustainTailMs } from "./libraryCollections";
 import {
   isSupportedScoreFileName,
   parseScoreFileContent,
@@ -446,6 +447,22 @@ describe("scores-v2 duration support", () => {
     );
 
     expect(song?.songNotes[1]?.duration).toBe(1500);
+  });
+
+  it("keeps v2 lazy-loaded durations consistent with the generator formula", () => {
+    const song = parseScoreFileSongAtIndex(
+      JSON.stringify([
+        createV2Song({}, [
+          { time: 0, key: "Key0", duration: 5000 },
+          { time: 1000, key: "Key1" },
+        ]),
+      ]),
+      0,
+    );
+
+    expect(song).not.toBeNull();
+    // 生成器 durationMs 公式:分组增量和(1000) + 延音尾巴(5000 − 1000)
+    expect(1000 + getSustainTailMs(song?.songNotes ?? [])).toBe(5000);
   });
 });
 
