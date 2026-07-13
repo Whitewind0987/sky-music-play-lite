@@ -350,6 +350,105 @@ describe("built-in score asset integrity", () => {
   }, 30000);
 });
 
+describe("scores-v2 duration support", () => {
+  function createV2Song(
+    overrides: Record<string, unknown> = {},
+    notes?: unknown[],
+  ) {
+    return createRawSong({
+      formatVersion: 2,
+      name: "V2 Song",
+      songNotes: notes ?? [
+        { time: 0, key: "Key0" },
+        { time: 500, key: "Key2", duration: 1500 },
+      ],
+      ...overrides,
+    });
+  }
+
+  it("parses v2 songs and keeps note durations", () => {
+    const songs = parseScoreFileContent(JSON.stringify([createV2Song()]));
+
+    expect(songs[0]?.songNotes[0]?.duration).toBeUndefined();
+    expect(songs[0]?.songNotes[1]?.duration).toBe(1500);
+  });
+
+  it("ignores duration on v1 songs", () => {
+    const songs = parseScoreFileContent(
+      JSON.stringify([
+        createRawSong({
+          songNotes: [{ time: 500, key: "Key2", duration: 1500 }],
+        }),
+      ]),
+    );
+
+    expect(songs[0]?.songNotes[0]?.duration).toBeUndefined();
+  });
+
+  it("ignores duration when formatVersion is 1", () => {
+    const songs = parseScoreFileContent(
+      JSON.stringify([createV2Song({ formatVersion: 1 })]),
+    );
+
+    expect(songs[0]?.songNotes[1]?.duration).toBeUndefined();
+  });
+
+  it.each([[3], ["2"], [true], [null], [2.5]])(
+    "rejects invalid formatVersion %p",
+    (formatVersion) => {
+      expectImportError(
+        JSON.stringify([createV2Song({ formatVersion })]),
+        "formatVersionInvalid",
+      );
+    },
+  );
+
+  it.each([[0], [-1], ["1500"], [Number.NaN], [60001], [true]])(
+    "rejects invalid v2 duration %p",
+    (duration) => {
+      expectImportError(
+        JSON.stringify([
+          createV2Song({}, [{ time: 0, key: "Key0", duration }]),
+        ]),
+        "noteDurationInvalid",
+      );
+    },
+  );
+
+  it("accepts duration at the 60000 cap", () => {
+    const songs = parseScoreFileContent(
+      JSON.stringify([
+        createV2Song({}, [{ time: 0, key: "Key0", duration: 60000 }]),
+      ]),
+    );
+
+    expect(songs[0]?.songNotes[0]?.duration).toBe(60000);
+  });
+
+  it("keeps durations absolute under isRelativeTime", () => {
+    const songs = parseScoreFileContent(
+      JSON.stringify([
+        createV2Song({ isRelativeTime: true }, [
+          { time: 0, key: "Key0", duration: 1200 },
+          { time: 250, key: "Key1", duration: 800 },
+        ]),
+      ]),
+    );
+
+    expect(songs[0]?.songNotes[1]?.time).toBe(250);
+    expect(songs[0]?.songNotes[1]?.duration).toBe(800);
+  });
+
+  it("parses v2 songs at an index via parseScoreFileSongAtIndex", () => {
+    const song = parseScoreFileSongAtIndex(
+      JSON.stringify([createV2Song()]),
+      0,
+    );
+
+    expect(song?.songNotes[1]?.duration).toBe(1500);
+  });
+});
+
 describe("parseScoreFileContent error cases", () => {
   it("rejects an empty file", () => {
     expectImportError("   ", "emptyFile");
