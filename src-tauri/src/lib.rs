@@ -3,6 +3,7 @@ mod app_log;
 mod app_window;
 mod experimental_input;
 mod imported_scores;
+mod window_state;
 use experimental_input::{
     BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
@@ -133,6 +134,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            window_state::initialize(app.handle())
+                .map_err(|error| Box::<dyn std::error::Error>::from(error))?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             find_sky_window,
             app_data::load_app_data,
@@ -145,6 +151,7 @@ pub fn run() {
             imported_scores::ensure_imported_scores_directory,
             imported_scores::imported_score_file_exists,
             imported_scores::list_imported_score_files,
+            imported_scores::migrate_imported_score_storage,
             imported_scores::open_imported_scores_directory,
             imported_scores::read_imported_score_song,
             imported_scores::reconcile_imported_score_files,

@@ -68,6 +68,34 @@ pub fn get_app_runtime_info(app: AppHandle) -> Result<AppRuntimeInfo, String> {
 
 #[tauri::command]
 pub fn append_app_log(app: AppHandle, entry: AppLogEntry) -> Result<(), String> {
+    append_log_entry(&app, entry)
+}
+
+pub(crate) fn append_internal_log(
+    app: &AppHandle,
+    level: &str,
+    source: &str,
+    message: &str,
+    details: Option<Value>,
+) -> Result<(), String> {
+    let level = match level {
+        "debug" => AppLogLevel::Debug,
+        "warn" => AppLogLevel::Warn,
+        "error" => AppLogLevel::Error,
+        _ => AppLogLevel::Info,
+    };
+    append_log_entry(
+        app,
+        AppLogEntry {
+            level,
+            source: source.to_string(),
+            message: message.to_string(),
+            details,
+        },
+    )
+}
+
+fn append_log_entry(app: &AppHandle, entry: AppLogEntry) -> Result<(), String> {
     let log_paths = resolve_log_paths(&app)?;
     let persisted_entry = PersistedAppLogEntry {
         timestamp_ms: timestamp_ms(),

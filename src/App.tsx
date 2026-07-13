@@ -53,7 +53,13 @@ import {
 import { formatText } from "./lib/formatText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
 import { getLibrarySongName } from "./lib/libraryCollections";
+import {
+  synchronizeRemovedLibrarySongsWithPlayback,
+  type RemovedLibrarySong,
+} from "./lib/missingScorePlaybackSync";
+import { shouldStopPlaybackForRemovedSong } from "./lib/missingScorePlaybackActivity";
 import { forceCloseApp } from "./lib/tauriApi";
+import type { LibrarySongId } from "./types/library";
 import "../font/iconfont.css";
 import "./App.css";
 
@@ -87,6 +93,12 @@ function App() {
   const text = uiText[language];
   const appFileLogger = useAppFileLogger(language);
   const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
+  const missingLocalSongsRemovedRef = useRef<
+    (removedSongs: RemovedLibrarySong[]) => void
+  >(() => {});
+  const missingPlaybackSongRemovalRef = useRef<
+    (songId: LibrarySongId) => void
+  >(() => {});
 
   useEffect(() => {
     appendDetailedLogRef.current = appFileLogger.appendDetailedLog;
@@ -124,6 +136,10 @@ function App() {
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
+    onBeforeMissingPlaybackSongRemoval: (songId) =>
+      missingPlaybackSongRemovalRef.current(songId),
+    onMissingLocalSongsRemoved: (removedSongs) =>
+      missingLocalSongsRemovedRef.current(removedSongs),
     showNotice: showAppNotice,
     text,
   });
@@ -134,6 +150,13 @@ function App() {
     showNotice: showAppNotice,
     text: text.logs,
   });
+  missingLocalSongsRemovedRef.current = (removedSongs) => {
+    synchronizeRemovedLibrarySongsWithPlayback(removedSongs, {
+      removeSongFromPlaybackContext:
+        playbackOrder.removeSongFromPlaybackContext,
+      removeSongIndices: playbackQueue.removeSongIndices,
+    });
+  };
   function handlePlaybackSongIndexChange(songIndex: number | null) {
     scoreLibrary.setPlaybackSongIndex(songIndex);
     scoreLibrary.setSelectedSongIndex(songIndex);
@@ -208,6 +231,7 @@ function App() {
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
+    appendDetailedLog: appFileLogger.appendDetailedLog,
     appendLog,
     applyConfirmBeforeExit: handleConfirmBeforeExitChange,
     applyExperimentalInputPreferences:
@@ -250,9 +274,29 @@ function App() {
     previewPlayback,
     text: text.bottomPlayer,
   });
+  missingPlaybackSongRemovalRef.current = (removedPlaybackSongId) => {
+    if (
+      shouldStopPlaybackForRemovedSong({
+        activePlaybackSongIds: [
+          previewPlayback.getActivePreviewPlaybackSongId(),
+          experimentalInput.getActiveForegroundPlaybackSongId(),
+          experimentalInput.getActiveTargetWindowPlaybackSongId(),
+        ],
+        removedPlaybackSongId,
+      })
+    ) {
+      playbackOutput.onStop();
+    }
+  };
   const playbackCoordinator = usePlaybackCoordinator({
     appendLog,
     experimentalInput,
+    onManualNextDecision: (details) =>
+      appFileLogger.appendDetailedLog({
+        details,
+        message: "Manual next decision",
+        source: "playback",
+      }),
     playbackOrder,
     playbackOutput,
     playbackQueue,

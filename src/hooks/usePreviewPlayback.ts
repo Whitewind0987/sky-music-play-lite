@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
+import { resolveActivePlaybackSongIndex } from "../lib/activePlaybackSong";
 import {
   getAdjustedPreviewDurationFromMetadata,
   getAdjustedPreviewDurationMs,
@@ -16,7 +17,7 @@ import {
   prunePreviewActiveKeys,
   type PreviewActiveKeyEntry,
 } from "../lib/previewActiveKeys";
-import type { LibrarySong } from "../types/library";
+import type { LibrarySong, LibrarySongId } from "../types/library";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import {
@@ -63,6 +64,7 @@ export function usePreviewPlayback({
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
   const activeKeyEntriesRef = useRef<PreviewActiveKeyEntry[]>([]);
   const activeKeyPruneTimerRef = useRef<number | null>(null);
+  const activePreviewSongIdRef = useRef<LibrarySongId | null>(null);
   const isShuffleEnabledRef = useRef(false);
   const noteIntervalDelayMsRef = useRef(defaultNoteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(defaultPlaybackMode);
@@ -182,6 +184,7 @@ export function usePreviewPlayback({
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
     playbackControllerRef.current?.stop();
     playbackControllerRef.current = null;
+    activePreviewSongIdRef.current = null;
     resetActiveKeys();
     setPlaybackState(nextState);
     resetPlaybackProgress();
@@ -192,6 +195,7 @@ export function usePreviewPlayback({
     options: { initialSeekMs?: number } = {},
   ) {
     try {
+      const previewSongId = librarySongsRef.current[songIndex]?.id ?? null;
       const song = await resolveSongForPlayback(songIndex);
 
       if (!song) {
@@ -213,6 +217,7 @@ export function usePreviewPlayback({
       }
 
       setPlaybackState("playing");
+      activePreviewSongIdRef.current = previewSongId;
       setPlaybackProgress({
         currentMs: options.initialSeekMs ?? 0,
         percent: 0,
@@ -244,10 +249,23 @@ export function usePreviewPlayback({
           );
         },
         () => {
+          const completedSongId = activePreviewSongIdRef.current;
           resetActiveKeys();
           playbackControllerRef.current = null;
+          activePreviewSongIdRef.current = null;
 
           const currentLibrarySongs = librarySongsRef.current;
+          const currentSongIndex = resolveActivePlaybackSongIndex({
+            librarySongs: currentLibrarySongs,
+            songId: completedSongId,
+          });
+
+          if (currentSongIndex === null) {
+            setPlaybackState("finished");
+            appendLog(text.logs.previewFinished);
+            return;
+          }
+
           const queuedItem =
             playbackModeRef.current === "repeat-one"
               ? null
@@ -255,14 +273,14 @@ export function usePreviewPlayback({
           const playbackOrderNextSongIndex =
             queuedItem === null && playbackModeRef.current === "repeat-all"
               ? getPlaybackOrderNextSongIndex({
-                  currentSongIndex: songIndex,
+                  currentSongIndex,
                   isShuffleEnabled: isShuffleEnabledRef.current,
                   playbackMode: playbackModeRef.current,
                 })
               : null;
           const finishDecision = decidePlaybackFinish({
             allowLibraryFallback: false,
-            currentSongIndex: songIndex,
+            currentSongIndex,
             isShuffleEnabled: isShuffleEnabledRef.current,
             playbackMode: playbackModeRef.current,
             queuedSongIndex:
@@ -274,7 +292,7 @@ export function usePreviewPlayback({
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
-            void startPreviewForSong(songIndex);
+            void startPreviewForSong(currentSongIndex);
             return;
           }
 
@@ -433,6 +451,12 @@ export function usePreviewPlayback({
     playbackControllerRef.current?.updateOptions(nextOptions);
   }
 
+  function getActivePreviewPlaybackSongId() {
+    return playbackControllerRef.current === null
+      ? null
+      : activePreviewSongIdRef.current;
+  }
+
   function applyPlaybackSettings({
     isShuffleEnabled: nextIsShuffleEnabled,
     noteIntervalDelayMs: nextNoteIntervalDelayMs,
@@ -475,6 +499,7 @@ export function usePreviewPlayback({
     handleSeekPreview,
     handleShuffleToggle,
     handleStopPreview,
+    getActivePreviewPlaybackSongId,
     isShuffleEnabled,
     noteIntervalDelayMs,
     playbackMode,

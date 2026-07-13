@@ -53,6 +53,19 @@ export type ImportedScoreReconcileReport = {
   failed: ImportedScoreReconcileFailure[];
 };
 
+export type ImportedScoreStorageMigrationFailure = {
+  songId: LibrarySongId;
+  error: string;
+};
+
+export type ImportedScoreStorageMigrationReport = {
+  migratedCount: number;
+  renamedCount: number;
+  deduplicatedCount: number;
+  unchangedCount: number;
+  failed: ImportedScoreStorageMigrationFailure[];
+};
+
 export type PlannedPlaybackKey = {
   holdMs?: number;
   key: string;
@@ -167,6 +180,15 @@ export function reconcileImportedScoreFiles(
   return invoke<ImportedScoreReconcileReport>("reconcile_imported_score_files", {
     entries,
   });
+}
+
+export function migrateImportedScoreStorage(
+  songIds: LibrarySongId[],
+): Promise<ImportedScoreStorageMigrationReport> {
+  return invoke<ImportedScoreStorageMigrationReport>(
+    "migrate_imported_score_storage",
+    { request: { songIds } },
+  );
 }
 
 export function clearImportedScoreFiles(): Promise<number> {
