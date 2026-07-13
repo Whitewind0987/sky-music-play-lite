@@ -87,12 +87,27 @@ enum ManagedScoreFileExtension {
     Json,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ManagedScoreObjectKind {
+    RegularFile,
+    NonRegular,
+}
+
+fn classify_managed_score_object(file_type: &fs::FileType) -> ManagedScoreObjectKind {
+    if file_type.is_file() {
+        ManagedScoreObjectKind::RegularFile
+    } else {
+        ManagedScoreObjectKind::NonRegular
+    }
+}
+
 #[derive(Clone)]
 struct ManagedScoreFile {
     file_name: String,
     id: String,
     naming: ManagedScoreFileNaming,
     extension: ManagedScoreFileExtension,
+    object_kind: ManagedScoreObjectKind,
     modified_ms: Option<u128>,
     path: PathBuf,
     size_bytes: u64,
@@ -247,7 +262,7 @@ fn save_imported_score_song_at(
     let files = managed_score_files_for_id(directory, song_id)?;
 
     for file in &files {
-        read_and_verify_expected_song(&file.path, song).map_err(|error| {
+        read_and_verify_managed_score_file(file, song).map_err(|error| {
             format!(
                 "Cannot safely save imported score {} because existing candidate {} is invalid or conflicting: {}",
                 song_id,
@@ -257,7 +272,9 @@ fn save_imported_score_song_at(
         })?;
     }
 
-    if file_path.exists() && !files.iter().any(|file| file.path == file_path) {
+    if path_exists_without_following(&file_path)?
+        && !files.iter().any(|file| file.path == file_path)
+    {
         return Err(format!(
             "Cannot save imported score {} because target {} collides with an unmanaged file",
             song_id,
@@ -290,7 +307,14 @@ fn read_imported_score_song_at(directory: &Path, song_id: &str) -> Result<Value,
     let mut failures = Vec::new();
 
     for file in files {
-        match read_one_song_from_file(&file.path) {
+        if file.object_kind != ManagedScoreObjectKind::RegularFile {
+            failures.push(format!(
+                "{}: recognized managed path is not a regular file",
+                file.path.display()
+            ));
+            continue;
+        }
+        match read_regular_managed_score_file(&file) {
             Ok(song) => return Ok(song),
             Err(error) => failures.push(format!("{}: {}", file.path.display(), error)),
         }
@@ -315,7 +339,12 @@ fn delete_imported_score_file_at(directory: &Path, song_id: &str) -> Result<bool
         return Ok(false);
     }
 
+    let mut removed_any = false;
     for file in files {
+        if file.object_kind != ManagedScoreObjectKind::RegularFile {
+            continue;
+        }
+        require_regular_file_without_following(&file.path, "managed score delete target")?;
         fs::remove_file(&file.path).map_err(|error| {
             format!(
                 "Failed to delete imported score file at {}: {}",
@@ -323,9 +352,10 @@ fn delete_imported_score_file_at(directory: &Path, song_id: &str) -> Result<bool
                 error
             )
         })?;
+        removed_any = true;
     }
 
-    Ok(true)
+    Ok(removed_any)
 }
 
 fn list_imported_score_files_at(
@@ -362,6 +392,10 @@ fn clear_imported_score_files_at(directory: &Path) -> Result<usize, String> {
     let mut removed_count = 0;
 
     for file in files {
+        if file.object_kind != ManagedScoreObjectKind::RegularFile {
+            continue;
+        }
+        require_regular_file_without_following(&file.path, "managed score clear target")?;
         fs::remove_file(&file.path).map_err(|error| {
             format!(
                 "Failed to clear imported score file at {}: {}",
@@ -420,7 +454,14 @@ where
         let mut parsed_songs = Vec::new();
         let mut parse_failures = Vec::new();
         for file in &files {
-            match read_one_song_from_file(&file.path) {
+            if file.object_kind != ManagedScoreObjectKind::RegularFile {
+                parse_failures.push(format!(
+                    "{}: recognized managed path is not a regular file",
+                    file.path.display()
+                ));
+                continue;
+            }
+            match read_regular_managed_score_file(file) {
                 Ok(song) => parsed_songs.push(song),
                 Err(error) => parse_failures.push(format!("{}: {}", file.path.display(), error)),
             }
@@ -539,7 +580,7 @@ fn reconcile_one_imported_score_file(
     let files = indexed_managed_score_files_for_id(file_index, song_id);
 
     if files.is_empty() {
-        if canonical_path.exists() {
+        if path_exists_without_following(&canonical_path)? {
             return Err(format!(
                 "Cannot create imported score {} because target {} already exists and is not a recognized regular managed file",
                 song_id,
@@ -561,7 +602,7 @@ fn reconcile_one_imported_score_file(
     }
 
     for file in &files {
-        read_and_verify_expected_song(&file.path, song).map_err(|error| {
+        read_and_verify_managed_score_file(file, song).map_err(|error| {
             format!(
                 "Cannot safely canonicalize imported score {} because candidate {} is invalid or conflicting: {}",
                 song_id,
@@ -582,7 +623,7 @@ fn reconcile_one_imported_score_file(
         return Ok(ReconcileAction::Unchanged);
     }
 
-    if canonical_path.exists() {
+    if path_exists_without_following(&canonical_path)? {
         return Err(format!(
             "Cannot canonicalize imported score {} because target {} already exists and is not a recognized candidate",
             song_id,
@@ -631,7 +672,7 @@ fn cleanup_verified_redundant_managed_files(
         if file.path == keep_path {
             continue;
         }
-        read_and_verify_expected_song(&file.path, expected_song).map_err(|error| {
+        read_and_verify_managed_score_file(file, expected_song).map_err(|error| {
             format!(
                 "Cannot remove redundant imported score candidate {} because fresh verification failed: {}",
                 file.path.display(),
@@ -659,6 +700,7 @@ fn rename_and_validate_managed_score_file<F>(
 where
     F: FnOnce(&Path) -> Result<ManagedScoreFile, String>,
 {
+    require_regular_file_without_following(source_path, "rename source")?;
     fs::rename(source_path, target_path).map_err(|error| {
         format!(
             "Failed to rename imported score file at {} to {}: {}",
@@ -730,6 +772,26 @@ fn write_imported_score_song_file(
                 error
             )
         })?;
+    }
+
+    match fs::symlink_metadata(file_path) {
+        Ok(metadata) if !metadata.file_type().is_file() => {
+            let _ = fs::remove_file(&temp_file_path);
+            return Err(format!(
+                "Refusing to replace non-regular imported score target at {}",
+                file_path.display()
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            let _ = fs::remove_file(&temp_file_path);
+            return Err(format!(
+                "Failed to inspect imported score target at {} before replacement: {}",
+                file_path.display(),
+                error
+            ));
+        }
     }
 
     match fs::rename(&temp_file_path, file_path) {
@@ -830,6 +892,33 @@ fn read_and_verify_expected_song(file_path: &Path, expected_song: &Value) -> Res
     }
 
     Ok(actual_song)
+}
+
+fn read_and_verify_managed_score_file(
+    file: &ManagedScoreFile,
+    expected_song: &Value,
+) -> Result<Value, String> {
+    if file.object_kind != ManagedScoreObjectKind::RegularFile {
+        return Err(format!(
+            "Recognized managed path at {} is not a regular file",
+            file.path.display()
+        ));
+    }
+
+    require_regular_file_without_following(&file.path, "managed score candidate")?;
+    read_and_verify_expected_song(&file.path, expected_song)
+}
+
+fn read_regular_managed_score_file(file: &ManagedScoreFile) -> Result<Value, String> {
+    if file.object_kind != ManagedScoreObjectKind::RegularFile {
+        return Err(format!(
+            "Recognized managed path at {} is not a regular file",
+            file.path.display()
+        ));
+    }
+
+    require_regular_file_without_following(&file.path, "managed score read candidate")?;
+    read_one_song_from_file(&file.path)
 }
 
 fn semantic_song_from_value(song: &Value) -> Result<SemanticSong, String> {
@@ -998,13 +1087,19 @@ fn managed_score_file_from_path(
     naming: ManagedScoreFileNaming,
     extension: ManagedScoreFileExtension,
 ) -> Result<ManagedScoreFile, String> {
-    let metadata = fs::metadata(&path).map_err(|error| {
+    let metadata = fs::symlink_metadata(&path).map_err(|error| {
         format!(
             "Failed to read imported score file metadata at {}: {}",
             path.display(),
             error
         )
     })?;
+    if !metadata.file_type().is_file() {
+        return Err(format!(
+            "Imported score path at {} is not a regular file",
+            path.display()
+        ));
+    }
     let file_name = path
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
@@ -1020,6 +1115,7 @@ fn managed_score_file_from_path(
         id,
         naming,
         extension,
+        object_kind: ManagedScoreObjectKind::RegularFile,
         modified_ms: metadata_modified_ms(&metadata),
         path,
         size_bytes: metadata.len(),
@@ -1052,23 +1148,36 @@ fn scan_managed_score_files(directory: &Path) -> Result<Vec<ManagedScoreFile>, S
         let Some(parsed_file_name) = parse_managed_score_file_name(&file_name) else {
             continue;
         };
-        let metadata = entry.metadata().map_err(|error| {
+        let file_type = entry.file_type().map_err(|error| {
             format!(
-                "Failed to read imported score file metadata at {}: {}",
+                "Failed to read imported score entry type at {}: {}",
                 entry.path().display(),
                 error
             )
         })?;
-
-        if !metadata.is_file() {
-            continue;
-        }
+        let metadata = fs::symlink_metadata(entry.path()).map_err(|error| {
+            format!(
+                "Failed to read imported score entry metadata at {}: {}",
+                entry.path().display(),
+                error
+            )
+        })?;
+        let entry_kind = classify_managed_score_object(&file_type);
+        let metadata_kind = classify_managed_score_object(&metadata.file_type());
+        let object_kind = if entry_kind == ManagedScoreObjectKind::RegularFile
+            && metadata_kind == ManagedScoreObjectKind::RegularFile
+        {
+            ManagedScoreObjectKind::RegularFile
+        } else {
+            ManagedScoreObjectKind::NonRegular
+        };
 
         files.push(ManagedScoreFile {
             file_name,
             id: parsed_file_name.id,
             naming: parsed_file_name.naming,
             extension: parsed_file_name.extension,
+            object_kind,
             modified_ms: metadata_modified_ms(&metadata),
             path: entry.path(),
             size_bytes: metadata.len(),
@@ -1308,6 +1417,39 @@ fn remove_file_if_exists(file_path: &Path, label: &str) -> Result<(), String> {
             file_path.display(),
             error
         )),
+    }
+}
+
+fn path_exists_without_following(path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Failed to inspect filesystem object at {}: {}",
+            path.display(),
+            error
+        )),
+    }
+}
+
+fn require_regular_file_without_following(path: &Path, label: &str) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        format!(
+            "Failed to inspect {} at {}: {}",
+            label,
+            path.display(),
+            error
+        )
+    })?;
+
+    if metadata.file_type().is_file() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} at {} is not a regular file",
+            label,
+            path.display()
+        ))
     }
 }
 
@@ -2445,13 +2587,44 @@ mod tests {
         )
         .unwrap();
 
-        assert!(save_error.contains("collides"));
+        assert!(save_error.contains("not a regular file"));
         assert!(durable_write_error.contains("non-regular"));
         assert_eq!(reconcile_report.failed.len(), 1);
         assert!(target.is_dir());
         assert_eq!(fs::read_to_string(marker).unwrap(), "keep");
         assert!(!test_dir.path.join("Occupied__local-1.txt.bak").exists());
         assert!(!test_dir.path.join("Occupied__local-1.txt.tmp").exists());
+    }
+
+    #[test]
+    fn non_regular_managed_candidate_with_regular_fallback_fails_migration_safely() {
+        let test_dir = unique_test_dir("non_regular_with_fallback");
+        let song = sample_song("Occupied");
+        let non_regular = test_dir.path.join("Occupied__local-1.txt");
+        let marker = non_regular.join("keep.txt");
+        let fallback = test_dir.path.join("local-1.json");
+        fs::create_dir_all(&non_regular).unwrap();
+        fs::write(&marker, "keep").unwrap();
+        write_score_file(&test_dir.path, "local-1.json", &song);
+
+        assert!(imported_score_file_exists_at(&test_dir.path, "local-1").unwrap());
+        assert_eq!(
+            list_imported_score_files_at(&test_dir.path).unwrap().len(),
+            1
+        );
+        assert_eq!(
+            read_imported_score_song_at(&test_dir.path, "local-1").unwrap(),
+            song
+        );
+
+        let report =
+            migrate_imported_score_storage_at(&test_dir.path, vec!["local-1".to_string()]).unwrap();
+
+        assert_eq!(report.failed.len(), 1);
+        assert!(report.failed[0].error.contains("not a regular file"));
+        assert!(non_regular.is_dir());
+        assert_eq!(fs::read_to_string(marker).unwrap(), "keep");
+        assert!(fallback.is_file());
     }
 
     #[test]
@@ -2503,5 +2676,108 @@ mod tests {
             read_one_song_from_file(&redundant).unwrap()["name"],
             "Changed"
         );
+    }
+
+    #[test]
+    fn managed_object_classification_distinguishes_regular_files_and_directories() {
+        let test_dir = unique_test_dir("object_classification");
+        let regular_path = test_dir.path.join("regular.txt");
+        let directory_path = test_dir.path.join("directory.txt");
+        fs::create_dir_all(&test_dir.path).unwrap();
+        fs::write(&regular_path, "regular").unwrap();
+        fs::create_dir(&directory_path).unwrap();
+
+        assert!(matches!(
+            classify_managed_score_object(&fs::symlink_metadata(regular_path).unwrap().file_type()),
+            ManagedScoreObjectKind::RegularFile
+        ));
+        assert!(matches!(
+            classify_managed_score_object(
+                &fs::symlink_metadata(directory_path).unwrap().file_type()
+            ),
+            ManagedScoreObjectKind::NonRegular
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_symlink_is_present_but_never_automatically_mutated() {
+        use std::os::unix::fs::symlink;
+
+        let test_dir = unique_test_dir("managed_symlink");
+        let song = sample_song("Linked");
+        let external_target = test_dir.path.join("external-score");
+        let managed_link = test_dir.path.join("Linked__local-1.txt");
+        let fallback = test_dir.path.join("local-1.json");
+        fs::create_dir_all(&test_dir.path).unwrap();
+        write_score_file(&test_dir.path, "external-score", &song);
+        symlink(&external_target, &managed_link).unwrap();
+        write_score_file(&test_dir.path, "local-1.json", &song);
+
+        let files = managed_score_files_for_id(&test_dir.path, "local-1").unwrap();
+        let linked_candidate = files.iter().find(|file| file.path == managed_link).unwrap();
+        assert!(matches!(
+            linked_candidate.object_kind,
+            ManagedScoreObjectKind::NonRegular
+        ));
+        assert!(imported_score_file_exists_at(&test_dir.path, "local-1").unwrap());
+        assert_eq!(
+            list_imported_score_files_at(&test_dir.path).unwrap().len(),
+            1
+        );
+        assert_eq!(
+            read_imported_score_song_at(&test_dir.path, "local-1").unwrap(),
+            song
+        );
+
+        let report =
+            migrate_imported_score_storage_at(&test_dir.path, vec!["local-1".to_string()]).unwrap();
+        assert_eq!(report.failed.len(), 1);
+        assert!(fs::symlink_metadata(&managed_link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(fallback.is_file());
+        assert!(external_target.is_file());
+
+        assert!(delete_imported_score_file_at(&test_dir.path, "local-1").unwrap());
+        assert!(fs::symlink_metadata(&managed_link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(!fallback.exists());
+        assert_eq!(clear_imported_score_files_at(&test_dir.path).unwrap(), 0);
+        assert!(fs::symlink_metadata(&managed_link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn durable_writer_refuses_exact_symlink_target_without_artifacts() {
+        use std::os::unix::fs::symlink;
+
+        let test_dir = unique_test_dir("writer_symlink_target");
+        let target = test_dir.path.join("Linked__local-1.txt");
+        let external_target = test_dir.path.join("external-score");
+        fs::create_dir_all(&test_dir.path).unwrap();
+        write_score_file(&test_dir.path, "external-score", &sample_song("External"));
+        symlink(&external_target, &target).unwrap();
+
+        let error =
+            write_imported_score_song_file(&target, "local-1", &sample_song("Linked")).unwrap_err();
+
+        assert!(error.contains("non-regular"));
+        assert!(fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            read_one_song_from_file(&external_target).unwrap()["name"],
+            "External"
+        );
+        assert!(!test_dir.path.join("Linked__local-1.txt.tmp").exists());
+        assert!(!test_dir.path.join("Linked__local-1.txt.bak").exists());
     }
 }
