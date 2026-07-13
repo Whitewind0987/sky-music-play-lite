@@ -88,6 +88,7 @@ struct SemanticSong {
 struct SemanticNote {
     key: String,
     time: f64,
+    duration: Option<f64>,
 }
 
 type ManagedScoreFileIndex = BTreeMap<String, Vec<ManagedScoreFile>>;
@@ -743,6 +744,20 @@ fn validate_managed_song(file_path: &Path, song: &Value) -> Result<(), String> {
                 file_path.display(),
                 note_index
             ));
+        }
+
+        if let Some(duration) = note_object.get("duration") {
+            let is_valid_duration = duration
+                .as_f64()
+                .is_some_and(|value| value.is_finite() && value > 0.0);
+
+            if !is_valid_duration {
+                return Err(format!(
+                    "Imported score file at {} songNotes[{}].duration must be a positive number",
+                    file_path.display(),
+                    note_index
+                ));
+            }
         }
     }
 
@@ -1483,6 +1498,66 @@ mod tests {
         let error = read_one_song_from_file(&file_path).unwrap_err();
 
         assert!(error.contains("songNotes[0].key must be a non-empty string"));
+    }
+
+    #[test]
+    fn managed_song_validation_rejects_invalid_note_duration() {
+        let test_dir = unique_test_dir("validate_note_duration");
+        let file_path = test_dir.path.join("Broken__local-1.json");
+
+        write_raw_file(
+            &test_dir.path,
+            "Broken__local-1.json",
+            r#"[{"name":"Broken","bpm":120,"bitsPerPage":16,"pitchLevel":0,"isComposed":false,"songNotes":[{"time":0,"key":"1Key0","duration":-5}]}]"#,
+        );
+
+        let error = read_one_song_from_file(&file_path).unwrap_err();
+
+        assert!(error.contains("songNotes[0].duration must be a positive number"));
+    }
+
+    #[test]
+    fn managed_song_validation_accepts_v2_duration() {
+        let test_dir = unique_test_dir("validate_v2_duration");
+        let file_path = test_dir.path.join("Valid__local-1.json");
+
+        write_raw_file(
+            &test_dir.path,
+            "Valid__local-1.json",
+            r#"[{"name":"Valid","bpm":120,"bitsPerPage":16,"pitchLevel":0,"isComposed":false,"formatVersion":2,"songNotes":[{"time":0,"key":"1Key0","duration":1500}]}]"#,
+        );
+
+        let song = read_one_song_from_file(&file_path).unwrap();
+
+        assert_eq!(
+            song["songNotes"][0]["duration"],
+            serde_json::json!(1500)
+        );
+    }
+
+    #[test]
+    fn semantic_comparison_detects_duration_changes() {
+        let with_duration = serde_json::json!({
+            "name": "Song",
+            "bpm": 120.0,
+            "bitsPerPage": 16.0,
+            "pitchLevel": 0.0,
+            "isComposed": false,
+            "songNotes": [{ "time": 0.0, "key": "1Key0", "duration": 1500.0 }]
+        });
+        let without_duration = serde_json::json!({
+            "name": "Song",
+            "bpm": 120.0,
+            "bitsPerPage": 16.0,
+            "pitchLevel": 0.0,
+            "isComposed": false,
+            "songNotes": [{ "time": 0.0, "key": "1Key0" }]
+        });
+
+        assert_ne!(
+            semantic_song_from_value(&with_duration).unwrap(),
+            semantic_song_from_value(&without_duration).unwrap()
+        );
     }
 
     #[test]
