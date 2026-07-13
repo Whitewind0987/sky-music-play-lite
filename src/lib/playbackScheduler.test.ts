@@ -131,6 +131,55 @@ describe("getAdjustedPreviewDurationFromMetadata", () => {
   });
 });
 
+describe("scores-v2 sustain tails", () => {
+  const sustainNotes: Note[] = [
+    { time: 0, key: "Key0", duration: 5000 },
+    { time: 1000, key: "Key1" },
+  ];
+
+  it("includes the scaled sustain tail in the adjusted duration", () => {
+    expect(
+      getAdjustedPreviewDurationMs(sustainNotes, {
+        noteIntervalDelayMs: 0,
+        playbackSpeed: 2,
+      }),
+    ).toBe(2500);
+  });
+
+  it("ignores tails that end before the last group", () => {
+    expect(
+      getAdjustedPreviewDurationMs(
+        [
+          { time: 0, key: "Key0", duration: 400 },
+          { time: 1000, key: "Key1" },
+        ],
+        { noteIntervalDelayMs: 0, playbackSpeed: 1 },
+      ),
+    ).toBe(1000);
+  });
+
+  it.each([
+    { noteIntervalDelayMs: 0, playbackSpeed: 1 },
+    { noteIntervalDelayMs: 50, playbackSpeed: 2 },
+  ])("matches metadata duration for sustained songs (%o)", (options) => {
+    const song: Song = {
+      bitsPerPage: 16,
+      bpm: 120,
+      isComposed: false,
+      name: "Sustained",
+      pitchLevel: 0,
+      songNotes: sustainNotes,
+    };
+
+    expect(
+      getAdjustedPreviewDurationFromMetadata(
+        createLocalSongMetadata(song),
+        options,
+      ),
+    ).toBe(getAdjustedPreviewDurationMs(sustainNotes, options));
+  });
+});
+
 describe("schedulePreviewPlayback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -171,6 +220,78 @@ describe("schedulePreviewPlayback", () => {
     ]);
 
     vi.advanceTimersByTime(300);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it("delays preview finish until the sustain tail ends", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+    const sustainNotes: Note[] = [
+      { time: 0, key: "Key0", duration: 4000 },
+      { time: 1000, key: "Key1" },
+    ];
+
+    schedulePreviewPlayback(sustainNotes, onNoteGroup, onFinish, {
+      noteIntervalDelayMs: 0,
+      onProgress,
+      playbackSpeed: 1,
+    });
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 0,
+      percent: 0,
+      totalMs: 4000,
+    });
+
+    vi.advanceTimersByTime(0);
+    vi.advanceTimersByTime(1000);
+    expect(onNoteGroup).toHaveBeenCalledTimes(2);
+
+    vi.advanceTimersByTime(2999);
+    expect(onFinish).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the sustain tail in the total when seeking", () => {
+    const onNoteGroup = vi.fn();
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+    const sustainNotes: Note[] = [
+      { time: 0, key: "Key0", duration: 4000 },
+      { time: 1000, key: "Key1" },
+    ];
+
+    const controller = schedulePreviewPlayback(
+      sustainNotes,
+      onNoteGroup,
+      onFinish,
+      {
+        noteIntervalDelayMs: 0,
+        onProgress,
+        playbackSpeed: 1,
+      },
+    );
+
+    vi.advanceTimersByTime(0);
+    controller.seekTo(500);
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 500,
+      percent: 12.5,
+      totalMs: 4000,
+    });
+
+    controller.seekTo(3000);
+    expect(onProgress).toHaveBeenLastCalledWith({
+      currentMs: 3000,
+      percent: 75,
+      totalMs: 4000,
+    });
+
+    vi.advanceTimersByTime(1000);
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
