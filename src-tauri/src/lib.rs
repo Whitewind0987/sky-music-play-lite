@@ -3,6 +3,7 @@ mod app_log;
 mod app_window;
 mod experimental_input;
 mod imported_scores;
+mod window_state;
 use experimental_input::{
     BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
@@ -133,6 +134,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            window_state::initialize(app.handle())
+                .map_err(|error| Box::<dyn std::error::Error>::from(error))?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             find_sky_window,
             app_data::load_app_data,
