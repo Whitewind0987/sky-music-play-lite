@@ -66,8 +66,13 @@ export type ImportedScoreStorageMigrationReport = {
   failed: ImportedScoreStorageMigrationFailure[];
 };
 
+export type PlannedPlaybackKey = {
+  holdMs?: number;
+  key: string;
+};
+
 export type BackgroundPlaybackPlanEvent = {
-  keys: string[];
+  keys: PlannedPlaybackKey[];
   timeMs: number;
 };
 

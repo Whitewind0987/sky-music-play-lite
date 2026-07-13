@@ -52,7 +52,19 @@ function readFlexibleBoolean(value, fallback) {
   return null;
 }
 
-function isValidObjectNotes(songNotes) {
+const MAX_NOTE_DURATION_MS = 60000;
+
+function readFormatVersion(song) {
+  if (song.formatVersion === undefined) {
+    return 1;
+  }
+
+  return song.formatVersion === 1 || song.formatVersion === 2
+    ? song.formatVersion
+    : null;
+}
+
+function isValidObjectNotes(songNotes, formatVersion) {
   return (
     Array.isArray(songNotes) &&
     songNotes.every((note) => {
@@ -60,10 +72,23 @@ function isValidObjectNotes(songNotes) {
         return false;
       }
 
-      return (
-        readFlexibleNumber(note.time, null) !== null &&
-        typeof note.key === "string"
-      );
+      if (
+        readFlexibleNumber(note.time, null) === null ||
+        typeof note.key !== "string"
+      ) {
+        return false;
+      }
+
+      if (formatVersion === 2 && note.duration !== undefined) {
+        return (
+          typeof note.duration === "number" &&
+          Number.isFinite(note.duration) &&
+          note.duration > 0 &&
+          note.duration <= MAX_NOTE_DURATION_MS
+        );
+      }
+
+      return true;
     })
   );
 }
@@ -84,11 +109,32 @@ function getDurationMs(songNotes) {
   }, 0);
 }
 
+function getSustainTailMs(songNotes, formatVersion) {
+  if (formatVersion !== 2) {
+    return 0;
+  }
+
+  const lastGroupTimeMs = songNotes.reduce(
+    (lastTime, note) => Math.max(lastTime, readFlexibleNumber(note.time, 0)),
+    0,
+  );
+  const maxNoteEndMs = songNotes.reduce((maxEnd, note) => {
+    if (typeof note.duration !== "number") {
+      return maxEnd;
+    }
+
+    return Math.max(maxEnd, readFlexibleNumber(note.time, 0) + note.duration);
+  }, 0);
+
+  return Math.max(0, maxNoteEndMs - lastGroupTimeMs);
+}
+
 function createEntry({ fileName, song, songIndex }) {
   const bpm = readFlexibleNumber(song.bpm, 120);
   const bitsPerPage = readFlexibleNumber(song.bitsPerPage, 16);
   const pitchLevel = readFlexibleNumber(song.pitchLevel, 0);
   const isComposed = readFlexibleBoolean(song.isComposed, false);
+  const formatVersion = readFormatVersion(song);
   const fileBaseId = path.basename(fileName, path.extname(fileName));
 
   if (
@@ -97,10 +143,11 @@ function createEntry({ fileName, song, songIndex }) {
     bitsPerPage === null ||
     pitchLevel === null ||
     isComposed === null ||
+    formatVersion === null ||
     song.isEncrypted === true ||
     !Array.isArray(song.songNotes) ||
     typeof song.songNotes[0] === "number" ||
-    !isValidObjectNotes(song.songNotes)
+    !isValidObjectNotes(song.songNotes, formatVersion)
   ) {
     return null;
   }
@@ -115,7 +162,9 @@ function createEntry({ fileName, song, songIndex }) {
     pitchLevel,
     isComposed,
     noteCount: song.songNotes.length,
-    durationMs: getDurationMs(song.songNotes),
+    durationMs:
+      getDurationMs(song.songNotes) +
+      getSustainTailMs(song.songNotes, formatVersion),
   };
 }
 

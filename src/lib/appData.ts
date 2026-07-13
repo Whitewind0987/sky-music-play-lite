@@ -576,6 +576,17 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     return null;
   }
 
+  const rawSustainTailMs = rawMetadata.sustainTailMs;
+
+  if (
+    rawSustainTailMs !== undefined &&
+    (typeof rawSustainTailMs !== "number" ||
+      !Number.isFinite(rawSustainTailMs) ||
+      rawSustainTailMs < 0)
+  ) {
+    return null;
+  }
+
   return {
     bitsPerPage: rawMetadata.bitsPerPage as number,
     bpm: rawMetadata.bpm as number,
@@ -587,6 +598,9 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     noteGroupCount: rawMetadata.noteGroupCount,
     ...(noteGroupDelaysMs === null ? {} : { noteGroupDelaysMs }),
     pitchLevel: rawMetadata.pitchLevel as number,
+    ...(typeof rawSustainTailMs === "number" && rawSustainTailMs > 0
+      ? { sustainTailMs: rawSustainTailMs }
+      : {}),
   };
 }
 

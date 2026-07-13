@@ -1,6 +1,7 @@
 export type Note = {
   time: number;
   key: string;
+  duration?: number;
 };
 
 export type Song = {

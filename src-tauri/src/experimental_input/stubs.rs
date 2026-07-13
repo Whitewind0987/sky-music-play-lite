@@ -3,9 +3,17 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PlannedKey {
+    pub key: String,
+    #[serde(default)]
+    pub hold_ms: Option<f64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackgroundPlaybackPlanEvent {
     pub time_ms: f64,
-    pub keys: Vec<String>,
+    pub keys: Vec<PlannedKey>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

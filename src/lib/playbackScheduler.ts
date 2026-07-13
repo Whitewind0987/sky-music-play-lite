@@ -1,5 +1,6 @@
 import type { Note } from "../types/score";
 import type { LocalSongMetadata } from "../types/library";
+import { getSustainTailMs } from "./libraryCollections";
 import {
   defaultNoteIntervalDelayMs,
   defaultPlaybackSpeed,
@@ -58,6 +59,7 @@ export function schedulePreviewPlayback(
 ): PreviewPlaybackController {
   const sortedNotes = [...notes].sort((left, right) => left.time - right.time);
   const noteGroups = groupNotesByTime(sortedNotes);
+  const tailSourceMs = getSustainTailMs(sortedNotes);
   let liveOptions = { ...options };
   let totalMs = getAdjustedPreviewDurationMs(sortedNotes, liveOptions);
   let currentGroupIndex = 0;
@@ -168,8 +170,11 @@ export function schedulePreviewPlayback(
     const nextGroup = noteGroups[currentGroupIndex];
 
     if (!nextGroup) {
-      updateTotalFromRemaining(0);
-      scheduleTask("finish", getScaledDelayMs(NOTE_HIGHLIGHT_MS, liveOptions));
+      updateTotalFromRemaining(getScaledDelayMs(tailSourceMs, liveOptions));
+      scheduleTask(
+        "finish",
+        getScaledDelayMs(Math.max(NOTE_HIGHLIGHT_MS, tailSourceMs), liveOptions),
+      );
       return;
     }
 
@@ -283,7 +288,7 @@ export function schedulePreviewPlayback(
       remainingDurationMs += getDelayToGroup(index, timingOptions);
     }
 
-    return remainingDurationMs;
+    return remainingDurationMs + getScaledDelayMs(tailSourceMs, timingOptions);
   }
 
   function updateTotalFromRemaining(remainingDurationMs: number) {
@@ -319,7 +324,7 @@ export function schedulePreviewPlayback(
         : Math.max(0, scheduledDelayMs * (1 - getElapsedRatio()));
 
       remainingDelayMs = nextRemainingDelayMs;
-      updateTotalFromRemaining(0);
+      updateTotalFromRemaining(Math.max(0, totalMs - currentProgressMs));
 
       if (!isPaused && timeoutId !== null) {
         clearCurrentTimeout();
@@ -402,11 +407,13 @@ export function schedulePreviewPlayback(
     }
 
     updateTotalFromRemaining(
-      getRemainingDurationFromGroup(
-        currentGroupIndex,
-        remainingDelayMs,
-        liveOptions,
-      ),
+      currentGroupIndex >= noteGroups.length
+        ? remainingDelayMs
+        : getRemainingDurationFromGroup(
+            currentGroupIndex,
+            remainingDelayMs,
+            liveOptions,
+          ),
     );
 
     if (isPaused) {
@@ -520,8 +527,7 @@ export function getAdjustedPreviewDurationMs(
 ) {
   const sortedNotes = [...notes].sort((left, right) => left.time - right.time);
   const groupedNotes = groupNotesByTime(sortedNotes);
-
-  return groupedNotes.reduce((durationMs, group, index) => {
+  const baseDurationMs = groupedNotes.reduce((durationMs, group, index) => {
     if (index === 0) {
       return durationMs + getScaledDelayMs(Math.max(0, group.time), options);
     }
@@ -537,6 +543,10 @@ export function getAdjustedPreviewDurationMs(
       )
     );
   }, 0);
+
+  return (
+    baseDurationMs + getScaledDelayMs(getSustainTailMs(sortedNotes), options)
+  );
 }
 
 export function getAdjustedPreviewDurationFromMetadata(
@@ -545,6 +555,7 @@ export function getAdjustedPreviewDurationFromMetadata(
     | "lastNoteTimeMs"
     | "noteGroupCount"
     | "noteGroupDelaysMs"
+    | "sustainTailMs"
   >,
   options: Pick<
     PreviewPlaybackOptions,
@@ -558,22 +569,28 @@ export function getAdjustedPreviewDurationFromMetadata(
     return 0;
   }
 
+  const scaledTailMs = getScaledDelayMs(metadata.sustainTailMs ?? 0, options);
+
   if (
     metadata.noteGroupDelaysMs?.length === metadata.noteGroupCount
   ) {
-    return metadata.noteGroupDelaysMs.reduce((durationMs, delayMs, index) => {
-      const adjustedDelayMs =
-        getScaledDelayMs(delayMs, options) +
-        (index === 0 ? 0 : options.noteIntervalDelayMs);
+    return (
+      metadata.noteGroupDelaysMs.reduce((durationMs, delayMs, index) => {
+        const adjustedDelayMs =
+          getScaledDelayMs(delayMs, options) +
+          (index === 0 ? 0 : options.noteIntervalDelayMs);
 
-      return durationMs + Math.max(0, adjustedDelayMs);
-    }, 0);
+        return durationMs + Math.max(0, adjustedDelayMs);
+      }, 0) + scaledTailMs
+    );
   }
 
-  return Math.max(
-    0,
-    getScaledDelayMs(metadata.lastNoteTimeMs, options) +
-      (metadata.noteGroupCount - 1) * options.noteIntervalDelayMs,
+  return (
+    Math.max(
+      0,
+      getScaledDelayMs(metadata.lastNoteTimeMs, options) +
+        (metadata.noteGroupCount - 1) * options.noteIntervalDelayMs,
+    ) + scaledTailMs
   );
 }
 
