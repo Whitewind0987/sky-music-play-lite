@@ -53,8 +53,13 @@ export type ImportedScoreReconcileReport = {
   failed: ImportedScoreReconcileFailure[];
 };
 
+export type PlannedPlaybackKey = {
+  holdMs?: number;
+  key: string;
+};
+
 export type BackgroundPlaybackPlanEvent = {
-  keys: string[];
+  keys: PlannedPlaybackKey[];
   timeMs: number;
 };
 
