@@ -449,6 +449,22 @@ describe("scores-v2 duration support", () => {
     expect(song?.songNotes[1]?.duration).toBe(1500);
   });
 
+  it("parses the shipped scores-v2 sample file", async () => {
+    const sampleUrl = new URL(
+      "../../docs/examples/scores-v2-sample.txt",
+      import.meta.url,
+    );
+    const songs = parseScoreFileContent(await readFile(sampleUrl, "utf8"));
+
+    expect(songs).toHaveLength(2);
+    expect(songs[0]?.songNotes.some((note) => note.duration !== undefined)).toBe(
+      true,
+    );
+    expect(songs[1]?.songNotes.every((note) => note.duration === undefined)).toBe(
+      true,
+    );
+  });
+
   it("keeps v2 lazy-loaded durations consistent with the generator formula", () => {
     const song = parseScoreFileSongAtIndex(
       JSON.stringify([
