@@ -29,6 +29,8 @@ import { prepareWarmPlaybackPlan } from "../lib/warmPlaybackPreparation";
 import {
   connectionLifecycleKind,
   getInvalidTargetLifecycleDecision,
+  getInvalidStartFailureDecision,
+  isManualTargetSelectionLocked,
   isSkySnapshot,
   isSkyWindow,
   reconcileSkyWindow,
@@ -364,7 +366,7 @@ export function useExperimentalInput({
           ? "waiting"
           : "inactive",
       );
-      return;
+      return false;
     }
 
     awaitingSkyReconnectRef.current = true;
@@ -378,6 +380,14 @@ export function useExperimentalInput({
       appendLog(text.logs.experimentalPlaybackStoppedBecauseSkyClosed);
       skyPlaybackStopLoggedRef.current = true;
     }
+    return true;
+  }
+
+  function isTargetSelectionLocked() {
+    return isManualTargetSelectionLocked({
+      activeSessionId: activeBackgroundSessionIdRef.current,
+      isHandoffPending: isBackgroundHandoffPendingRef.current,
+    });
   }
 
   function updateCandidateWindows(
@@ -552,11 +562,14 @@ export function useExperimentalInput({
   }
 
   async function handleDetectSkyWindow() {
+    if (isTargetSelectionLocked()) return;
     setIsDetectingSkyWindow(true);
     setLastError(null);
 
     try {
       const skyWindow = await findSkyWindow();
+
+      if (isTargetSelectionLocked()) return;
 
       if (skyWindow === null) {
         appendLog(text.logs.experimentalSkyWindowNotFound);
@@ -742,6 +755,7 @@ export function useExperimentalInput({
   }
 
   function handleSelectedWindowChange(hwnd: string) {
+    if (isTargetSelectionLocked()) return;
     const candidateWindow = candidateWindowsRef.current.find(
       (window) => window.hwnd === hwnd,
     );
@@ -1319,9 +1333,9 @@ export function useExperimentalInput({
         });
       }
 
-      const hadTargetPlayback =
-        activeBackgroundSessionIdRef.current !== null ||
-        isBackgroundHandoffPendingRef.current;
+      const activeSessionIdBeforeFailure = activeBackgroundSessionIdRef.current;
+      const hadActiveSession = activeSessionIdBeforeFailure !== null;
+      const hadPendingHandoff = isBackgroundHandoffPendingRef.current;
       finishBackgroundHandoff(options.handoffToken);
       const errorMessage = String(error);
       const isInvalidTargetWindow = isTargetWindowInvalidError(errorMessage);
@@ -1339,15 +1353,35 @@ export function useExperimentalInput({
       });
       setLastError(logTemplate);
       appendLog(logTemplate);
+      let replayOldActiveSession = true;
+      let rollbackHandled = false;
       if (isInvalidTargetWindow) {
         showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
-        handleInvalidTargetSelection(hadTargetPlayback);
+        const invalidTargetWasSky = handleInvalidTargetSelection(
+          hadActiveSession || hadPendingHandoff,
+        );
+        const failureDecision = getInvalidStartFailureDecision({
+          activeSessionExists: hadActiveSession,
+          invalidTargetIsSky: invalidTargetWasSky,
+        });
+        replayOldActiveSession = failureDecision.replayActiveSession;
+        if (failureDecision.stopActiveSession) {
+          rollbackRequestedPlaybackSong(
+            options.handoffToken,
+            options.rollbackPlaybackSongId,
+          );
+          rollbackHandled = true;
+          stopExperimentalPlayback({ logStopped: false });
+        }
       }
-      replayActiveSessionEventsAfterFailedHandoff();
-      rollbackRequestedPlaybackSong(
-        options.handoffToken,
-        options.rollbackPlaybackSongId,
-      );
+      if (replayOldActiveSession) replayActiveSessionEventsAfterFailedHandoff();
+      else pendingBackgroundEventsRef.current.clear();
+      if (!rollbackHandled) {
+        rollbackRequestedPlaybackSong(
+          options.handoffToken,
+          options.rollbackPlaybackSongId,
+        );
+      }
       options.timing.finish("start failed");
       return false;
     }
@@ -1646,6 +1680,9 @@ export function useExperimentalInput({
       experimentalPlaybackState === "playing" ||
       experimentalPlaybackState === "paused",
     isBackgroundHandoffPending,
+    isTargetWindowSelectionLocked:
+      activeBackgroundSessionIdRef.current !== null ||
+      isBackgroundHandoffPending,
     isForegroundStartPending: foregroundPlayback.isForegroundStartPending,
     isRefreshingWindows,
     lastError,

@@ -707,6 +707,8 @@ function App() {
             isDetectingSkyWindow: experimentalInput.isDetectingSkyWindow,
             isExperimentalPlaybackRunning:
               experimentalInput.isExperimentalPlaybackRunning,
+            isTargetWindowSelectionLocked:
+              experimentalInput.isTargetWindowSelectionLocked,
             isRefreshingWindows: experimentalInput.isRefreshingWindows,
             lastError: experimentalInput.lastError,
             skyMonitorStatus: experimentalInput.skyMonitorStatus,

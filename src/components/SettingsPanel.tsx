@@ -40,6 +40,7 @@ type ExperimentalInputPanelState = {
   foregroundPlaybackState: ForegroundPlaybackState;
   isDetectingSkyWindow: boolean;
   isExperimentalPlaybackRunning: boolean;
+  isTargetWindowSelectionLocked: boolean;
   isRefreshingWindows: boolean;
   lastError: string | null;
   skyMonitorStatus: "inactive" | "waiting" | "connected" | "reconnecting" | "manual-target";
@@ -344,7 +345,10 @@ export function SettingsPlaceholder({
                   <button
                     className="language-option"
                     type="button"
-                    disabled={experimentalInput.isDetectingSkyWindow}
+                    disabled={
+                      experimentalInput.isDetectingSkyWindow ||
+                      experimentalInput.isTargetWindowSelectionLocked
+                    }
                     onClick={experimentalInput.onDetectSkyWindow}
                   >
                     {experimentalInput.isDetectingSkyWindow
@@ -361,6 +365,7 @@ export function SettingsPlaceholder({
                       className="experimental-window-row is-selected"
                       type="button"
                       aria-pressed
+                      disabled={experimentalInput.isTargetWindowSelectionLocked}
                       onClick={() =>
                         experimentalInput.onSelectedWindowChange(
                           restoredSelectedWindow.hwnd,
@@ -390,6 +395,7 @@ export function SettingsPlaceholder({
                         }`}
                         key={window.hwnd}
                         type="button"
+                        disabled={experimentalInput.isTargetWindowSelectionLocked}
                         aria-pressed={
                           experimentalInput.selectedWindowHwnd === window.hwnd
                         }

@@ -3,6 +3,8 @@ import type { CandidateWindow } from "../types/experimentalInput";
 import {
   connectionLifecycleKind,
   getInvalidTargetLifecycleDecision,
+  getInvalidStartFailureDecision,
+  isManualTargetSelectionLocked,
   isSkySnapshot,
   reconcileSkyWindow,
   resolveUnboundSkyMonitorStatus,
@@ -257,5 +259,52 @@ describe("lifecycle support helpers", () => {
       reconnectRevision: 7,
       snapshotRevision: 8,
     })).toBe(false);
+  });
+
+  it("invalid Sky start with an old active session stops it and never replays it", () => {
+    expect(getInvalidStartFailureDecision({
+      activeSessionExists: true,
+      invalidTargetIsSky: true,
+    })).toEqual({ replayActiveSession: false, stopActiveSession: true });
+  });
+
+  it("invalid Sky start with only a pending handoff avoids a redundant session stop", () => {
+    expect(getInvalidStartFailureDecision({
+      activeSessionExists: false,
+      invalidTargetIsSky: true,
+    })).toEqual({ replayActiveSession: false, stopActiveSession: false });
+  });
+
+  it("invalid manual non-Sky target preserves generic active-session replay", () => {
+    expect(getInvalidStartFailureDecision({
+      activeSessionExists: true,
+      invalidTargetIsSky: false,
+    })).toEqual({ replayActiveSession: true, stopActiveSession: false });
+  });
+
+  it("blocks manual candidate selection during active or pending playback", () => {
+    expect(isManualTargetSelectionLocked({ activeSessionId: 12, isHandoffPending: false })).toBe(true);
+    expect(isManualTargetSelectionLocked({ activeSessionId: null, isHandoffPending: true })).toBe(true);
+  });
+
+  it("allows target selection while idle", () => {
+    expect(isManualTargetSelectionLocked({ activeSessionId: null, isHandoffPending: false })).toBe(false);
+  });
+
+  it("discards an awaited detection result if playback starts before it resolves", () => {
+    const lockedBeforeRequest = isManualTargetSelectionLocked({ activeSessionId: null, isHandoffPending: false });
+    const lockedAfterResponse = isManualTargetSelectionLocked({ activeSessionId: 13, isHandoffPending: false });
+    expect([lockedBeforeRequest, lockedAfterResponse]).toEqual([false, true]);
+  });
+
+  it("automatic lifecycle replacement remains independent of the manual-selection guard", () => {
+    expect(isManualTargetSelectionLocked({ activeSessionId: 12, isHandoffPending: false })).toBe(true);
+    expect(reconcileSkyWindow({
+      ...base,
+      candidateWindows: [sky("old")],
+      selectedWindowHwnd: "old",
+      selectedWindowSnapshot: { className: "TgcMainWindow", processName: "Sky.exe" },
+      monitor: { revision: 9, window: sky("new") },
+    })).toMatchObject({ bindWindow: sky("new"), stopTargetPlayback: true });
   });
 });

@@ -157,6 +157,29 @@ export function resolveUnboundSkyMonitorStatus({
     : "inactive";
 }
 
+export function isManualTargetSelectionLocked({
+  activeSessionId,
+  isHandoffPending,
+}: {
+  activeSessionId: number | null;
+  isHandoffPending: boolean;
+}): boolean {
+  return activeSessionId !== null || isHandoffPending;
+}
+
+export function getInvalidStartFailureDecision({
+  activeSessionExists,
+  invalidTargetIsSky,
+}: {
+  activeSessionExists: boolean;
+  invalidTargetIsSky: boolean;
+}) {
+  return {
+    replayActiveSession: !invalidTargetIsSky,
+    stopActiveSession: invalidTargetIsSky && activeSessionExists,
+  };
+}
+
 export function isSkyWindow(window: Pick<CandidateWindow, "class_name" | "process_name"> | null | undefined): boolean {
   return window?.class_name === "TgcMainWindow" && window.process_name?.toLowerCase() === "sky.exe";
 }
