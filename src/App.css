@@ -3213,9 +3213,9 @@ button {
 }
 
 .bottom-player-v2-badge {
-  border: 1px solid #b91c1c;
-  color: #ffffff;
-  background: #dc2626;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  background: #fef2f2;
 }
 
 .queue-panel {
