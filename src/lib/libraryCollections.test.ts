@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { LibrarySongListItem, UserPlaylist } from "../types/library";
+import type {
+  BuiltInLibrarySong,
+  LibrarySongListItem,
+  LocalLibrarySong,
+  UserPlaylist,
+} from "../types/library";
 import type { Song } from "../types/score";
 import {
   addSongToPlaylist,
   createLibrarySong,
   createLocalSongMetadata,
+  enrichLocalSongFormatVersion,
   filterSongsByQuery,
+  getLibrarySongFormatVersion,
   getLibrarySongRawDurationMs,
   getSongFingerprint,
   removeSongFromAllCollections,
@@ -58,6 +65,7 @@ describe("createLocalSongMetadata", () => {
       bitsPerPage: 15,
       bpm: 120,
       fingerprint: getSongFingerprint(song),
+      formatVersion: 1,
       isComposed: true,
       lastNoteTimeMs: 500,
       name: "Metadata",
@@ -67,6 +75,153 @@ describe("createLocalSongMetadata", () => {
       noteGroupMaxHoldMs: [0, 0],
       pitchLevel: 0,
     });
+  });
+
+  it("records version 1 for ordinary songs and version 2 explicitly", () => {
+    expect(createLocalSongMetadata(createTestSong("V1")).formatVersion).toBe(1);
+    expect(
+      createLocalSongMetadata({
+        ...createTestSong("V2"),
+        formatVersion: 2,
+      }).formatVersion,
+    ).toBe(2);
+  });
+});
+
+describe("getLibrarySongFormatVersion", () => {
+  function createBuiltInSong(
+    overrides: Partial<BuiltInLibrarySong> = {},
+  ): BuiltInLibrarySong {
+    return {
+      id: "builtin:test:0",
+      importedAt: 0,
+      isBuiltInLoaded: false,
+      song: createTestSong("Built in"),
+      source: "built-in",
+      ...overrides,
+    };
+  }
+
+  it("uses local metadata versions", () => {
+    const localV1 = createLibrarySong(createTestSong("Local V1"), 1);
+    const localV2 = createLibrarySong(
+      { ...createTestSong("Local V2"), formatVersion: 2 },
+      2,
+    );
+
+    expect(getLibrarySongFormatVersion(localV1)).toBe(1);
+    expect(getLibrarySongFormatVersion(localV2)).toBe(2);
+  });
+
+  it("uses the full loaded built-in song as authoritative", () => {
+    expect(
+      getLibrarySongFormatVersion(
+        createBuiltInSong({
+          builtInFormatVersion: 1,
+          isBuiltInLoaded: true,
+          song: { ...createTestSong("Loaded V2"), formatVersion: 2 },
+        }),
+      ),
+    ).toBe(2);
+    expect(
+      getLibrarySongFormatVersion(
+        createBuiltInSong({
+          builtInFormatVersion: 2,
+          isBuiltInLoaded: true,
+          song: createTestSong("Loaded V1"),
+        }),
+      ),
+    ).toBe(1);
+  });
+
+  it("uses the indexed version for unloaded built-ins", () => {
+    expect(
+      getLibrarySongFormatVersion(
+        createBuiltInSong({ builtInFormatVersion: 2 }),
+      ),
+    ).toBe(2);
+    expect(getLibrarySongFormatVersion(createBuiltInSong())).toBeUndefined();
+  });
+
+  it("does not turn an unknown local marker into version 2", () => {
+    const localSong = createLibrarySong(createTestSong("Unknown"), 1);
+    const unknownSong = {
+      ...localSong,
+      metadata: { ...localSong.metadata, formatVersion: 3 },
+    } as unknown as LocalLibrarySong;
+
+    expect(getLibrarySongFormatVersion(unknownSong)).toBeUndefined();
+  });
+});
+
+describe("enrichLocalSongFormatVersion", () => {
+  function createLegacyLocalSong(): LocalLibrarySong {
+    const librarySong = createLibrarySong(createTestSong("Legacy"), 123);
+    const { formatVersion: _formatVersion, ...metadata } = librarySong.metadata;
+
+    return { ...librarySong, metadata };
+  }
+
+  it.each([
+    ["V1", undefined, 1],
+    ["V2", 2 as const, 2],
+  ])("enriches old metadata after loading %s", (_label, version, expected) => {
+    const librarySong = createLegacyLocalSong();
+    const loadedSong: Song = {
+      ...createTestSong("Legacy"),
+      ...(version === undefined ? {} : { formatVersion: version }),
+    };
+    const originalSongs = [librarySong];
+    const result = enrichLocalSongFormatVersion(
+      originalSongs,
+      librarySong.id,
+      loadedSong,
+    );
+
+    expect(result).not.toBe(originalSongs);
+    expect(result[0]?.metadata.formatVersion).toBe(expected);
+    expect(result[0]?.id).toBe(librarySong.id);
+    expect(result[0]?.importedAt).toBe(librarySong.importedAt);
+  });
+
+  it("returns the same state when the version is unchanged and is idempotent", () => {
+    const librarySong = createLibrarySong(
+      { ...createTestSong("V2"), formatVersion: 2 },
+      123,
+    );
+    const loadedSong: Song = {
+      ...createTestSong("V2"),
+      formatVersion: 2,
+    };
+    const firstResult = enrichLocalSongFormatVersion(
+      [librarySong],
+      librarySong.id,
+      loadedSong,
+    );
+    const secondResult = enrichLocalSongFormatVersion(
+      firstResult,
+      librarySong.id,
+      loadedSong,
+    );
+
+    expect(firstResult[0]).toBe(librarySong);
+    expect(secondResult).toBe(firstResult);
+  });
+
+  it("does not alter unrelated local songs or collection data", () => {
+    const target = createLegacyLocalSong();
+    const unrelated = createLibrarySong(createTestSong("Other"), 456);
+    const likedSongs = [{ likedAt: 1, songId: target.id }];
+    const playlists = [createTestPlaylist([target.id])];
+    const result = enrichLocalSongFormatVersion(
+      [target, unrelated],
+      target.id,
+      { ...createTestSong("Legacy"), formatVersion: 2 },
+    );
+
+    expect(result[1]).toBe(unrelated);
+    expect(likedSongs).toEqual([{ likedAt: 1, songId: target.id }]);
+    expect(playlists).toEqual([createTestPlaylist([target.id])]);
   });
 });
 

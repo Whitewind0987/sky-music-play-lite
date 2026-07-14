@@ -18,6 +18,7 @@ describe("loadBuiltInScoreById", () => {
       bitsPerPage: 2,
       durationMs: 500,
       fileName: "retry-score.json",
+      formatVersion: 1,
       id: "builtin:retry-score:0",
       isComposed: true,
       noteCount: 1,

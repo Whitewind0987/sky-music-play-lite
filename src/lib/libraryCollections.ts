@@ -43,6 +43,7 @@ export function createLocalSongMetadata(song: Song): LocalSongMetadata {
     bitsPerPage: song.bitsPerPage,
     bpm: song.bpm,
     fingerprint: getSongFingerprint(song),
+    formatVersion: song.formatVersion === 2 ? 2 : 1,
     isComposed: song.isComposed,
     lastNoteTimeMs:
       noteGroupTimes.length === 0
@@ -55,6 +56,57 @@ export function createLocalSongMetadata(song: Song): LocalSongMetadata {
     noteGroupMaxHoldMs,
     pitchLevel: song.pitchLevel,
   };
+}
+
+export function getLibrarySongFormatVersion(
+  librarySong: LibrarySong,
+): 1 | 2 | undefined {
+  if (librarySong.source === "local-import") {
+    const formatVersion = librarySong.metadata.formatVersion;
+
+    return formatVersion === 1 || formatVersion === 2
+      ? formatVersion
+      : undefined;
+  }
+
+  if (librarySong.isBuiltInLoaded) {
+    return librarySong.song.formatVersion === 2 ? 2 : 1;
+  }
+
+  return librarySong.builtInFormatVersion === 1 ||
+    librarySong.builtInFormatVersion === 2
+    ? librarySong.builtInFormatVersion
+    : undefined;
+}
+
+export function enrichLocalSongFormatVersion(
+  librarySongs: LocalLibrarySong[],
+  songId: LibrarySongId,
+  loadedSong: Song,
+) {
+  const formatVersion: 1 | 2 = loadedSong.formatVersion === 2 ? 2 : 1;
+  const songIndex = librarySongs.findIndex(
+    (librarySong) => librarySong.id === songId,
+  );
+
+  if (
+    songIndex < 0 ||
+    librarySongs[songIndex]?.metadata.formatVersion === formatVersion
+  ) {
+    return librarySongs;
+  }
+
+  return librarySongs.map((librarySong, index) =>
+    index === songIndex
+      ? {
+          ...librarySong,
+          metadata: {
+            ...librarySong.metadata,
+            formatVersion,
+          },
+        }
+      : librarySong,
+  );
 }
 
 export function getSustainTailMs(notes: Song["songNotes"]): number {

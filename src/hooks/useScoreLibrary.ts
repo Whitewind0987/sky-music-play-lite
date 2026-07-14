@@ -21,6 +21,7 @@ import {
 import {
   addSongToPlaylist,
   createPlaylist,
+  enrichLocalSongFormatVersion,
   filterSongsByQuery,
   getLibrarySongName,
   isSongLiked,
@@ -999,8 +1000,33 @@ export function useScoreLibrary({
 
             try {
               const loadedSong = await readImportedScoreSong(loadingSongId);
+              const validatedSong = validateLoadedLocalSong(
+                librarySong,
+                loadedSong,
+              );
 
-              return validateLoadedLocalSong(librarySong, loadedSong);
+              setLocalLibrarySongs((currentSongs) => {
+                const nextSongs = enrichLocalSongFormatVersion(
+                  currentSongs,
+                  loadingSongId,
+                  validatedSong,
+                );
+
+                if (nextSongs === currentSongs) {
+                  return currentSongs;
+                }
+
+                localLibrarySongsRef.current = nextSongs;
+                librarySongsRef.current = [
+                  ...librarySongsRef.current.filter(
+                    (currentSong) => currentSong.source === "built-in",
+                  ),
+                  ...nextSongs,
+                ];
+                return nextSongs;
+              });
+
+              return validatedSong;
             } finally {
               finishLoading();
             }

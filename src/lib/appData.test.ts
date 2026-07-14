@@ -622,6 +622,62 @@ describe("sanitizePersistedAppData v2 migration", () => {
 });
 
 describe("sanitizePersistedAppData v3 recovery", () => {
+  it.each([1, 2])("preserves metadata format version %s", (formatVersion) => {
+    const librarySong = createLocalLibrarySong();
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            ...librarySong,
+            metadata: { ...librarySong.metadata, formatVersion },
+          },
+        ],
+      },
+    });
+
+    expect(
+      result?.library.librarySongs[0]?.metadata.formatVersion,
+    ).toBe(formatVersion);
+  });
+
+  it("keeps metadata without a format version valid", () => {
+    const librarySong = createLocalLibrarySong();
+    const { formatVersion: _formatVersion, ...metadata } = librarySong.metadata;
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: { librarySongs: [{ ...librarySong, metadata }] },
+    });
+
+    expect(result?.library.librarySongs).toHaveLength(1);
+    expect(
+      result?.library.librarySongs[0]?.metadata.formatVersion,
+    ).toBeUndefined();
+  });
+
+  it.each([3, "2", null, Number.NaN])(
+    "omits malformed metadata format version %p without deleting the song",
+    (formatVersion) => {
+      const librarySong = createLocalLibrarySong();
+      const result = sanitizePersistedAppData({
+        appDataVersion,
+        library: {
+          librarySongs: [
+            {
+              ...librarySong,
+              metadata: { ...librarySong.metadata, formatVersion },
+            },
+          ],
+        },
+      });
+
+      expect(result?.library.librarySongs).toHaveLength(1);
+      expect(
+        result?.library.librarySongs[0]?.metadata.formatVersion,
+      ).toBeUndefined();
+    },
+  );
+
   it("does not create recovery songs for metadata-only input", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
