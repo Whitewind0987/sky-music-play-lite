@@ -8,6 +8,7 @@ import {
 import type { UiText } from "../i18n/uiText";
 import {
   getLibrarySongBpm,
+  getLibrarySongFormatVersion,
   getLibrarySongName,
   getLibrarySongNoteCount,
 } from "../lib/libraryCollections";
@@ -238,6 +239,8 @@ export function BottomPlayer({
   const [isProgressDragging, setIsProgressDragging] = useState(false);
   const [isProgressHovering, setIsProgressHovering] = useState(false);
   const canPause = playbackState === "playing";
+  const isV2Song =
+    currentSong !== null && getLibrarySongFormatVersion(currentSong) === 2;
   const canResume = playbackState === "paused";
   const canStop = playbackState === "playing" || playbackState === "paused";
   const primaryAction =
@@ -511,6 +514,11 @@ export function BottomPlayer({
             {isRealInputOutput ? (
               <span className="bottom-player-real-input-badge">
                 {text.realInputWarning}
+              </span>
+            ) : null}
+            {isV2Song ? (
+              <span className="bottom-player-v2-badge" title={text.v2Score}>
+                V2
               </span>
             ) : null}
           </div>

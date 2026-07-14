@@ -7,6 +7,7 @@ export type LocalSongMetadata = {
   bitsPerPage: number;
   bpm: number;
   fingerprint: string;
+  formatVersion?: 1 | 2;
   isComposed: boolean;
   lastNoteTimeMs: number;
   name: string;
@@ -21,6 +22,7 @@ export type LocalSongMetadata = {
 export type BuiltInLibrarySong = {
   builtInDurationMs?: number;
   builtInFileName?: string;
+  builtInFormatVersion?: 1 | 2;
   builtInNoteCount?: number;
   builtInSongIndex?: number;
   id: LibrarySongId;

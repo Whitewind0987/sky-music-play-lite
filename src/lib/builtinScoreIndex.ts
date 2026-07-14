@@ -5,6 +5,7 @@ export type BuiltInScoreIndexEntry = {
   bitsPerPage: number;
   durationMs: number;
   fileName: string;
+  formatVersion: 1 | 2;
   id: string;
   isComposed: boolean;
   noteCount: number;
@@ -128,6 +129,8 @@ function sanitizeBuiltInScoreIndexEntry(
     bitsPerPage: rawEntry.bitsPerPage,
     durationMs: rawEntry.durationMs,
     fileName: rawEntry.fileName,
+    formatVersion:
+      rawEntry.formatVersion === 2 ? 2 : 1,
     id: rawEntry.id,
     isComposed: rawEntry.isComposed,
     noteCount: rawEntry.noteCount,

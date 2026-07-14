@@ -139,6 +139,7 @@ function createEntry({ fileName, song, songIndex }) {
     isComposed,
     noteCount: song.songNotes.length,
     durationMs: getRawDurationMs(song.songNotes, formatVersion),
+    formatVersion,
   };
 }
 

@@ -614,6 +614,9 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     bitsPerPage: rawMetadata.bitsPerPage as number,
     bpm: rawMetadata.bpm as number,
     fingerprint: rawMetadata.fingerprint,
+    ...(rawMetadata.formatVersion === 1 || rawMetadata.formatVersion === 2
+      ? { formatVersion: rawMetadata.formatVersion }
+      : {}),
     isComposed: rawMetadata.isComposed,
     lastNoteTimeMs: rawMetadata.lastNoteTimeMs as number,
     name: rawMetadata.name,

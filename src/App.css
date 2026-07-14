@@ -3180,7 +3180,8 @@ button {
 
 .bottom-player-output-badge,
 .bottom-player-real-input-badge,
-.bottom-player-loading-badge {
+.bottom-player-loading-badge,
+.bottom-player-v2-badge {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -3209,6 +3210,12 @@ button {
   border: 1px solid #ffe0a8;
   color: #8a5a00;
   background: #fff8e8;
+}
+
+.bottom-player-v2-badge {
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  background: #fef2f2;
 }
 
 .queue-panel {
