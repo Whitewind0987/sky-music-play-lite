@@ -1,5 +1,5 @@
 use super::CandidateWindow;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,8 +20,6 @@ pub fn get_sky_window_monitor_state() -> Result<SkyWindowMonitorSnapshot, String
         window: None,
     })
 }
-use serde::{Deserialize, Serialize};
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackgroundPlaybackPlanEvent {

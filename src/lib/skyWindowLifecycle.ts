@@ -19,6 +19,33 @@ export type SkyReconcileDecision = {
   stopTargetPlayback: boolean;
 };
 
+export type TargetSelectionRefs = {
+  hwnd: { current: string | null };
+  snapshot: { current: WindowSnapshot };
+};
+
+export function syncTargetSelectionRefs(
+  refs: TargetSelectionRefs,
+  hwnd: string | null,
+  snapshot: WindowSnapshot,
+): void {
+  refs.hwnd.current = hwnd;
+  refs.snapshot.current = snapshot;
+}
+
+export function shouldLogLifecycleTransition(
+  revision: number,
+  previousRevision: number,
+): boolean {
+  return revision > previousRevision;
+}
+
+export function connectionLifecycleKind(
+  awaitingReconnect: boolean,
+): "connected" | "reconnected" {
+  return awaitingReconnect ? "reconnected" : "connected";
+}
+
 export function isSkyWindow(window: Pick<CandidateWindow, "class_name" | "process_name"> | null | undefined): boolean {
   return window?.class_name === "TgcMainWindow" && window.process_name?.toLowerCase() === "sky.exe";
 }
