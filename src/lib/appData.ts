@@ -45,6 +45,7 @@ import type {
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
+import { normalizePersistedSong } from "./scoreNormalization";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
@@ -386,7 +387,13 @@ function sanitizeSongs(rawSongs: unknown): Song[] {
     return [];
   }
 
-  return rawSongs.filter(isSong);
+  return rawSongs.reduce<Song[]>((songs, rawSong) => {
+    const song = normalizePersistedSong(rawSong);
+    if (song !== null) {
+      songs.push(song);
+    }
+    return songs;
+  }, []);
 }
 
 function sanitizeLibraryForVersion(
@@ -437,15 +444,17 @@ function sanitizeV2Library(rawLibrarySongs: unknown): {
         !isRecord(rawLibrarySong) ||
         !isValidLocalSongId(rawLibrarySong.id) ||
         seenIds.has(rawLibrarySong.id) ||
-        !isSong(rawLibrarySong.song) ||
         (rawLibrarySong.source !== undefined &&
           rawLibrarySong.source !== "local-import")
       ) {
         return nextSongs;
       }
 
+      const song = normalizePersistedSong(rawLibrarySong.song);
+      if (song === null) {
+        return nextSongs;
+      }
       seenIds.add(rawLibrarySong.id);
-      const song = rawLibrarySong.song;
 
       nextSongs.push({
         id: rawLibrarySong.id,
@@ -508,7 +517,7 @@ function sanitizeV3Library(
         candidate.rawMetadata,
       );
       const rawFallbackSong = rawFallbackSongs[candidate.id];
-      const fallbackSong = isSong(rawFallbackSong) ? rawFallbackSong : null;
+      const fallbackSong = normalizePersistedSong(rawFallbackSong);
       const metadata =
         fallbackSong === null
           ? persistedMetadata
@@ -576,6 +585,22 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     return null;
   }
 
+  const noteGroupMaxHoldMs = sanitizeNoteGroupMaxHolds(
+    rawMetadata.noteGroupMaxHoldMs,
+    rawMetadata.noteGroupCount,
+  );
+
+  const rawSustainTailMs = rawMetadata.sustainTailMs;
+
+  if (
+    rawSustainTailMs !== undefined &&
+    (typeof rawSustainTailMs !== "number" ||
+      !Number.isFinite(rawSustainTailMs) ||
+      rawSustainTailMs < 0)
+  ) {
+    return null;
+  }
+
   return {
     bitsPerPage: rawMetadata.bitsPerPage as number,
     bpm: rawMetadata.bpm as number,
@@ -586,8 +611,37 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     noteCount: rawMetadata.noteCount,
     noteGroupCount: rawMetadata.noteGroupCount,
     ...(noteGroupDelaysMs === null ? {} : { noteGroupDelaysMs }),
+    ...(noteGroupMaxHoldMs === null ? {} : { noteGroupMaxHoldMs }),
     pitchLevel: rawMetadata.pitchLevel as number,
+    ...(typeof rawSustainTailMs === "number" && rawSustainTailMs > 0
+      ? { sustainTailMs: rawSustainTailMs }
+      : {}),
   };
+}
+
+function sanitizeNoteGroupMaxHolds(
+  rawHolds: unknown,
+  noteGroupCount: number,
+) {
+  if (rawHolds === undefined) {
+    return null;
+  }
+
+  if (
+    !Array.isArray(rawHolds) ||
+    rawHolds.length !== noteGroupCount ||
+    !rawHolds.every(
+      (holdMs) =>
+        typeof holdMs === "number" &&
+        Number.isFinite(holdMs) &&
+        holdMs >= 0 &&
+        holdMs <= 60000,
+    )
+  ) {
+    return null;
+  }
+
+  return [...rawHolds] as number[];
 }
 
 function sanitizeNoteGroupDelays(
@@ -763,33 +817,6 @@ function clampNumber(
   }
 
   return Math.min(max, Math.max(min, Math.round(value)));
-}
-
-function isSong(value: unknown): value is Song {
-  if (!isRecord(value) || !Array.isArray(value.songNotes)) {
-    return false;
-  }
-
-  return (
-    typeof value.name === "string" &&
-    isFiniteNumber(value.bpm) &&
-    isFiniteNumber(value.bitsPerPage) &&
-    isFiniteNumber(value.pitchLevel) &&
-    typeof value.isComposed === "boolean" &&
-    value.songNotes.every(isNote)
-  );
-}
-
-function isNote(value: unknown) {
-  return (
-    isRecord(value) &&
-    isFiniteNumber(value.time) &&
-    typeof value.key === "string"
-  );
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

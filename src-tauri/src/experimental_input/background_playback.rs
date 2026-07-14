@@ -10,14 +10,23 @@ use tauri::{AppHandle, Emitter};
 const BACKGROUND_PLAYBACK_EVENT: &str = "background-playback-event";
 const FOREGROUND_PLAYBACK_EVENT: &str = "foreground-playback-event";
 const NOTE_HIGHLIGHT_MS: f64 = 300.0;
+const MAX_EXPLICIT_HOLD_MS: f64 = 60000.0;
 const PROGRESS_EVENT_INTERVAL_MS: f64 = 150.0;
 const MAX_PREPARED_PLAYBACK_PLANS: usize = 32;
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedKey {
+    pub key: String,
+    #[serde(default)]
+    pub hold_ms: Option<f64>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackgroundPlaybackPlanEvent {
     pub time_ms: f64,
-    pub keys: Vec<String>,
+    pub keys: Vec<PlannedKey>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -113,7 +122,7 @@ struct PlaybackOptions {
 struct TimelineGroup {
     source_time_ms: f64,
     adjusted_start_ms: f64,
-    keys: Arc<[String]>,
+    keys: Arc<[PlannedKey]>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +138,7 @@ struct OptionUpdateRemap {
     segment_ratio: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ScheduledKeyUp {
     deadline_at: Instant,
     generation: u64,
@@ -820,7 +829,7 @@ impl BackgroundPlaybackWorker {
 
                 self.emit_progress();
 
-                if self.position_ms >= self.timeline.total_ms {
+                if self.position_ms >= self.timeline.finish_ms {
                     self.finish();
                     return false;
                 }
@@ -884,7 +893,13 @@ impl BackgroundPlaybackWorker {
             self.next_progress_event_ms = due_position + PROGRESS_EVENT_INTERVAL_MS;
         }
 
-        if due_position >= self.timeline.finish_ms {
+        if should_finish_playback(
+            due_position,
+            self.timeline.finish_ms,
+            &self.active_generations,
+            &self.scheduled_key_ups,
+            Instant::now(),
+        ) {
             self.finish();
         }
 
@@ -892,8 +907,12 @@ impl BackgroundPlaybackWorker {
     }
 
     fn play_group(&mut self, group: &TimelineGroup) -> Result<(), String> {
-        let keys = unique_keys(&group.keys);
-        let keys_to_release = keys
+        let key_names = group
+            .keys
+            .iter()
+            .map(|key| key.key.clone())
+            .collect::<Vec<_>>();
+        let keys_to_release = key_names
             .iter()
             .filter(|key| self.active_generations.contains_key(*key))
             .cloned()
@@ -906,8 +925,8 @@ impl BackgroundPlaybackWorker {
             }
         }
 
-        if let Err(error) = self.send_key_down_group(&keys) {
-            let _ = self.send_key_up_group(&keys);
+        if let Err(error) = self.send_key_down_group(&key_names) {
+            let _ = self.send_key_up_group(&key_names);
             return Err(error);
         }
 
@@ -920,14 +939,17 @@ impl BackgroundPlaybackWorker {
             );
         }
 
-        for key in keys {
+        for key in group.keys.iter() {
             let generation = self.next_generation;
             self.next_generation = self.next_generation.saturating_add(1).max(1);
-            self.active_generations.insert(key.clone(), generation);
+            self.active_generations.insert(key.key.clone(), generation);
             self.scheduled_key_ups.push(ScheduledKeyUp {
-                deadline_at: key_up_deadline_from_actual_send(Instant::now(), self.key_hold_ms),
+                deadline_at: key_up_deadline_from_actual_send(
+                    Instant::now(),
+                    effective_hold_ms(key.hold_ms, self.options.playback_speed, self.key_hold_ms),
+                )?,
                 generation,
-                key,
+                key: key.key.clone(),
             });
         }
 
@@ -973,6 +995,7 @@ impl BackgroundPlaybackWorker {
 
     fn finish(&mut self) {
         self.release_all_active_keys();
+        self.scheduled_key_ups.clear();
         self.position_ms = self.timeline.total_ms;
         self.state = WorkerPlaybackState::Stopped;
         self.emit_progress();
@@ -982,12 +1005,14 @@ impl BackgroundPlaybackWorker {
 
     fn stop_without_event(&mut self) {
         self.release_all_active_keys();
+        self.scheduled_key_ups.clear();
         self.state = WorkerPlaybackState::Stopped;
         clear_current_session(self.session_id);
     }
 
     fn handle_error(&mut self, error: String) {
         self.release_all_active_keys();
+        self.scheduled_key_ups.clear();
         self.state = WorkerPlaybackState::Stopped;
         self.emit_event("error", Some(error), None, None);
         clear_current_session(self.session_id);
@@ -1002,30 +1027,18 @@ impl BackgroundPlaybackWorker {
     }
 
     fn next_deadline_ms(&self) -> Option<f64> {
-        let mut deadlines = vec![self.timeline.finish_ms, self.next_progress_event_ms];
-
-        if let Some(group) = self.timeline.groups.get(self.next_group_index) {
-            deadlines.push(group.adjusted_start_ms);
-        }
-
-        if let Some(key_up_deadline) = self
-            .scheduled_key_ups
-            .iter()
-            .map(|key_up| key_up.deadline_at)
-            .min()
-        {
-            let key_up_deadline_ms = key_up_deadline
-                .checked_duration_since(Instant::now())
-                .unwrap_or(Duration::ZERO)
-                .as_secs_f64()
-                * 1000.0
-                + self.position_ms;
-            deadlines.push(key_up_deadline_ms);
-        }
-
-        deadlines
-            .into_iter()
-            .min_by(|left, right| left.total_cmp(right))
+        next_playback_deadline_ms(
+            self.position_ms,
+            self.timeline.finish_ms,
+            self.next_progress_event_ms,
+            self.timeline
+                .groups
+                .get(self.next_group_index)
+                .map(|group| group.adjusted_start_ms),
+            &self.active_generations,
+            &self.scheduled_key_ups,
+            Instant::now(),
+        )
     }
 
     fn send_key_down_group(&self, keys: &[String]) -> Result<(), String> {
@@ -1129,7 +1142,7 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
     let mut grouped_events = plan.to_vec();
     grouped_events.sort_by(|left, right| left.time_ms.total_cmp(&right.time_ms));
 
-    let mut grouped_keys = Vec::<(f64, Vec<String>)>::new();
+    let mut grouped_keys = Vec::<(f64, Vec<PlannedKey>)>::new();
 
     for event in grouped_events {
         if !event.time_ms.is_finite() {
@@ -1138,6 +1151,18 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
 
         if event.keys.is_empty() {
             return Err("Background playback event must contain at least one key.".to_string());
+        }
+
+        for key in &event.keys {
+            if let Some(hold_ms) = key.hold_ms {
+                if !hold_ms.is_finite() || hold_ms <= 0.0 || hold_ms > MAX_EXPLICIT_HOLD_MS {
+                    return Err(
+                        format!(
+                            "Background playback key hold duration must be greater than zero and at most {MAX_EXPLICIT_HOLD_MS}ms."
+                        ),
+                    );
+                }
+            }
         }
 
         if let Some((last_time_ms, last_keys)) = grouped_keys.last_mut() {
@@ -1155,9 +1180,27 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
         .map(|(source_time_ms, keys)| TimelineGroup {
             source_time_ms,
             adjusted_start_ms: 0.0,
-            keys: Arc::from(keys),
+            keys: Arc::from(dedupe_planned_keys(keys)),
         })
         .collect())
+}
+
+fn dedupe_planned_keys(keys: Vec<PlannedKey>) -> Vec<PlannedKey> {
+    let mut deduped = Vec::<PlannedKey>::new();
+
+    for key in keys {
+        if let Some(existing) = deduped.iter_mut().find(|entry| entry.key == key.key) {
+            existing.hold_ms = match (existing.hold_ms, key.hold_ms) {
+                (Some(left), Some(right)) => Some(left.max(right)),
+                (None, Some(right)) => Some(right),
+                (left, None) => left,
+            };
+        } else {
+            deduped.push(key);
+        }
+    }
+
+    deduped
 }
 
 fn build_prepared_plan(
@@ -1178,6 +1221,10 @@ fn build_timeline_from_groups(
 ) -> Result<PlaybackTimeline, String> {
     normalize_playback_speed(options.playback_speed)?;
 
+    if !options.note_interval_delay_ms.is_finite() {
+        return Err("Background playback note interval delay must be finite.".to_string());
+    }
+
     if groups.is_empty() {
         return Err("Background playback timeline must contain at least one group.".to_string());
     }
@@ -1185,6 +1232,7 @@ fn build_timeline_from_groups(
     let mut adjusted_groups = Vec::with_capacity(groups.len());
     let mut adjusted_start_ms = 0.0;
     let mut previous_source_time_ms = 0.0;
+    let mut max_explicit_hold_end_ms = 0.0_f64;
 
     for (index, group) in groups.iter().enumerate() {
         if index == 0 {
@@ -1197,6 +1245,20 @@ fn build_timeline_from_groups(
         }
 
         previous_source_time_ms = group.source_time_ms;
+
+        let group_max_hold_ms = group
+            .keys
+            .iter()
+            .filter_map(|key| key.hold_ms)
+            .fold(0.0_f64, f64::max);
+        let explicit_hold_end_ms = adjusted_start_ms + group_max_hold_ms / options.playback_speed;
+
+        if !adjusted_start_ms.is_finite() || !explicit_hold_end_ms.is_finite() {
+            return Err("Background playback adjusted timing is not representable.".to_string());
+        }
+
+        max_explicit_hold_end_ms = max_explicit_hold_end_ms.max(explicit_hold_end_ms);
+
         adjusted_groups.push(TimelineGroup {
             adjusted_start_ms,
             keys: group.keys.clone(),
@@ -1204,11 +1266,20 @@ fn build_timeline_from_groups(
         });
     }
 
-    let total_ms = adjusted_groups
+    let last_adjusted_start_ms = adjusted_groups
         .last()
         .map(|group| group.adjusted_start_ms)
         .unwrap_or(0.0);
-    let finish_ms = total_ms + NOTE_HIGHLIGHT_MS / options.playback_speed;
+    let total_ms = last_adjusted_start_ms.max(max_explicit_hold_end_ms);
+    let finish_ms =
+        total_ms.max(last_adjusted_start_ms + NOTE_HIGHLIGHT_MS / options.playback_speed);
+
+    if !total_ms.is_finite() || !finish_ms.is_finite() {
+        return Err("Background playback total timing is not representable.".to_string());
+    }
+    Duration::try_from_secs_f64(finish_ms / 1000.0).map_err(|_| {
+        "Background playback finish timing is not representable as a duration.".to_string()
+    })?;
 
     Ok(PlaybackTimeline {
         finish_ms,
@@ -1302,8 +1373,25 @@ fn clamp_playback_position(position_ms: f64, finish_ms: f64) -> f64 {
     position_ms.max(0.0).min(finish_ms.max(0.0))
 }
 
-fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Instant {
-    sent_at + Duration::from_secs_f64(key_hold_ms.max(0.0) / 1000.0)
+fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Result<Instant, String> {
+    if !key_hold_ms.is_finite() || key_hold_ms <= 0.0 {
+        return Err("Effective background playback key hold duration is invalid.".to_string());
+    }
+
+    let duration = Duration::try_from_secs_f64(key_hold_ms / 1000.0).map_err(|_| {
+        "Effective background playback key hold duration is not representable.".to_string()
+    })?;
+
+    sent_at.checked_add(duration).ok_or_else(|| {
+        "Effective background playback key hold deadline is not representable.".to_string()
+    })
+}
+
+fn effective_hold_ms(hold_ms: Option<f64>, playback_speed: f64, key_hold_ms: f64) -> f64 {
+    match hold_ms {
+        Some(hold) => hold / playback_speed,
+        None => key_hold_ms,
+    }
 }
 
 fn should_apply_key_release(
@@ -1314,6 +1402,84 @@ fn should_apply_key_release(
     active_generations
         .get(key)
         .is_some_and(|generation| *generation == release_generation)
+}
+
+fn is_live_scheduled_key_up(
+    active_generations: &HashMap<String, u64>,
+    key_up: &ScheduledKeyUp,
+) -> bool {
+    should_apply_key_release(active_generations, &key_up.key, key_up.generation)
+}
+
+fn next_live_key_up_deadline(
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> Option<Instant> {
+    scheduled_key_ups
+        .iter()
+        .filter(|key_up| {
+            is_live_scheduled_key_up(active_generations, key_up) && key_up.deadline_at > now
+        })
+        .map(|key_up| key_up.deadline_at)
+        .min()
+}
+
+fn has_live_future_key_ups(
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> bool {
+    next_live_key_up_deadline(active_generations, scheduled_key_ups, now).is_some()
+}
+
+fn should_finish_playback(
+    position_ms: f64,
+    finish_ms: f64,
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> bool {
+    position_ms >= finish_ms && !has_live_future_key_ups(active_generations, scheduled_key_ups, now)
+}
+
+fn next_playback_deadline_ms(
+    position_ms: f64,
+    finish_ms: f64,
+    next_progress_event_ms: f64,
+    next_group_start_ms: Option<f64>,
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> Option<f64> {
+    let live_key_up_deadline =
+        next_live_key_up_deadline(active_generations, scheduled_key_ups, now);
+    let mut deadlines = Vec::new();
+
+    if position_ms < finish_ms {
+        deadlines.push(finish_ms);
+        deadlines.push(next_progress_event_ms);
+        if let Some(group_start_ms) = next_group_start_ms {
+            deadlines.push(group_start_ms);
+        }
+    } else if live_key_up_deadline.is_none() {
+        deadlines.push(position_ms);
+    }
+
+    if let Some(key_up_deadline) = live_key_up_deadline {
+        deadlines.push(
+            key_up_deadline
+                .checked_duration_since(now)
+                .unwrap_or(Duration::ZERO)
+                .as_secs_f64()
+                * 1000.0
+                + position_ms,
+        );
+    }
+
+    deadlines
+        .into_iter()
+        .min_by(|left, right| left.total_cmp(right))
 }
 
 fn keys_due_for_release(
@@ -1336,27 +1502,14 @@ fn should_clear_current_session(
     current_session_id.is_some_and(|session_id| session_id == finishing_session_id)
 }
 
-fn unique_keys(keys: &[String]) -> Vec<String> {
-    let mut seen_keys = HashSet::new();
-    let mut unique = Vec::new();
-
-    for key in keys {
-        if seen_keys.insert(key.clone()) {
-            unique.push(key.clone());
-        }
-    }
-
-    unique
-}
-
 fn unique_timeline_keys(groups: &[TimelineGroup]) -> Vec<String> {
     let mut seen_keys = HashSet::new();
     let mut unique = Vec::new();
 
     for group in groups {
         for key in group.keys.iter() {
-            if seen_keys.insert(key.clone()) {
-                unique.push(key.clone());
+            if seen_keys.insert(key.key.clone()) {
+                unique.push(key.key.clone());
             }
         }
     }
@@ -1396,23 +1549,41 @@ mod tests {
         }
     }
 
+    fn planned_key(key: &str) -> PlannedKey {
+        PlannedKey {
+            key: key.to_string(),
+            hold_ms: None,
+        }
+    }
+
+    fn held_key(key: &str, hold_ms: f64) -> PlannedKey {
+        PlannedKey {
+            key: key.to_string(),
+            hold_ms: Some(hold_ms),
+        }
+    }
+
+    fn group_key_names(group: &TimelineGroup) -> Vec<String> {
+        group.keys.iter().map(|key| key.key.clone()).collect()
+    }
+
     fn plan() -> Vec<BackgroundPlaybackPlanEvent> {
         vec![
             BackgroundPlaybackPlanEvent {
                 time_ms: 1000.0,
-                keys: vec!["Key3".to_string()],
+                keys: vec![planned_key("Key3")],
             },
             BackgroundPlaybackPlanEvent {
                 time_ms: 0.0,
-                keys: vec!["Key0".to_string()],
+                keys: vec![planned_key("Key0")],
             },
             BackgroundPlaybackPlanEvent {
                 time_ms: 500.0,
-                keys: vec!["Key1".to_string()],
+                keys: vec![planned_key("Key1")],
             },
             BackgroundPlaybackPlanEvent {
                 time_ms: 500.0,
-                keys: vec!["Key2".to_string()],
+                keys: vec![planned_key("Key2")],
             },
         ]
     }
@@ -1447,9 +1618,9 @@ mod tests {
         let timeline = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
 
         assert_eq!(timeline.groups.len(), 3);
-        assert_eq!(timeline.groups[0].keys.as_ref(), ["Key0"]);
-        assert_eq!(timeline.groups[1].keys.as_ref(), ["Key1", "Key2"]);
-        assert_eq!(timeline.groups[2].keys.as_ref(), ["Key3"]);
+        assert_eq!(group_key_names(&timeline.groups[0]), ["Key0"]);
+        assert_eq!(group_key_names(&timeline.groups[1]), ["Key1", "Key2"]);
+        assert_eq!(group_key_names(&timeline.groups[2]), ["Key3"]);
     }
 
     #[test]
@@ -1543,16 +1714,142 @@ mod tests {
     }
 
     #[test]
-    fn unique_keys_prevents_duplicate_same_group_downs() {
-        assert_eq!(
-            unique_keys(&[
-                "A".to_string(),
-                "A".to_string(),
-                "B".to_string(),
-                "A".to_string(),
-            ]),
-            vec!["A".to_string(), "B".to_string()],
-        );
+    fn build_source_groups_dedupes_same_key_keeping_longest_hold() {
+        let groups = build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![
+                held_key("y", 500.0),
+                planned_key("y"),
+                held_key("y", 1500.0),
+                planned_key("u"),
+            ],
+        }])
+        .unwrap();
+
+        assert_eq!(groups[0].keys.len(), 2);
+        assert_eq!(groups[0].keys[0], held_key("y", 1500.0));
+        assert_eq!(groups[0].keys[1], planned_key("u"));
+    }
+
+    #[test]
+    fn build_source_groups_rejects_invalid_holds() {
+        for hold in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let result = build_source_groups(&[BackgroundPlaybackPlanEvent {
+                time_ms: 0.0,
+                keys: vec![held_key("y", hold)],
+            }]);
+
+            assert!(result.is_err(), "hold {hold} should be rejected");
+        }
+    }
+
+    #[test]
+    fn explicit_hold_limit_is_inclusive() {
+        assert!(build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![held_key("y", MAX_EXPLICIT_HOLD_MS)],
+        }])
+        .is_ok());
+        assert!(build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![held_key("y", MAX_EXPLICIT_HOLD_MS + 1.0)],
+        }])
+        .is_err());
+    }
+
+    #[test]
+    fn negative_interval_keeps_early_long_hold_end() {
+        let timeline = build_timeline(
+            &[
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 0.0,
+                    keys: vec![held_key("y", 1000.0)],
+                },
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 500.0,
+                    keys: vec![planned_key("u")],
+                },
+            ],
+            &options(-200.0, 1.0),
+        )
+        .unwrap();
+
+        assert_eq!(timeline.groups[1].adjusted_start_ms, 300.0);
+        assert_eq!(timeline.total_ms, 1000.0);
+        assert_eq!(timeline.finish_ms, 1000.0);
+    }
+
+    #[test]
+    fn positive_interval_and_speed_use_adjusted_group_hold_ends() {
+        for (speed, expected_total) in [(0.5, 2000.0), (1.0, 1000.0), (2.0, 500.0)] {
+            let timeline = build_timeline(
+                &[
+                    BackgroundPlaybackPlanEvent {
+                        time_ms: 0.0,
+                        keys: vec![held_key("y", 1000.0)],
+                    },
+                    BackgroundPlaybackPlanEvent {
+                        time_ms: 500.0,
+                        keys: vec![planned_key("u")],
+                    },
+                ],
+                &options(200.0, speed),
+            )
+            .unwrap();
+
+            assert_eq!(timeline.total_ms, expected_total);
+            assert!(timeline.finish_ms >= timeline.total_ms);
+        }
+    }
+
+    #[test]
+    fn effective_hold_deadline_conversion_fails_without_panicking() {
+        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::NAN).is_err());
+        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::INFINITY).is_err());
+        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::MAX).is_err());
+    }
+
+    #[test]
+    fn timeline_total_includes_scaled_sustain_tail() {
+        let timeline = build_timeline(
+            &[
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 0.0,
+                    keys: vec![held_key("y", 5000.0)],
+                },
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 1000.0,
+                    keys: vec![planned_key("u")],
+                },
+            ],
+            &options(0.0, 2.0),
+        )
+        .unwrap();
+
+        assert_eq!(timeline.total_ms, 2500.0);
+        assert_eq!(timeline.finish_ms, 2500.0);
+    }
+
+    #[test]
+    fn timeline_without_holds_keeps_note_highlight_finish() {
+        let timeline = build_timeline(
+            &[BackgroundPlaybackPlanEvent {
+                time_ms: 0.0,
+                keys: vec![planned_key("y")],
+            }],
+            &options(0.0, 1.0),
+        )
+        .unwrap();
+
+        assert_eq!(timeline.total_ms, 0.0);
+        assert_eq!(timeline.finish_ms, NOTE_HIGHLIGHT_MS);
+    }
+
+    #[test]
+    fn effective_hold_scales_with_playback_speed() {
+        assert_eq!(effective_hold_ms(Some(1000.0), 2.0, 40.0), 500.0);
+        assert_eq!(effective_hold_ms(Some(1000.0), 0.5, 40.0), 2000.0);
+        assert_eq!(effective_hold_ms(None, 2.0, 40.0), 40.0);
     }
 
     #[test]
@@ -1570,6 +1867,118 @@ mod tests {
             stale.generation
         ));
         assert!(should_apply_key_release(&active, "A", 2));
+    }
+
+    #[test]
+    fn live_future_key_up_prevents_finish_after_timeline_end() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(1000),
+            generation: 2,
+            key: "A".to_string(),
+        }];
+
+        assert!(has_live_future_key_ups(&active, &scheduled, now));
+        assert!(!should_finish_playback(
+            500.0, 500.0, &active, &scheduled, now
+        ));
+    }
+
+    #[test]
+    fn stale_generation_key_up_does_not_delay_finish() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(1000),
+            generation: 1,
+            key: "A".to_string(),
+        }];
+
+        assert!(!has_live_future_key_ups(&active, &scheduled, now));
+        assert!(should_finish_playback(
+            500.0, 500.0, &active, &scheduled, now
+        ));
+    }
+
+    #[test]
+    fn playback_finishes_immediately_after_final_live_key_up() {
+        let deadline = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: deadline,
+            generation: 2,
+            key: "A".to_string(),
+        }];
+
+        assert!(should_finish_playback(
+            500.0, 500.0, &active, &scheduled, deadline,
+        ));
+    }
+
+    #[test]
+    fn expired_finish_waits_at_live_key_up_without_busy_loop() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(750),
+            generation: 2,
+            key: "A".to_string(),
+        }];
+
+        assert_eq!(
+            next_playback_deadline_ms(500.0, 500.0, 650.0, None, &active, &scheduled, now,),
+            Some(1250.0),
+        );
+    }
+
+    #[test]
+    fn option_timeline_updates_do_not_reschedule_existing_key_up() {
+        let now = Instant::now();
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(2000),
+            generation: 1,
+            key: "A".to_string(),
+        }];
+        let original = scheduled.clone();
+        let source = build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![held_key("A", 1000.0)],
+        }])
+        .unwrap();
+
+        let faster = build_timeline_from_groups(&source, &options(0.0, 2.0)).unwrap();
+        let slower = build_timeline_from_groups(&source, &options(0.0, 0.5)).unwrap();
+
+        assert_eq!(faster.finish_ms, 500.0);
+        assert_eq!(slower.finish_ms, 2000.0);
+        assert_eq!(scheduled, original);
+        assert!(!should_finish_playback(
+            faster.finish_ms,
+            faster.finish_ms,
+            &HashMap::from([("A".to_string(), 1_u64)]),
+            &scheduled,
+            now,
+        ));
+    }
+
+    #[test]
+    fn point_note_finish_is_not_delayed_by_expired_key_up() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 1_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now - Duration::from_millis(1),
+            generation: 1,
+            key: "A".to_string(),
+        }];
+
+        assert!(should_finish_playback(
+            NOTE_HIGHLIGHT_MS,
+            NOTE_HIGHLIGHT_MS,
+            &active,
+            &scheduled,
+            now,
+        ));
     }
 
     #[test]
@@ -1600,7 +2009,7 @@ mod tests {
     fn late_key_down_still_gets_full_hold_duration() {
         let planned_at = Instant::now();
         let actual_sent_at = planned_at + Duration::from_millis(75);
-        let deadline = key_up_deadline_from_actual_send(actual_sent_at, 30.0);
+        let deadline = key_up_deadline_from_actual_send(actual_sent_at, 30.0).unwrap();
 
         assert_eq!(
             deadline.duration_since(actual_sent_at),
@@ -1784,8 +2193,8 @@ mod tests {
             &second.groups[1].keys,
             &prepared_plan.groups[1].keys
         ));
-        assert_eq!(first.groups[1].keys.as_ref(), ["Key1", "Key2"]);
-        assert_eq!(second.groups[1].keys.as_ref(), ["Key1", "Key2"]);
+        assert_eq!(group_key_names(&first.groups[1]), ["Key1", "Key2"]);
+        assert_eq!(group_key_names(&second.groups[1]), ["Key1", "Key2"]);
         assert_eq!(first.groups[1].adjusted_start_ms, 500.0);
         assert_eq!(second.groups[1].adjusted_start_ms, 300.0);
     }

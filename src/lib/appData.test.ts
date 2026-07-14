@@ -345,6 +345,192 @@ describe("sanitizePersistedAppData current version", () => {
   });
 });
 
+describe("sanitizePersistedAppData sustainTailMs", () => {
+  function sanitizeWithSustainTail(sustainTailMs: unknown) {
+    const librarySong = createLocalLibrarySong("local-sustain");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            ...librarySong,
+            metadata: { ...librarySong.metadata, sustainTailMs },
+          },
+        ],
+      },
+    });
+  }
+
+  it("keeps a valid sustainTailMs", () => {
+    const result = sanitizeWithSustainTail(1200);
+
+    expect(result?.library.librarySongs[0]?.metadata.sustainTailMs).toBe(1200);
+  });
+
+  it("drops songs with an invalid sustainTailMs", () => {
+    expect(sanitizeWithSustainTail(-1)?.library.librarySongs).toEqual([]);
+    expect(sanitizeWithSustainTail("bad")?.library.librarySongs).toEqual([]);
+    expect(
+      sanitizeWithSustainTail(Number.NaN)?.library.librarySongs,
+    ).toEqual([]);
+  });
+
+  it("restores metadata without sustainTailMs unchanged", () => {
+    const librarySong = createLocalLibrarySong("local-plain");
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: { librarySongs: [librarySong] },
+    });
+
+    expect(
+      result?.library.librarySongs[0]?.metadata.sustainTailMs,
+    ).toBeUndefined();
+  });
+});
+
+describe("sanitizePersistedAppData noteGroupMaxHoldMs", () => {
+  function sanitizeWithHolds(noteGroupMaxHoldMs: unknown) {
+    const librarySong = createLocalLibrarySong("local-holds");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            ...librarySong,
+            metadata: { ...librarySong.metadata, noteGroupMaxHoldMs },
+          },
+        ],
+      },
+    });
+  }
+
+  it("keeps a complete valid aligned hold array", () => {
+    const result = sanitizeWithHolds([0, 60000]);
+
+    expect(result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs).toEqual([
+      0,
+      60000,
+    ]);
+  });
+
+  it.each([
+    [[0]],
+    [[0, -1]],
+    [[0, 60001]],
+    [[0, Number.NaN]],
+    [[0, Number.POSITIVE_INFINITY]],
+    ["bad"],
+  ])("drops malformed hold metadata without dropping the song: %p", (holds) => {
+    const result = sanitizeWithHolds(holds);
+
+    expect(result?.library.librarySongs).toHaveLength(1);
+    expect(
+      result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs,
+    ).toBeUndefined();
+  });
+
+  it("keeps legacy metadata that has no hold array", () => {
+    const librarySong = createLocalLibrarySong("local-legacy-holds");
+    const { noteGroupMaxHoldMs: _removed, ...legacyMetadata } =
+      librarySong.metadata;
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [{ ...librarySong, metadata: legacyMetadata }],
+      },
+    });
+
+    expect(result?.library.librarySongs).toHaveLength(1);
+    expect(
+      result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs,
+    ).toBeUndefined();
+  });
+});
+
+describe("sanitizePersistedAppData migration fallback songs", () => {
+  function sanitizeFallbackSong(song: unknown) {
+    const librarySong = createLocalLibrarySong("local-fallback-v2");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [librarySong],
+        migrationFallbackSongs: { [librarySong.id]: song },
+      },
+    });
+  }
+
+  it("upgrades a missing marker with valid duration to v2", () => {
+    const song = {
+      ...createTestSong("Unversioned V2"),
+      songNotes: [{ time: 0, key: "Key0", duration: 1500 }],
+    };
+    const result = sanitizeFallbackSong(song);
+    const fallback = result?.library.migrationFallbackSongs?.[
+      "local-fallback-v2"
+    ];
+
+    expect(fallback?.formatVersion).toBe(2);
+    expect(fallback?.songNotes[0]?.duration).toBe(1500);
+  });
+
+  it("removes duration fields from explicit v1 fallback songs", () => {
+    const result = sanitizeFallbackSong({
+      ...createTestSong("Explicit V1"),
+      formatVersion: 1,
+      songNotes: [{ time: 0, key: "Key0", duration: 1500 }],
+    });
+    const fallback = result?.library.migrationFallbackSongs?.[
+      "local-fallback-v2"
+    ];
+
+    expect(fallback?.formatVersion).toBe(1);
+    expect(fallback?.songNotes[0]?.duration).toBeUndefined();
+  });
+
+  it("preserves explicit v2 duration", () => {
+    const result = sanitizeFallbackSong({
+      ...createTestSong("Explicit V2"),
+      formatVersion: 2,
+      songNotes: [{ time: 0, key: "Key0", duration: 60000 }],
+    });
+    const fallback = result?.library.migrationFallbackSongs?.[
+      "local-fallback-v2"
+    ];
+
+    expect(fallback?.formatVersion).toBe(2);
+    expect(fallback?.songNotes[0]?.duration).toBe(60000);
+  });
+
+  it.each([3, "2", null])(
+    "omits invalid version %p without deleting valid metadata",
+    (formatVersion) => {
+      const result = sanitizeFallbackSong({
+        ...createTestSong("Invalid Version"),
+        formatVersion,
+      });
+
+      expect(result?.library.librarySongs).toHaveLength(1);
+      expect(result?.library.migrationFallbackSongs).toBeUndefined();
+    },
+  );
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 60001])(
+    "omits invalid unversioned duration %p without deleting valid metadata",
+    (duration) => {
+      const result = sanitizeFallbackSong({
+        ...createTestSong("Invalid Duration"),
+        songNotes: [{ time: 0, key: "Key0", duration }],
+      });
+
+      expect(result?.library.librarySongs).toHaveLength(1);
+      expect(result?.library.migrationFallbackSongs).toBeUndefined();
+    },
+  );
+});
+
 describe("sanitizePersistedAppData legacy v1 migration", () => {
   it("migrates v1 importedSongs to current librarySongs", () => {
     const result = sanitizePersistedAppData({

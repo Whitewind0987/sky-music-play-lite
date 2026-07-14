@@ -6,6 +6,8 @@ import {
 
 const SUPPORTED_SCORE_EXTENSIONS = [".json", ".txt"];
 
+export const MAX_NOTE_DURATION_MS = 60000;
+
 export type ScoreFileImportErrorCode =
   | "emptyFile"
   | "encryptedSongNotesDecryptFailed"
@@ -19,7 +21,9 @@ export type ScoreFileImportErrorCode =
   | "noteNotObject"
   | "noteTimeInvalid"
   | "relativeTimeInvalid"
-  | "noteKeyInvalid";
+  | "noteKeyInvalid"
+  | "formatVersionInvalid"
+  | "noteDurationInvalid";
 
 type ScoreFileImportErrorDetails = Record<string, string | number>;
 
@@ -115,6 +119,7 @@ function validateSong(value: unknown, songIndex: number): Song {
   }
 
   const name = readString(value, "name", songIndex);
+  const formatVersion = readFormatVersion(value, songIndex);
   const bpm = readFlexibleNumber(value, "bpm", songIndex, 120);
   const bitsPerPage = readFlexibleNumber(value, "bitsPerPage", songIndex, 16);
   const pitchLevel = readFlexibleNumber(value, "pitchLevel", songIndex, 0);
@@ -126,10 +131,11 @@ function validateSong(value: unknown, songIndex: number): Song {
   );
   const songNotes = resolveSongNotes(value, name);
   const validatedNotes = songNotes.map((note, noteIndex) =>
-    validateNote(note, name, noteIndex),
+    validateNote(note, name, noteIndex, formatVersion === 2),
   );
 
   return {
+    ...(value.formatVersion === undefined ? {} : { formatVersion }),
     name,
     bpm,
     bitsPerPage,
@@ -212,7 +218,12 @@ function resolveSongNotes(
   return decryptedSongNotes;
 }
 
-function validateNote(value: unknown, songName: string, noteIndex: number): Note {
+function validateNote(
+  value: unknown,
+  songName: string,
+  noteIndex: number,
+  allowDuration: boolean,
+): Note {
   if (!isRecord(value)) {
     throw new ScoreFileImportError("noteNotObject", { noteIndex, songName });
   }
@@ -224,7 +235,42 @@ function validateNote(value: unknown, songName: string, noteIndex: number): Note
     throw new ScoreFileImportError("noteKeyInvalid", { noteIndex, songName });
   }
 
-  return { time, key };
+  if (!allowDuration || value.duration === undefined) {
+    return { time, key };
+  }
+
+  const duration = value.duration;
+
+  if (
+    typeof duration !== "number" ||
+    !Number.isFinite(duration) ||
+    duration <= 0 ||
+    duration > MAX_NOTE_DURATION_MS
+  ) {
+    throw new ScoreFileImportError("noteDurationInvalid", {
+      noteIndex,
+      songName,
+    });
+  }
+
+  return { time, key, duration };
+}
+
+function readFormatVersion(
+  value: Record<string, unknown>,
+  songIndex: number,
+): 1 | 2 {
+  const fieldValue = value.formatVersion;
+
+  if (fieldValue === undefined) {
+    return 1;
+  }
+
+  if (fieldValue === 1 || fieldValue === 2) {
+    return fieldValue;
+  }
+
+  throw new ScoreFileImportError("formatVersionInvalid", { songIndex });
 }
 
 function readString(

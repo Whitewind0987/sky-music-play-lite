@@ -253,6 +253,10 @@ export const uiText = {
         relativeTimeInvalid:
           "曲谱“{songName}”里的相对时间无效。第一个音符必须为 0，后续时间不能为负数。",
         noteKeyInvalid: "曲谱“{songName}”里的第 {noteIndex} 个音符必须包含文本 key。",
+        formatVersionInvalid:
+          "第 {songIndex} 首曲谱的 formatVersion 无效。仅支持数字 1 或 2。",
+        noteDurationInvalid:
+          "曲谱“{songName}”里的第 {noteIndex} 个音符 duration 无效。必须是 0 到 60000 之间的正数毫秒。",
       },
     },
     keyboard: {
@@ -815,6 +819,10 @@ export const uiText = {
           'Score "{songName}" has invalid relative timing. The first note must be 0 and later delays cannot be negative.',
         noteKeyInvalid:
           'Note {noteIndex} in song "{songName}" must have a string key.',
+        formatVersionInvalid:
+          "Song at index {songIndex} has an invalid formatVersion. Only the numbers 1 and 2 are supported.",
+        noteDurationInvalid:
+          'Note {noteIndex} in song "{songName}" has an invalid duration. It must be a positive number of milliseconds no greater than 60000.',
       },
     },
     keyboard: {

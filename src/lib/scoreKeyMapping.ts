@@ -22,21 +22,39 @@ export function mapScoreNoteToKeyboardKey(note: Note, keyMapping: KeyMapping) {
   return mappedKey;
 }
 
+export type MappedPlaybackKey = {
+  key: string;
+  holdMs?: number;
+};
+
 export function prepareMappedKeyboardKeyGroups(
   notes: Note[],
   keyMapping: KeyMapping,
-) {
-  const mappedGroups = new Map<number, string[]>();
+): Map<number, MappedPlaybackKey[]> {
+  const mappedGroups = new Map<number, MappedPlaybackKey[]>();
 
   for (const note of notes) {
     const mappedKey = mapScoreNoteToKeyboardKey(note, keyMapping);
-    const currentGroup = mappedGroups.get(note.time);
+    const currentGroup = mappedGroups.get(note.time) ?? [];
+    const existingEntry = currentGroup.find((entry) => entry.key === mappedKey);
 
-    if (currentGroup) {
-      currentGroup.push(mappedKey);
+    if (existingEntry) {
+      if (
+        note.duration !== undefined &&
+        (existingEntry.holdMs === undefined ||
+          note.duration > existingEntry.holdMs)
+      ) {
+        existingEntry.holdMs = note.duration;
+      }
     } else {
-      mappedGroups.set(note.time, [mappedKey]);
+      currentGroup.push(
+        note.duration === undefined
+          ? { key: mappedKey }
+          : { key: mappedKey, holdMs: note.duration },
+      );
     }
+
+    mappedGroups.set(note.time, currentGroup);
   }
 
   return mappedGroups;
