@@ -291,8 +291,8 @@ fn save_imported_score_song_at(
 
     if !file_path.exists() {
         write_imported_score_song_file(&file_path, song_id, song)?;
-        read_and_verify_expected_song(&file_path, song)?;
     }
+    ensure_canonical_managed_song_content(&file_path, song_id, song)?;
 
     let mut file_index = managed_score_file_index_from_files(files.clone());
     cleanup_verified_redundant_managed_files(&mut file_index, song_id, &files, &file_path, song)?;
@@ -598,7 +598,7 @@ fn reconcile_one_imported_score_file(
             ));
         }
         write_imported_score_song_file(&canonical_path, song_id, song)?;
-        read_and_verify_expected_song(&canonical_path, song)?;
+        ensure_canonical_managed_song_content(&canonical_path, song_id, song)?;
         insert_indexed_managed_score_file(
             file_index,
             managed_score_file_from_path(
@@ -623,12 +623,11 @@ fn reconcile_one_imported_score_file(
     }
 
     if let Some(canonical_file) = files.iter().find(|file| file.path == canonical_path) {
-        let actual_song = read_and_verify_managed_score_file(canonical_file, song)?;
-
-        if should_rewrite_with_canonical_v2_marker(&actual_song, song) {
-            write_imported_score_song_file(&canonical_path, song_id, song)?;
-            read_and_verify_expected_song(&canonical_path, song)?;
-        }
+        require_regular_file_without_following(
+            &canonical_file.path,
+            "canonical managed score target",
+        )?;
+        ensure_canonical_managed_song_content(&canonical_path, song_id, song)?;
 
         cleanup_verified_redundant_managed_files(
             file_index,
@@ -660,7 +659,7 @@ fn reconcile_one_imported_score_file(
                 ManagedScoreFileNaming::Canonical,
                 ManagedScoreFileExtension::Txt,
             )?;
-            read_and_verify_expected_song(target_path, song)?;
+            ensure_canonical_managed_song_content(target_path, song_id, song)?;
             Ok(canonical_file)
         },
     )?;
@@ -850,7 +849,7 @@ fn write_imported_score_song_file(
     }
 }
 
-fn read_one_song_from_file(file_path: &Path) -> Result<Value, String> {
+fn read_raw_one_song_from_file(file_path: &Path) -> Result<Value, String> {
     let content = fs::read_to_string(file_path).map_err(|error| {
         format!(
             "Failed to read imported score file at {}: {}",
@@ -880,20 +879,66 @@ fn read_one_song_from_file(file_path: &Path) -> Result<Value, String> {
         ));
     }
 
-    validate_managed_song(file_path, &songs[0])?;
-
     Ok(songs[0].clone())
+}
+
+fn read_one_song_from_file(file_path: &Path) -> Result<Value, String> {
+    let song = canonicalize_managed_song(&read_raw_one_song_from_file(file_path)?)?;
+    validate_managed_song(file_path, &song)?;
+
+    Ok(song)
 }
 
 fn read_and_verify_expected_song(file_path: &Path, expected_song: &Value) -> Result<Value, String> {
     let actual_song = read_one_song_from_file(file_path)?;
+    verify_managed_song_semantics(file_path, &actual_song, expected_song)?;
+
+    Ok(actual_song)
+}
+
+fn ensure_canonical_managed_song_content(
+    file_path: &Path,
+    song_id: &str,
+    expected_song: &Value,
+) -> Result<Value, String> {
+    require_regular_file_without_following(file_path, "managed score canonical rewrite target")?;
+    let raw_song = read_raw_one_song_from_file(file_path)?;
+    let canonical_song = canonicalize_managed_song(&raw_song)?;
+    validate_managed_song(file_path, &canonical_song)?;
+    verify_managed_song_semantics(file_path, &canonical_song, expected_song)?;
+
+    if raw_song != canonical_song {
+        write_imported_score_song_file(file_path, song_id, &canonical_song)?;
+        let rewritten_raw_song = read_raw_one_song_from_file(file_path)?;
+        let rewritten_song = canonicalize_managed_song(&rewritten_raw_song)?;
+        validate_managed_song(file_path, &rewritten_song)?;
+
+        if rewritten_raw_song != rewritten_song {
+            return Err(format!(
+                "Imported score file at {} remains physically noncanonical after rewrite",
+                file_path.display()
+            ));
+        }
+
+        verify_managed_song_semantics(file_path, &rewritten_song, expected_song)?;
+        return Ok(rewritten_song);
+    }
+
+    Ok(canonical_song)
+}
+
+fn verify_managed_song_semantics(
+    file_path: &Path,
+    actual_song: &Value,
+    expected_song: &Value,
+) -> Result<(), String> {
     let expected_semantics = semantic_song_from_value(expected_song).map_err(|error| {
         format!(
             "Expected imported score for verification is invalid: {}",
             error
         )
     })?;
-    let actual_semantics = semantic_song_from_value(&actual_song).map_err(|error| {
+    let actual_semantics = semantic_song_from_value(actual_song).map_err(|error| {
         format!(
             "Imported score file at {} cannot be compared semantically: {}",
             file_path.display(),
@@ -908,7 +953,7 @@ fn read_and_verify_expected_song(file_path: &Path, expected_song: &Value) -> Res
         ));
     }
 
-    Ok(actual_song)
+    Ok(())
 }
 
 fn read_and_verify_managed_score_file(
@@ -963,16 +1008,24 @@ fn canonicalize_managed_song(song: &Value) -> Result<Value, String> {
         .and_then(Value::as_array)
         .is_some_and(|notes| notes.iter().any(|note| note.get("duration").is_some()));
 
-    if explicit_format_version == Some(2) || (explicit_format_version.is_none() && has_duration) {
+    if explicit_format_version == Some(1) {
+        if let Some(notes) = song_object
+            .get_mut("songNotes")
+            .and_then(Value::as_array_mut)
+        {
+            for note in notes {
+                if let Some(note_object) = note.as_object_mut() {
+                    note_object.remove("duration");
+                }
+            }
+        }
+    } else if explicit_format_version == Some(2)
+        || (explicit_format_version.is_none() && has_duration)
+    {
         song_object.insert("formatVersion".to_string(), Value::from(2));
     }
 
     Ok(canonical_song)
-}
-
-fn should_rewrite_with_canonical_v2_marker(actual_song: &Value, expected_song: &Value) -> bool {
-    expected_song.get("formatVersion").and_then(Value::as_u64) == Some(2)
-        && actual_song.get("formatVersion").and_then(Value::as_u64) != Some(2)
 }
 
 fn validate_managed_song(file_path: &Path, song: &Value) -> Result<(), String> {
@@ -1589,6 +1642,17 @@ mod tests {
         })
     }
 
+    fn unversioned_duration_song(name: &str) -> Value {
+        serde_json::json!({
+            "name": name,
+            "bpm": 120,
+            "bitsPerPage": 16,
+            "pitchLevel": 0,
+            "isComposed": false,
+            "songNotes": [{"time": 0, "key": "1Key0", "duration": 1500}]
+        })
+    }
+
     fn write_score_file(directory: &Path, file_name: &str, song: &Value) {
         fs::create_dir_all(directory).expect("directory should be created");
         fs::write(
@@ -1938,14 +2002,7 @@ mod tests {
     #[test]
     fn migration_upgrades_old_duration_file_without_marker() {
         let test_dir = unique_test_dir("upgrade_old_v2");
-        let old_song = serde_json::json!({
-            "name": "Old V2",
-            "bpm": 120,
-            "bitsPerPage": 16,
-            "pitchLevel": 0,
-            "isComposed": false,
-            "songNotes": [{"time": 0, "key": "1Key0", "duration": 1500}]
-        });
+        let old_song = unversioned_duration_song("Old V2");
         write_score_file(&test_dir.path, "Old V2__local-1.txt", &old_song);
 
         let report =
@@ -1958,6 +2015,81 @@ mod tests {
             restored["songNotes"][0]["duration"],
             serde_json::json!(1500)
         );
+        assert_eq!(
+            read_raw_one_song_from_file(&test_dir.path.join("Old V2__local-1.txt")).unwrap()
+                ["formatVersion"],
+            serde_json::json!(2)
+        );
+    }
+
+    #[test]
+    fn direct_save_upgrades_existing_final_txt_content() {
+        let test_dir = unique_test_dir("save_upgrade_final");
+        let song = unversioned_duration_song("Existing V2");
+        let final_path = test_dir.path.join("Existing V2__local-1.txt");
+        write_score_file(&test_dir.path, "Existing V2__local-1.txt", &song);
+
+        save_imported_score_song_at(&test_dir.path, "local-1", &song).unwrap();
+
+        let raw = read_raw_one_song_from_file(&final_path).unwrap();
+        assert_eq!(raw["formatVersion"], serde_json::json!(2));
+        assert_eq!(raw["songNotes"][0]["duration"], serde_json::json!(1500));
+    }
+
+    #[test]
+    fn migration_renames_legacy_file_and_rewrites_v2_marker() {
+        let test_dir = unique_test_dir("upgrade_legacy_rename");
+        let song = unversioned_duration_song("Legacy V2");
+        write_score_file(&test_dir.path, "local-1.json", &song);
+
+        let report =
+            migrate_imported_score_storage_at(&test_dir.path, vec!["local-1".to_string()]).unwrap();
+        let final_path = test_dir.path.join("Legacy V2__local-1.txt");
+        let raw = read_raw_one_song_from_file(&final_path).unwrap();
+
+        assert_eq!(report.renamed_count, 1);
+        assert!(!test_dir.path.join("local-1.json").exists());
+        assert_eq!(raw["formatVersion"], serde_json::json!(2));
+    }
+
+    #[test]
+    fn migration_renames_outdated_canonical_and_rewrites_v2_marker() {
+        let test_dir = unique_test_dir("upgrade_outdated_rename");
+        let song = unversioned_duration_song("Current V2");
+        write_score_file(&test_dir.path, "Old V2__local-1.json", &song);
+
+        let report =
+            migrate_imported_score_storage_at(&test_dir.path, vec!["local-1".to_string()]).unwrap();
+        let final_path = test_dir.path.join("Current V2__local-1.txt");
+        let raw = read_raw_one_song_from_file(&final_path).unwrap();
+
+        assert_eq!(report.renamed_count, 1);
+        assert!(!test_dir.path.join("Old V2__local-1.json").exists());
+        assert_eq!(raw["formatVersion"], serde_json::json!(2));
+    }
+
+    #[test]
+    fn explicit_v1_duration_is_removed_from_managed_read_and_storage() {
+        let test_dir = unique_test_dir("normalize_explicit_v1");
+        let song = serde_json::json!({
+            "name": "Explicit V1",
+            "bpm": 120,
+            "bitsPerPage": 16,
+            "pitchLevel": 0,
+            "isComposed": false,
+            "formatVersion": 1,
+            "songNotes": [{"time": 0, "key": "1Key0", "duration": 1500}]
+        });
+        write_score_file(&test_dir.path, "Explicit V1__local-1.txt", &song);
+
+        let read_song = read_imported_score_song_at(&test_dir.path, "local-1").unwrap();
+        assert!(read_song["songNotes"][0].get("duration").is_none());
+
+        save_imported_score_song_at(&test_dir.path, "local-1", &song).unwrap();
+        let raw =
+            read_raw_one_song_from_file(&test_dir.path.join("Explicit V1__local-1.txt")).unwrap();
+        assert_eq!(raw["formatVersion"], serde_json::json!(1));
+        assert!(raw["songNotes"][0].get("duration").is_none());
     }
 
     #[test]
@@ -1972,6 +2104,12 @@ mod tests {
 
         assert!(report.failed.is_empty());
         assert!(restored.get("formatVersion").is_none());
+        assert!(
+            read_raw_one_song_from_file(&test_dir.path.join("V1__local-1.txt"))
+                .unwrap()
+                .get("formatVersion")
+                .is_none()
+        );
     }
 
     #[test]
@@ -1994,6 +2132,33 @@ mod tests {
         });
 
         assert_ne!(
+            semantic_song_from_value(&with_duration).unwrap(),
+            semantic_song_from_value(&without_duration).unwrap()
+        );
+    }
+
+    #[test]
+    fn explicit_v1_semantics_ignore_duration_fields() {
+        let with_duration = serde_json::json!({
+            "name": "V1",
+            "bpm": 120.0,
+            "bitsPerPage": 16.0,
+            "pitchLevel": 0.0,
+            "isComposed": false,
+            "formatVersion": 1,
+            "songNotes": [{ "time": 0.0, "key": "1Key0", "duration": 1500.0 }]
+        });
+        let without_duration = serde_json::json!({
+            "name": "V1",
+            "bpm": 120.0,
+            "bitsPerPage": 16.0,
+            "pitchLevel": 0.0,
+            "isComposed": false,
+            "formatVersion": 1,
+            "songNotes": [{ "time": 0.0, "key": "1Key0" }]
+        });
+
+        assert_eq!(
             semantic_song_from_value(&with_duration).unwrap(),
             semantic_song_from_value(&without_duration).unwrap()
         );
@@ -2859,6 +3024,35 @@ mod tests {
         assert!(source.is_file());
         assert!(!target.exists());
         assert_eq!(file_index["local-1"][0].path, source);
+    }
+
+    #[test]
+    fn post_rename_canonical_rewrite_failure_restores_original_source() {
+        let test_dir = unique_test_dir("post_rename_rewrite_rollback");
+        let source = test_dir.path.join("local-1.json");
+        let target = test_dir.path.join("Rollback V2__local-1.txt");
+        let temp_collision = test_dir.path.join("Rollback V2__local-1.txt.tmp");
+        let song = unversioned_duration_song("Rollback V2");
+        write_score_file(&test_dir.path, "local-1.json", &song);
+        fs::create_dir_all(&temp_collision).unwrap();
+
+        let error = rename_and_validate_managed_score_file(&source, &target, |target_path| {
+            ensure_canonical_managed_song_content(target_path, "local-1", &song)?;
+            managed_score_file_from_path(
+                target_path.to_path_buf(),
+                "local-1".to_string(),
+                ManagedScoreFileNaming::Canonical,
+                ManagedScoreFileExtension::Txt,
+            )
+        })
+        .err()
+        .unwrap();
+
+        assert!(error.contains("original source was restored"));
+        assert!(source.is_file());
+        assert!(!target.exists());
+        assert!(temp_collision.is_dir());
+        assert!(read_raw_one_song_from_file(&source).unwrap()["formatVersion"].is_null());
     }
 
     #[test]

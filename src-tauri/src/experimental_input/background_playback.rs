@@ -138,7 +138,7 @@ struct OptionUpdateRemap {
     segment_ratio: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ScheduledKeyUp {
     deadline_at: Instant,
     generation: u64,
@@ -893,7 +893,13 @@ impl BackgroundPlaybackWorker {
             self.next_progress_event_ms = due_position + PROGRESS_EVENT_INTERVAL_MS;
         }
 
-        if due_position >= self.timeline.finish_ms {
+        if should_finish_playback(
+            due_position,
+            self.timeline.finish_ms,
+            &self.active_generations,
+            &self.scheduled_key_ups,
+            Instant::now(),
+        ) {
             self.finish();
         }
 
@@ -989,6 +995,7 @@ impl BackgroundPlaybackWorker {
 
     fn finish(&mut self) {
         self.release_all_active_keys();
+        self.scheduled_key_ups.clear();
         self.position_ms = self.timeline.total_ms;
         self.state = WorkerPlaybackState::Stopped;
         self.emit_progress();
@@ -998,12 +1005,14 @@ impl BackgroundPlaybackWorker {
 
     fn stop_without_event(&mut self) {
         self.release_all_active_keys();
+        self.scheduled_key_ups.clear();
         self.state = WorkerPlaybackState::Stopped;
         clear_current_session(self.session_id);
     }
 
     fn handle_error(&mut self, error: String) {
         self.release_all_active_keys();
+        self.scheduled_key_ups.clear();
         self.state = WorkerPlaybackState::Stopped;
         self.emit_event("error", Some(error), None, None);
         clear_current_session(self.session_id);
@@ -1018,30 +1027,18 @@ impl BackgroundPlaybackWorker {
     }
 
     fn next_deadline_ms(&self) -> Option<f64> {
-        let mut deadlines = vec![self.timeline.finish_ms, self.next_progress_event_ms];
-
-        if let Some(group) = self.timeline.groups.get(self.next_group_index) {
-            deadlines.push(group.adjusted_start_ms);
-        }
-
-        if let Some(key_up_deadline) = self
-            .scheduled_key_ups
-            .iter()
-            .map(|key_up| key_up.deadline_at)
-            .min()
-        {
-            let key_up_deadline_ms = key_up_deadline
-                .checked_duration_since(Instant::now())
-                .unwrap_or(Duration::ZERO)
-                .as_secs_f64()
-                * 1000.0
-                + self.position_ms;
-            deadlines.push(key_up_deadline_ms);
-        }
-
-        deadlines
-            .into_iter()
-            .min_by(|left, right| left.total_cmp(right))
+        next_playback_deadline_ms(
+            self.position_ms,
+            self.timeline.finish_ms,
+            self.next_progress_event_ms,
+            self.timeline
+                .groups
+                .get(self.next_group_index)
+                .map(|group| group.adjusted_start_ms),
+            &self.active_generations,
+            &self.scheduled_key_ups,
+            Instant::now(),
+        )
     }
 
     fn send_key_down_group(&self, keys: &[String]) -> Result<(), String> {
@@ -1405,6 +1402,84 @@ fn should_apply_key_release(
     active_generations
         .get(key)
         .is_some_and(|generation| *generation == release_generation)
+}
+
+fn is_live_scheduled_key_up(
+    active_generations: &HashMap<String, u64>,
+    key_up: &ScheduledKeyUp,
+) -> bool {
+    should_apply_key_release(active_generations, &key_up.key, key_up.generation)
+}
+
+fn next_live_key_up_deadline(
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> Option<Instant> {
+    scheduled_key_ups
+        .iter()
+        .filter(|key_up| {
+            is_live_scheduled_key_up(active_generations, key_up) && key_up.deadline_at > now
+        })
+        .map(|key_up| key_up.deadline_at)
+        .min()
+}
+
+fn has_live_future_key_ups(
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> bool {
+    next_live_key_up_deadline(active_generations, scheduled_key_ups, now).is_some()
+}
+
+fn should_finish_playback(
+    position_ms: f64,
+    finish_ms: f64,
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> bool {
+    position_ms >= finish_ms && !has_live_future_key_ups(active_generations, scheduled_key_ups, now)
+}
+
+fn next_playback_deadline_ms(
+    position_ms: f64,
+    finish_ms: f64,
+    next_progress_event_ms: f64,
+    next_group_start_ms: Option<f64>,
+    active_generations: &HashMap<String, u64>,
+    scheduled_key_ups: &[ScheduledKeyUp],
+    now: Instant,
+) -> Option<f64> {
+    let live_key_up_deadline =
+        next_live_key_up_deadline(active_generations, scheduled_key_ups, now);
+    let mut deadlines = Vec::new();
+
+    if position_ms < finish_ms {
+        deadlines.push(finish_ms);
+        deadlines.push(next_progress_event_ms);
+        if let Some(group_start_ms) = next_group_start_ms {
+            deadlines.push(group_start_ms);
+        }
+    } else if live_key_up_deadline.is_none() {
+        deadlines.push(position_ms);
+    }
+
+    if let Some(key_up_deadline) = live_key_up_deadline {
+        deadlines.push(
+            key_up_deadline
+                .checked_duration_since(now)
+                .unwrap_or(Duration::ZERO)
+                .as_secs_f64()
+                * 1000.0
+                + position_ms,
+        );
+    }
+
+    deadlines
+        .into_iter()
+        .min_by(|left, right| left.total_cmp(right))
 }
 
 fn keys_due_for_release(
@@ -1792,6 +1867,118 @@ mod tests {
             stale.generation
         ));
         assert!(should_apply_key_release(&active, "A", 2));
+    }
+
+    #[test]
+    fn live_future_key_up_prevents_finish_after_timeline_end() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(1000),
+            generation: 2,
+            key: "A".to_string(),
+        }];
+
+        assert!(has_live_future_key_ups(&active, &scheduled, now));
+        assert!(!should_finish_playback(
+            500.0, 500.0, &active, &scheduled, now
+        ));
+    }
+
+    #[test]
+    fn stale_generation_key_up_does_not_delay_finish() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(1000),
+            generation: 1,
+            key: "A".to_string(),
+        }];
+
+        assert!(!has_live_future_key_ups(&active, &scheduled, now));
+        assert!(should_finish_playback(
+            500.0, 500.0, &active, &scheduled, now
+        ));
+    }
+
+    #[test]
+    fn playback_finishes_immediately_after_final_live_key_up() {
+        let deadline = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: deadline,
+            generation: 2,
+            key: "A".to_string(),
+        }];
+
+        assert!(should_finish_playback(
+            500.0, 500.0, &active, &scheduled, deadline,
+        ));
+    }
+
+    #[test]
+    fn expired_finish_waits_at_live_key_up_without_busy_loop() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 2_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(750),
+            generation: 2,
+            key: "A".to_string(),
+        }];
+
+        assert_eq!(
+            next_playback_deadline_ms(500.0, 500.0, 650.0, None, &active, &scheduled, now,),
+            Some(1250.0),
+        );
+    }
+
+    #[test]
+    fn option_timeline_updates_do_not_reschedule_existing_key_up() {
+        let now = Instant::now();
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now + Duration::from_millis(2000),
+            generation: 1,
+            key: "A".to_string(),
+        }];
+        let original = scheduled.clone();
+        let source = build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![held_key("A", 1000.0)],
+        }])
+        .unwrap();
+
+        let faster = build_timeline_from_groups(&source, &options(0.0, 2.0)).unwrap();
+        let slower = build_timeline_from_groups(&source, &options(0.0, 0.5)).unwrap();
+
+        assert_eq!(faster.finish_ms, 500.0);
+        assert_eq!(slower.finish_ms, 2000.0);
+        assert_eq!(scheduled, original);
+        assert!(!should_finish_playback(
+            faster.finish_ms,
+            faster.finish_ms,
+            &HashMap::from([("A".to_string(), 1_u64)]),
+            &scheduled,
+            now,
+        ));
+    }
+
+    #[test]
+    fn point_note_finish_is_not_delayed_by_expired_key_up() {
+        let now = Instant::now();
+        let active = HashMap::from([("A".to_string(), 1_u64)]);
+        let scheduled = vec![ScheduledKeyUp {
+            deadline_at: now - Duration::from_millis(1),
+            generation: 1,
+            key: "A".to_string(),
+        }];
+
+        assert!(should_finish_playback(
+            NOTE_HIGHLIGHT_MS,
+            NOTE_HIGHLIGHT_MS,
+            &active,
+            &scheduled,
+            now,
+        ));
     }
 
     #[test]

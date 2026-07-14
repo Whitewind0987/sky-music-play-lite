@@ -551,4 +551,48 @@ describe("schedulePreviewPlayback", () => {
     vi.advanceTimersByTime(1);
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
+
+  function createLegacySustainMetadata() {
+    const metadata = createLocalSongMetadata({
+      bitsPerPage: 16,
+      bpm: 120,
+      isComposed: false,
+      name: "Legacy sustain",
+      pitchLevel: 0,
+      songNotes: [
+        { time: 0, key: "Key0", duration: 1000 },
+        { time: 500, key: "Key1" },
+      ],
+    });
+    const { noteGroupMaxHoldMs: _removed, ...legacyMetadata } = metadata;
+
+    return legacyMetadata;
+  }
+
+  it("does not underestimate an early legacy hold after negative compression", () => {
+    expect(
+      getAdjustedPreviewDurationFromMetadata(createLegacySustainMetadata(), {
+        noteIntervalDelayMs: -200,
+        playbackSpeed: 1,
+      }),
+    ).toBe(1000);
+  });
+
+  it("keeps positive interval delay in the conservative legacy fallback", () => {
+    expect(
+      getAdjustedPreviewDurationFromMetadata(createLegacySustainMetadata(), {
+        noteIntervalDelayMs: 200,
+        playbackSpeed: 1,
+      }),
+    ).toBe(1200);
+  });
+
+  it("keeps zero-interval legacy duration unchanged", () => {
+    expect(
+      getAdjustedPreviewDurationFromMetadata(createLegacySustainMetadata(), {
+        noteIntervalDelayMs: 0,
+        playbackSpeed: 1,
+      }),
+    ).toBe(1000);
+  });
 });

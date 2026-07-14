@@ -292,26 +292,38 @@ export function getAdjustedPreviewDurationFromMetadata(
     ).totalMs;
   }
 
-  const scaledTailMs = Math.max(0, metadata.sustainTailMs ?? 0) /
+  const sustainTailMs = Math.max(0, metadata.sustainTailMs ?? 0);
+  const scaledTailMs = sustainTailMs / options.playbackSpeed;
+  const rawSourceEndMs =
+    (Math.max(0, metadata.lastNoteTimeMs) + sustainTailMs) /
     options.playbackSpeed;
 
   if (metadata.noteGroupDelaysMs?.length === metadata.noteGroupCount) {
-    return (
-      metadata.noteGroupDelaysMs.reduce((durationMs, delayMs, index) => {
+    const adjustedLastGroupStartMs = metadata.noteGroupDelaysMs.reduce(
+      (durationMs, delayMs, index) => {
         const adjustedDelayMs =
           Math.max(0, delayMs) / options.playbackSpeed +
           (index === 0 ? 0 : options.noteIntervalDelayMs);
         return durationMs + Math.max(0, adjustedDelayMs);
-      }, 0) + scaledTailMs
+      },
+      0,
+    );
+
+    return Math.max(
+      adjustedLastGroupStartMs + scaledTailMs,
+      rawSourceEndMs,
     );
   }
 
-  return (
-    Math.max(
-      0,
-      Math.max(0, metadata.lastNoteTimeMs) / options.playbackSpeed +
-        (metadata.noteGroupCount - 1) * options.noteIntervalDelayMs,
-    ) + scaledTailMs
+  const approximateAdjustedLastGroupStartMs = Math.max(
+    0,
+    Math.max(0, metadata.lastNoteTimeMs) / options.playbackSpeed +
+      (metadata.noteGroupCount - 1) * options.noteIntervalDelayMs,
+  );
+
+  return Math.max(
+    approximateAdjustedLastGroupStartMs + scaledTailMs,
+    rawSourceEndMs,
   );
 }
 

@@ -449,6 +449,88 @@ describe("sanitizePersistedAppData noteGroupMaxHoldMs", () => {
   });
 });
 
+describe("sanitizePersistedAppData migration fallback songs", () => {
+  function sanitizeFallbackSong(song: unknown) {
+    const librarySong = createLocalLibrarySong("local-fallback-v2");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [librarySong],
+        migrationFallbackSongs: { [librarySong.id]: song },
+      },
+    });
+  }
+
+  it("upgrades a missing marker with valid duration to v2", () => {
+    const song = {
+      ...createTestSong("Unversioned V2"),
+      songNotes: [{ time: 0, key: "Key0", duration: 1500 }],
+    };
+    const result = sanitizeFallbackSong(song);
+    const fallback = result?.library.migrationFallbackSongs?.[
+      "local-fallback-v2"
+    ];
+
+    expect(fallback?.formatVersion).toBe(2);
+    expect(fallback?.songNotes[0]?.duration).toBe(1500);
+  });
+
+  it("removes duration fields from explicit v1 fallback songs", () => {
+    const result = sanitizeFallbackSong({
+      ...createTestSong("Explicit V1"),
+      formatVersion: 1,
+      songNotes: [{ time: 0, key: "Key0", duration: 1500 }],
+    });
+    const fallback = result?.library.migrationFallbackSongs?.[
+      "local-fallback-v2"
+    ];
+
+    expect(fallback?.formatVersion).toBe(1);
+    expect(fallback?.songNotes[0]?.duration).toBeUndefined();
+  });
+
+  it("preserves explicit v2 duration", () => {
+    const result = sanitizeFallbackSong({
+      ...createTestSong("Explicit V2"),
+      formatVersion: 2,
+      songNotes: [{ time: 0, key: "Key0", duration: 60000 }],
+    });
+    const fallback = result?.library.migrationFallbackSongs?.[
+      "local-fallback-v2"
+    ];
+
+    expect(fallback?.formatVersion).toBe(2);
+    expect(fallback?.songNotes[0]?.duration).toBe(60000);
+  });
+
+  it.each([3, "2", null])(
+    "omits invalid version %p without deleting valid metadata",
+    (formatVersion) => {
+      const result = sanitizeFallbackSong({
+        ...createTestSong("Invalid Version"),
+        formatVersion,
+      });
+
+      expect(result?.library.librarySongs).toHaveLength(1);
+      expect(result?.library.migrationFallbackSongs).toBeUndefined();
+    },
+  );
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 60001])(
+    "omits invalid unversioned duration %p without deleting valid metadata",
+    (duration) => {
+      const result = sanitizeFallbackSong({
+        ...createTestSong("Invalid Duration"),
+        songNotes: [{ time: 0, key: "Key0", duration }],
+      });
+
+      expect(result?.library.librarySongs).toHaveLength(1);
+      expect(result?.library.migrationFallbackSongs).toBeUndefined();
+    },
+  );
+});
+
 describe("sanitizePersistedAppData legacy v1 migration", () => {
   it("migrates v1 importedSongs to current librarySongs", () => {
     const result = sanitizePersistedAppData({
