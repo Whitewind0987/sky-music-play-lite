@@ -7,20 +7,22 @@ import {
   sanitizePersistedAppData,
 } from "../lib/appData";
 import { formatText } from "../lib/formatText";
-import { finalizeAppDataMigration } from "../lib/appDataMigration";
 import {
-  createImportedScoreReconcileEntries,
   reconcilePersistedImportedScores,
+  retainUnverifiedMigrationFallbackSongs,
 } from "../lib/importedScoreReconciliation";
 import { migrateImportedScoreStorageBeforeListing } from "../lib/importedScoreStorageMigration";
 import {
-  cleanupMissingImportedScoresFromPersistedLibrary,
-} from "../lib/missingImportedScores";
+  decideImportedScoreStorageTrust,
+  recoverAndCleanupImportedScoreLibrary,
+} from "../lib/importedScoreRecovery";
 import {
   loadAppData,
   listImportedScoreFiles,
   migrateImportedScoreStorage,
+  readImportedScoreSong,
   reconcileImportedScoreFiles,
+  resolveImportedScoresDirectory,
   saveAppData,
   type AppLogEntry,
 } from "../lib/tauriApi";
@@ -130,6 +132,9 @@ export function useAppPersistence({
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
   const explicitlySavedAppDataSnapshotRef = useRef<string | null>(null);
+  const currentImportedScoreStoragePathRef = useRef<string | null>(null);
+  const importedScoreStoragePathRef = useRef<string | undefined>(undefined);
+  const startupLibrarySongIdsRef = useRef<Set<string> | null>(null);
   const [hasLoadedAppData, setHasLoadedAppData] = useState(false);
   const [isNormalPersistenceEnabled, setIsNormalPersistenceEnabled] =
     useState(false);
@@ -141,6 +146,16 @@ export function useAppPersistence({
   function buildCurrentPersistedAppData(
     nextConfirmBeforeExit = confirmBeforeExit,
   ) {
+    const startupSongIds = startupLibrarySongIdsRef.current;
+    if (
+      currentImportedScoreStoragePathRef.current !== null &&
+      startupSongIds !== null &&
+      librarySongs.some(({ id }) => !startupSongIds.has(id))
+    ) {
+      importedScoreStoragePathRef.current =
+        currentImportedScoreStoragePathRef.current;
+    }
+
     return buildPersistedAppData({
       confirmBeforeExit: nextConfirmBeforeExit,
       experimentalInputPreferences: {
@@ -153,6 +168,7 @@ export function useAppPersistence({
         targetWindowMessageMethod,
       },
       isShuffleEnabled,
+      importedScoreStoragePath: importedScoreStoragePathRef.current,
       keyMapping,
       language,
       librarySongs,
@@ -181,134 +197,188 @@ export function useAppPersistence({
           return;
         }
 
-        if (rawAppData === null) {
-          appendLog(text.appDataMissing);
-          setIsNormalPersistenceEnabled(true);
-          setHasLoadedAppData(true);
-          return;
-        }
-
-        const sourceVersion = getPersistedAppDataVersion(rawAppData);
-        const appData = sanitizePersistedAppData(rawAppData);
+        const sourceVersion =
+          rawAppData === null ? 3 : getPersistedAppDataVersion(rawAppData);
+        const appData =
+          rawAppData === null
+            ? buildCurrentPersistedAppData()
+            : sanitizePersistedAppData(rawAppData);
 
         if (appData === null || sourceVersion === null) {
           appendLog(text.appDataInvalid);
-          setIsNormalPersistenceEnabled(true);
+          setIsNormalPersistenceEnabled(false);
           setHasLoadedAppData(true);
           return;
         }
 
-        const originalFallbackSongs =
-          appData.library.migrationFallbackSongs ?? {};
-        const reconciliationEntries = createImportedScoreReconcileEntries(
-          appData.library.librarySongs,
-          originalFallbackSongs,
-        );
-        const isMigrationActive =
-          sourceVersion !== 3 || reconciliationEntries.length > 0;
         let runtimeAppData = appData;
         let canEnableNormalPersistence = true;
+        let shouldPersistStartup = rawAppData === null;
+        let currentStoragePath: string;
 
-        if (isMigrationActive) {
-          setIsImportedScoreReconciliationInProgress(true);
+        if (rawAppData === null) {
+          appendLog(text.appDataMissing);
         }
 
         try {
-          const report = await reconcilePersistedImportedScores({
-            appendLog,
-            librarySongs: appData.library.librarySongs,
-            migrationFallbackSongs: originalFallbackSongs,
-            reconcileImportedScoreFiles,
-            showNotice,
-            text,
-          });
-          const migrationResult = await finalizeAppDataMigration({
-            appData,
-            reconcileReport: report,
-            saveAppData,
-            sourceVersion,
-          });
+          currentStoragePath = await resolveImportedScoresDirectory();
+          currentImportedScoreStoragePathRef.current = currentStoragePath;
+          importedScoreStoragePathRef.current = appData.importedScoreStoragePath;
+          setIsImportedScoreReconciliationInProgress(true);
 
-          runtimeAppData = migrationResult.appData;
+          try {
+            const initialFileMetadata = await listImportedScoreFiles();
+            const trust = decideImportedScoreStorageTrust({
+              currentStoragePath,
+              fileMetadata: initialFileMetadata,
+              librarySongs: appData.library.librarySongs,
+              persistedStoragePath: appData.importedScoreStoragePath,
+            });
 
-          if (migrationResult.persistenceError !== null) {
-            canEnableNormalPersistence = false;
-            appendLog(
-              formatText(text.appDataSaveFailed, {
-                error: String(migrationResult.persistenceError),
-              }),
-            );
+            if (!trust.trusted) {
+              appendLog(text.importedScoreStorageUntrusted);
+              appendDetailedLog?.({
+                details: {
+                  currentStoragePath,
+                  persistedStoragePath:
+                    appData.importedScoreStoragePath ?? null,
+                  reason: trust.reason,
+                },
+                level: "warn",
+                message: "Imported score storage directory is not trusted",
+                source: "imported-score-storage",
+              });
+            } else {
+              const originalFallbackSongs =
+                appData.library.migrationFallbackSongs ?? {};
+              const report = await reconcilePersistedImportedScores({
+                appendLog,
+                librarySongs: appData.library.librarySongs,
+                migrationFallbackSongs: originalFallbackSongs,
+                reconcileImportedScoreFiles,
+                showNotice,
+                text,
+              });
+              const remainingFallbackSongs =
+                retainUnverifiedMigrationFallbackSongs(
+                  originalFallbackSongs,
+                  report,
+                );
+              runtimeAppData = {
+                ...appData,
+                library: {
+                  ...appData.library,
+                  ...(Object.keys(remainingFallbackSongs).length > 0
+                    ? { migrationFallbackSongs: remainingFallbackSongs }
+                    : { migrationFallbackSongs: undefined }),
+                },
+              };
+
+              const { fileMetadata, protectedSongIds } =
+                await migrateImportedScoreStorageBeforeListing({
+                  librarySongs: runtimeAppData.library.librarySongs,
+                  listFiles: listImportedScoreFiles,
+                  migrateStorage: migrateImportedScoreStorage,
+                  onDetailedLog: appendDetailedLog,
+                  unresolvedFallbackSongs: remainingFallbackSongs,
+                });
+
+              const recovery = await recoverAndCleanupImportedScoreLibrary({
+                appData: runtimeAppData,
+                fileMetadata,
+                onFailure: ({ error, songId }) => {
+                  appendDetailedLog?.({
+                    details: { error: String(error), songId },
+                    level: "warn",
+                    message: "Failed to recover managed imported score",
+                    source: "imported-score-storage",
+                  });
+                },
+                protectedSongIds,
+                readSong: readImportedScoreSong,
+                trust,
+              });
+              runtimeAppData = recovery.appData;
+
+              if (recovery.recoveredSongIds.length > 0) {
+                appendLog(
+                  formatText(text.orphanedLocalScoresRecovered, {
+                    count: recovery.recoveredSongIds.length,
+                  }),
+                );
+              }
+
+              runtimeAppData = {
+                ...runtimeAppData,
+                importedScoreStoragePath: currentStoragePath,
+              };
+              importedScoreStoragePathRef.current = currentStoragePath;
+              shouldPersistStartup =
+                shouldPersistStartup ||
+                sourceVersion !== 3 ||
+                appData.importedScoreStoragePath !== currentStoragePath ||
+                Object.keys(remainingFallbackSongs).length !==
+                  Object.keys(originalFallbackSongs).length ||
+                recovery.recoveredSongIds.length > 0 ||
+                recovery.removedSongIds.length > 0;
+
+              if (recovery.removedSongIds.length > 0) {
+                appendLog(
+                  formatText(text.missingLocalScoresRemoved, {
+                    count: recovery.removedSongIds.length,
+                  }),
+                );
+              }
+            }
+          } catch (error) {
+            runtimeAppData = appData;
+            appendLog(text.missingLocalScoresScanFailed);
+            appendDetailedLog?.({
+              details: { error: String(error) },
+              level: "warn",
+              message: "Imported score startup scan failed",
+              source: "imported-score-storage",
+            });
+          } finally {
+            if (!isCancelled) {
+              setIsImportedScoreReconciliationInProgress(false);
+            }
           }
-        } finally {
-          if (isMigrationActive && !isCancelled) {
-            setIsImportedScoreReconciliationInProgress(false);
-          }
+        } catch (error) {
+          appendLog(text.missingLocalScoresScanFailed);
+          appendDetailedLog?.({
+            details: { error: String(error) },
+            level: "warn",
+            message: "Failed to resolve imported score storage directory",
+            source: "imported-score-storage",
+          });
         }
 
         if (isCancelled) {
           return;
         }
 
-        if (
-          canEnableNormalPersistence &&
-          runtimeAppData.library.librarySongs.length > 0
-        ) {
-          setIsImportedScoreReconciliationInProgress(true);
+        if (shouldPersistStartup) {
           try {
-            const { fileMetadata, protectedSongIds } =
-              await migrateImportedScoreStorageBeforeListing({
-                librarySongs: runtimeAppData.library.librarySongs,
-                listFiles: listImportedScoreFiles,
-                migrateStorage: migrateImportedScoreStorage,
-                onDetailedLog: appendDetailedLog,
-                unresolvedFallbackSongs:
-                  runtimeAppData.library.migrationFallbackSongs ?? {},
-              });
-
-            if (isCancelled) {
-              return;
-            }
-
-            const cleanup = cleanupMissingImportedScoresFromPersistedLibrary({
-              fileMetadata,
-              library: runtimeAppData.library,
-              protectedSongIds,
+            await saveAppData(runtimeAppData);
+            explicitlySavedAppDataSnapshotRef.current =
+              JSON.stringify(runtimeAppData);
+          } catch (persistenceError) {
+            canEnableNormalPersistence = false;
+            const message = formatText(text.appDataSaveFailed, {
+              error: String(persistenceError),
             });
-
-            if (cleanup.removedSongIds.length > 0) {
-              runtimeAppData = {
-                ...runtimeAppData,
-                library: cleanup.library,
-              };
-              appendLog(
-                formatText(text.missingLocalScoresRemoved, {
-                  count: cleanup.removedSongIds.length,
-                }),
-              );
-
-              try {
-                await saveAppData(runtimeAppData);
-                explicitlySavedAppDataSnapshotRef.current = JSON.stringify(
-                  runtimeAppData,
-                );
-              } catch (persistenceError) {
-                const message = formatText(text.appDataSaveFailed, {
-                  error: String(persistenceError),
-                });
-
-                appendLog(message);
-                showNotice?.(message);
-              }
-            }
-          } catch {
-            appendLog(text.missingLocalScoresScanFailed);
-          } finally {
-            if (!isCancelled) {
-              setIsImportedScoreReconciliationInProgress(false);
-            }
+            appendLog(message);
+            showNotice?.(message);
           }
         }
 
+        explicitlySavedAppDataSnapshotRef.current =
+          JSON.stringify(runtimeAppData);
+
+        startupLibrarySongIdsRef.current = new Set(
+          runtimeAppData.library.librarySongs.map(({ id }) => id),
+        );
         setLanguage(runtimeAppData.language);
         applyConfirmBeforeExit(runtimeAppData.confirmBeforeExit);
         applyKeyMapping(runtimeAppData.keyMapping);

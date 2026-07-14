@@ -369,6 +369,9 @@ export const uiText = {
       missingLocalScoresRemoved:
         "已从曲库中移除 {count} 个文件缺失的本地曲谱。",
       missingLocalScoresScanFailed: "检查本地曲谱文件失败，曲库数据已保留。",
+      importedScoreStorageUntrusted:
+        "当前本地曲谱目录与已保存目录不一致，已保留全部曲库数据。",
+      orphanedLocalScoresRecovered: "已从本地曲谱文件恢复 {count} 首曲谱。",
       importedScoreReconcileSucceeded:
         "已整理本地曲谱文件：新增 {createdCount} 个，重命名 {renamedCount} 个。",
       importedScoreReconcileFailed:
@@ -939,6 +942,10 @@ export const uiText = {
         "Removed {count} local scores whose files were missing.",
       missingLocalScoresScanFailed:
         "Failed to check local score files. Library data was kept.",
+      importedScoreStorageUntrusted:
+        "The current local-score directory differs from the saved directory. All library data was kept.",
+      orphanedLocalScoresRecovered:
+        "Recovered {count} score(s) from managed local files.",
       importedScoreReconcileSucceeded:
         "Organized local score files: created {createdCount}, renamed {renamedCount}.",
       importedScoreReconcileFailed:

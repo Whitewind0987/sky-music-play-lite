@@ -110,6 +110,10 @@ export function sanitizePersistedAppData(
       typeof rawData.confirmBeforeExit === "boolean"
         ? rawData.confirmBeforeExit
         : defaultConfirmBeforeExit,
+    ...(typeof rawData.importedScoreStoragePath === "string" &&
+    rawData.importedScoreStoragePath.trim().length > 0
+      ? { importedScoreStoragePath: rawData.importedScoreStoragePath }
+      : {}),
     experimentalInputPreferences:
       sanitizeExperimentalInputPreferences(
         rawData.experimentalInputPreferences,
@@ -145,6 +149,7 @@ export function buildPersistedAppData({
   librarySongs,
   likedSongs,
   isShuffleEnabled,
+  importedScoreStoragePath,
   keyMapping,
   language,
   migrationFallbackSongs = {},
@@ -163,6 +168,7 @@ export function buildPersistedAppData({
   librarySongs: LocalLibrarySong[];
   likedSongs: LikedSongEntry[];
   isShuffleEnabled: boolean;
+  importedScoreStoragePath?: string;
   keyMapping: KeyMapping;
   language: LanguageCode;
   migrationFallbackSongs?: MigrationFallbackSongs;
@@ -195,6 +201,9 @@ export function buildPersistedAppData({
   return {
     appDataVersion,
     confirmBeforeExit,
+    ...(importedScoreStoragePath === undefined
+      ? {}
+      : { importedScoreStoragePath }),
     experimentalInputPreferences:
       experimentalInputPreferences === undefined
         ? undefined

@@ -40,6 +40,7 @@ export type PersistedAppData = {
   appDataVersion: typeof appDataVersion;
   confirmBeforeExit: boolean;
   experimentalInputPreferences?: ExperimentalInputPreferences;
+  importedScoreStoragePath?: string;
   keyMapping: KeyMapping;
   language: LanguageCode;
   library: {

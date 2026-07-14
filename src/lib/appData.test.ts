@@ -91,6 +91,18 @@ describe("buildPersistedAppData", () => {
     expect(buildMinimalPersistedAppData().appDataVersion).toBe(appDataVersion);
   });
 
+  it("persists the managed imported-score directory without a version bump", () => {
+    const result = buildMinimalPersistedAppData({
+      importedScoreStoragePath: "C:\\App\\imported-scores",
+    });
+
+    expect(result.appDataVersion).toBe(appDataVersion);
+    expect(result.importedScoreStoragePath).toBe("C:\\App\\imported-scores");
+    expect(sanitizePersistedAppData(result)?.importedScoreStoragePath).toBe(
+      "C:\\App\\imported-scores",
+    );
+  });
+
   it("defaults confirmBeforeExit to true and preserves explicit values", () => {
     expect(buildMinimalPersistedAppData().confirmBeforeExit).toBe(true);
     expect(

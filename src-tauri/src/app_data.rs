@@ -3,9 +3,24 @@ use std::{fs, fs::File, io::Write, path::PathBuf};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
-const APP_DATA_FILE_NAME: &str = "sky_music_play_lite_app_data.json";
-const APP_DATA_TEMP_FILE_NAME: &str = "sky_music_play_lite_app_data.json.tmp";
-const APP_DATA_BACKUP_FILE_NAME: &str = "sky_music_play_lite_app_data.json.bak";
+const RELEASE_APP_DATA_FILE_NAME: &str = "sky_music_play_lite_app_data.json";
+const DEBUG_APP_DATA_FILE_NAME: &str = "sky_music_play_lite_app_data.dev.json";
+
+fn app_data_file_name(is_debug: bool) -> &'static str {
+    if is_debug {
+        DEBUG_APP_DATA_FILE_NAME
+    } else {
+        RELEASE_APP_DATA_FILE_NAME
+    }
+}
+
+fn app_data_temp_file_name(is_debug: bool) -> String {
+    format!("{}.tmp", app_data_file_name(is_debug))
+}
+
+fn app_data_backup_file_name(is_debug: bool) -> String {
+    format!("{}.bak", app_data_file_name(is_debug))
+}
 
 #[tauri::command]
 pub fn load_app_data(app: AppHandle) -> Result<Option<Value>, String> {
@@ -61,15 +76,17 @@ fn app_data_file_path(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|error| format!("Failed to resolve app data directory: {}", error))?;
 
-    Ok(app_data_dir.join(APP_DATA_FILE_NAME))
+    Ok(app_data_dir.join(app_data_file_name(cfg!(debug_assertions))))
 }
 
 fn write_app_data_file_safely(file_path: &PathBuf, content: &str) -> Result<(), String> {
     let parent_dir = file_path
         .parent()
         .ok_or_else(|| "App data file path has no parent directory.".to_string())?;
-    let temp_file_path = parent_dir.join(APP_DATA_TEMP_FILE_NAME);
-    let backup_file_path = parent_dir.join(APP_DATA_BACKUP_FILE_NAME);
+    let is_debug_file =
+        file_path.file_name().and_then(|name| name.to_str()) == Some(DEBUG_APP_DATA_FILE_NAME);
+    let temp_file_path = parent_dir.join(app_data_temp_file_name(is_debug_file));
+    let backup_file_path = parent_dir.join(app_data_backup_file_name(is_debug_file));
 
     remove_file_if_exists(&temp_file_path, "stale temporary app data file")?;
 
@@ -208,7 +225,7 @@ mod tests {
     fn create_test_file_path(test_name: &str) -> PathBuf {
         let test_dir = unique_test_dir(test_name);
         fs::create_dir_all(&test_dir).expect("test directory should be created");
-        test_dir.join(APP_DATA_FILE_NAME)
+        test_dir.join(RELEASE_APP_DATA_FILE_NAME)
     }
 
     fn cleanup_test_path(file_path: &PathBuf) {
@@ -225,7 +242,9 @@ mod tests {
             .expect("safe write should create a new file");
 
         assert_eq!(fs::read_to_string(&file_path).unwrap(), r#"{"value":1}"#);
-        assert!(!file_path.with_file_name(APP_DATA_TEMP_FILE_NAME).exists());
+        assert!(!file_path
+            .with_file_name(app_data_temp_file_name(false))
+            .exists());
 
         cleanup_test_path(&file_path);
     }
@@ -242,8 +261,12 @@ mod tests {
             fs::read_to_string(&file_path).unwrap(),
             r#"{"value":"new"}"#
         );
-        assert!(!file_path.with_file_name(APP_DATA_BACKUP_FILE_NAME).exists());
-        assert!(!file_path.with_file_name(APP_DATA_TEMP_FILE_NAME).exists());
+        assert!(!file_path
+            .with_file_name(app_data_backup_file_name(false))
+            .exists());
+        assert!(!file_path
+            .with_file_name(app_data_temp_file_name(false))
+            .exists());
 
         cleanup_test_path(&file_path);
     }
@@ -251,7 +274,7 @@ mod tests {
     #[test]
     fn safe_write_replaces_stale_temp_file() {
         let file_path = create_test_file_path("replaces_stale_temp_file");
-        let temp_file_path = file_path.with_file_name(APP_DATA_TEMP_FILE_NAME);
+        let temp_file_path = file_path.with_file_name(app_data_temp_file_name(false));
         fs::write(&temp_file_path, "stale").expect("stale temp file should be written");
 
         write_app_data_file_safely(&file_path, r#"{"value":"fresh"}"#)
@@ -264,5 +287,33 @@ mod tests {
         assert!(!temp_file_path.exists());
 
         cleanup_test_path(&file_path);
+    }
+
+    #[test]
+    fn app_data_names_isolate_release_and_debug_files() {
+        assert_eq!(
+            app_data_file_name(false),
+            "sky_music_play_lite_app_data.json"
+        );
+        assert_eq!(
+            app_data_file_name(true),
+            "sky_music_play_lite_app_data.dev.json"
+        );
+        assert_eq!(
+            app_data_temp_file_name(false),
+            "sky_music_play_lite_app_data.json.tmp"
+        );
+        assert_eq!(
+            app_data_temp_file_name(true),
+            "sky_music_play_lite_app_data.dev.json.tmp"
+        );
+        assert_eq!(
+            app_data_backup_file_name(false),
+            "sky_music_play_lite_app_data.json.bak"
+        );
+        assert_eq!(
+            app_data_backup_file_name(true),
+            "sky_music_play_lite_app_data.dev.json.bak"
+        );
     }
 }
