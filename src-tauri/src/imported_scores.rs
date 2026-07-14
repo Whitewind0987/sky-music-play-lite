@@ -3106,6 +3106,40 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn recovery_scanner_recognizes_managed_names_and_prefers_canonical_file() {
+        let test_dir = unique_test_dir("recovery_scanner_names");
+        let song = sample_song("Canonical");
+        write_score_file(&test_dir.path, "Canonical__local-1.txt", &song);
+        write_score_file(&test_dir.path, "local-1.json", &song);
+        fs::write(test_dir.path.join("notes.txt"), "ignore").unwrap();
+
+        let listed = list_imported_score_files_at(&test_dir.path).unwrap();
+
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, "local-1");
+        assert_eq!(listed[0].file_name, "Canonical__local-1.txt");
+        assert_eq!(
+            read_imported_score_song_at(&test_dir.path, "local-1").unwrap(),
+            song
+        );
+    }
+
+    #[test]
+    fn recovery_scanner_reports_recognized_corrupt_file_for_isolated_read_failure() {
+        let test_dir = unique_test_dir("recovery_scanner_corrupt");
+        fs::create_dir_all(&test_dir.path).unwrap();
+        fs::write(test_dir.path.join("Broken__local-bad.txt"), "not json").unwrap();
+
+        let listed = list_imported_score_files_at(&test_dir.path).unwrap();
+        let error = read_imported_score_song_at(&test_dir.path, "local-bad").unwrap_err();
+
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, "local-bad");
+        assert!(error.contains("No valid imported score file found"));
+        assert!(error.contains("Broken__local-bad.txt"));
+    }
+
     #[cfg(unix)]
     #[test]
     fn managed_symlink_is_present_but_never_automatically_mutated() {
