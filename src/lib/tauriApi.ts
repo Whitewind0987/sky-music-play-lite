@@ -131,6 +131,16 @@ export type BackgroundPlaybackEventPayload = {
   type: "error" | "finished" | "progress" | "state";
 };
 
+export type SkyWindowMonitorSnapshot = {
+  revision: number;
+  window: CandidateWindow | null;
+};
+
+export type SkyWindowLifecycleEventPayload = SkyWindowMonitorSnapshot & {
+  kind: "available" | "unavailable" | "replaced";
+  previousWindow: CandidateWindow | null;
+};
+
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");
 }
@@ -205,6 +215,16 @@ export function listCandidateWindows(): Promise<CandidateWindow[]> {
 
 export function findSkyWindow(): Promise<CandidateWindow | null> {
   return invoke<CandidateWindow | null>("find_sky_window");
+}
+
+export function getSkyWindowMonitorState(): Promise<SkyWindowMonitorSnapshot> {
+  return invoke<SkyWindowMonitorSnapshot>("get_sky_window_monitor_state");
+}
+
+export function listenSkyWindowLifecycleEvents(
+  handler: (event: Event<SkyWindowLifecycleEventPayload>) => void,
+): Promise<UnlistenFn> {
+  return listen<SkyWindowLifecycleEventPayload>("sky-window-lifecycle-event", handler);
 }
 
 export function sendKeyGroupToWindowMessage({

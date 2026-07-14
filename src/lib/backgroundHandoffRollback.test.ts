@@ -5,9 +5,46 @@ import type {
   LocalLibrarySong,
 } from "../types/library";
 import {
+  isCurrentBackgroundHandoff,
   resolveBackgroundHandoffRollbackSongIndex,
   resolveLibrarySongIndexById,
 } from "./backgroundHandoffRollback";
+
+describe("isCurrentBackgroundHandoff", () => {
+  function invokeRustOnlyIfCurrent({
+    activeHandoffToken,
+    handoffToken,
+    isPending,
+  }: {
+    activeHandoffToken: number;
+    handoffToken: number;
+    isPending: boolean;
+  }) {
+    let rustInvocations = 0;
+    if (isCurrentBackgroundHandoff({ activeHandoffToken, handoffToken, isPending })) {
+      rustInvocations += 1;
+    }
+    return rustInvocations;
+  }
+
+  it("blocks Rust start when cancellation happens after score resolution", () => {
+    expect(invokeRustOnlyIfCurrent({ activeHandoffToken: 2, handoffToken: 1, isPending: false })).toBe(0);
+  });
+
+  it("blocks Rust start when cancellation happens after prepared-plan resolution", () => {
+    expect(invokeRustOnlyIfCurrent({ activeHandoffToken: 2, handoffToken: 1, isPending: false })).toBe(0);
+  });
+
+  it("replacement during preparation sends to neither old nor new HWND", () => {
+    const oldWindowInvocations = invokeRustOnlyIfCurrent({ activeHandoffToken: 2, handoffToken: 1, isPending: false });
+    const newWindowInvocations = invokeRustOnlyIfCurrent({ activeHandoffToken: 2, handoffToken: 1, isPending: false });
+    expect([oldWindowInvocations, newWindowInvocations]).toEqual([0, 0]);
+  });
+
+  it("allows only the still-current pending handoff", () => {
+    expect(invokeRustOnlyIfCurrent({ activeHandoffToken: 4, handoffToken: 4, isPending: true })).toBe(1);
+  });
+});
 
 function createLocalSong(id: string): LocalLibrarySong {
   return {

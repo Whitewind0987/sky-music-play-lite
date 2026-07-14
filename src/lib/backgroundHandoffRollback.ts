@@ -1,6 +1,18 @@
 import type { LibrarySong, LibrarySongId } from "../types/library";
 import { resolveActivePlaybackSongIndex } from "./activePlaybackSong";
 
+export function isCurrentBackgroundHandoff({
+  activeHandoffToken,
+  handoffToken,
+  isPending,
+}: {
+  activeHandoffToken: number;
+  handoffToken: number;
+  isPending: boolean;
+}): boolean {
+  return isPending && activeHandoffToken === handoffToken;
+}
+
 export function resolveLibrarySongIndexById(
   librarySongs: LibrarySong[],
   songId: LibrarySongId | null,
