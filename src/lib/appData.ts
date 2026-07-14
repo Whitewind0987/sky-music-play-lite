@@ -576,6 +576,11 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     return null;
   }
 
+  const noteGroupMaxHoldMs = sanitizeNoteGroupMaxHolds(
+    rawMetadata.noteGroupMaxHoldMs,
+    rawMetadata.noteGroupCount,
+  );
+
   const rawSustainTailMs = rawMetadata.sustainTailMs;
 
   if (
@@ -597,11 +602,37 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
     noteCount: rawMetadata.noteCount,
     noteGroupCount: rawMetadata.noteGroupCount,
     ...(noteGroupDelaysMs === null ? {} : { noteGroupDelaysMs }),
+    ...(noteGroupMaxHoldMs === null ? {} : { noteGroupMaxHoldMs }),
     pitchLevel: rawMetadata.pitchLevel as number,
     ...(typeof rawSustainTailMs === "number" && rawSustainTailMs > 0
       ? { sustainTailMs: rawSustainTailMs }
       : {}),
   };
+}
+
+function sanitizeNoteGroupMaxHolds(
+  rawHolds: unknown,
+  noteGroupCount: number,
+) {
+  if (rawHolds === undefined) {
+    return null;
+  }
+
+  if (
+    !Array.isArray(rawHolds) ||
+    rawHolds.length !== noteGroupCount ||
+    !rawHolds.every(
+      (holdMs) =>
+        typeof holdMs === "number" &&
+        Number.isFinite(holdMs) &&
+        holdMs >= 0 &&
+        holdMs <= 60000,
+    )
+  ) {
+    return null;
+  }
+
+  return [...rawHolds] as number[];
 }
 
 function sanitizeNoteGroupDelays(

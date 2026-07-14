@@ -389,6 +389,66 @@ describe("sanitizePersistedAppData sustainTailMs", () => {
   });
 });
 
+describe("sanitizePersistedAppData noteGroupMaxHoldMs", () => {
+  function sanitizeWithHolds(noteGroupMaxHoldMs: unknown) {
+    const librarySong = createLocalLibrarySong("local-holds");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            ...librarySong,
+            metadata: { ...librarySong.metadata, noteGroupMaxHoldMs },
+          },
+        ],
+      },
+    });
+  }
+
+  it("keeps a complete valid aligned hold array", () => {
+    const result = sanitizeWithHolds([0, 60000]);
+
+    expect(result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs).toEqual([
+      0,
+      60000,
+    ]);
+  });
+
+  it.each([
+    [[0]],
+    [[0, -1]],
+    [[0, 60001]],
+    [[0, Number.NaN]],
+    [[0, Number.POSITIVE_INFINITY]],
+    ["bad"],
+  ])("drops malformed hold metadata without dropping the song: %p", (holds) => {
+    const result = sanitizeWithHolds(holds);
+
+    expect(result?.library.librarySongs).toHaveLength(1);
+    expect(
+      result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs,
+    ).toBeUndefined();
+  });
+
+  it("keeps legacy metadata that has no hold array", () => {
+    const librarySong = createLocalLibrarySong("local-legacy-holds");
+    const { noteGroupMaxHoldMs: _removed, ...legacyMetadata } =
+      librarySong.metadata;
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [{ ...librarySong, metadata: legacyMetadata }],
+      },
+    });
+
+    expect(result?.library.librarySongs).toHaveLength(1);
+    expect(
+      result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs,
+    ).toBeUndefined();
+  });
+});
+
 describe("sanitizePersistedAppData legacy v1 migration", () => {
   it("migrates v1 importedSongs to current librarySongs", () => {
     const result = sanitizePersistedAppData({

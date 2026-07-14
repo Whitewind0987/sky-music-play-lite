@@ -413,7 +413,9 @@ describe("schedulePreviewPlayback", () => {
       totalMs: 1000,
     });
 
-    vi.advanceTimersByTime(0);
+    vi.advanceTimersByTime(299);
+    expect(onFinish).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
@@ -519,6 +521,34 @@ describe("schedulePreviewPlayback", () => {
       percent: 100,
       totalMs: 1000,
     });
+    expect(onFinish).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it("recalculates an early hold safely after an option update", () => {
+    const onFinish = vi.fn();
+    const onProgress = vi.fn();
+    const controller = schedulePreviewPlayback(
+      [
+        { time: 0, key: "Key0", duration: 1000 },
+        { time: 500, key: "Key1" },
+      ],
+      vi.fn(),
+      onFinish,
+      { noteIntervalDelayMs: 0, onProgress, playbackSpeed: 1 },
+    );
+
+    vi.advanceTimersByTime(0);
+    vi.advanceTimersByTime(100);
+    controller.updateOptions({ noteIntervalDelayMs: -200, playbackSpeed: 1 });
+
+    expect(onProgress.mock.calls[onProgress.mock.calls.length - 1]?.[0].totalMs).toBe(
+      1000,
+    );
+    vi.advanceTimersByTime(939);
+    expect(onFinish).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 });

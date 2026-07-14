@@ -4,6 +4,7 @@ import type {
 } from "../types/library";
 import { formatText } from "./formatText";
 import { getSongFingerprint } from "./libraryCollections";
+import { toCanonicalManagedSong } from "./scoreSerialization";
 import type {
   ImportedScoreReconcileEntry,
   ImportedScoreReconcileReport,
@@ -50,7 +51,7 @@ export function createImportedScoreReconcileEntries(
     ImportedScoreReconcileEntry[]
   >((entries, [songId, song]) => {
     if (localSongIds.has(songId)) {
-      entries.push({ song, songId });
+      entries.push({ song: toCanonicalManagedSong(song), songId });
     }
 
     return entries;

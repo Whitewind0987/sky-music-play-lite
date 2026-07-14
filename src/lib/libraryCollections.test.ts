@@ -64,6 +64,7 @@ describe("createLocalSongMetadata", () => {
       noteCount: 3,
       noteGroupCount: 2,
       noteGroupDelaysMs: [0, 500],
+      noteGroupMaxHoldMs: [0, 0],
       pitchLevel: 0,
     });
   });
@@ -91,6 +92,7 @@ describe("scores-v2 sustain metadata", () => {
 
     expect(metadata.sustainTailMs).toBe(4000);
     expect(metadata.lastNoteTimeMs).toBe(1000);
+    expect(metadata.noteGroupMaxHoldMs).toEqual([5000, 500]);
   });
 
   it("counts tails from notes at the last group", () => {
@@ -129,6 +131,44 @@ describe("scores-v2 sustain metadata", () => {
     );
 
     expect(getLibrarySongRawDurationMs(librarySong)).toBe(3500);
+  });
+
+  it("includes an early long note in raw duration", () => {
+    const librarySong = createLibrarySong(
+      createSustainSong([
+        { time: 0, key: "Key0", duration: 5000 },
+        { time: 1000, key: "Key1" },
+      ]),
+    );
+
+    expect(getLibrarySongRawDurationMs(librarySong)).toBe(5000);
+  });
+
+  it("keeps loaded and indexed built-in v2 durations equal", () => {
+    const song = createSustainSong([
+      { time: 0, key: "Key0", duration: 5000 },
+      { time: 1000, key: "Key1" },
+    ]);
+
+    expect(
+      getLibrarySongRawDurationMs({
+        builtInDurationMs: 5000,
+        id: "builtin:test:0",
+        importedAt: 0,
+        isBuiltInLoaded: false,
+        song,
+        source: "built-in",
+      }),
+    ).toBe(5000);
+    expect(
+      getLibrarySongRawDurationMs({
+        id: "builtin:test:0",
+        importedAt: 0,
+        isBuiltInLoaded: true,
+        song,
+        source: "built-in",
+      }),
+    ).toBe(5000);
   });
 });
 

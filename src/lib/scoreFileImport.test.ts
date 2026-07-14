@@ -372,6 +372,15 @@ describe("scores-v2 duration support", () => {
 
     expect(songs[0]?.songNotes[0]?.duration).toBeUndefined();
     expect(songs[0]?.songNotes[1]?.duration).toBe(1500);
+    expect(songs[0]?.formatVersion).toBe(2);
+  });
+
+  it("preserves an explicit v2 marker even without durations", () => {
+    const [song] = parseScoreFileContent(
+      JSON.stringify([createV2Song({}, [{ time: 0, key: "Key0" }])]),
+    );
+
+    expect(song?.formatVersion).toBe(2);
   });
 
   it("ignores duration on v1 songs", () => {
@@ -392,6 +401,7 @@ describe("scores-v2 duration support", () => {
     );
 
     expect(songs[0]?.songNotes[1]?.duration).toBeUndefined();
+    expect(songs[0]?.formatVersion).toBe(1);
   });
 
   it.each([[3], ["2"], [true], [null], [2.5]])(
@@ -477,7 +487,6 @@ describe("scores-v2 duration support", () => {
     );
 
     expect(song).not.toBeNull();
-    // 生成器 durationMs 公式:分组增量和(1000) + 延音尾巴(5000 − 1000)
     expect(1000 + getSustainTailMs(song?.songNotes ?? [])).toBe(5000);
   });
 });

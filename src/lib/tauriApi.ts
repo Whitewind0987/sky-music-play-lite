@@ -8,6 +8,7 @@ import type {
 } from "../types/experimentalInput";
 import type { LibrarySongId } from "../types/library";
 import type { Song } from "../types/score";
+import { toCanonicalManagedSong } from "./scoreSerialization";
 
 export type AppRuntimeInfo = {
   productName: string;
@@ -161,7 +162,10 @@ export function saveImportedScoreSong(
   songId: LibrarySongId,
   song: Song,
 ): Promise<string> {
-  return invoke<string>("save_imported_score_song", { songId, song });
+  return invoke<string>("save_imported_score_song", {
+    songId,
+    song: toCanonicalManagedSong(song),
+  });
 }
 
 export function readImportedScoreSong(songId: LibrarySongId): Promise<Song> {

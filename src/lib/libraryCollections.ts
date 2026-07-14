@@ -7,6 +7,9 @@ import type {
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
+import {
+  groupNotesByFiniteSourceTime,
+} from "./scoreTiming";
 
 let generatedIdCounter = 0;
 
@@ -25,15 +28,13 @@ export function createLibrarySong(
 }
 
 export function createLocalSongMetadata(song: Song): LocalSongMetadata {
-  const noteGroupTimes = Array.from(
-    new Set(
-      song.songNotes
-        .map((note) => note.time)
-        .filter((time) => Number.isFinite(time)),
-    ),
-  ).sort((left, right) => left - right);
+  const noteGroups = groupNotesByFiniteSourceTime(song.songNotes);
+  const noteGroupTimes = noteGroups.map((group) => group.sourceTimeMs);
   const noteGroupDelaysMs = noteGroupTimes.map((time, index) =>
     index === 0 ? Math.max(0, time) : Math.max(0, time - noteGroupTimes[index - 1]),
+  );
+  const noteGroupMaxHoldMs = noteGroups.map(
+    (group) => group.maxExplicitDurationMs,
   );
   const sustainTailMs = getSustainTailMs(song.songNotes);
 
@@ -51,6 +52,7 @@ export function createLocalSongMetadata(song: Song): LocalSongMetadata {
     noteCount: song.songNotes.length,
     noteGroupCount: noteGroupTimes.length,
     noteGroupDelaysMs,
+    noteGroupMaxHoldMs,
     pitchLevel: song.pitchLevel,
   };
 }
@@ -146,11 +148,18 @@ export function getLibrarySongRawDurationMs(librarySong: LibrarySong) {
     return librarySong.builtInDurationMs;
   }
 
-  return librarySong.song.songNotes.reduce(
-    (lastTimeMs, note) =>
-      Number.isFinite(note.time) ? Math.max(lastTimeMs, note.time, 0) : lastTimeMs,
-    0,
-  );
+  return librarySong.song.songNotes.reduce((durationMs, note) => {
+    if (!Number.isFinite(note.time)) {
+      return durationMs;
+    }
+
+    const noteEndMs =
+      typeof note.duration === "number" && Number.isFinite(note.duration)
+        ? note.time + note.duration
+        : note.time;
+
+    return Math.max(durationMs, note.time, noteEndMs, 0);
+  }, 0);
 }
 
 export function findSongIndexById(

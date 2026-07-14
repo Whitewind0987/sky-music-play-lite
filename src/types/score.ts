@@ -5,6 +5,7 @@ export type Note = {
 };
 
 export type Song = {
+  formatVersion?: 1 | 2;
   name: string;
   bpm: number;
   bitsPerPage: number;

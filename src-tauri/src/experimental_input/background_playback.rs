@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 const BACKGROUND_PLAYBACK_EVENT: &str = "background-playback-event";
 const FOREGROUND_PLAYBACK_EVENT: &str = "foreground-playback-event";
 const NOTE_HIGHLIGHT_MS: f64 = 300.0;
+const MAX_EXPLICIT_HOLD_MS: f64 = 60000.0;
 const PROGRESS_EVENT_INTERVAL_MS: f64 = 150.0;
 const MAX_PREPARED_PLAYBACK_PLANS: usize = 32;
 
@@ -828,7 +829,7 @@ impl BackgroundPlaybackWorker {
 
                 self.emit_progress();
 
-                if self.position_ms >= self.timeline.total_ms {
+                if self.position_ms >= self.timeline.finish_ms {
                     self.finish();
                     return false;
                 }
@@ -939,12 +940,8 @@ impl BackgroundPlaybackWorker {
             self.scheduled_key_ups.push(ScheduledKeyUp {
                 deadline_at: key_up_deadline_from_actual_send(
                     Instant::now(),
-                    effective_hold_ms(
-                        key.hold_ms,
-                        self.options.playback_speed,
-                        self.key_hold_ms,
-                    ),
-                ),
+                    effective_hold_ms(key.hold_ms, self.options.playback_speed, self.key_hold_ms),
+                )?,
                 generation,
                 key: key.key.clone(),
             });
@@ -1161,10 +1158,11 @@ fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<Timel
 
         for key in &event.keys {
             if let Some(hold_ms) = key.hold_ms {
-                if !hold_ms.is_finite() || hold_ms <= 0.0 {
+                if !hold_ms.is_finite() || hold_ms <= 0.0 || hold_ms > MAX_EXPLICIT_HOLD_MS {
                     return Err(
-                        "Background playback key hold duration must be a positive number."
-                            .to_string(),
+                        format!(
+                            "Background playback key hold duration must be greater than zero and at most {MAX_EXPLICIT_HOLD_MS}ms."
+                        ),
                     );
                 }
             }
@@ -1226,6 +1224,10 @@ fn build_timeline_from_groups(
 ) -> Result<PlaybackTimeline, String> {
     normalize_playback_speed(options.playback_speed)?;
 
+    if !options.note_interval_delay_ms.is_finite() {
+        return Err("Background playback note interval delay must be finite.".to_string());
+    }
+
     if groups.is_empty() {
         return Err("Background playback timeline must contain at least one group.".to_string());
     }
@@ -1233,7 +1235,7 @@ fn build_timeline_from_groups(
     let mut adjusted_groups = Vec::with_capacity(groups.len());
     let mut adjusted_start_ms = 0.0;
     let mut previous_source_time_ms = 0.0;
-    let mut max_source_end_ms = 0.0_f64;
+    let mut max_explicit_hold_end_ms = 0.0_f64;
 
     for (index, group) in groups.iter().enumerate() {
         if index == 0 {
@@ -1252,7 +1254,13 @@ fn build_timeline_from_groups(
             .iter()
             .filter_map(|key| key.hold_ms)
             .fold(0.0_f64, f64::max);
-        max_source_end_ms = max_source_end_ms.max(group.source_time_ms + group_max_hold_ms);
+        let explicit_hold_end_ms = adjusted_start_ms + group_max_hold_ms / options.playback_speed;
+
+        if !adjusted_start_ms.is_finite() || !explicit_hold_end_ms.is_finite() {
+            return Err("Background playback adjusted timing is not representable.".to_string());
+        }
+
+        max_explicit_hold_end_ms = max_explicit_hold_end_ms.max(explicit_hold_end_ms);
 
         adjusted_groups.push(TimelineGroup {
             adjusted_start_ms,
@@ -1265,14 +1273,16 @@ fn build_timeline_from_groups(
         .last()
         .map(|group| group.adjusted_start_ms)
         .unwrap_or(0.0);
-    let last_source_time_ms = groups
-        .last()
-        .map(|group| group.source_time_ms)
-        .unwrap_or(0.0);
-    let tail_source_ms = (max_source_end_ms - last_source_time_ms).max(0.0);
-    let total_ms = last_adjusted_start_ms + tail_source_ms / options.playback_speed;
-    let finish_ms = last_adjusted_start_ms
-        + tail_source_ms.max(NOTE_HIGHLIGHT_MS) / options.playback_speed;
+    let total_ms = last_adjusted_start_ms.max(max_explicit_hold_end_ms);
+    let finish_ms =
+        total_ms.max(last_adjusted_start_ms + NOTE_HIGHLIGHT_MS / options.playback_speed);
+
+    if !total_ms.is_finite() || !finish_ms.is_finite() {
+        return Err("Background playback total timing is not representable.".to_string());
+    }
+    Duration::try_from_secs_f64(finish_ms / 1000.0).map_err(|_| {
+        "Background playback finish timing is not representable as a duration.".to_string()
+    })?;
 
     Ok(PlaybackTimeline {
         finish_ms,
@@ -1366,8 +1376,18 @@ fn clamp_playback_position(position_ms: f64, finish_ms: f64) -> f64 {
     position_ms.max(0.0).min(finish_ms.max(0.0))
 }
 
-fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Instant {
-    sent_at + Duration::from_secs_f64(key_hold_ms.max(0.0) / 1000.0)
+fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Result<Instant, String> {
+    if !key_hold_ms.is_finite() || key_hold_ms <= 0.0 {
+        return Err("Effective background playback key hold duration is invalid.".to_string());
+    }
+
+    let duration = Duration::try_from_secs_f64(key_hold_ms / 1000.0).map_err(|_| {
+        "Effective background playback key hold duration is not representable.".to_string()
+    })?;
+
+    sent_at.checked_add(duration).ok_or_else(|| {
+        "Effective background playback key hold deadline is not representable.".to_string()
+    })
 }
 
 fn effective_hold_ms(hold_ms: Option<f64>, playback_speed: f64, key_hold_ms: f64) -> f64 {
@@ -1649,6 +1669,72 @@ mod tests {
     }
 
     #[test]
+    fn explicit_hold_limit_is_inclusive() {
+        assert!(build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![held_key("y", MAX_EXPLICIT_HOLD_MS)],
+        }])
+        .is_ok());
+        assert!(build_source_groups(&[BackgroundPlaybackPlanEvent {
+            time_ms: 0.0,
+            keys: vec![held_key("y", MAX_EXPLICIT_HOLD_MS + 1.0)],
+        }])
+        .is_err());
+    }
+
+    #[test]
+    fn negative_interval_keeps_early_long_hold_end() {
+        let timeline = build_timeline(
+            &[
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 0.0,
+                    keys: vec![held_key("y", 1000.0)],
+                },
+                BackgroundPlaybackPlanEvent {
+                    time_ms: 500.0,
+                    keys: vec![planned_key("u")],
+                },
+            ],
+            &options(-200.0, 1.0),
+        )
+        .unwrap();
+
+        assert_eq!(timeline.groups[1].adjusted_start_ms, 300.0);
+        assert_eq!(timeline.total_ms, 1000.0);
+        assert_eq!(timeline.finish_ms, 1000.0);
+    }
+
+    #[test]
+    fn positive_interval_and_speed_use_adjusted_group_hold_ends() {
+        for (speed, expected_total) in [(0.5, 2000.0), (1.0, 1000.0), (2.0, 500.0)] {
+            let timeline = build_timeline(
+                &[
+                    BackgroundPlaybackPlanEvent {
+                        time_ms: 0.0,
+                        keys: vec![held_key("y", 1000.0)],
+                    },
+                    BackgroundPlaybackPlanEvent {
+                        time_ms: 500.0,
+                        keys: vec![planned_key("u")],
+                    },
+                ],
+                &options(200.0, speed),
+            )
+            .unwrap();
+
+            assert_eq!(timeline.total_ms, expected_total);
+            assert!(timeline.finish_ms >= timeline.total_ms);
+        }
+    }
+
+    #[test]
+    fn effective_hold_deadline_conversion_fails_without_panicking() {
+        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::NAN).is_err());
+        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::INFINITY).is_err());
+        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::MAX).is_err());
+    }
+
+    #[test]
     fn timeline_total_includes_scaled_sustain_tail() {
         let timeline = build_timeline(
             &[
@@ -1736,7 +1822,7 @@ mod tests {
     fn late_key_down_still_gets_full_hold_duration() {
         let planned_at = Instant::now();
         let actual_sent_at = planned_at + Duration::from_millis(75);
-        let deadline = key_up_deadline_from_actual_send(actual_sent_at, 30.0);
+        let deadline = key_up_deadline_from_actual_send(actual_sent_at, 30.0).unwrap();
 
         assert_eq!(
             deadline.duration_since(actual_sent_at),

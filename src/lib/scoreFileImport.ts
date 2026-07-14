@@ -135,6 +135,7 @@ function validateSong(value: unknown, songIndex: number): Song {
   );
 
   return {
+    ...(value.formatVersion === undefined ? {} : { formatVersion }),
     name,
     bpm,
     bitsPerPage,

@@ -93,40 +93,16 @@ function isValidObjectNotes(songNotes, formatVersion) {
   );
 }
 
-function getDurationMs(songNotes) {
-  const groupedTimes = Array.from(
-    new Set(songNotes.map((note) => readFlexibleNumber(note.time, 0))),
-  ).sort((left, right) => left - right);
+function getRawDurationMs(songNotes, formatVersion) {
+  return songNotes.reduce((durationMs, note) => {
+    const sourceTimeMs = readFlexibleNumber(note.time, 0);
+    const noteEndMs =
+      formatVersion === 2 && typeof note.duration === "number"
+        ? sourceTimeMs + note.duration
+        : sourceTimeMs;
 
-  return groupedTimes.reduce((durationMs, groupTime, index) => {
-    if (index === 0) {
-      return durationMs + Math.max(0, groupTime);
-    }
-
-    const previousGroupTime = groupedTimes[index - 1];
-
-    return durationMs + Math.max(0, groupTime - previousGroupTime);
+    return Math.max(durationMs, sourceTimeMs, noteEndMs, 0);
   }, 0);
-}
-
-function getSustainTailMs(songNotes, formatVersion) {
-  if (formatVersion !== 2) {
-    return 0;
-  }
-
-  const lastGroupTimeMs = songNotes.reduce(
-    (lastTime, note) => Math.max(lastTime, readFlexibleNumber(note.time, 0)),
-    0,
-  );
-  const maxNoteEndMs = songNotes.reduce((maxEnd, note) => {
-    if (typeof note.duration !== "number") {
-      return maxEnd;
-    }
-
-    return Math.max(maxEnd, readFlexibleNumber(note.time, 0) + note.duration);
-  }, 0);
-
-  return Math.max(0, maxNoteEndMs - lastGroupTimeMs);
 }
 
 function createEntry({ fileName, song, songIndex }) {
@@ -162,9 +138,7 @@ function createEntry({ fileName, song, songIndex }) {
     pitchLevel,
     isComposed,
     noteCount: song.songNotes.length,
-    durationMs:
-      getDurationMs(song.songNotes) +
-      getSustainTailMs(song.songNotes, formatVersion),
+    durationMs: getRawDurationMs(song.songNotes, formatVersion),
   };
 }
 
