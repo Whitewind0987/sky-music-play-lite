@@ -3,6 +3,7 @@ export type CandidateWindow = {
   title: string;
   class_name: string;
   process_name: string | null;
+  process_id: number | null;
 };
 
 export type ExperimentalInputMode = "target-window-message" | "foreground";
