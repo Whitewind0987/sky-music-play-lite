@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { CandidateWindow } from "../types/experimentalInput";
 import {
   connectionLifecycleKind,
+  getInvalidTargetLifecycleDecision,
   isSkySnapshot,
   reconcileSkyWindow,
+  resolveUnboundSkyMonitorStatus,
   shouldLogLifecycleTransition,
+  shouldApplyRestoredTargetSnapshot,
+  shouldLogReplacementPlaybackStop,
+  shouldPreserveManuallyDetectedSky,
+  shouldPreserveReconnectOwnership,
   syncTargetSelectionRefs,
   upsertMonitoredSky,
 } from "./skyWindowLifecycle";
@@ -161,5 +167,95 @@ describe("lifecycle support helpers", () => {
   it("does not duplicate logs for an identical lifecycle revision", () => {
     expect(shouldLogLifecycleTransition(7, 7)).toBe(false);
     expect(shouldLogLifecycleTransition(8, 7)).toBe(true);
+  });
+
+  it("rejects a stale restored-target result after manual selection or lifecycle rebind", () => {
+    expect(shouldApplyRestoredTargetSnapshot("manual-B", "restored-A")).toBe(false);
+    expect(shouldApplyRestoredTargetSnapshot("rebound-Sky", "restored-A")).toBe(false);
+    expect(shouldApplyRestoredTargetSnapshot("restored-A", "restored-A")).toBe(true);
+  });
+
+  it("invalid selected Sky enters reconnecting and emits each transition log once", () => {
+    const first = getInvalidTargetLifecycleDecision({
+      candidateWindows: [sky("old")],
+      disconnectAlreadyLogged: false,
+      hadTargetPlayback: true,
+      playbackStopAlreadyLogged: false,
+      selectedWindowHwnd: "old",
+      selectedWindowSnapshot: undefined,
+    });
+    const repeated = getInvalidTargetLifecycleDecision({
+      candidateWindows: [sky("old")],
+      disconnectAlreadyLogged: true,
+      hadTargetPlayback: true,
+      playbackStopAlreadyLogged: true,
+      selectedWindowHwnd: "old",
+      selectedWindowSnapshot: undefined,
+    });
+    expect(first).toEqual({ enterReconnecting: true, logDisconnect: true, logPlaybackStop: true });
+    expect(repeated).toEqual({ enterReconnecting: true, logDisconnect: false, logPlaybackStop: false });
+  });
+
+  it("invalid manual non-Sky target does not enter Sky reconnect mode", () => {
+    expect(getInvalidTargetLifecycleDecision({
+      candidateWindows: [other],
+      disconnectAlreadyLogged: false,
+      hadTargetPlayback: true,
+      playbackStopAlreadyLogged: false,
+      selectedWindowHwnd: other.hwnd,
+      selectedWindowSnapshot: undefined,
+    })).toEqual({ enterReconnecting: false, logDisconnect: false, logPlaybackStop: false });
+  });
+
+  it("direct replacement logs playback stop only while playback is active", () => {
+    expect(shouldLogReplacementPlaybackStop({ hadTargetPlayback: true, playbackStopAlreadyLogged: false, stopTargetPlayback: true })).toBe(true);
+    expect(shouldLogReplacementPlaybackStop({ hadTargetPlayback: false, playbackStopAlreadyLogged: false, stopTargetPlayback: true })).toBe(false);
+    expect(shouldLogReplacementPlaybackStop({ hadTargetPlayback: true, playbackStopAlreadyLogged: true, stopTargetPlayback: true })).toBe(false);
+  });
+
+  it("equal-revision retained null cannot undo manual detection", () => {
+    expect(shouldPreserveManuallyDetectedSky({
+      manualDetectionRevision: 5,
+      monitor: { revision: 5, window: null },
+    })).toBe(true);
+    expect(shouldPreserveManuallyDetectedSky({
+      manualDetectionRevision: 5,
+      monitor: { revision: 5, window: sky("older-retained") },
+    })).toBe(true);
+  });
+
+  it("a newer real unavailable revision clears manually detected Sky", () => {
+    const monitor = { revision: 6, window: null };
+    expect(shouldPreserveManuallyDetectedSky({ manualDetectionRevision: 5, monitor })).toBe(false);
+    expect(reconcileSkyWindow({
+      ...base,
+      appliedRevision: 5,
+      candidateWindows: [sky("manual")],
+      selectedWindowHwnd: "manual",
+      selectedWindowSnapshot: { className: "TgcMainWindow", processName: "Sky.exe" },
+      monitor,
+    }).clear).toBe(true);
+  });
+
+  it("invalid-HWND reconnect is classified as reconnected when Sky returns", () => {
+    expect(connectionLifecycleKind(true)).toBe("reconnected");
+  });
+
+  it("later unavailable snapshots preserve reconnecting instead of downgrading to waiting", () => {
+    expect(resolveUnboundSkyMonitorStatus({
+      awaitingReconnect: true,
+      experimentalInputEnabled: true,
+      experimentalInputMode: "target-window-message",
+    })).toBe("reconnecting");
+    expect(shouldPreserveReconnectOwnership({
+      awaitingReconnect: true,
+      reconnectRevision: 7,
+      snapshotRevision: 7,
+    })).toBe(true);
+    expect(shouldPreserveReconnectOwnership({
+      awaitingReconnect: true,
+      reconnectRevision: 7,
+      snapshotRevision: 8,
+    })).toBe(false);
   });
 });

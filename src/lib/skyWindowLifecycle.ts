@@ -46,6 +46,117 @@ export function connectionLifecycleKind(
   return awaitingReconnect ? "reconnected" : "connected";
 }
 
+export function shouldApplyRestoredTargetSnapshot(
+  currentHwnd: string | null,
+  restoredHwnd: string,
+): boolean {
+  return currentHwnd === restoredHwnd;
+}
+
+export function isSelectedSkyTarget({
+  candidateWindows,
+  selectedWindowHwnd,
+  selectedWindowSnapshot,
+}: {
+  candidateWindows: CandidateWindow[];
+  selectedWindowHwnd: string | null;
+  selectedWindowSnapshot: WindowSnapshot;
+}): boolean {
+  if (selectedWindowHwnd === null) return false;
+  return (
+    isSkySnapshot(selectedWindowSnapshot) ||
+    isSkyWindow(
+      candidateWindows.find((window) => window.hwnd === selectedWindowHwnd),
+    )
+  );
+}
+
+export function shouldPreserveManuallyDetectedSky({
+  manualDetectionRevision,
+  monitor,
+}: {
+  manualDetectionRevision: number | null;
+  monitor: SkyWindowMonitorSnapshot;
+}): boolean {
+  return (
+    manualDetectionRevision !== null &&
+    monitor.revision <= manualDetectionRevision
+  );
+}
+
+export function shouldPreserveReconnectOwnership({
+  awaitingReconnect,
+  reconnectRevision,
+  snapshotRevision,
+}: {
+  awaitingReconnect: boolean;
+  reconnectRevision: number | null;
+  snapshotRevision: number;
+}): boolean {
+  return (
+    awaitingReconnect &&
+    reconnectRevision !== null &&
+    snapshotRevision <= reconnectRevision
+  );
+}
+
+export function getInvalidTargetLifecycleDecision({
+  candidateWindows,
+  disconnectAlreadyLogged,
+  hadTargetPlayback,
+  playbackStopAlreadyLogged,
+  selectedWindowHwnd,
+  selectedWindowSnapshot,
+}: {
+  candidateWindows: CandidateWindow[];
+  disconnectAlreadyLogged: boolean;
+  hadTargetPlayback: boolean;
+  playbackStopAlreadyLogged: boolean;
+  selectedWindowHwnd: string | null;
+  selectedWindowSnapshot: WindowSnapshot;
+}) {
+  const skyTarget = isSelectedSkyTarget({
+    candidateWindows,
+    selectedWindowHwnd,
+    selectedWindowSnapshot,
+  });
+  return {
+    enterReconnecting: skyTarget,
+    logDisconnect: skyTarget && !disconnectAlreadyLogged,
+    logPlaybackStop:
+      skyTarget && hadTargetPlayback && !playbackStopAlreadyLogged,
+  };
+}
+
+export function shouldLogReplacementPlaybackStop({
+  hadTargetPlayback,
+  playbackStopAlreadyLogged,
+  stopTargetPlayback,
+}: {
+  hadTargetPlayback: boolean;
+  playbackStopAlreadyLogged: boolean;
+  stopTargetPlayback: boolean;
+}): boolean {
+  return (
+    stopTargetPlayback && hadTargetPlayback && !playbackStopAlreadyLogged
+  );
+}
+
+export function resolveUnboundSkyMonitorStatus({
+  awaitingReconnect,
+  experimentalInputEnabled,
+  experimentalInputMode,
+}: {
+  awaitingReconnect: boolean;
+  experimentalInputEnabled: boolean;
+  experimentalInputMode: ExperimentalInputMode;
+}): "inactive" | "waiting" | "reconnecting" {
+  if (awaitingReconnect) return "reconnecting";
+  return experimentalInputEnabled && experimentalInputMode === "target-window-message"
+    ? "waiting"
+    : "inactive";
+}
+
 export function isSkyWindow(window: Pick<CandidateWindow, "class_name" | "process_name"> | null | undefined): boolean {
   return window?.class_name === "TgcMainWindow" && window.process_name?.toLowerCase() === "sky.exe";
 }
