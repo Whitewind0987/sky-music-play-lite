@@ -70,6 +70,7 @@ Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
 Var InstalledVersion
+Var InPlaceUpgradeMode
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -234,6 +235,7 @@ Function PageReinstall
   ${If} $WixMode <> 1
   ${AndIf} $InstalledVersion != ""
   ${AndIf} $R0 = 1
+    StrCpy $InPlaceUpgradeMode 1
     Abort
   ${EndIf}
 
@@ -390,7 +392,7 @@ Function PageLeaveReinstall
 FunctionEnd
 
 ; 5. Choose install directory page
-!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipDirectoryIfPassiveOrInPlaceUpgrade
 !insertmacro MUI_PAGE_DIRECTORY
 
 ; 6. Start menu shortcut page
@@ -911,6 +913,12 @@ FunctionEnd
 
 Function SkipIfPassive
   ${IfThen} $PassiveMode = 1  ${|} Abort ${|}
+FunctionEnd
+Function SkipDirectoryIfPassiveOrInPlaceUpgrade
+  ${If} $PassiveMode = 1
+  ${OrIf} $InPlaceUpgradeMode = 1
+    Abort
+  ${EndIf}
 FunctionEnd
 Function un.SkipIfPassive
   ${IfThen} $PassiveMode = 1  ${|} Abort ${|}
