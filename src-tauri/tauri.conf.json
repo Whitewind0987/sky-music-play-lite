@@ -36,6 +36,9 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "nsis": {
+        "template": "./windows/installer.nsi"
+      },
       "webviewInstallMode": {
         "type": "offlineInstaller"
       }
