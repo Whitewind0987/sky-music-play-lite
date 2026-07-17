@@ -3,6 +3,7 @@ import {
   DEFAULT_V1_TO_V2_MAX_DURATION_MS,
   DEFAULT_V1_TO_V2_OVERLAP_MS,
   DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
+  getV1ToV2ConversionValidationError,
   type V1ToV2ConversionOptions,
   type V1ToV2ConversionValidationError,
 } from "./v1ToV2Conversion";
@@ -211,6 +212,17 @@ export function formatValidDurationMillisecondsAsSeconds(
 export function getReadableSustainTimeValues(
   values: UpgradeScoreToV2FormValues,
 ): { maxSeconds: string; restSeconds: string } | null {
+  const options = buildV1ToV2OptionsFromDialogValues(values);
+  const validationError = getV1ToV2ConversionValidationError(
+    options.name.trim().length === 0
+      ? { ...options, name: "readable-summary" }
+      : options,
+  );
+
+  if (validationError !== null) {
+    return null;
+  }
+
   const maxSeconds = formatValidDurationMillisecondsAsSeconds(
     values.maxDurationMs,
   );

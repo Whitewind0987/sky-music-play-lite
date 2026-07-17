@@ -215,18 +215,56 @@ describe("V1 to V2 dialog model", () => {
     expect(formatMillisecondsAsSeconds(value)).toBe(expected);
   });
 
-  it("returns a neutral-summary signal for invalid custom values", () => {
-    const state = createInitialUpgradeScoreToV2FormState("Generated");
+  it.each([
+    ["invalid overlap", { overlapMs: "501" }],
+    ["invalid rest-gap threshold", { restGapThresholdMs: "24" }],
+    ["invalid maximum duration", { maxDurationMs: "24" }],
+    ["invalid final-group duration", { finalGroupDurationMs: "24" }],
+    [
+      "final duration above maximum",
+      { maxDurationMs: "1000", finalGroupDurationMs: "1500" },
+    ],
+  ])("returns a neutral-summary signal for %s", (_, overrides) => {
+    const values =
+      createInitialUpgradeScoreToV2FormState("Generated").values;
+
+    expect(
+      getReadableSustainTimeValues({ ...values, ...overrides }),
+    ).toBeNull();
+  });
+
+  it("ignores an empty score name when numeric values are valid", () => {
+    const values =
+      createInitialUpgradeScoreToV2FormState("Generated").values;
+
+    expect(getReadableSustainTimeValues({ ...values, name: "" })).toEqual({
+      maxSeconds: "2",
+      restSeconds: "2",
+    });
+    expect(
+      getReadableSustainTimeValues({
+        ...values,
+        name: "",
+        overlapMs: "501",
+      }),
+    ).toBeNull();
+  });
+
+  it("formats valid custom values after complete numeric validation", () => {
+    const values =
+      createInitialUpgradeScoreToV2FormState("Generated").values;
 
     expect(
       getReadableSustainTimeValues({
-        ...state.values,
-        restGapThresholdMs: "",
+        ...values,
+        overlapMs: "60",
+        restGapThresholdMs: "2500",
+        maxDurationMs: "3500",
+        finalGroupDurationMs: "750",
       }),
-    ).toBeNull();
-    expect(getReadableSustainTimeValues(state.values)).toEqual({
-      maxSeconds: "2",
-      restSeconds: "2",
+    ).toEqual({
+      maxSeconds: "3.5",
+      restSeconds: "2.5",
     });
   });
 });
