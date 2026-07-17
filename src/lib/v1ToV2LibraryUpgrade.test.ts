@@ -6,9 +6,11 @@ import type {
 import type { Song } from "../types/score";
 import { createLocalSongMetadata } from "./libraryCollections";
 import {
+  createSustainMelodyLocalLibraryCopy,
   createV2LocalLibraryCopy,
   getCreatedV2LibraryCopyState,
 } from "./v1ToV2LibraryUpgrade";
+import { buildSustainMelodyGenerationPlan } from "./sustainMelodyGeneration";
 
 function createV1Song(name = "Source"): Song {
   return {
@@ -45,7 +47,6 @@ function createBuiltInSong(song: Song): BuiltInLibrarySong {
 }
 
 const conversionOptions = {
-  allowChordSustainInProtectedMode: false,
   name: "Source (V2 Long Note)",
   minimumSustainGapMs: 250,
   releaseLeadMs: 30,
@@ -53,6 +54,11 @@ const conversionOptions = {
   maxDurationMs: 1200,
   finalGroupDurationMs: 500,
 };
+
+const melodyPlan = buildSustainMelodyGenerationPlan(createV1Song(), {
+  name: "Source (Sustain Melody Version)",
+  style: "melody",
+});
 
 describe("createV2LocalLibraryCopy", () => {
   it.each([
@@ -287,5 +293,94 @@ describe("createV2LocalLibraryCopy", () => {
 
     expect(result).toEqual({ reason: "blocked", status: "failed" });
     expect(save).not.toHaveBeenCalled();
+  });
+});
+
+describe("createSustainMelodyLocalLibraryCopy", () => {
+  it("uses the shared preview plan and creates an independent stored ID", async () => {
+    const source = createLocalSong("source-id", createV1Song());
+    const save = vi.fn().mockResolvedValue(undefined);
+    const seed = vi.fn();
+    const result = await createSustainMelodyLocalLibraryCopy({
+      generationPlan: melodyPlan,
+      createLibrarySong: (song) => createLocalSong("melody-id", song),
+      getExistingLibrarySongs: () => [source],
+      loadSourceSong: async () => createV1Song(),
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: seed,
+      sourceSongId: source.id,
+    });
+
+    expect(result).toMatchObject({
+      status: "created",
+      librarySong: { id: "melody-id" },
+      song: melodyPlan.generatedSong,
+    });
+    expect(save).toHaveBeenCalledWith(
+      "melody-id",
+      melodyPlan.generatedSong,
+    );
+    expect(save).not.toHaveBeenCalledWith("source-id", expect.anything());
+    expect(seed.mock.invocationCallOrder[0]).toBeGreaterThan(
+      save.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("detects duplicates before storage and library mutation", async () => {
+    const existing = createLocalSong(
+      "existing",
+      melodyPlan.generatedSong,
+    );
+    const save = vi.fn();
+    const seed = vi.fn();
+    const result = await createSustainMelodyLocalLibraryCopy({
+      generationPlan: melodyPlan,
+      getExistingLibrarySongs: () => [existing],
+      loadSourceSong: async () => createV1Song(),
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: seed,
+      sourceSongId: "source",
+    });
+
+    expect(result).toEqual({ status: "duplicate" });
+    expect(save).not.toHaveBeenCalled();
+    expect(seed).not.toHaveBeenCalled();
+  });
+
+  it("rechecks mutation guards and leaves storage untouched when blocked", async () => {
+    let blocked = false;
+    const save = vi.fn();
+    const result = await createSustainMelodyLocalLibraryCopy({
+      generationPlan: melodyPlan,
+      getExistingLibrarySongs: () => [],
+      isMutationBlocked: () => blocked,
+      loadSourceSong: async () => {
+        blocked = true;
+        return createV1Song();
+      },
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "source",
+    });
+
+    expect(result).toEqual({ reason: "blocked", status: "failed" });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("does not seed state when melody storage fails", async () => {
+    const seed = vi.fn();
+    const result = await createSustainMelodyLocalLibraryCopy({
+      generationPlan: melodyPlan,
+      getExistingLibrarySongs: () => [],
+      loadSourceSong: async () => createV1Song(),
+      saveImportedScoreSong: async () => {
+        throw new Error("disk full");
+      },
+      seedImportedScoreSong: seed,
+      sourceSongId: "source",
+    });
+
+    expect(result).toMatchObject({ reason: "storage", status: "failed" });
+    expect(seed).not.toHaveBeenCalled();
   });
 });

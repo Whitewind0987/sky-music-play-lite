@@ -13,6 +13,7 @@ import {
   convertV1SongToV2,
   type V1ToV2ConversionOptions,
 } from "./v1ToV2Conversion";
+import type { SustainMelodyGenerationPlan } from "./sustainMelodyGeneration";
 
 type CreateLibrarySong = (song: Song) => LocalLibrarySong;
 
@@ -29,8 +30,7 @@ export type CreateV2LibraryCopyResult =
       error?: unknown;
     };
 
-type CreateV2LibraryCopyOptions = {
-  conversionOptions: V1ToV2ConversionOptions;
+type CreateTransformedLibraryCopyOptions = {
   createLibrarySong?: CreateLibrarySong;
   getExistingLibrarySongs: () => LibrarySong[];
   loadSourceSong: () => Promise<Song | null>;
@@ -44,6 +44,21 @@ type CreateV2LibraryCopyOptions = {
     song: Song,
   ) => void;
   sourceSongId: LibrarySong["id"];
+  transform: (sourceSong: Song) => Song;
+};
+
+type CreateV2LibraryCopyOptions = Omit<
+  CreateTransformedLibraryCopyOptions,
+  "transform"
+> & {
+  conversionOptions: V1ToV2ConversionOptions;
+};
+
+type CreateSustainMelodyLibraryCopyOptions = Omit<
+  CreateTransformedLibraryCopyOptions,
+  "transform"
+> & {
+  generationPlan: SustainMelodyGenerationPlan;
 };
 
 export function getCreatedV2LibraryCopyState(
@@ -61,6 +76,26 @@ export function getCreatedV2LibraryCopyState(
 
 export async function createV2LocalLibraryCopy({
   conversionOptions,
+  ...options
+}: CreateV2LibraryCopyOptions): Promise<CreateV2LibraryCopyResult> {
+  return createTransformedLocalLibraryCopy({
+    ...options,
+    transform: (sourceSong) =>
+      convertV1SongToV2(sourceSong, conversionOptions),
+  });
+}
+
+export async function createSustainMelodyLocalLibraryCopy({
+  generationPlan,
+  ...options
+}: CreateSustainMelodyLibraryCopyOptions): Promise<CreateV2LibraryCopyResult> {
+  return createTransformedLocalLibraryCopy({
+    ...options,
+    transform: () => generationPlan.generatedSong,
+  });
+}
+
+export async function createTransformedLocalLibraryCopy({
   createLibrarySong = createDefaultLibrarySong,
   getExistingLibrarySongs,
   isMutationBlocked,
@@ -68,7 +103,8 @@ export async function createV2LocalLibraryCopy({
   saveImportedScoreSong,
   seedImportedScoreSong,
   sourceSongId,
-}: CreateV2LibraryCopyOptions): Promise<CreateV2LibraryCopyResult> {
+  transform,
+}: CreateTransformedLibraryCopyOptions): Promise<CreateV2LibraryCopyResult> {
   if (isMutationBlocked?.()) {
     return { reason: "blocked", status: "failed" };
   }
@@ -88,7 +124,7 @@ export async function createV2LocalLibraryCopy({
   let convertedSong: Song;
 
   try {
-    convertedSong = convertV1SongToV2(sourceSong, conversionOptions);
+    convertedSong = transform(sourceSong);
   } catch (error) {
     return { error, reason: "conversion", status: "failed" };
   }

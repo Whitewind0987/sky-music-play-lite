@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   BuiltInLibrarySong,
   LibrarySongListItem,
   LocalLibrarySong,
 } from "../types/library";
-import { shouldShowUpgradeToV2Action } from "./LibraryPanel";
+import {
+  getVisibleScoreTransformActions,
+  resolveScoreTransformSourceRequest,
+  shouldShowUpgradeToV2Action,
+} from "./LibraryPanel";
 
 function asItem(
   librarySong: BuiltInLibrarySong | LocalLibrarySong,
@@ -70,5 +74,78 @@ describe("LibraryPanel V2 upgrade menu visibility", () => {
     ["built-in unknown", createBuiltIn(undefined)],
   ])("hides the action for %s", (_, librarySong) => {
     expect(shouldShowUpgradeToV2Action(asItem(librarySong))).toBe(false);
+  });
+
+  it("shows two separate transform actions for V1 only", () => {
+    expect(getVisibleScoreTransformActions(asItem(createLocal(1)))).toEqual([
+      "upgrade-v2",
+      "generate-sustain-melody",
+    ]);
+    expect(getVisibleScoreTransformActions(asItem(createLocal(2)))).toEqual(
+      [],
+    );
+  });
+});
+
+describe("score transform source loading", () => {
+  const sourceSong = createBuiltIn(1).song;
+
+  it("reports a null load as a localized failure path", async () => {
+    const onFailed = vi.fn();
+    const onLoaded = vi.fn();
+    await expect(
+      resolveScoreTransformSourceRequest({
+        getLatestRequestId: () => 1,
+        loadSource: async () => null,
+        onFailed,
+        onLoaded,
+        requestId: 1,
+      }),
+    ).resolves.toBe("failed");
+    expect(onFailed).toHaveBeenCalledOnce();
+    expect(onLoaded).not.toHaveBeenCalled();
+  });
+
+  it("catches rejected loads without an unhandled rejection", async () => {
+    const onFailed = vi.fn();
+    await expect(
+      resolveScoreTransformSourceRequest({
+        getLatestRequestId: () => 1,
+        loadSource: async () => {
+          throw new Error("load failed");
+        },
+        onFailed,
+        onLoaded: vi.fn(),
+        requestId: 1,
+      }),
+    ).resolves.toBe("failed");
+    expect(onFailed).toHaveBeenCalledOnce();
+  });
+
+  it("ignores stale success and stale rejection after a newer request", async () => {
+    const onFailed = vi.fn();
+    const onLoaded = vi.fn();
+    await expect(
+      resolveScoreTransformSourceRequest({
+        getLatestRequestId: () => 2,
+        loadSource: async () => sourceSong,
+        onFailed,
+        onLoaded,
+        requestId: 1,
+      }),
+    ).resolves.toBe("stale");
+    await expect(
+      resolveScoreTransformSourceRequest({
+        getLatestRequestId: () => 2,
+        loadSource: async () => {
+          throw new Error("stale");
+        },
+        onFailed,
+        onLoaded,
+        requestId: 1,
+      }),
+    ).resolves.toBe("stale");
+    expect(onFailed).not.toHaveBeenCalled();
+    expect(onLoaded).not.toHaveBeenCalled();
   });
 });

@@ -220,30 +220,29 @@ export const uiText = {
           conservative: {
             label: "保守",
             description:
-              "只延长明显较长的音；密集或多声部曲谱会自动减少长音。",
+              "只延长明显较长的音，适合希望减少长音数量的情况。",
           },
           balanced: {
             label: "均衡",
             description:
-              "简单曲谱按正常规则转换，密集或多声部曲谱自动启用保护，推荐使用。",
+              "在长音数量和连贯性之间取得平衡，推荐使用。",
           },
           connected: {
             label: "连贯",
             description:
-              "允许更多较短间隔生成长音，但密集或多声部曲谱仍会避免大面积连按。",
+              "允许更多较短间隔生成长音，让旋律衔接更连贯。",
           },
           custom: {
             label: "自定义",
-            description: "手动调整延音参数和密集曲谱保护选项。",
+            description: "手动调整五项延音参数。",
           },
         },
         activeValuesSummary:
           "仅对 {minimumSeconds}–{restSeconds} 秒的间隔生成延音，并在下一组音前约 {releaseLeadMs} 毫秒松开；单个音最长约 {maximumSeconds} 秒。",
         activeValuesFallback: "请检查下方的自定义参数。",
-        protectedProfileEstimate:
-          "检测到密集或多声部曲谱，已启用保守长音识别。预计生成 {count} 个长音。",
-        standardProfileEstimate:
-          "检测到较简单的曲谱，将按所选风格生成长音。预计生成 {count} 个长音。",
+        denseWarning:
+          "该曲谱较密集，普通升级会保留全部原音，长音乐器可能仍然出现快速连续弹奏。建议使用“生成长音乐器旋律版”。",
+        currentStyleEstimate: "当前风格预计添加 {count} 个长音。",
         profileEstimateFallback:
           "修正自定义参数后可查看预计生成的长音数量。",
         customSettingsLabel: "自定义参数",
@@ -265,10 +264,6 @@ export const uiText = {
           "曲谱最后一组音默认持续约 {seconds} 秒。",
         finalGroupDurationHelpFallback:
           "此值决定曲谱最后一组音的默认持续时间。",
-        allowChordSustainLabel:
-          "在密集或多声部曲谱中允许和弦延音",
-        allowChordSustainHelp:
-          "默认关闭。开启后，多音和弦也可能被长按，可能产生密集连续触发。",
         millisecondsUnit: "毫秒",
         restoreRecommended: "恢复推荐设置",
         cancel: "取消",
@@ -293,6 +288,52 @@ export const uiText = {
           finalDurationExceedsMaximum:
             "最后一组音符时长不能超过单个音符最大时长。",
         },
+      },
+      generateSustainMelody: {
+        menuAction: "生成长音乐器旋律版（实验性）",
+        title: "生成长音乐器旋律版",
+        description:
+          "此功能会从原曲谱中提取一条单声部旋律，并删除部分伴奏和快速重复音。原曲谱不会被修改。",
+        defaultName: "{songName}（长音乐器旋律版）",
+        newNameLabel: "新曲谱名称",
+        styleLabel: "旋律提取风格",
+        styles: {
+          melody: {
+            label: "旋律优先",
+            description:
+              "更偏向高音和明显的主旋律，保留较多旋律细节。",
+          },
+          smooth: {
+            label: "平滑",
+            description:
+              "减少大幅跳音和过密音符，让旋律线更连贯。",
+          },
+          minimal: {
+            label: "精简",
+            description:
+              "删除更多伴奏和快速重复音，适合容易连续触发的长音乐器。",
+          },
+        },
+        recommendations: {
+          minimal:
+            "检测到密集或多声部编排，已默认选择“精简”。你仍然可以手动选择其他风格。",
+          smooth:
+            "检测到较密集的旋律，已默认选择“平滑”。你仍然可以手动选择其他风格。",
+          melody: "曲谱结构较简单，已默认选择“旋律优先”。",
+        },
+        stats: {
+          original: "原始音符：{original}",
+          selected: "预计保留旋律音：{selected}",
+          removed: "预计删除：{removed}（{percent}%）",
+          sustained: "预计生成长音：{sustained}",
+        },
+        emptyName: "请输入新曲谱名称。",
+        noSupportedKeys:
+          "该曲谱中没有可用于旋律提取的 Key0–Key14 音符。",
+        generationFailed: "无法生成旋律版，请重试。",
+        cancel: "取消",
+        confirm: "生成旋律版",
+        creating: "正在生成…",
       },
       removeFromLiked: "从我喜欢移除",
       removeFromPlaylist: "从歌单移除",
@@ -449,10 +490,11 @@ export const uiText = {
       scoreUpgradePlaybackBlocked:
         "播放进行中，无法升级曲谱。请先停止播放。",
       scoreUpgradePlaybackStartBlocked:
-        "正在创建 V2 曲谱，暂时无法开始播放。",
+        "正在创建转换后的曲谱，暂时无法开始播放。",
       scoreUpgradeMutationBlocked:
         "本地曲谱文件正在整理，暂时无法升级曲谱。请稍后重试。",
-      scoreUpgradeAlreadyInProgress: "正在创建 V2 曲谱，请勿重复提交。",
+      scoreUpgradeAlreadyInProgress:
+        "正在创建转换后的曲谱，请勿重复提交。",
       scoreUpgradeSourceLoadFailed: "无法加载用于升级的 V1 曲谱：{songName}",
       scoreUpgradeAlreadyV2: "该曲谱已经是 V2 格式，无法再次升级。",
       scoreUpgradeUnknownFormat: "无法确认该曲谱为 V1 格式，已取消升级。",
@@ -463,6 +505,20 @@ export const uiText = {
         "保存 V2 曲谱失败：{songName}；{error}",
       scoreUpgradeSucceeded: "已创建 V2 曲谱：{songName}",
       scoreUpgradeFailed: "创建 V2 曲谱失败：{error}",
+      sustainMelodyStarted: "正在生成长音乐器旋律版：{songName}",
+      sustainMelodySucceeded: "已生成长音乐器旋律版：{songName}",
+      sustainMelodyFailed: "生成长音乐器旋律版失败：{error}",
+      sustainMelodyDuplicate:
+        "相同的长音乐器旋律版已存在，未重复创建：{songName}",
+      sustainMelodySourceLoadFailed:
+        "无法加载用于生成旋律版的 V1 曲谱：{songName}",
+      sustainMelodyNoSupportedKeys:
+        "该曲谱中没有可用于旋律提取的 Key0–Key14 音符。",
+      sustainMelodyEmpty: "未能从该曲谱中提取出旋律音符。",
+      sustainMelodyMutationBlocked:
+        "本地曲谱文件正在整理，暂时无法生成旋律版。请稍后重试。",
+      sustainMelodyAlreadyInProgress:
+        "正在进行曲谱转换，请勿重复提交。",
       localScoreDeleteFailed:
         "删除本地曲谱文件失败：{songName}；{error}",
       localScoreLoadFailed:
@@ -877,7 +933,7 @@ export const uiText = {
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
       upgradeToV2: {
-        menuAction: "Upgrade to V2 (Keep Original)",
+        menuAction: "Upgrade to V2 (keep original score)",
         title: "Upgrade to V2",
         description:
           "A new V2 sustained-note score will be generated from the gaps between note groups. V1 does not contain key-release timing, so the generated durations are only automatic suggestions. The original V1 score will not be modified.",
@@ -888,31 +944,30 @@ export const uiText = {
           conservative: {
             label: "Conservative",
             description:
-              "Sustains only clearly longer notes and automatically reduces sustain in dense or polyphonic scores.",
+              "Sustains only clearly longer notes to reduce the number of sustained events.",
           },
           balanced: {
             label: "Balanced",
             description:
-              "Uses normal conversion for simple scores and protected detection for dense or polyphonic scores. Recommended.",
+              "Balances the number of sustained notes with melodic connection. Recommended.",
           },
           connected: {
             label: "Connected",
             description:
-              "Allows more short gaps to sustain, while still avoiding widespread repeated holds in dense or polyphonic scores.",
+              "Allows more short gaps to sustain for a more connected result.",
           },
           custom: {
             label: "Custom",
-            description:
-              "Adjust sustain values and dense-score protection manually.",
+            description: "Adjust the five sustain values manually.",
           },
         },
         activeValuesSummary:
           "Only gaps from {minimumSeconds} to {restSeconds} seconds are sustained, releasing about {releaseLeadMs} ms before the next group; each note can last up to about {maximumSeconds} seconds.",
         activeValuesFallback: "Check the custom values below.",
-        protectedProfileEstimate:
-          "A dense or polyphonic score was detected, so protected sustain detection is active. About {count} sustained notes will be generated.",
-        standardProfileEstimate:
-          "A simpler score was detected, so the selected sustain style will be used. About {count} sustained notes will be generated.",
+        denseWarning:
+          "This score is dense. A normal V2 upgrade keeps every original note, so sustain instruments may still play rapidly. Consider generating a sustain-instrument melody version instead.",
+        currentStyleEstimate:
+          "The current style will add about {count} sustained notes.",
         profileEstimateFallback:
           "Correct the custom values to see the estimated sustained-note count.",
         customSettingsLabel: "Custom Settings",
@@ -935,10 +990,6 @@ export const uiText = {
           "The final note group lasts about {seconds} seconds by default.",
         finalGroupDurationHelpFallback:
           "This value controls the final note group's default duration.",
-        allowChordSustainLabel:
-          "Allow chord sustain in protected mode",
-        allowChordSustainHelp:
-          "Off by default. Enabling this may hold multi-note chords and can cause dense repeated triggering.",
         millisecondsUnit: "ms",
         restoreRecommended: "Restore Recommended Settings",
         cancel: "Cancel",
@@ -963,6 +1014,54 @@ export const uiText = {
           finalDurationExceedsMaximum:
             "Final note-group duration cannot exceed the maximum note duration.",
         },
+      },
+      generateSustainMelody: {
+        menuAction:
+          "Generate sustain-instrument melody version (Experimental)",
+        title: "Generate Sustain-Instrument Melody Version",
+        description:
+          "This feature extracts one monophonic melody line and removes some accompaniment and rapid repetition. The original score will not be modified.",
+        defaultName: "{songName} (Sustain Melody Version)",
+        newNameLabel: "New score name",
+        styleLabel: "Melody extraction style",
+        styles: {
+          melody: {
+            label: "Melody Priority",
+            description:
+              "Favors higher and more prominent melody notes while preserving more detail.",
+          },
+          smooth: {
+            label: "Smooth",
+            description:
+              "Reduces large pitch jumps and overly dense notes for a smoother melody line.",
+          },
+          minimal: {
+            label: "Minimal",
+            description:
+              "Removes more accompaniment and rapid repetition for sustain instruments that trigger easily.",
+          },
+        },
+        recommendations: {
+          minimal:
+            "A dense or polyphonic arrangement was detected, so “Minimal” is selected by default. You can still choose another style.",
+          smooth:
+            "A moderately dense melody was detected, so “Smooth” is selected by default. You can still choose another style.",
+          melody:
+            "The score structure is relatively simple, so “Melody Priority” is selected by default.",
+        },
+        stats: {
+          original: "Original notes: {original}",
+          selected: "Melody notes kept: {selected}",
+          removed: "Notes removed: {removed} ({percent}%)",
+          sustained: "Sustained notes generated: {sustained}",
+        },
+        emptyName: "Enter a name for the new score.",
+        noSupportedKeys:
+          "The score contains no supported Key0–Key14 notes for melody extraction.",
+        generationFailed: "The melody version could not be generated. Try again.",
+        cancel: "Cancel",
+        confirm: "Generate Melody Version",
+        creating: "Generating…",
       },
       removeFromLiked: "Remove from Liked",
       removeFromPlaylist: "Remove from Playlist",
@@ -1126,11 +1225,11 @@ export const uiText = {
       scoreUpgradePlaybackBlocked:
         "Score upgrade is unavailable during playback. Stop playback first.",
       scoreUpgradePlaybackStartBlocked:
-        "A V2 score is being created. Playback cannot start yet.",
+        "A transformed score is being created. Playback cannot start yet.",
       scoreUpgradeMutationBlocked:
         "Local score files are being organized. Try upgrading again shortly.",
       scoreUpgradeAlreadyInProgress:
-        "A V2 score is already being created. Please do not submit again.",
+        "A transformed score is already being created. Please do not submit again.",
       scoreUpgradeSourceLoadFailed:
         "Failed to load the V1 score for upgrade: {songName}",
       scoreUpgradeAlreadyV2:
@@ -1146,6 +1245,24 @@ export const uiText = {
         "Failed to save V2 score {songName}: {error}",
       scoreUpgradeSucceeded: "Created V2 score: {songName}",
       scoreUpgradeFailed: "Failed to create V2 score: {error}",
+      sustainMelodyStarted:
+        "Generating sustain-instrument melody version: {songName}",
+      sustainMelodySucceeded:
+        "Generated sustain-instrument melody version: {songName}",
+      sustainMelodyFailed:
+        "Failed to generate sustain-instrument melody version: {error}",
+      sustainMelodyDuplicate:
+        "An identical sustain-instrument melody version already exists: {songName}",
+      sustainMelodySourceLoadFailed:
+        "Failed to load the V1 score for melody generation: {songName}",
+      sustainMelodyNoSupportedKeys:
+        "The score contains no supported Key0–Key14 notes for melody extraction.",
+      sustainMelodyEmpty:
+        "No melody notes could be extracted from this score.",
+      sustainMelodyMutationBlocked:
+        "Local score files are being organized. Try generating the melody version again shortly.",
+      sustainMelodyAlreadyInProgress:
+        "A score transformation is already running. Please do not submit again.",
       localScoreDeleteFailed:
         "Failed to delete local score file for {songName}: {error}",
       localScoreLoadFailed:

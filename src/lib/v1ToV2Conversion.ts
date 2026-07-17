@@ -11,8 +11,6 @@ export const MIN_V2_NOTE_DURATION_MS = 25;
 export const V1_TO_V2_RETRIGGER_SAFETY_MS = 10;
 export const V1_TO_V2_DENSE_TYPICAL_GAP_MS = 250;
 export const V1_TO_V2_POLYPHONIC_GROUP_RATIO = 0.35;
-export const V1_TO_V2_PROTECTED_MINIMUM_GAP_MS = 500;
-export const V1_TO_V2_TYPICAL_GAP_MULTIPLIER = 3;
 
 export type V1ToV2ConversionOptions = {
   name: string;
@@ -21,18 +19,13 @@ export type V1ToV2ConversionOptions = {
   restGapThresholdMs: number;
   maxDurationMs: number;
   finalGroupDurationMs: number;
-  allowChordSustainInProtectedMode: boolean;
 };
 
-export type V1ToV2ScoreProfileMode = "standard" | "protected";
-
 export type V1ToV2ScoreProfile = {
-  mode: V1ToV2ScoreProfileMode;
   typicalGapMs: number | null;
   multiNoteGroupRatio: number;
   isDenseTiming: boolean;
   isPolyphonic: boolean;
-  effectiveMinimumSustainGapMs: number;
 };
 
 export type V1ToV2ConversionPreview = {
@@ -180,12 +173,8 @@ export function previewV1ToV2Conversion(
 
 export function analyzeV1ToV2ScoreProfile(
   sourceSong: Song,
-  options: V1ToV2ConversionOptions,
 ): V1ToV2ScoreProfile {
-  return createV1ToV2ScoreProfile(
-    buildV1ToV2NoteGroups(sourceSong),
-    options,
-  );
+  return createV1ToV2ScoreProfile(buildV1ToV2NoteGroups(sourceSong));
 }
 
 function assertConvertibleV1Song(
@@ -216,7 +205,7 @@ function buildV1ToV2DurationPlan(
   options: V1ToV2ConversionOptions,
 ): V1ToV2DurationPlan {
   const groups = buildV1ToV2NoteGroups(sourceSong);
-  const profile = createV1ToV2ScoreProfile(groups, options);
+  const profile = createV1ToV2ScoreProfile(groups);
   const timesByNormalizedKey =
     collectSortedUniqueTimesByNormalizedKey(sourceSong);
   const durationsByNoteIndex = new Map<number, number>();
@@ -224,14 +213,6 @@ function buildV1ToV2DurationPlan(
 
   groups.forEach((group, groupIndex) => {
     const nextGroup = groups[groupIndex + 1];
-    const isProtectedChord =
-      profile.mode === "protected" &&
-      !options.allowChordSustainInProtectedMode &&
-      group.uniqueNormalizedKeys.length > 1;
-
-    if (isProtectedChord) {
-      return;
-    }
 
     const baseDurationMs =
       nextGroup === undefined
@@ -242,7 +223,6 @@ function buildV1ToV2DurationPlan(
         : getEligibleNonFinalBaseDuration(
             group.time,
             nextGroup.time,
-            profile,
             options,
           );
 
@@ -268,7 +248,7 @@ function buildV1ToV2DurationPlan(
               timesByNormalizedKey.get(normalizedKey) ?? [],
               note.time,
             );
-      const protectedDurationMs =
+      const retriggerSafeDurationMs =
         nextSameKeyTime === undefined
           ? baseDurationMs
           : Math.min(
@@ -278,14 +258,14 @@ function buildV1ToV2DurationPlan(
                 V1_TO_V2_RETRIGGER_SAFETY_MS,
             );
 
-      if (protectedDurationMs < MIN_V2_NOTE_DURATION_MS) {
+      if (retriggerSafeDurationMs < MIN_V2_NOTE_DURATION_MS) {
         return;
       }
 
       durationsByNoteIndex.set(
         noteIndex,
         Math.min(
-          Math.round(protectedDurationMs),
+          Math.round(retriggerSafeDurationMs),
           options.maxDurationMs,
         ),
       );
@@ -308,13 +288,12 @@ function buildV1ToV2DurationPlan(
 function getEligibleNonFinalBaseDuration(
   currentTime: number,
   nextTime: number,
-  profile: V1ToV2ScoreProfile,
   options: V1ToV2ConversionOptions,
 ) {
   const gapMs = nextTime - currentTime;
 
   if (
-    gapMs < profile.effectiveMinimumSustainGapMs ||
+    gapMs < options.minimumSustainGapMs ||
     gapMs > options.restGapThresholdMs
   ) {
     return null;
@@ -360,7 +339,6 @@ function buildV1ToV2NoteGroups(sourceSong: Song): V1ToV2NoteGroup[] {
 
 function createV1ToV2ScoreProfile(
   groups: readonly V1ToV2NoteGroup[],
-  options: V1ToV2ConversionOptions,
 ): V1ToV2ScoreProfile {
   const positiveGaps = groups
     .slice(1)
@@ -378,25 +356,10 @@ function createV1ToV2ScoreProfile(
     typicalGapMs <= V1_TO_V2_DENSE_TYPICAL_GAP_MS;
   const isPolyphonic =
     multiNoteGroupRatio >= V1_TO_V2_POLYPHONIC_GROUP_RATIO;
-  const mode = isDenseTiming || isPolyphonic ? "protected" : "standard";
-  const effectiveMinimumSustainGapMs =
-    mode === "standard"
-      ? options.minimumSustainGapMs
-      : Math.max(
-          options.minimumSustainGapMs,
-          V1_TO_V2_PROTECTED_MINIMUM_GAP_MS,
-          typicalGapMs === null
-            ? 0
-            : Math.round(
-                typicalGapMs * V1_TO_V2_TYPICAL_GAP_MULTIPLIER,
-              ),
-        );
 
   return {
-    effectiveMinimumSustainGapMs,
     isDenseTiming,
     isPolyphonic,
-    mode,
     multiNoteGroupRatio,
     typicalGapMs,
   };

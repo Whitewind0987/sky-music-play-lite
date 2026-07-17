@@ -31,7 +31,6 @@ export type V1ToV2NumericFormValues = {
 };
 
 export type UpgradeScoreToV2FormValues = V1ToV2NumericFormValues & {
-  allowChordSustainInProtectedMode: boolean;
   name: string;
 };
 
@@ -48,7 +47,6 @@ export type UpgradeScoreToV2FormField =
 export type V1ToV2PresetStyle = Exclude<V1ToV2SustainStyle, "custom">;
 
 type V1ToV2NumericPreset = {
-  allowChordSustainInProtectedMode: boolean;
   minimumSustainGapMs: number;
   releaseLeadMs: number;
   restGapThresholdMs: number;
@@ -58,7 +56,6 @@ type V1ToV2NumericPreset = {
 
 export const V1_TO_V2_SUSTAIN_STYLE_PRESETS = {
   conservative: {
-    allowChordSustainInProtectedMode: false,
     minimumSustainGapMs: 400,
     releaseLeadMs: 50,
     restGapThresholdMs: 1000,
@@ -66,7 +63,6 @@ export const V1_TO_V2_SUSTAIN_STYLE_PRESETS = {
     finalGroupDurationMs: 300,
   },
   balanced: {
-    allowChordSustainInProtectedMode: false,
     minimumSustainGapMs:
       DEFAULT_V1_TO_V2_MINIMUM_SUSTAIN_GAP_MS,
     releaseLeadMs: DEFAULT_V1_TO_V2_RELEASE_LEAD_MS,
@@ -75,7 +71,6 @@ export const V1_TO_V2_SUSTAIN_STYLE_PRESETS = {
     finalGroupDurationMs: DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
   },
   connected: {
-    allowChordSustainInProtectedMode: false,
     minimumSustainGapMs: 150,
     releaseLeadMs: 15,
     restGapThresholdMs: 2000,
@@ -131,20 +126,6 @@ export function editUpgradeScoreToV2FormField(
   });
 }
 
-export function editUpgradeScoreToV2ChordSustain(
-  currentState: UpgradeScoreToV2FormState,
-  allowChordSustainInProtectedMode: boolean,
-): UpgradeScoreToV2FormState {
-  return clearUpgradeScoreToV2Errors({
-    ...currentState,
-    selectedStyle: "custom",
-    values: {
-      ...currentState.values,
-      allowChordSustainInProtectedMode,
-    },
-  });
-}
-
 export function restoreRecommendedUpgradeScoreToV2State(
   currentState: UpgradeScoreToV2FormState,
 ): UpgradeScoreToV2FormState {
@@ -184,8 +165,6 @@ export function buildV1ToV2OptionsFromDialogValues(
   values: UpgradeScoreToV2FormValues,
 ): V1ToV2ConversionOptions {
   return {
-    allowChordSustainInProtectedMode:
-      values.allowChordSustainInProtectedMode,
     name: values.name,
     minimumSustainGapMs: parseNumericField(
       values.minimumSustainGapMs,
@@ -269,14 +248,10 @@ export function getReadableSustainTimeValues(
 
 function getPresetFormValues(
   style: V1ToV2PresetStyle,
-): V1ToV2NumericFormValues & {
-  allowChordSustainInProtectedMode: boolean;
-} {
+): V1ToV2NumericFormValues {
   const preset = V1_TO_V2_SUSTAIN_STYLE_PRESETS[style];
 
   return {
-    allowChordSustainInProtectedMode:
-      preset.allowChordSustainInProtectedMode,
     minimumSustainGapMs: String(preset.minimumSustainGapMs),
     releaseLeadMs: String(preset.releaseLeadMs),
     restGapThresholdMs: String(preset.restGapThresholdMs),

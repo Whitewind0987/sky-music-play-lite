@@ -11,7 +11,6 @@ import {
   applyUpgradeScoreToV2Validation,
   buildV1ToV2OptionsFromDialogValues,
   createInitialUpgradeScoreToV2FormState,
-  editUpgradeScoreToV2ChordSustain,
   editUpgradeScoreToV2FormField,
   formatValidDurationMillisecondsAsSeconds,
   getReadableSustainTimeValues,
@@ -169,14 +168,6 @@ export function UpgradeScoreToV2Dialog({
               text={text}
               validationId={validationId}
               onCancel={onClose}
-              onChordSustainChange={(allowChordSustain) =>
-                setFormState((currentState) =>
-                  editUpgradeScoreToV2ChordSustain(
-                    currentState,
-                    allowChordSustain,
-                  ),
-                )
-              }
               onFieldChange={(field, value) =>
                 setFormState((currentState) =>
                   editUpgradeScoreToV2FormField(
@@ -211,7 +202,6 @@ export function UpgradeScoreToV2Form({
   formState,
   isCreating,
   onCancel,
-  onChordSustainChange,
   onFieldChange,
   onRestoreRecommended,
   onStyleChange,
@@ -225,7 +215,6 @@ export function UpgradeScoreToV2Form({
   formState: UpgradeScoreToV2FormState;
   isCreating: boolean;
   onCancel: () => void;
-  onChordSustainChange: (allowChordSustain: boolean) => void;
   onFieldChange: (
     field: UpgradeScoreToV2FormField,
     value: string,
@@ -265,15 +254,15 @@ export function UpgradeScoreToV2Form({
             : previewOptions,
         )
       : null;
-  const profileSummary =
+  const estimateSummary =
     conversionPreview === null
       ? text.profileEstimateFallback
-      : formatText(
-          conversionPreview.profile.mode === "protected"
-            ? text.protectedProfileEstimate
-            : text.standardProfileEstimate,
-          { count: conversionPreview.generatedSustainCount },
-        );
+      : formatText(text.currentStyleEstimate, {
+          count: conversionPreview.generatedSustainCount,
+        });
+  const showDenseWarning =
+    conversionPreview?.profile.isDenseTiming === true ||
+    conversionPreview?.profile.isPolyphonic === true;
   const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
     formState.values.maxDurationMs,
   );
@@ -345,7 +334,10 @@ export function UpgradeScoreToV2Form({
       </fieldset>
 
       <p className="score-upgrade-readable-summary">{readableSummary}</p>
-      <p className="score-upgrade-profile-summary">{profileSummary}</p>
+      {showDenseWarning ? (
+        <p className="score-upgrade-profile-summary">{text.denseWarning}</p>
+      ) : null}
+      <p className="score-upgrade-profile-summary">{estimateSummary}</p>
 
       {formState.selectedStyle === "custom" ? (
         <section
@@ -473,16 +465,6 @@ export function UpgradeScoreToV2Form({
               }
             />
 
-            <ChordSustainField
-              checked={
-                formState.values.allowChordSustainInProtectedMode
-              }
-              disabled={isCreating}
-              helpText={text.allowChordSustainHelp}
-              label={text.allowChordSustainLabel}
-              onChange={onChordSustainChange}
-            />
-
             <button
               className="score-upgrade-restore-button"
               disabled={isCreating}
@@ -519,38 +501,6 @@ export function UpgradeScoreToV2Form({
         </button>
       </div>
     </form>
-  );
-}
-
-function ChordSustainField({
-  checked,
-  disabled,
-  helpText,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  helpText: string;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) {
-  const helpTextId = useId();
-
-  return (
-    <div className="score-upgrade-checkbox-field">
-      <label>
-        <input
-          aria-describedby={helpTextId}
-          checked={checked}
-          disabled={disabled}
-          type="checkbox"
-          onChange={(event) => onChange(event.currentTarget.checked)}
-        />
-        <span>{label}</span>
-      </label>
-      <small id={helpTextId}>{helpText}</small>
-    </div>
   );
 }
 

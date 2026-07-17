@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
+import { GenerateSustainMelodyDialog } from "./GenerateSustainMelodyDialog";
 import { UpgradeScoreToV2Dialog } from "./UpgradeScoreToV2Dialog";
 import type {
   LocateScoreRequest,
@@ -24,6 +25,10 @@ import {
   getLibrarySongName,
 } from "../lib/libraryCollections";
 import type { V1ToV2ConversionOptions } from "../lib/v1ToV2Conversion";
+import {
+  hasSupportedSustainMelodyKeys,
+  type SustainMelodyGenerationPlan,
+} from "../lib/sustainMelodyGeneration";
 import {
   getAdjustedPreviewDurationFromMetadata,
   getAdjustedPreviewDurationMs,
@@ -74,6 +79,13 @@ type LibraryPanelProps = {
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   onRenamePlaylist: (playlistId: string) => void;
   onResolveUpgradeSource: (songIndex: number) => Promise<Song | null>;
+  onScoreTransformSourceLoadFailed: (
+    action: ScoreTransformAction,
+    item: LibrarySongListItem,
+  ) => void;
+  onSustainMelodySourceUnsupported: (
+    item: LibrarySongListItem,
+  ) => void;
   onSearchQueryChange: (query: string) => void;
   onSelectSong: (songIndex: number) => void;
   onToggleLiked: (songIndex: number) => void;
@@ -82,6 +94,11 @@ type LibraryPanelProps = {
     songId: LibrarySongId,
     sourceSong: Song,
     options: V1ToV2ConversionOptions,
+  ) => Promise<UpgradeSongToV2Result>;
+  onGenerateSustainMelody: (
+    songId: LibrarySongId,
+    sourceSong: Song,
+    plan: SustainMelodyGenerationPlan,
   ) => Promise<UpgradeSongToV2Result>;
   playlists: UserPlaylist[];
   searchQuery: string;
@@ -96,6 +113,66 @@ type LibraryPanelProps = {
 
 export function shouldShowUpgradeToV2Action(item: LibrarySongListItem) {
   return getLibrarySongFormatVersion(item.librarySong) === 1;
+}
+
+export type ScoreTransformAction =
+  | "upgrade-v2"
+  | "generate-sustain-melody";
+
+export function isLatestScoreTransformRequest(
+  latestRequestId: number,
+  requestId: number,
+) {
+  return latestRequestId === requestId;
+}
+
+export function getVisibleScoreTransformActions(
+  item: LibrarySongListItem,
+): ScoreTransformAction[] {
+  return shouldShowUpgradeToV2Action(item)
+    ? ["upgrade-v2", "generate-sustain-melody"]
+    : [];
+}
+
+export async function resolveScoreTransformSourceRequest({
+  getLatestRequestId,
+  loadSource,
+  onFailed,
+  onLoaded,
+  requestId,
+}: {
+  getLatestRequestId: () => number;
+  loadSource: () => Promise<Song | null>;
+  onFailed: () => void;
+  onLoaded: (sourceSong: Song) => void;
+  requestId: number;
+}): Promise<"failed" | "loaded" | "stale"> {
+  try {
+    const sourceSong = await loadSource();
+
+    if (
+      !isLatestScoreTransformRequest(getLatestRequestId(), requestId)
+    ) {
+      return "stale";
+    }
+
+    if (sourceSong === null) {
+      onFailed();
+      return "failed";
+    }
+
+    onLoaded(sourceSong);
+    return "loaded";
+  } catch {
+    if (
+      !isLatestScoreTransformRequest(getLatestRequestId(), requestId)
+    ) {
+      return "stale";
+    }
+
+    onFailed();
+    return "failed";
+  }
 }
 
 function formatDuration(durationMs: number) {
@@ -427,6 +504,7 @@ function LibraryActionMenu({
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onRequestUpgrade,
+  onRequestSustainMelody,
   selectedCategory,
   selectedPlaylist,
   text,
@@ -447,6 +525,7 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   onRequestUpgrade: (item: LibrarySongListItem) => void;
+  onRequestSustainMelody: (item: LibrarySongListItem) => void;
 }) {
   function runAction(event: Event, action: () => void) {
     event.preventDefault();
@@ -522,16 +601,25 @@ function LibraryActionMenu({
           <button type="button">{text.removeFromPlaylist}</button>
         </DropdownMenu.Item>
       ) : null}
-      {shouldShowUpgradeToV2Action(item) ? (
+      {getVisibleScoreTransformActions(item).map((action) => (
         <DropdownMenu.Item
           asChild
+          key={action}
           onSelect={(event) =>
-            runAction(event, () => onRequestUpgrade(item))
+            runAction(event, () =>
+              action === "upgrade-v2"
+                ? onRequestUpgrade(item)
+                : onRequestSustainMelody(item),
+            )
           }
         >
-          <button type="button">{text.upgradeToV2.menuAction}</button>
+          <button type="button">
+            {action === "upgrade-v2"
+              ? text.upgradeToV2.menuAction
+              : text.generateSustainMelody.menuAction}
+          </button>
         </DropdownMenu.Item>
-      ) : null}
+      ))}
       {item.librarySong.source === "local-import" ? (
         <DropdownMenu.Item
           asChild
@@ -562,6 +650,7 @@ function LibrarySongTable({
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onRequestUpgrade,
+  onRequestSustainMelody,
   onSelectSong,
   onToggleLiked,
   emptyDescription,
@@ -597,6 +686,7 @@ function LibrarySongTable({
   onOpenActionMenu: (songId: LibrarySongId) => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   onRequestUpgrade: (item: LibrarySongListItem) => void;
+  onRequestSustainMelody: (item: LibrarySongListItem) => void;
   openActionMenuSongId: LibrarySongId | null;
 }) {
   const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
@@ -812,6 +902,7 @@ function LibrarySongTable({
                           onRemoveFromLiked={onRemoveFromLiked}
                           onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
                           onRequestUpgrade={onRequestUpgrade}
+                          onRequestSustainMelody={onRequestSustainMelody}
                           selectedCategory={selectedCategory}
                           selectedPlaylist={selectedPlaylist}
                           text={text}
@@ -884,8 +975,11 @@ export function LibraryPanel({
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
   onResolveUpgradeSource,
+  onScoreTransformSourceLoadFailed,
+  onSustainMelodySourceUnsupported,
   onUpgradeBlocked,
   onUpgradeSongToV2,
+  onGenerateSustainMelody,
   onRenamePlaylist,
   onSearchQueryChange,
   onSelectSong,
@@ -907,10 +1001,12 @@ export function LibraryPanel({
     useState<LibrarySongListItem | null>(null);
   const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
     useState<LibrarySongListItem | null>(null);
-  const [upgradeDialogState, setUpgradeDialogState] = useState<{
+  const [scoreTransformDialogState, setScoreTransformDialogState] = useState<{
+    action: ScoreTransformAction;
     item: LibrarySongListItem;
     sourceSong: Song;
   } | null>(null);
+  const latestScoreTransformRequestIdRef = useRef(0);
   const [openActionMenuSongId, setOpenActionMenuSongId] =
     useState<LibrarySongId | null>(null);
   const isLocalImports = selectedCategory === "local-imports";
@@ -928,6 +1024,40 @@ export function LibraryPanel({
     selectedCategory,
     text,
   });
+
+  function requestScoreTransform(
+    action: ScoreTransformAction,
+    item: LibrarySongListItem,
+  ) {
+    setOpenActionMenuSongId(null);
+
+    if (upgradeBlocked) {
+      onUpgradeBlocked();
+      return;
+    }
+
+    const requestId = latestScoreTransformRequestIdRef.current + 1;
+    latestScoreTransformRequestIdRef.current = requestId;
+
+    void resolveScoreTransformSourceRequest({
+      getLatestRequestId: () =>
+        latestScoreTransformRequestIdRef.current,
+      loadSource: () => onResolveUpgradeSource(item.songIndex),
+      onFailed: () => onScoreTransformSourceLoadFailed(action, item),
+      onLoaded: (sourceSong) => {
+        if (
+          action === "generate-sustain-melody" &&
+          !hasSupportedSustainMelodyKeys(sourceSong)
+        ) {
+          onSustainMelodySourceUnsupported(item);
+          return;
+        }
+
+        setScoreTransformDialogState({ action, item, sourceSong });
+      },
+      requestId,
+    });
+  }
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -1080,21 +1210,11 @@ export function LibraryPanel({
             onRemoveFromLiked={onRemoveFromLiked}
             onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
             onRequestUpgrade={(item) => {
-              setOpenActionMenuSongId(null);
-
-              if (upgradeBlocked) {
-                onUpgradeBlocked();
-                return;
-              }
-
-              void onResolveUpgradeSource(item.songIndex).then(
-                (sourceSong) => {
-                  if (sourceSong !== null) {
-                    setUpgradeDialogState({ item, sourceSong });
-                  }
-                },
-              );
+              requestScoreTransform("upgrade-v2", item);
             }}
+            onRequestSustainMelody={(item) =>
+              requestScoreTransform("generate-sustain-melody", item)
+            }
             onSelectSong={onSelectSong}
             onToggleLiked={onToggleLiked}
             selectedCategory={selectedCategory}
@@ -1180,16 +1300,31 @@ export function LibraryPanel({
           text={text}
         />
       ) : null}
-      {upgradeDialogState ? (
+      {scoreTransformDialogState?.action === "upgrade-v2" ? (
         <UpgradeScoreToV2Dialog
-          sourceSong={upgradeDialogState.sourceSong}
+          sourceSong={scoreTransformDialogState.sourceSong}
           text={text.upgradeToV2}
-          onClose={() => setUpgradeDialogState(null)}
+          onClose={() => setScoreTransformDialogState(null)}
           onCreate={(options) =>
             onUpgradeSongToV2(
-              upgradeDialogState.item.librarySong.id,
-              upgradeDialogState.sourceSong,
+              scoreTransformDialogState.item.librarySong.id,
+              scoreTransformDialogState.sourceSong,
               options,
+            )
+          }
+        />
+      ) : null}
+      {scoreTransformDialogState?.action ===
+      "generate-sustain-melody" ? (
+        <GenerateSustainMelodyDialog
+          sourceSong={scoreTransformDialogState.sourceSong}
+          text={text.generateSustainMelody}
+          onClose={() => setScoreTransformDialogState(null)}
+          onCreate={(plan) =>
+            onGenerateSustainMelody(
+              scoreTransformDialogState.item.librarySong.id,
+              scoreTransformDialogState.sourceSong,
+              plan,
             )
           }
         />

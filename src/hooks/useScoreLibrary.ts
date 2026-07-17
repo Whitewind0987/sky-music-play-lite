@@ -75,8 +75,13 @@ import {
 } from "../lib/v1ToV2Conversion";
 import {
   createV2LocalLibraryCopy,
+  createSustainMelodyLocalLibraryCopy,
   getCreatedV2LibraryCopyState,
 } from "../lib/v1ToV2LibraryUpgrade";
+import {
+  SustainMelodyGenerationError,
+  type SustainMelodyGenerationPlan,
+} from "../lib/sustainMelodyGeneration";
 import {
   getIsScoreUpgradeInProgress as readScoreUpgradeInProgress,
   runWithScoreUpgradeInProgress,
@@ -887,23 +892,7 @@ export function useScoreLibrary({
           );
         }
 
-        const successState = getCreatedV2LibraryCopyState(
-          localLibrarySongsRef.current,
-          result.librarySong,
-        );
-
-        localLibrarySongsRef.current = successState.localLibrarySongs;
-        librarySongsRef.current = [
-          ...librarySongsRef.current.filter(
-            (librarySong) => librarySong.source === "built-in",
-          ),
-          ...successState.localLibrarySongs,
-        ];
-        setLocalLibrarySongs(successState.localLibrarySongs);
-        updateSelectedSongId(successState.selectedSongId);
-        setSelectedLibraryCategory(successState.selectedCategory);
-        setSearchQuery(successState.searchQuery);
-        requestLocateSong(successState.locateSongId);
+        applyCreatedScoreToLibrary(result.librarySong);
 
         const message = formatText(text.logs.scoreUpgradeSucceeded, {
           songName: result.librarySong.metadata.name,
@@ -914,6 +903,174 @@ export function useScoreLibrary({
         return { librarySong: result.librarySong, status: "created" };
       },
     );
+  }
+
+  async function handleGenerateSustainMelody(
+    sourceSongId: LibrarySongId,
+    generationPlan: SustainMelodyGenerationPlan,
+    executionOptions: UpgradeSongToV2ExecutionOptions = {},
+  ): Promise<UpgradeSongToV2Result> {
+    if (getIsScoreUpgradeInProgress()) {
+      return reportUpgradeFailure(
+        text.logs.sustainMelodyAlreadyInProgress,
+      );
+    }
+
+    const sourceLibrarySong = librarySongsRef.current.find(
+      (librarySong) => librarySong.id === sourceSongId,
+    );
+
+    if (!sourceLibrarySong) {
+      return reportUpgradeFailure(
+        formatText(text.logs.sustainMelodySourceLoadFailed, {
+          songName: text.logs.queueUnknownSong,
+        }),
+      );
+    }
+
+    const knownFormatVersion =
+      getLibrarySongFormatVersion(sourceLibrarySong);
+
+    if (knownFormatVersion !== 1) {
+      return reportUpgradeFailure(
+        knownFormatVersion === 2
+          ? text.logs.scoreUpgradeAlreadyV2
+          : text.logs.scoreUpgradeUnknownFormat,
+      );
+    }
+
+    const blockedMessage = executionOptions.getBlockedMessage?.() ?? null;
+
+    if (blockedMessage !== null) {
+      return reportUpgradeFailure(blockedMessage);
+    }
+
+    const startedMessage = formatText(text.logs.sustainMelodyStarted, {
+      songName: generationPlan.generatedSong.name,
+    });
+    appendLog(startedMessage);
+
+    return runWithScoreUpgradeInProgress(
+      isScoreUpgradeInProgressRef,
+      async () => {
+        const result = await createSustainMelodyLocalLibraryCopy({
+          generationPlan,
+          getExistingLibrarySongs: () => librarySongsRef.current,
+          isMutationBlocked: () =>
+            (executionOptions.getBlockedMessage?.() ?? null) !== null,
+          loadSourceSong: () => {
+            if (executionOptions.resolvedSourceSong) {
+              return Promise.resolve(executionOptions.resolvedSourceSong);
+            }
+
+            const currentSongIndex = librarySongsRef.current.findIndex(
+              (librarySong) => librarySong.id === sourceSongId,
+            );
+            return currentSongIndex < 0
+              ? Promise.resolve(null)
+              : resolveLibrarySong(currentSongIndex, {
+                  shouldLogFailure: false,
+                });
+          },
+          saveImportedScoreSong: saveImportedScoreSongFile,
+          seedImportedScoreSong: (songId, song) => {
+            importedScoreSongLoaderRef.current.seed(songId, song);
+          },
+          sourceSongId,
+        });
+
+        if (result.status === "duplicate") {
+          const message = formatText(text.logs.sustainMelodyDuplicate, {
+            songName: generationPlan.generatedSong.name,
+          });
+          appendLog(message);
+          showNotice?.(message);
+          return { message, status: "duplicate" };
+        }
+
+        if (result.status === "failed") {
+          if (result.reason === "blocked") {
+            return reportUpgradeFailure(
+              executionOptions.getBlockedMessage?.() ??
+                text.logs.sustainMelodyMutationBlocked,
+            );
+          }
+
+          if (result.reason === "source-load") {
+            return reportUpgradeFailure(
+              formatText(text.logs.sustainMelodySourceLoadFailed, {
+                songName: getLibrarySongName(sourceLibrarySong),
+              }),
+            );
+          }
+
+          if (result.reason === "storage") {
+            return reportUpgradeFailure(
+              formatText(text.logs.sustainMelodyFailed, {
+                error: formatUpgradeError(result.error),
+              }),
+            );
+          }
+
+          return reportUpgradeFailure(
+            getSustainMelodyFailureMessage(result.error, text),
+          );
+        }
+
+        applyCreatedScoreToLibrary(result.librarySong);
+        const message = formatText(text.logs.sustainMelodySucceeded, {
+          songName: result.librarySong.metadata.name,
+        });
+        appendLog(message);
+        showNotice?.(message);
+        return { librarySong: result.librarySong, status: "created" };
+      },
+    );
+  }
+
+  function reportScoreTransformSourceLoadFailure(
+    sourceSongId: LibrarySongId,
+    action: "upgrade-v2" | "generate-sustain-melody",
+  ) {
+    const sourceLibrarySong = librarySongsRef.current.find(
+      (librarySong) => librarySong.id === sourceSongId,
+    );
+    reportUpgradeFailure(
+      formatText(
+        action === "generate-sustain-melody"
+          ? text.logs.sustainMelodySourceLoadFailed
+          : text.logs.scoreUpgradeSourceLoadFailed,
+        {
+          songName: sourceLibrarySong
+            ? getLibrarySongName(sourceLibrarySong)
+            : text.logs.queueUnknownSong,
+        },
+      ),
+    );
+  }
+
+  function reportSustainMelodySourceUnsupported() {
+    reportUpgradeFailure(text.logs.sustainMelodyNoSupportedKeys);
+  }
+
+  function applyCreatedScoreToLibrary(librarySong: LocalLibrarySong) {
+    const successState = getCreatedV2LibraryCopyState(
+      localLibrarySongsRef.current,
+      librarySong,
+    );
+
+    localLibrarySongsRef.current = successState.localLibrarySongs;
+    librarySongsRef.current = [
+      ...librarySongsRef.current.filter(
+        (currentSong) => currentSong.source === "built-in",
+      ),
+      ...successState.localLibrarySongs,
+    ];
+    setLocalLibrarySongs(successState.localLibrarySongs);
+    updateSelectedSongId(successState.selectedSongId);
+    setSelectedLibraryCategory(successState.selectedCategory);
+    setSearchQuery(successState.searchQuery);
+    requestLocateSong(successState.locateSongId);
   }
 
   function getIsScoreUpgradeInProgress() {
@@ -1312,7 +1469,10 @@ export function useScoreLibrary({
     handleRenamePlaylist,
     handleSelectImportedSong,
     handleToggleLikedSong,
+    handleGenerateSustainMelody,
     handleUpgradeSongToV2,
+    reportScoreTransformSourceLoadFailure,
+    reportSustainMelodySourceUnsupported,
     getIsScoreUpgradeInProgress,
     builtInPagination,
     hasSearchQuery,
@@ -1372,6 +1532,30 @@ function getConversionFailureMessage(error: unknown, text: UiText) {
   }
 
   return formatText(text.logs.scoreUpgradeFailed, {
+    error: formatUpgradeError(error),
+  });
+}
+
+function getSustainMelodyFailureMessage(error: unknown, text: UiText) {
+  if (error instanceof SustainMelodyGenerationError) {
+    if (error.code === "no-supported-keys") {
+      return text.logs.sustainMelodyNoSupportedKeys;
+    }
+
+    if (error.code === "empty-generated-melody") {
+      return text.logs.sustainMelodyEmpty;
+    }
+
+    if (error.code === "already-v2") {
+      return text.logs.scoreUpgradeAlreadyV2;
+    }
+
+    if (error.code === "empty-name") {
+      return text.library.generateSustainMelody.emptyName;
+    }
+  }
+
+  return formatText(text.logs.sustainMelodyFailed, {
     error: formatUpgradeError(error),
   });
 }
