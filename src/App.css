@@ -1768,22 +1768,6 @@ button {
   line-height: 1.5;
 }
 
-.score-upgrade-melody-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-  padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  color: #334155;
-  background: #f8fafc;
-  font-size: 13px;
-}
-
-.score-upgrade-melody-stats p {
-  margin: 0;
-}
-
 .score-upgrade-readable-summary {
   padding: 9px 10px;
   border-radius: 8px;

@@ -688,14 +688,10 @@ function App() {
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
           onResolveUpgradeSource={scoreLibrary.preloadSong}
-          onScoreTransformSourceLoadFailed={(action, item) =>
-            scoreLibrary.reportScoreTransformSourceLoadFailure(
+          onUpgradeSourceLoadFailed={(item) =>
+            scoreLibrary.reportUpgradeSourceLoadFailure(
               item.librarySong.id,
-              action,
             )
-          }
-          onSustainMelodySourceUnsupported={
-            scoreLibrary.reportSustainMelodySourceUnsupported
           }
           onRenamePlaylist={libraryDialogs.requestRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
@@ -704,12 +700,6 @@ function App() {
           onUpgradeBlocked={scoreUpgradeGuard.reportBlocked}
           onUpgradeSongToV2={(songId, sourceSong, options) =>
             scoreLibrary.handleUpgradeSongToV2(songId, options, {
-              getBlockedMessage: scoreUpgradeGuard.getBlockedMessage,
-              resolvedSourceSong: sourceSong,
-            })
-          }
-          onGenerateSustainMelody={(songId, sourceSong, plan) =>
-            scoreLibrary.handleGenerateSustainMelody(songId, plan, {
               getBlockedMessage: scoreUpgradeGuard.getBlockedMessage,
               resolvedSourceSong: sourceSong,
             })

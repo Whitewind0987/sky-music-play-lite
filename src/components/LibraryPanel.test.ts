@@ -5,10 +5,11 @@ import type {
   LocalLibrarySong,
 } from "../types/library";
 import {
-  getVisibleScoreTransformActions,
-  resolveScoreTransformSourceRequest,
+  getVisibleUpgradeActionCount,
+  resolveUpgradeSourceRequest,
   shouldShowUpgradeToV2Action,
 } from "./LibraryPanel";
+import { uiText } from "../i18n/uiText";
 
 function asItem(
   librarySong: BuiltInLibrarySong | LocalLibrarySong,
@@ -76,25 +77,37 @@ describe("LibraryPanel V2 upgrade menu visibility", () => {
     expect(shouldShowUpgradeToV2Action(asItem(librarySong))).toBe(false);
   });
 
-  it("shows two separate transform actions for V1 only", () => {
-    expect(getVisibleScoreTransformActions(asItem(createLocal(1)))).toEqual([
-      "upgrade-v2",
-      "generate-sustain-melody",
-    ]);
-    expect(getVisibleScoreTransformActions(asItem(createLocal(2)))).toEqual(
-      [],
-    );
+  it("shows exactly one upgrade action for V1 and none for V2", () => {
+    expect(getVisibleUpgradeActionCount(asItem(createLocal(1)))).toBe(1);
+    expect(getVisibleUpgradeActionCount(asItem(createLocal(2)))).toBe(0);
   });
 });
 
-describe("score transform source loading", () => {
+describe("score upgrade source loading", () => {
   const sourceSong = createBuiltIn(1).song;
+
+  it("opens the dialog after a successful latest load", async () => {
+    const onFailed = vi.fn();
+    const onLoaded = vi.fn();
+    await expect(
+      resolveUpgradeSourceRequest({
+        getLatestRequestId: () => 1,
+        loadSource: async () => sourceSong,
+        onFailed,
+        onLoaded,
+        requestId: 1,
+      }),
+    ).resolves.toBe("loaded");
+    expect(onLoaded).toHaveBeenCalledOnce();
+    expect(onLoaded).toHaveBeenCalledWith(sourceSong);
+    expect(onFailed).not.toHaveBeenCalled();
+  });
 
   it("reports a null load as a localized failure path", async () => {
     const onFailed = vi.fn();
     const onLoaded = vi.fn();
     await expect(
-      resolveScoreTransformSourceRequest({
+      resolveUpgradeSourceRequest({
         getLatestRequestId: () => 1,
         loadSource: async () => null,
         onFailed,
@@ -109,7 +122,7 @@ describe("score transform source loading", () => {
   it("catches rejected loads without an unhandled rejection", async () => {
     const onFailed = vi.fn();
     await expect(
-      resolveScoreTransformSourceRequest({
+      resolveUpgradeSourceRequest({
         getLatestRequestId: () => 1,
         loadSource: async () => {
           throw new Error("load failed");
@@ -126,7 +139,7 @@ describe("score transform source loading", () => {
     const onFailed = vi.fn();
     const onLoaded = vi.fn();
     await expect(
-      resolveScoreTransformSourceRequest({
+      resolveUpgradeSourceRequest({
         getLatestRequestId: () => 2,
         loadSource: async () => sourceSong,
         onFailed,
@@ -135,7 +148,7 @@ describe("score transform source loading", () => {
       }),
     ).resolves.toBe("stale");
     await expect(
-      resolveScoreTransformSourceRequest({
+      resolveUpgradeSourceRequest({
         getLatestRequestId: () => 2,
         loadSource: async () => {
           throw new Error("stale");
@@ -147,5 +160,56 @@ describe("score transform source loading", () => {
     ).resolves.toBe("stale");
     expect(onFailed).not.toHaveBeenCalled();
     expect(onLoaded).not.toHaveBeenCalled();
+  });
+
+  it("lets the latest overlapping request win", async () => {
+    let latestRequestId = 1;
+    let resolveFirstLoad: ((song: typeof sourceSong) => void) | undefined;
+    const firstSource = { ...sourceSong, name: "First" };
+    const latestSource = { ...sourceSong, name: "Latest" };
+    const onFailed = vi.fn();
+    const onLoaded = vi.fn();
+    const firstRequest = resolveUpgradeSourceRequest({
+      getLatestRequestId: () => latestRequestId,
+      loadSource: () =>
+        new Promise((resolve) => {
+          resolveFirstLoad = resolve;
+        }),
+      onFailed,
+      onLoaded,
+      requestId: 1,
+    });
+
+    latestRequestId = 2;
+    await expect(
+      resolveUpgradeSourceRequest({
+        getLatestRequestId: () => latestRequestId,
+        loadSource: async () => latestSource,
+        onFailed,
+        onLoaded,
+        requestId: 2,
+      }),
+    ).resolves.toBe("loaded");
+    resolveFirstLoad?.(firstSource);
+    await expect(firstRequest).resolves.toBe("stale");
+
+    expect(onLoaded).toHaveBeenCalledOnce();
+    expect(onLoaded).toHaveBeenCalledWith(latestSource);
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+});
+
+describe("removed experimental conversion copy", () => {
+  it("keeps no removed menu or dialog copy in either locale", () => {
+    const text = JSON.stringify(uiText);
+    const removedCopy = [
+      ["长音乐器", "旋律版"].join(""),
+      ["Sustain-Instrument", " Melody"].join(""),
+      ["Melody", " Priority"].join(""),
+    ];
+
+    for (const copy of removedCopy) {
+      expect(text).not.toContain(copy);
+    }
   });
 });
