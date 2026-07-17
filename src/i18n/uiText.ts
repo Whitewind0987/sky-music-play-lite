@@ -208,6 +208,30 @@ export const uiText = {
       moreActions: "更多操作",
       deleteLocalSong: "删除",
       deleteFromLocalImports: "从本地导入删除",
+      upgradeToV2: {
+        menuAction: "升级为 V2（保留原曲谱）",
+        title: "升级为 V2",
+        description: "将创建一份新的 V2 曲谱，原 V1 曲谱不会被修改。",
+        defaultName: "{songName}（V2 长音版）",
+        newNameLabel: "新曲谱名称",
+        overlapLabel: "长音重叠",
+        maximumDurationLabel: "单个音符最大时长",
+        finalGroupDurationLabel: "最后一组音符时长",
+        millisecondsUnit: "毫秒",
+        cancel: "取消",
+        confirm: "创建 V2 曲谱",
+        creating: "正在创建…",
+        validation: {
+          emptyName: "请输入新曲谱名称。",
+          invalidOverlap: "长音重叠必须是 0–500 毫秒之间的数字。",
+          invalidMaximumDuration:
+            "单个音符最大时长必须是 25–60000 毫秒之间的数字。",
+          invalidFinalDuration:
+            "最后一组音符时长必须是 25–60000 毫秒之间的数字。",
+          finalDurationExceedsMaximum:
+            "最后一组音符时长不能超过单个音符最大时长。",
+        },
+      },
       removeFromLiked: "从我喜欢移除",
       removeFromPlaylist: "从歌单移除",
       deleteLocalSongConfirm:
@@ -360,6 +384,21 @@ export const uiText = {
       duplicateImportSkippedSummary: "已跳过 {count} 首已存在的曲谱。",
       importBlockedDuringPlayback:
         "播放进行中，已阻止导入曲谱。请先停止播放。",
+      scoreUpgradePlaybackBlocked:
+        "播放进行中，无法升级曲谱。请先停止播放。",
+      scoreUpgradeMutationBlocked:
+        "本地曲谱文件正在整理，暂时无法升级曲谱。请稍后重试。",
+      scoreUpgradeAlreadyInProgress: "正在创建 V2 曲谱，请勿重复提交。",
+      scoreUpgradeSourceLoadFailed: "无法加载用于升级的 V1 曲谱：{songName}",
+      scoreUpgradeAlreadyV2: "该曲谱已经是 V2 格式，无法再次升级。",
+      scoreUpgradeUnknownFormat: "无法确认该曲谱为 V1 格式，已取消升级。",
+      scoreUpgradeEmptyScore: "曲谱没有可转换的有效音符。",
+      scoreUpgradeInvalidOptions: "V2 升级参数无效，请检查后重试。",
+      scoreUpgradeDuplicate: "V2 曲谱已存在，未重复创建：{songName}",
+      scoreUpgradeStorageFailed:
+        "保存 V2 曲谱失败：{songName}；{error}",
+      scoreUpgradeSucceeded: "已创建 V2 曲谱：{songName}",
+      scoreUpgradeFailed: "创建 V2 曲谱失败：{error}",
       localScoreDeleteFailed:
         "删除本地曲谱文件失败：{songName}；{error}",
       localScoreLoadFailed:
@@ -773,6 +812,31 @@ export const uiText = {
       moreActions: "More actions",
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
+      upgradeToV2: {
+        menuAction: "Upgrade to V2 (Keep Original)",
+        title: "Upgrade to V2",
+        description:
+          "A new V2 score will be created. The original V1 score will not be modified.",
+        defaultName: "{songName} (V2 Long Note)",
+        newNameLabel: "New score name",
+        overlapLabel: "Note overlap",
+        maximumDurationLabel: "Maximum note duration",
+        finalGroupDurationLabel: "Final note-group duration",
+        millisecondsUnit: "ms",
+        cancel: "Cancel",
+        confirm: "Create V2 Score",
+        creating: "Creating…",
+        validation: {
+          emptyName: "Enter a name for the new score.",
+          invalidOverlap: "Note overlap must be a number from 0 to 500 ms.",
+          invalidMaximumDuration:
+            "Maximum note duration must be a number from 25 to 60000 ms.",
+          invalidFinalDuration:
+            "Final note-group duration must be a number from 25 to 60000 ms.",
+          finalDurationExceedsMaximum:
+            "Final note-group duration cannot exceed the maximum note duration.",
+        },
+      },
       removeFromLiked: "Remove from Liked",
       removeFromPlaylist: "Remove from Playlist",
       deleteLocalSongConfirm:
@@ -932,6 +996,27 @@ export const uiText = {
       duplicateImportSkippedSummary: "Skipped {count} existing score(s).",
       importBlockedDuringPlayback:
         "Import was blocked while playback is active. Please stop playback first.",
+      scoreUpgradePlaybackBlocked:
+        "Score upgrade is unavailable during playback. Stop playback first.",
+      scoreUpgradeMutationBlocked:
+        "Local score files are being organized. Try upgrading again shortly.",
+      scoreUpgradeAlreadyInProgress:
+        "A V2 score is already being created. Please do not submit again.",
+      scoreUpgradeSourceLoadFailed:
+        "Failed to load the V1 score for upgrade: {songName}",
+      scoreUpgradeAlreadyV2:
+        "This score is already V2 and cannot be upgraded again.",
+      scoreUpgradeUnknownFormat:
+        "This score could not be confirmed as V1. Upgrade was cancelled.",
+      scoreUpgradeEmptyScore: "The score has no valid notes to convert.",
+      scoreUpgradeInvalidOptions:
+        "The V2 upgrade settings are invalid. Review them and try again.",
+      scoreUpgradeDuplicate:
+        "An identical V2 score already exists: {songName}",
+      scoreUpgradeStorageFailed:
+        "Failed to save V2 score {songName}: {error}",
+      scoreUpgradeSucceeded: "Created V2 score: {songName}",
+      scoreUpgradeFailed: "Failed to create V2 score: {error}",
       localScoreDeleteFailed:
         "Failed to delete local score file for {songName}: {error}",
       localScoreLoadFailed:

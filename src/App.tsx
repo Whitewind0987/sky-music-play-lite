@@ -36,6 +36,7 @@ import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePlaybackShortcuts } from "./hooks/usePlaybackShortcuts";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
+import { useScoreUpgradeGuard } from "./hooks/useScoreUpgradeGuard";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import {
   defaultLanguage,
@@ -329,6 +330,14 @@ function App() {
     experimentalInput.foregroundPlaybackState === "paused" ||
     experimentalInput.isForegroundStartPending ||
     experimentalInput.isExperimentalPlaybackRunning;
+  const scoreUpgradeGuard = useScoreUpgradeGuard({
+    appendLog,
+    isAnyPlaybackActive,
+    isImportedScoreReconciliationInProgress:
+      appPersistence.isImportedScoreReconciliationInProgress,
+    showNotice: showAppNotice,
+    text: text.logs,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -667,12 +676,19 @@ function App() {
           onSearchQueryChange={scoreLibrary.setSearchQuery}
           onSelectSong={handleLibrarySongSelection}
           onToggleLiked={playbackCoordinator.handleToggleLikedSong}
+          onUpgradeBlocked={scoreUpgradeGuard.reportBlocked}
+          onUpgradeSongToV2={(songId, options) =>
+            scoreLibrary.handleUpgradeSongToV2(songId, options, {
+              getBlockedMessage: scoreUpgradeGuard.getBlockedMessage,
+            })
+          }
           playlists={scoreLibrary.playlists}
           searchQuery={scoreLibrary.searchQuery}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
           selectedPlaylist={scoreLibrary.selectedPlaylist}
           selectedPlaylistId={scoreLibrary.selectedPlaylistId}
           selectedSongIndex={scoreLibrary.selectedSongIndex}
+          upgradeBlocked={scoreUpgradeGuard.isBlocked}
           isBuiltInSongLoading={scoreLibrary.isBuiltInSongLoading}
           text={text.library}
         />

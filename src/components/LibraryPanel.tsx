@@ -13,9 +13,17 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
-import type { LocateScoreRequest } from "../hooks/useScoreLibrary";
+import { UpgradeScoreToV2Dialog } from "./UpgradeScoreToV2Dialog";
+import type {
+  LocateScoreRequest,
+  UpgradeSongToV2Result,
+} from "../hooks/useScoreLibrary";
 import type { UiText } from "../i18n/uiText";
-import { getLibrarySongName } from "../lib/libraryCollections";
+import {
+  getLibrarySongFormatVersion,
+  getLibrarySongName,
+} from "../lib/libraryCollections";
+import type { V1ToV2ConversionOptions } from "../lib/v1ToV2Conversion";
 import {
   getAdjustedPreviewDurationFromMetadata,
   getAdjustedPreviewDurationMs,
@@ -67,15 +75,25 @@ type LibraryPanelProps = {
   onSearchQueryChange: (query: string) => void;
   onSelectSong: (songIndex: number) => void;
   onToggleLiked: (songIndex: number) => void;
+  onUpgradeBlocked: () => void;
+  onUpgradeSongToV2: (
+    songId: LibrarySongId,
+    options: V1ToV2ConversionOptions,
+  ) => Promise<UpgradeSongToV2Result>;
   playlists: UserPlaylist[];
   searchQuery: string;
   selectedCategory: LibraryCategoryId;
   selectedPlaylist: UserPlaylist | null;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  upgradeBlocked: boolean;
   isBuiltInSongLoading: (songId: LibrarySongId) => boolean;
   text: UiText["library"];
 };
+
+export function shouldShowUpgradeToV2Action(item: LibrarySongListItem) {
+  return getLibrarySongFormatVersion(item.librarySong) === 1;
+}
 
 function formatDuration(durationMs: number) {
   const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
@@ -405,6 +423,7 @@ function LibraryActionMenu({
   onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
+  onRequestUpgrade,
   selectedCategory,
   selectedPlaylist,
   text,
@@ -424,6 +443,7 @@ function LibraryActionMenu({
   item: LibrarySongListItem;
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
+  onRequestUpgrade: (item: LibrarySongListItem) => void;
 }) {
   function runAction(event: Event, action: () => void) {
     event.preventDefault();
@@ -499,6 +519,16 @@ function LibraryActionMenu({
           <button type="button">{text.removeFromPlaylist}</button>
         </DropdownMenu.Item>
       ) : null}
+      {shouldShowUpgradeToV2Action(item) ? (
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) =>
+            runAction(event, () => onRequestUpgrade(item))
+          }
+        >
+          <button type="button">{text.upgradeToV2.menuAction}</button>
+        </DropdownMenu.Item>
+      ) : null}
       {item.librarySong.source === "local-import" ? (
         <DropdownMenu.Item
           asChild
@@ -528,6 +558,7 @@ function LibrarySongTable({
   onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
+  onRequestUpgrade,
   onSelectSong,
   onToggleLiked,
   emptyDescription,
@@ -562,6 +593,7 @@ function LibrarySongTable({
   onCloseActionMenu: () => void;
   onOpenActionMenu: (songId: LibrarySongId) => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
+  onRequestUpgrade: (item: LibrarySongListItem) => void;
   openActionMenuSongId: LibrarySongId | null;
 }) {
   const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
@@ -776,6 +808,7 @@ function LibrarySongTable({
                           onPrepareSong={onPrepareSong}
                           onRemoveFromLiked={onRemoveFromLiked}
                           onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
+                          onRequestUpgrade={onRequestUpgrade}
                           selectedCategory={selectedCategory}
                           selectedPlaylist={selectedPlaylist}
                           text={text}
@@ -847,6 +880,8 @@ export function LibraryPanel({
   onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
+  onUpgradeBlocked,
+  onUpgradeSongToV2,
   onRenamePlaylist,
   onSearchQueryChange,
   onSelectSong,
@@ -857,6 +892,7 @@ export function LibraryPanel({
   selectedPlaylist,
   selectedPlaylistId,
   selectedSongIndex,
+  upgradeBlocked,
   isBuiltInSongLoading,
   text,
 }: LibraryPanelProps) {
@@ -866,6 +902,8 @@ export function LibraryPanel({
   const [collectingSongItem, setCollectingSongItem] =
     useState<LibrarySongListItem | null>(null);
   const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
+    useState<LibrarySongListItem | null>(null);
+  const [upgradingSongItem, setUpgradingSongItem] =
     useState<LibrarySongListItem | null>(null);
   const [openActionMenuSongId, setOpenActionMenuSongId] =
     useState<LibrarySongId | null>(null);
@@ -1035,6 +1073,16 @@ export function LibraryPanel({
             onPrepareSong={onPrepareSong}
             onRemoveFromLiked={onRemoveFromLiked}
             onRemoveSongFromPlaylist={onRemoveSongFromPlaylist}
+            onRequestUpgrade={(item) => {
+              setOpenActionMenuSongId(null);
+
+              if (upgradeBlocked) {
+                onUpgradeBlocked();
+                return;
+              }
+
+              setUpgradingSongItem(item);
+            }}
             onSelectSong={onSelectSong}
             onToggleLiked={onToggleLiked}
             selectedCategory={selectedCategory}
@@ -1118,6 +1166,16 @@ export function LibraryPanel({
             setCollectingSongItem(null);
           }}
           text={text}
+        />
+      ) : null}
+      {upgradingSongItem ? (
+        <UpgradeScoreToV2Dialog
+          sourceName={getLibrarySongName(upgradingSongItem.librarySong)}
+          text={text.upgradeToV2}
+          onClose={() => setUpgradingSongItem(null)}
+          onCreate={(options) =>
+            onUpgradeSongToV2(upgradingSongItem.librarySong.id, options)
+          }
         />
       ) : null}
     </section>

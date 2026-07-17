@@ -23,6 +23,7 @@ import {
   createPlaylist,
   enrichLocalSongFormatVersion,
   filterSongsByQuery,
+  getLibrarySongFormatVersion,
   getLibrarySongName,
   isSongLiked,
   removeSongFromAllCollections,
@@ -68,6 +69,14 @@ import type {
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
+import {
+  V1ToV2ConversionError,
+  type V1ToV2ConversionOptions,
+} from "../lib/v1ToV2Conversion";
+import {
+  createV2LocalLibraryCopy,
+  getCreatedV2LibraryCopyState,
+} from "../lib/v1ToV2LibraryUpgrade";
 
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
@@ -85,6 +94,15 @@ type DeleteLocalSongOptions = {
 export type LocateScoreRequest = {
   requestId: number;
   songId: LibrarySongId;
+};
+
+export type UpgradeSongToV2Result =
+  | { status: "created"; librarySong: LocalLibrarySong }
+  | { status: "duplicate"; message: string }
+  | { status: "failed"; message: string };
+
+type UpgradeSongToV2ExecutionOptions = {
+  getBlockedMessage?: () => string | null;
 };
 
 const BUILT_IN_PAGE_SIZE = 100;
@@ -125,6 +143,7 @@ export function useScoreLibrary({
   >(new Set());
   const builtInSongLoadRef = useRef(new InFlightByKey<Song | null>());
   const importedScoreSongLoaderRef = useRef(new ImportedScoreSongLoader());
+  const isScoreUpgradeInProgressRef = useRef(false);
   const localSongLoadCountsRef = useRef(new Map<LibrarySongId, number>());
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -753,6 +772,146 @@ export function useScoreLibrary({
     });
   }
 
+  async function handleUpgradeSongToV2(
+    sourceSongId: LibrarySongId,
+    conversionOptions: V1ToV2ConversionOptions,
+    executionOptions: UpgradeSongToV2ExecutionOptions = {},
+  ): Promise<UpgradeSongToV2Result> {
+    if (isScoreUpgradeInProgressRef.current) {
+      return reportUpgradeFailure(text.logs.scoreUpgradeAlreadyInProgress);
+    }
+
+    const sourceLibrarySong = librarySongsRef.current.find(
+      (librarySong) => librarySong.id === sourceSongId,
+    );
+
+    if (!sourceLibrarySong) {
+      return reportUpgradeFailure(
+        formatText(text.logs.scoreUpgradeSourceLoadFailed, {
+          songName: text.logs.queueUnknownSong,
+        }),
+      );
+    }
+
+    const knownFormatVersion =
+      getLibrarySongFormatVersion(sourceLibrarySong);
+
+    if (knownFormatVersion !== 1) {
+      return reportUpgradeFailure(
+        knownFormatVersion === 2
+          ? text.logs.scoreUpgradeAlreadyV2
+          : text.logs.scoreUpgradeUnknownFormat,
+      );
+    }
+
+    const blockedMessage = executionOptions.getBlockedMessage?.() ?? null;
+
+    if (blockedMessage !== null) {
+      return reportUpgradeFailure(blockedMessage);
+    }
+
+    isScoreUpgradeInProgressRef.current = true;
+
+    try {
+      const result = await createV2LocalLibraryCopy({
+        conversionOptions,
+        getExistingLibrarySongs: () => librarySongsRef.current,
+        isMutationBlocked: () =>
+          (executionOptions.getBlockedMessage?.() ?? null) !== null,
+        loadSourceSong: () => {
+          const currentSongIndex = librarySongsRef.current.findIndex(
+            (librarySong) => librarySong.id === sourceSongId,
+          );
+
+          return currentSongIndex < 0
+            ? Promise.resolve(null)
+            : resolveLibrarySong(currentSongIndex, {
+                shouldLogFailure: false,
+              });
+        },
+        saveImportedScoreSong: saveImportedScoreSongFile,
+        seedImportedScoreSong: (songId, song) => {
+          importedScoreSongLoaderRef.current.seed(songId, song);
+        },
+        sourceSongId,
+      });
+
+      if (result.status === "duplicate") {
+        const message = formatText(text.logs.scoreUpgradeDuplicate, {
+          songName: conversionOptions.name.trim(),
+        });
+
+        appendLog(message);
+        showNotice?.(message);
+        return { message, status: "duplicate" };
+      }
+
+      if (result.status === "failed") {
+        if (result.reason === "blocked") {
+          return reportUpgradeFailure(
+            executionOptions.getBlockedMessage?.() ??
+              text.logs.scoreUpgradeMutationBlocked,
+          );
+        }
+
+        if (result.reason === "source-load") {
+          return reportUpgradeFailure(
+            formatText(text.logs.scoreUpgradeSourceLoadFailed, {
+              songName: getLibrarySongName(sourceLibrarySong),
+            }),
+          );
+        }
+
+        if (result.reason === "storage") {
+          return reportUpgradeFailure(
+            formatText(text.logs.scoreUpgradeStorageFailed, {
+              error: formatUpgradeError(result.error),
+              songName: conversionOptions.name.trim(),
+            }),
+          );
+        }
+
+        return reportUpgradeFailure(
+          getConversionFailureMessage(result.error, text),
+        );
+      }
+
+      const successState = getCreatedV2LibraryCopyState(
+        localLibrarySongsRef.current,
+        result.librarySong,
+      );
+
+      localLibrarySongsRef.current = successState.localLibrarySongs;
+      librarySongsRef.current = [
+        ...librarySongsRef.current.filter(
+          (librarySong) => librarySong.source === "built-in",
+        ),
+        ...successState.localLibrarySongs,
+      ];
+      setLocalLibrarySongs(successState.localLibrarySongs);
+      updateSelectedSongId(successState.selectedSongId);
+      setSelectedLibraryCategory(successState.selectedCategory);
+      setSearchQuery(successState.searchQuery);
+      requestLocateSong(successState.locateSongId);
+
+      const message = formatText(text.logs.scoreUpgradeSucceeded, {
+        songName: result.librarySong.metadata.name,
+      });
+
+      appendLog(message);
+      showNotice?.(message);
+      return { librarySong: result.librarySong, status: "created" };
+    } finally {
+      isScoreUpgradeInProgressRef.current = false;
+    }
+  }
+
+  function reportUpgradeFailure(message: string): UpgradeSongToV2Result {
+    appendLog(message);
+    showNotice?.(message);
+    return { message, status: "failed" };
+  }
+
   function removeMissingLocalSongs(missingSongIds: LibrarySongId[]) {
     const cleanup = cleanupMissingImportedScores({
       likedSongs: likedSongsRef.current,
@@ -1139,6 +1298,7 @@ export function useScoreLibrary({
     handleRenamePlaylist,
     handleSelectImportedSong,
     handleToggleLikedSong,
+    handleUpgradeSongToV2,
     builtInPagination,
     hasSearchQuery,
     hasLoadedBuiltInSongs,
@@ -1177,4 +1337,30 @@ export function useScoreLibrary({
     setPlaybackSongId: updatePlaybackSongId,
     setPlaybackSongIndex,
   };
+}
+
+function getConversionFailureMessage(error: unknown, text: UiText) {
+  if (error instanceof V1ToV2ConversionError) {
+    if (error.code === "already-v2") {
+      return text.logs.scoreUpgradeAlreadyV2;
+    }
+
+    if (error.code === "empty-score" || error.code === "invalid-note-time") {
+      return text.logs.scoreUpgradeEmptyScore;
+    }
+
+    if (error.code === "empty-name") {
+      return text.library.upgradeToV2.validation.emptyName;
+    }
+
+    return text.logs.scoreUpgradeInvalidOptions;
+  }
+
+  return formatText(text.logs.scoreUpgradeFailed, {
+    error: formatUpgradeError(error),
+  });
+}
+
+function formatUpgradeError(error: unknown) {
+  return String(error instanceof Error ? error.message : error ?? "unknown");
 }
