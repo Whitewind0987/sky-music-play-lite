@@ -1,4 +1,5 @@
 import type { Song } from "../types/score";
+import { getPreviewKeyName } from "../types/keyMapping";
 import { MAX_EXPLICIT_NOTE_DURATION_MS } from "./scoreTiming";
 
 export const DEFAULT_V1_TO_V2_MINIMUM_SUSTAIN_GAP_MS = 250;
@@ -8,6 +9,10 @@ export const DEFAULT_V1_TO_V2_MAX_DURATION_MS = 1200;
 export const DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS = 500;
 export const MIN_V2_NOTE_DURATION_MS = 25;
 export const V1_TO_V2_RETRIGGER_SAFETY_MS = 10;
+export const V1_TO_V2_DENSE_TYPICAL_GAP_MS = 250;
+export const V1_TO_V2_POLYPHONIC_GROUP_RATIO = 0.35;
+export const V1_TO_V2_PROTECTED_MINIMUM_GAP_MS = 500;
+export const V1_TO_V2_TYPICAL_GAP_MULTIPLIER = 3;
 
 export type V1ToV2ConversionOptions = {
   name: string;
@@ -16,6 +21,33 @@ export type V1ToV2ConversionOptions = {
   restGapThresholdMs: number;
   maxDurationMs: number;
   finalGroupDurationMs: number;
+  allowChordSustainInProtectedMode: boolean;
+};
+
+export type V1ToV2ScoreProfileMode = "standard" | "protected";
+
+export type V1ToV2ScoreProfile = {
+  mode: V1ToV2ScoreProfileMode;
+  typicalGapMs: number | null;
+  multiNoteGroupRatio: number;
+  isDenseTiming: boolean;
+  isPolyphonic: boolean;
+  effectiveMinimumSustainGapMs: number;
+};
+
+export type V1ToV2ConversionPreview = {
+  profile: V1ToV2ScoreProfile;
+  generatedSustainCount: number;
+};
+
+type V1ToV2NoteGroup = {
+  noteIndexes: number[];
+  time: number;
+  uniqueNormalizedKeys: string[];
+};
+
+type V1ToV2DurationPlan = V1ToV2ConversionPreview & {
+  durationsByNoteIndex: Map<number, number>;
 };
 
 export type V1ToV2ConversionValidationError =
@@ -115,6 +147,51 @@ export function convertV1SongToV2(
   sourceSong: Song,
   options: V1ToV2ConversionOptions,
 ): Song {
+  assertConvertibleV1Song(sourceSong, options);
+  const plan = buildV1ToV2DurationPlan(sourceSong, options);
+
+  return {
+    formatVersion: 2,
+    name: options.name.trim(),
+    bpm: sourceSong.bpm,
+    bitsPerPage: sourceSong.bitsPerPage,
+    pitchLevel: sourceSong.pitchLevel,
+    isComposed: sourceSong.isComposed,
+    songNotes: sourceSong.songNotes.map((note, noteIndex) => {
+      const duration = plan.durationsByNoteIndex.get(noteIndex);
+
+      return duration === undefined
+        ? { time: note.time, key: note.key }
+        : { time: note.time, key: note.key, duration };
+    }),
+  };
+}
+
+export function previewV1ToV2Conversion(
+  sourceSong: Song,
+  options: V1ToV2ConversionOptions,
+): V1ToV2ConversionPreview {
+  assertConvertibleV1Song(sourceSong, options);
+  const { generatedSustainCount, profile } =
+    buildV1ToV2DurationPlan(sourceSong, options);
+
+  return { generatedSustainCount, profile };
+}
+
+export function analyzeV1ToV2ScoreProfile(
+  sourceSong: Song,
+  options: V1ToV2ConversionOptions,
+): V1ToV2ScoreProfile {
+  return createV1ToV2ScoreProfile(
+    buildV1ToV2NoteGroups(sourceSong),
+    options,
+  );
+}
+
+function assertConvertibleV1Song(
+  sourceSong: Song,
+  options: V1ToV2ConversionOptions,
+) {
   if (sourceSong.formatVersion === 2) {
     throw new V1ToV2ConversionError("already-v2");
   }
@@ -132,114 +209,226 @@ export function convertV1SongToV2(
   if (sourceSong.songNotes.some((note) => !Number.isFinite(note.time))) {
     throw new V1ToV2ConversionError("invalid-note-time");
   }
+}
 
-  const groupTimes = Array.from(
-    new Set(sourceSong.songNotes.map((note) => note.time)),
-  ).sort((left, right) => left - right);
+function buildV1ToV2DurationPlan(
+  sourceSong: Song,
+  options: V1ToV2ConversionOptions,
+): V1ToV2DurationPlan {
+  const groups = buildV1ToV2NoteGroups(sourceSong);
+  const profile = createV1ToV2ScoreProfile(groups, options);
+  const timesByNormalizedKey =
+    collectSortedUniqueTimesByNormalizedKey(sourceSong);
+  const durationsByNoteIndex = new Map<number, number>();
+  const sustainedNormalizedKeysByTime = new Map<number, Set<string>>();
 
-  if (groupTimes.length === 0) {
-    throw new V1ToV2ConversionError("empty-score");
-  }
+  groups.forEach((group, groupIndex) => {
+    const nextGroup = groups[groupIndex + 1];
+    const isProtectedChord =
+      profile.mode === "protected" &&
+      !options.allowChordSustainInProtectedMode &&
+      group.uniqueNormalizedKeys.length > 1;
 
-  const baseDurationsByTime = new Map<number, number>();
-  const finalGroupTime = groupTimes[groupTimes.length - 1];
-
-  groupTimes.forEach((groupTime, groupIndex) => {
-    const nextGroupTime = groupTimes[groupIndex + 1];
-
-    if (nextGroupTime === undefined) {
-      baseDurationsByTime.set(
-        groupTime,
-        Math.min(
-          Math.round(options.finalGroupDurationMs),
-          options.maxDurationMs,
-        ),
-      );
+    if (isProtectedChord) {
       return;
     }
 
-    const gapMs = nextGroupTime - groupTime;
+    const baseDurationMs =
+      nextGroup === undefined
+        ? Math.min(
+            Math.round(options.finalGroupDurationMs),
+            options.maxDurationMs,
+          )
+        : getEligibleNonFinalBaseDuration(
+            group.time,
+            nextGroup.time,
+            profile,
+            options,
+          );
 
     if (
-      gapMs < options.minimumSustainGapMs ||
-      gapMs > options.restGapThresholdMs
+      baseDurationMs === null ||
+      baseDurationMs < MIN_V2_NOTE_DURATION_MS
     ) {
       return;
     }
 
-    const baseDurationMs = Math.min(
-      gapMs - options.releaseLeadMs,
-      options.maxDurationMs,
-    );
+    group.noteIndexes.forEach((noteIndex) => {
+      const note = sourceSong.songNotes[noteIndex];
 
-    if (baseDurationMs >= MIN_V2_NOTE_DURATION_MS) {
-      baseDurationsByTime.set(groupTime, baseDurationMs);
-    }
-  });
-
-  const timesByKey = collectSortedUniqueTimesByKey(sourceSong);
-
-  return {
-    formatVersion: 2,
-    name: options.name.trim(),
-    bpm: sourceSong.bpm,
-    bitsPerPage: sourceSong.bitsPerPage,
-    pitchLevel: sourceSong.pitchLevel,
-    isComposed: sourceSong.isComposed,
-    songNotes: sourceSong.songNotes.map((note) => {
-      const baseDuration = baseDurationsByTime.get(note.time);
-
-      if (baseDuration === undefined) {
-        return { time: note.time, key: note.key };
+      if (!note) {
+        return;
       }
 
-      if (note.time === finalGroupTime) {
-        return {
-          time: note.time,
-          key: note.key,
-          duration: baseDuration,
-        };
-      }
-
-      const nextSameKeyTime = findNextStrictlyLaterTime(
-        timesByKey.get(note.key) ?? [],
-        note.time,
-      );
-      const duration =
+      const normalizedKey = getPreviewKeyName(note.key);
+      const nextSameKeyTime =
+        nextGroup === undefined
+          ? undefined
+          : findNextStrictlyLaterTime(
+              timesByNormalizedKey.get(normalizedKey) ?? [],
+              note.time,
+            );
+      const protectedDurationMs =
         nextSameKeyTime === undefined
-          ? baseDuration
+          ? baseDurationMs
           : Math.min(
-              baseDuration,
+              baseDurationMs,
               nextSameKeyTime -
                 note.time -
                 V1_TO_V2_RETRIGGER_SAFETY_MS,
             );
 
-      return duration < MIN_V2_NOTE_DURATION_MS
-        ? { time: note.time, key: note.key }
-        : {
-            time: note.time,
-            key: note.key,
-            duration: Math.min(
-              Math.round(duration),
-              options.maxDurationMs,
-            ),
-          };
-    }),
+      if (protectedDurationMs < MIN_V2_NOTE_DURATION_MS) {
+        return;
+      }
+
+      durationsByNoteIndex.set(
+        noteIndex,
+        Math.min(
+          Math.round(protectedDurationMs),
+          options.maxDurationMs,
+        ),
+      );
+      const sustainedKeys =
+        sustainedNormalizedKeysByTime.get(note.time) ?? new Set<string>();
+      sustainedKeys.add(normalizedKey);
+      sustainedNormalizedKeysByTime.set(note.time, sustainedKeys);
+    });
+  });
+
+  return {
+    durationsByNoteIndex,
+    generatedSustainCount: Array.from(
+      sustainedNormalizedKeysByTime.values(),
+    ).reduce((count, keys) => count + keys.size, 0),
+    profile,
   };
 }
 
-function collectSortedUniqueTimesByKey(sourceSong: Song) {
-  const timesByKey = new Map<string, Set<number>>();
+function getEligibleNonFinalBaseDuration(
+  currentTime: number,
+  nextTime: number,
+  profile: V1ToV2ScoreProfile,
+  options: V1ToV2ConversionOptions,
+) {
+  const gapMs = nextTime - currentTime;
+
+  if (
+    gapMs < profile.effectiveMinimumSustainGapMs ||
+    gapMs > options.restGapThresholdMs
+  ) {
+    return null;
+  }
+
+  const baseDurationMs = Math.min(
+    gapMs - options.releaseLeadMs,
+    options.maxDurationMs,
+  );
+
+  return baseDurationMs < MIN_V2_NOTE_DURATION_MS
+    ? null
+    : baseDurationMs;
+}
+
+function buildV1ToV2NoteGroups(sourceSong: Song): V1ToV2NoteGroup[] {
+  const noteIndexesByTime = new Map<number, number[]>();
+
+  sourceSong.songNotes.forEach((note, noteIndex) => {
+    if (!Number.isFinite(note.time)) {
+      return;
+    }
+
+    const noteIndexes = noteIndexesByTime.get(note.time) ?? [];
+    noteIndexes.push(noteIndex);
+    noteIndexesByTime.set(note.time, noteIndexes);
+  });
+
+  return Array.from(noteIndexesByTime, ([time, noteIndexes]) => ({
+    noteIndexes,
+    time,
+    uniqueNormalizedKeys: Array.from(
+      new Set(
+        noteIndexes.map((noteIndex) =>
+          getPreviewKeyName(
+            sourceSong.songNotes[noteIndex]?.key ?? "",
+          ),
+        ),
+      ),
+    ),
+  })).sort((left, right) => left.time - right.time);
+}
+
+function createV1ToV2ScoreProfile(
+  groups: readonly V1ToV2NoteGroup[],
+  options: V1ToV2ConversionOptions,
+): V1ToV2ScoreProfile {
+  const positiveGaps = groups
+    .slice(1)
+    .map((group, index) => group.time - (groups[index]?.time ?? group.time))
+    .filter((gapMs) => gapMs > 0)
+    .sort((left, right) => left - right);
+  const typicalGapMs = getMedian(positiveGaps);
+  const multiNoteGroupCount = groups.filter(
+    (group) => group.uniqueNormalizedKeys.length > 1,
+  ).length;
+  const multiNoteGroupRatio =
+    groups.length === 0 ? 0 : multiNoteGroupCount / groups.length;
+  const isDenseTiming =
+    typicalGapMs !== null &&
+    typicalGapMs <= V1_TO_V2_DENSE_TYPICAL_GAP_MS;
+  const isPolyphonic =
+    multiNoteGroupRatio >= V1_TO_V2_POLYPHONIC_GROUP_RATIO;
+  const mode = isDenseTiming || isPolyphonic ? "protected" : "standard";
+  const effectiveMinimumSustainGapMs =
+    mode === "standard"
+      ? options.minimumSustainGapMs
+      : Math.max(
+          options.minimumSustainGapMs,
+          V1_TO_V2_PROTECTED_MINIMUM_GAP_MS,
+          typicalGapMs === null
+            ? 0
+            : Math.round(
+                typicalGapMs * V1_TO_V2_TYPICAL_GAP_MULTIPLIER,
+              ),
+        );
+
+  return {
+    effectiveMinimumSustainGapMs,
+    isDenseTiming,
+    isPolyphonic,
+    mode,
+    multiNoteGroupRatio,
+    typicalGapMs,
+  };
+}
+
+function getMedian(sortedValues: readonly number[]) {
+  if (sortedValues.length === 0) {
+    return null;
+  }
+
+  const middleIndex = Math.floor(sortedValues.length / 2);
+
+  return sortedValues.length % 2 === 1
+    ? (sortedValues[middleIndex] ?? null)
+    : ((sortedValues[middleIndex - 1] ?? 0) +
+        (sortedValues[middleIndex] ?? 0)) /
+        2;
+}
+
+function collectSortedUniqueTimesByNormalizedKey(sourceSong: Song) {
+  const timesByNormalizedKey = new Map<string, Set<number>>();
 
   sourceSong.songNotes.forEach((note) => {
-    const times = timesByKey.get(note.key) ?? new Set<number>();
+    const normalizedKey = getPreviewKeyName(note.key);
+    const times =
+      timesByNormalizedKey.get(normalizedKey) ?? new Set<number>();
     times.add(note.time);
-    timesByKey.set(note.key, times);
+    timesByNormalizedKey.set(normalizedKey, times);
   });
 
   return new Map(
-    Array.from(timesByKey, ([key, times]) => [
+    Array.from(timesByNormalizedKey, ([key, times]) => [
       key,
       Array.from(times).sort((left, right) => left - right),
     ]),

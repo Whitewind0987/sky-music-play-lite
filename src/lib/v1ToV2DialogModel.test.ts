@@ -4,6 +4,7 @@ import {
   applyUpgradeScoreToV2Validation,
   buildV1ToV2OptionsFromDialogValues,
   createInitialUpgradeScoreToV2FormState,
+  editUpgradeScoreToV2ChordSustain,
   editUpgradeScoreToV2FormField,
   formatMillisecondsAsSeconds,
   getReadableSustainTimeValues,
@@ -13,6 +14,7 @@ import {
 } from "./v1ToV2DialogModel";
 
 const balancedValues = {
+  allowChordSustainInProtectedMode: false,
   minimumSustainGapMs: "250",
   releaseLeadMs: "30",
   restGapThresholdMs: "1200",
@@ -36,6 +38,7 @@ describe("V1 to V2 dialog model", () => {
   it("defines every preset with the exact required numeric values", () => {
     expect(V1_TO_V2_SUSTAIN_STYLE_PRESETS).toEqual({
       conservative: {
+        allowChordSustainInProtectedMode: false,
         minimumSustainGapMs: 400,
         releaseLeadMs: 50,
         restGapThresholdMs: 1000,
@@ -43,6 +46,7 @@ describe("V1 to V2 dialog model", () => {
         finalGroupDurationMs: 300,
       },
       balanced: {
+        allowChordSustainInProtectedMode: false,
         minimumSustainGapMs: 250,
         releaseLeadMs: 30,
         restGapThresholdMs: 1200,
@@ -50,6 +54,7 @@ describe("V1 to V2 dialog model", () => {
         finalGroupDurationMs: 500,
       },
       connected: {
+        allowChordSustainInProtectedMode: false,
         minimumSustainGapMs: 150,
         releaseLeadMs: 15,
         restGapThresholdMs: 2000,
@@ -80,9 +85,12 @@ describe("V1 to V2 dialog model", () => {
   });
 
   it("selecting Custom preserves the currently active values", () => {
-    const currentState = selectV1ToV2SustainStyle(
-      createInitialUpgradeScoreToV2FormState("Generated"),
-      "connected",
+    const currentState = editUpgradeScoreToV2ChordSustain(
+      selectV1ToV2SustainStyle(
+        createInitialUpgradeScoreToV2FormState("Generated"),
+        "connected",
+      ),
+      true,
     );
 
     expect(
@@ -90,6 +98,40 @@ describe("V1 to V2 dialog model", () => {
     ).toMatchObject({
       selectedStyle: "custom",
       values: currentState.values,
+    });
+  });
+
+  it.each(["conservative", "balanced", "connected"] as const)(
+    "selecting %s resets protected chord sustain",
+    (style) => {
+      const customState = editUpgradeScoreToV2ChordSustain(
+        createInitialUpgradeScoreToV2FormState("Generated"),
+        true,
+      );
+
+      expect(
+        selectV1ToV2SustainStyle(customState, style).values
+          .allowChordSustainInProtectedMode,
+      ).toBe(false);
+    },
+  );
+
+  it("editing protected chord sustain selects Custom and clears errors", () => {
+    const currentState = {
+      ...createInitialUpgradeScoreToV2FormState("Generated"),
+      operationError: "storage failed",
+      validationError: "invalid-release-lead" as const,
+    };
+
+    expect(
+      editUpgradeScoreToV2ChordSustain(currentState, true),
+    ).toMatchObject({
+      operationError: "",
+      selectedStyle: "custom",
+      validationError: null,
+      values: {
+        allowChordSustainInProtectedMode: true,
+      },
     });
   });
 
@@ -156,6 +198,7 @@ describe("V1 to V2 dialog model", () => {
       validationError: "invalid-maximum-duration" as const,
       values: {
         ...createInitialUpgradeScoreToV2FormState("Generated").values,
+        allowChordSustainInProtectedMode: true,
         name: "Keep this name",
         maxDurationMs: "3456",
       },
@@ -206,6 +249,7 @@ describe("V1 to V2 dialog model", () => {
     expect(
       buildV1ToV2OptionsFromDialogValues(currentState.values),
     ).toEqual({
+      allowChordSustainInProtectedMode: false,
       name: "Generated",
       minimumSustainGapMs: 150,
       releaseLeadMs: 15,

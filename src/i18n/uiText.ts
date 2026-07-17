@@ -220,26 +220,32 @@ export const uiText = {
           conservative: {
             label: "保守",
             description:
-              "只延长明显较长的音，并提前松开，优先保持快速段落清晰。",
+              "只延长明显较长的音；密集或多声部曲谱会自动减少长音。",
           },
           balanced: {
             label: "均衡",
             description:
-              "延长中等间隔的音，快速音仍保持普通点按，推荐使用。",
+              "简单曲谱按正常规则转换，密集或多声部曲谱自动启用保护，推荐使用。",
           },
           connected: {
             label: "连贯",
             description:
-              "允许较短间隔生成延音，但仍会在下一组音开始前松开。",
+              "允许更多较短间隔生成长音，但密集或多声部曲谱仍会避免大面积连按。",
           },
           custom: {
             label: "自定义",
-            description: "手动调整延音参数。",
+            description: "手动调整延音参数和密集曲谱保护选项。",
           },
         },
         activeValuesSummary:
           "仅对 {minimumSeconds}–{restSeconds} 秒的间隔生成延音，并在下一组音前约 {releaseLeadMs} 毫秒松开；单个音最长约 {maximumSeconds} 秒。",
         activeValuesFallback: "请检查下方的自定义参数。",
+        protectedProfileEstimate:
+          "检测到密集或多声部曲谱，已启用保守长音识别。预计生成 {count} 个长音。",
+        standardProfileEstimate:
+          "检测到较简单的曲谱，将按所选风格生成长音。预计生成 {count} 个长音。",
+        profileEstimateFallback:
+          "修正自定义参数后可查看预计生成的长音数量。",
         customSettingsLabel: "自定义参数",
         minimumSustainGapLabel: "最小延音间隔",
         minimumSustainGapHelp:
@@ -259,6 +265,10 @@ export const uiText = {
           "曲谱最后一组音默认持续约 {seconds} 秒。",
         finalGroupDurationHelpFallback:
           "此值决定曲谱最后一组音的默认持续时间。",
+        allowChordSustainLabel:
+          "在密集或多声部曲谱中允许和弦延音",
+        allowChordSustainHelp:
+          "默认关闭。开启后，多音和弦也可能被长按，可能产生密集连续触发。",
         millisecondsUnit: "毫秒",
         restoreRecommended: "恢复推荐设置",
         cancel: "取消",
@@ -878,26 +888,33 @@ export const uiText = {
           conservative: {
             label: "Conservative",
             description:
-              "Sustains only clearly longer notes and releases early to keep rapid passages clear.",
+              "Sustains only clearly longer notes and automatically reduces sustain in dense or polyphonic scores.",
           },
           balanced: {
             label: "Balanced",
             description:
-              "Sustains medium-length gaps while keeping rapid notes as normal taps. Recommended.",
+              "Uses normal conversion for simple scores and protected detection for dense or polyphonic scores. Recommended.",
           },
           connected: {
             label: "Connected",
             description:
-              "Allows shorter gaps to sustain, but still releases before the next note group.",
+              "Allows more short gaps to sustain, while still avoiding widespread repeated holds in dense or polyphonic scores.",
           },
           custom: {
             label: "Custom",
-            description: "Adjust the sustain values manually.",
+            description:
+              "Adjust sustain values and dense-score protection manually.",
           },
         },
         activeValuesSummary:
           "Only gaps from {minimumSeconds} to {restSeconds} seconds are sustained, releasing about {releaseLeadMs} ms before the next group; each note can last up to about {maximumSeconds} seconds.",
         activeValuesFallback: "Check the custom values below.",
+        protectedProfileEstimate:
+          "A dense or polyphonic score was detected, so protected sustain detection is active. About {count} sustained notes will be generated.",
+        standardProfileEstimate:
+          "A simpler score was detected, so the selected sustain style will be used. About {count} sustained notes will be generated.",
+        profileEstimateFallback:
+          "Correct the custom values to see the estimated sustained-note count.",
         customSettingsLabel: "Custom Settings",
         minimumSustainGapLabel: "Minimum sustain gap",
         minimumSustainGapHelp:
@@ -918,6 +935,10 @@ export const uiText = {
           "The final note group lasts about {seconds} seconds by default.",
         finalGroupDurationHelpFallback:
           "This value controls the final note group's default duration.",
+        allowChordSustainLabel:
+          "Allow chord sustain in protected mode",
+        allowChordSustainHelp:
+          "Off by default. Enabling this may hold multi-note chords and can cause dense repeated triggering.",
         millisecondsUnit: "ms",
         restoreRecommended: "Restore Recommended Settings",
         cancel: "Cancel",

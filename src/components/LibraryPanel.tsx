@@ -34,6 +34,7 @@ import type {
   LibrarySongListItem,
   UserPlaylist,
 } from "../types/library";
+import type { Song } from "../types/score";
 
 type LibraryPanelProps = {
   builtInPagination: {
@@ -72,12 +73,14 @@ type LibraryPanelProps = {
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   onRenamePlaylist: (playlistId: string) => void;
+  onResolveUpgradeSource: (songIndex: number) => Promise<Song | null>;
   onSearchQueryChange: (query: string) => void;
   onSelectSong: (songIndex: number) => void;
   onToggleLiked: (songIndex: number) => void;
   onUpgradeBlocked: () => void;
   onUpgradeSongToV2: (
     songId: LibrarySongId,
+    sourceSong: Song,
     options: V1ToV2ConversionOptions,
   ) => Promise<UpgradeSongToV2Result>;
   playlists: UserPlaylist[];
@@ -880,6 +883,7 @@ export function LibraryPanel({
   onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
+  onResolveUpgradeSource,
   onUpgradeBlocked,
   onUpgradeSongToV2,
   onRenamePlaylist,
@@ -903,8 +907,10 @@ export function LibraryPanel({
     useState<LibrarySongListItem | null>(null);
   const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
     useState<LibrarySongListItem | null>(null);
-  const [upgradingSongItem, setUpgradingSongItem] =
-    useState<LibrarySongListItem | null>(null);
+  const [upgradeDialogState, setUpgradeDialogState] = useState<{
+    item: LibrarySongListItem;
+    sourceSong: Song;
+  } | null>(null);
   const [openActionMenuSongId, setOpenActionMenuSongId] =
     useState<LibrarySongId | null>(null);
   const isLocalImports = selectedCategory === "local-imports";
@@ -1081,7 +1087,13 @@ export function LibraryPanel({
                 return;
               }
 
-              setUpgradingSongItem(item);
+              void onResolveUpgradeSource(item.songIndex).then(
+                (sourceSong) => {
+                  if (sourceSong !== null) {
+                    setUpgradeDialogState({ item, sourceSong });
+                  }
+                },
+              );
             }}
             onSelectSong={onSelectSong}
             onToggleLiked={onToggleLiked}
@@ -1168,13 +1180,17 @@ export function LibraryPanel({
           text={text}
         />
       ) : null}
-      {upgradingSongItem ? (
+      {upgradeDialogState ? (
         <UpgradeScoreToV2Dialog
-          sourceName={getLibrarySongName(upgradingSongItem.librarySong)}
+          sourceSong={upgradeDialogState.sourceSong}
           text={text.upgradeToV2}
-          onClose={() => setUpgradingSongItem(null)}
+          onClose={() => setUpgradeDialogState(null)}
           onCreate={(options) =>
-            onUpgradeSongToV2(upgradingSongItem.librarySong.id, options)
+            onUpgradeSongToV2(
+              upgradeDialogState.item.librarySong.id,
+              upgradeDialogState.sourceSong,
+              options,
+            )
           }
         />
       ) : null}

@@ -45,6 +45,7 @@ function createBuiltInSong(song: Song): BuiltInLibrarySong {
 }
 
 const conversionOptions = {
+  allowChordSustainInProtectedMode: false,
   name: "Source (V2 Long Note)",
   minimumSustainGapMs: 250,
   releaseLeadMs: 30,

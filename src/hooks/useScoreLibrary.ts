@@ -107,6 +107,7 @@ export type UpgradeSongToV2Result =
 
 type UpgradeSongToV2ExecutionOptions = {
   getBlockedMessage?: () => string | null;
+  resolvedSourceSong?: Song;
 };
 
 const BUILT_IN_PAGE_SIZE = 100;
@@ -823,6 +824,12 @@ export function useScoreLibrary({
           isMutationBlocked: () =>
             (executionOptions.getBlockedMessage?.() ?? null) !== null,
           loadSourceSong: () => {
+            if (executionOptions.resolvedSourceSong) {
+              return Promise.resolve(
+                executionOptions.resolvedSourceSong,
+              );
+            }
+
             const currentSongIndex = librarySongsRef.current.findIndex(
               (librarySong) => librarySong.id === sourceSongId,
             );

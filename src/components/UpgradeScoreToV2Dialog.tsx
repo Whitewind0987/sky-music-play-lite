@@ -4,12 +4,14 @@ import type {
   UpgradeSongToV2Result,
 } from "../hooks/useScoreLibrary";
 import type { UiText } from "../i18n/uiText";
+import type { Song } from "../types/score";
 import { formatText } from "../lib/formatText";
 import {
   applyUpgradeScoreToV2OperationError,
   applyUpgradeScoreToV2Validation,
   buildV1ToV2OptionsFromDialogValues,
   createInitialUpgradeScoreToV2FormState,
+  editUpgradeScoreToV2ChordSustain,
   editUpgradeScoreToV2FormField,
   formatValidDurationMillisecondsAsSeconds,
   getReadableSustainTimeValues,
@@ -23,6 +25,7 @@ import {
 } from "../lib/v1ToV2DialogModel";
 import {
   getV1ToV2ConversionValidationError,
+  previewV1ToV2Conversion,
   type V1ToV2ConversionOptions,
   type V1ToV2ConversionValidationError,
 } from "../lib/v1ToV2Conversion";
@@ -32,7 +35,7 @@ type UpgradeScoreToV2DialogProps = {
   onCreate: (
     options: V1ToV2ConversionOptions,
   ) => Promise<UpgradeSongToV2Result>;
-  sourceName: string;
+  sourceSong: Song;
   text: UiText["library"]["upgradeToV2"];
 };
 
@@ -76,12 +79,12 @@ export function getUpgradeScoreToV2SubmissionResultState(
 export function UpgradeScoreToV2Dialog({
   onClose,
   onCreate,
-  sourceName,
+  sourceSong,
   text,
 }: UpgradeScoreToV2DialogProps) {
   const [formState, setFormState] = useState(() =>
     createInitialUpgradeScoreToV2FormState(
-      formatText(text.defaultName, { songName: sourceName }),
+      formatText(text.defaultName, { songName: sourceSong.name }),
     ),
   );
   const [isCreating, setIsCreating] = useState(false);
@@ -162,9 +165,18 @@ export function UpgradeScoreToV2Dialog({
               errorMessage={errorMessage}
               formState={formState}
               isCreating={isCreating}
+              sourceSong={sourceSong}
               text={text}
               validationId={validationId}
               onCancel={onClose}
+              onChordSustainChange={(allowChordSustain) =>
+                setFormState((currentState) =>
+                  editUpgradeScoreToV2ChordSustain(
+                    currentState,
+                    allowChordSustain,
+                  ),
+                )
+              }
               onFieldChange={(field, value) =>
                 setFormState((currentState) =>
                   editUpgradeScoreToV2FormField(
@@ -199,10 +211,12 @@ export function UpgradeScoreToV2Form({
   formState,
   isCreating,
   onCancel,
+  onChordSustainChange,
   onFieldChange,
   onRestoreRecommended,
   onStyleChange,
   onSubmit,
+  sourceSong,
   text,
   validationId,
 }: {
@@ -211,6 +225,7 @@ export function UpgradeScoreToV2Form({
   formState: UpgradeScoreToV2FormState;
   isCreating: boolean;
   onCancel: () => void;
+  onChordSustainChange: (allowChordSustain: boolean) => void;
   onFieldChange: (
     field: UpgradeScoreToV2FormField,
     value: string,
@@ -218,6 +233,7 @@ export function UpgradeScoreToV2Form({
   onRestoreRecommended: () => void;
   onStyleChange: (style: V1ToV2SustainStyle) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  sourceSong: Song;
   text: UiText["library"]["upgradeToV2"];
   validationId: string;
 }) {
@@ -232,6 +248,32 @@ export function UpgradeScoreToV2Form({
     readableTimeValues === null
       ? text.activeValuesFallback
       : formatText(text.activeValuesSummary, readableTimeValues);
+  const previewOptions = buildV1ToV2OptionsFromDialogValues(
+    formState.values,
+  );
+  const previewValidationError = getV1ToV2ConversionValidationError(
+    previewOptions.name.trim().length === 0
+      ? { ...previewOptions, name: "conversion-preview" }
+      : previewOptions,
+  );
+  const conversionPreview =
+    previewValidationError === null
+      ? previewV1ToV2Conversion(
+          sourceSong,
+          previewOptions.name.trim().length === 0
+            ? { ...previewOptions, name: "conversion-preview" }
+            : previewOptions,
+        )
+      : null;
+  const profileSummary =
+    conversionPreview === null
+      ? text.profileEstimateFallback
+      : formatText(
+          conversionPreview.profile.mode === "protected"
+            ? text.protectedProfileEstimate
+            : text.standardProfileEstimate,
+          { count: conversionPreview.generatedSustainCount },
+        );
   const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
     formState.values.maxDurationMs,
   );
@@ -303,6 +345,7 @@ export function UpgradeScoreToV2Form({
       </fieldset>
 
       <p className="score-upgrade-readable-summary">{readableSummary}</p>
+      <p className="score-upgrade-profile-summary">{profileSummary}</p>
 
       {formState.selectedStyle === "custom" ? (
         <section
@@ -430,6 +473,16 @@ export function UpgradeScoreToV2Form({
               }
             />
 
+            <ChordSustainField
+              checked={
+                formState.values.allowChordSustainInProtectedMode
+              }
+              disabled={isCreating}
+              helpText={text.allowChordSustainHelp}
+              label={text.allowChordSustainLabel}
+              onChange={onChordSustainChange}
+            />
+
             <button
               className="score-upgrade-restore-button"
               disabled={isCreating}
@@ -466,6 +519,38 @@ export function UpgradeScoreToV2Form({
         </button>
       </div>
     </form>
+  );
+}
+
+function ChordSustainField({
+  checked,
+  disabled,
+  helpText,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  helpText: string;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  const helpTextId = useId();
+
+  return (
+    <div className="score-upgrade-checkbox-field">
+      <label>
+        <input
+          aria-describedby={helpTextId}
+          checked={checked}
+          disabled={disabled}
+          type="checkbox"
+          onChange={(event) => onChange(event.currentTarget.checked)}
+        />
+        <span>{label}</span>
+      </label>
+      <small id={helpTextId}>{helpText}</small>
+    </div>
   );
 }
 

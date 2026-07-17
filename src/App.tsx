@@ -687,14 +687,16 @@ function App() {
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
+          onResolveUpgradeSource={scoreLibrary.preloadSong}
           onRenamePlaylist={libraryDialogs.requestRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
           onSelectSong={handleLibrarySongSelection}
           onToggleLiked={playbackCoordinator.handleToggleLikedSong}
           onUpgradeBlocked={scoreUpgradeGuard.reportBlocked}
-          onUpgradeSongToV2={(songId, options) =>
+          onUpgradeSongToV2={(songId, sourceSong, options) =>
             scoreLibrary.handleUpgradeSongToV2(songId, options, {
               getBlockedMessage: scoreUpgradeGuard.getBlockedMessage,
+              resolvedSourceSong: sourceSong,
             })
           }
           playlists={scoreLibrary.playlists}

@@ -1760,7 +1760,8 @@ button {
 }
 
 .score-upgrade-style-description,
-.score-upgrade-readable-summary {
+.score-upgrade-readable-summary,
+.score-upgrade-profile-summary {
   margin: 0;
   color: #52616f;
   font-size: 13px;
@@ -1771,6 +1772,14 @@ button {
   padding: 9px 10px;
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.score-upgrade-profile-summary {
+  padding: 9px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  color: #1e40af;
+  background: #eff6ff;
 }
 
 .score-upgrade-custom-settings {
@@ -1789,6 +1798,32 @@ button {
 
 .score-upgrade-custom-fields {
   min-width: 0;
+}
+
+.score-upgrade-checkbox-field {
+  display: grid;
+  gap: 5px;
+}
+
+.score-upgrade-checkbox-field label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.score-upgrade-checkbox-field input {
+  margin: 2px 0 0;
+  accent-color: #2563eb;
+}
+
+.score-upgrade-checkbox-field small {
+  padding-left: 22px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .score-upgrade-restore-button {

@@ -3,8 +3,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { uiText } from "../i18n/uiText";
+import type { Song } from "../types/score";
 import {
   createInitialUpgradeScoreToV2FormState,
+  editUpgradeScoreToV2ChordSustain,
   editUpgradeScoreToV2FormField,
   restoreRecommendedUpgradeScoreToV2State,
   selectV1ToV2SustainStyle,
@@ -18,16 +20,36 @@ import {
 
 const text = uiText["en-US"].library.upgradeToV2;
 
+function createSourceSong(
+  songNotes: Song["songNotes"] = [
+    { time: 0, key: "1Key0" },
+    { time: 600, key: "1Key1" },
+    { time: 1800, key: "1Key2" },
+  ],
+): Song {
+  return {
+    bitsPerPage: 16,
+    bpm: 120,
+    formatVersion: 1,
+    isComposed: false,
+    name: "Original",
+    pitchLevel: 0,
+    songNotes,
+  };
+}
+
 function renderForm({
   errorMessage = "",
   formState = createInitialUpgradeScoreToV2FormState(
     "Original (V2 Long Note)",
   ),
   isCreating = false,
+  sourceSong = createSourceSong(),
 }: {
   errorMessage?: string;
   formState?: UpgradeScoreToV2FormState;
   isCreating?: boolean;
+  sourceSong?: Song;
 } = {}) {
   return renderToStaticMarkup(
     createElement(
@@ -39,10 +61,12 @@ function renderForm({
         formState,
         isCreating,
         onCancel: () => {},
+        onChordSustainChange: () => {},
         onFieldChange: () => {},
         onRestoreRecommended: () => {},
         onStyleChange: () => {},
         onSubmit: () => {},
+        sourceSong,
         text,
         validationId: "validation",
       }),
@@ -160,7 +184,11 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(markup).toContain(
       "Only gaps from 0.25 to 1.2 seconds are sustained, releasing about 30 ms before the next group; each note can last up to about 1.2 seconds.",
     );
+    expect(markup).toContain(
+      "A simpler score was detected, so the selected sustain style will be used. About 3 sustained notes will be generated.",
+    );
     expect(markup).not.toContain('type="number"');
+    expect(markup).not.toContain('type="checkbox"');
     expect(markup).not.toContain(text.customSettingsLabel);
     expect(markup).not.toContain("Advanced Settings");
     expect(markup).not.toContain(text.restoreRecommended);
@@ -180,6 +208,7 @@ describe("UpgradeScoreToV2Dialog", () => {
       expect(getInputMarkup(markup, style)).toContain('checked=""');
       expect(markup).toContain(text.sustainStyles[style].description);
       expect(markup).not.toContain('type="number"');
+      expect(markup).not.toContain('type="checkbox"');
       expect(markup).not.toContain(text.customSettingsLabel);
       expect(markup).not.toContain(text.restoreRecommended);
     },
@@ -199,6 +228,7 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(markup).toContain(text.sustainStyles.custom.description);
     expect(markup).toContain(text.customSettingsLabel);
     expect(markup.match(/type="number"/g)).toHaveLength(5);
+    expect(markup.match(/type="checkbox"/g)).toHaveLength(1);
     expect(markup).toContain(text.restoreRecommended);
     expect(markup).not.toContain("<details");
     ["150", "15", "2000", "800"].forEach((value) => {
@@ -206,6 +236,7 @@ describe("UpgradeScoreToV2Dialog", () => {
     });
     expect(markup).toContain(text.minimumSustainGapLabel);
     expect(markup).toContain(text.releaseLeadLabel);
+    expect(markup).toContain(text.allowChordSustainLabel);
   });
 
   it("hides custom controls after switching to Balanced or restoring", () => {
@@ -235,6 +266,7 @@ describe("UpgradeScoreToV2Dialog", () => {
         selectedStyle: "balanced",
         validationError: null,
         values: {
+          allowChordSustainInProtectedMode: false,
           name: "Keep name",
           minimumSustainGapMs: "250",
           releaseLeadMs: "30",
@@ -244,6 +276,7 @@ describe("UpgradeScoreToV2Dialog", () => {
         },
       });
       expect(markup).not.toContain('type="number"');
+      expect(markup).not.toContain('type="checkbox"');
       expect(markup).not.toContain(text.customSettingsLabel);
       expect(markup).not.toContain(text.restoreRecommended);
     });
@@ -258,10 +291,78 @@ describe("UpgradeScoreToV2Dialog", () => {
     const markup = renderForm({ formState: customState });
 
     expect(markup).toContain(text.activeValuesFallback);
+    expect(markup).toContain(text.profileEstimateFallback);
     expect(markup).toContain(text.restGapThresholdHelp);
     expect(markup).not.toContain("NaN");
     expect(markup).not.toContain("Infinity");
     expect(markup).not.toContain("undefined");
+  });
+
+  it("associates protected chord help with the Custom checkbox", () => {
+    const formState = selectV1ToV2SustainStyle(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+      "custom",
+    );
+    const markup = renderForm({ formState });
+    const checkbox = markup.match(
+      /<input[^>]*type="checkbox"[^>]*>/,
+    )?.[0];
+    const helpId = checkbox?.match(
+      /aria-describedby="([^"]+)"/,
+    )?.[1];
+
+    expect(helpId).toBeTruthy();
+    expect(helpId).not.toContain(" ");
+    expect(markup).toContain(`<small id="${helpId}">`);
+    expect(markup).toContain(text.allowChordSustainHelp);
+  });
+
+  it("renders protected profile text and updates the chord estimate", () => {
+    const sourceSong = createSourceSong([
+      { time: 0, key: "1Key0" },
+      { time: 0, key: "1Key1" },
+      { time: 600, key: "1Key2" },
+      { time: 756, key: "1Key3" },
+      { time: 912, key: "1Key4" },
+      { time: 1068, key: "1Key5" },
+    ]);
+    const customState = selectV1ToV2SustainStyle(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+      "custom",
+    );
+    const enabledState = editUpgradeScoreToV2ChordSustain(
+      customState,
+      true,
+    );
+
+    expect(renderForm({ formState: customState, sourceSong })).toContain(
+      "protected sustain detection is active. About 1 sustained notes will be generated.",
+    );
+    expect(renderForm({ formState: enabledState, sourceSong })).toContain(
+      "protected sustain detection is active. About 3 sustained notes will be generated.",
+    );
+  });
+
+  it("updates the estimate for numeric edits and ignores an empty name", () => {
+    const initialState =
+      createInitialUpgradeScoreToV2FormState("Generated");
+    const editedState = editUpgradeScoreToV2FormField(
+      initialState,
+      "minimumSustainGapMs",
+      "700",
+    );
+    const emptyNameState = editUpgradeScoreToV2FormField(
+      initialState,
+      "name",
+      "",
+    );
+
+    expect(renderForm({ formState: editedState })).toContain(
+      "About 2 sustained notes will be generated.",
+    );
+    expect(renderForm({ formState: emptyNameState })).toContain(
+      "About 3 sustained notes will be generated.",
+    );
   });
 
   it("associates readable help with a custom input without an error", () => {
@@ -346,6 +447,9 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(styleFieldset).toContain("disabled");
     expect(customFieldset).toContain("disabled");
     expect(restoreButton).toContain("disabled");
+    expect(
+      markup.match(/<input[^>]*type="checkbox"[^>]*>/)?.[0],
+    ).toContain("disabled");
     expect(restoreButton).toContain('type="button"');
     expect(markup.match(/<button[^>]*disabled/g)).toHaveLength(3);
     expect(markup).toContain(text.creating);
