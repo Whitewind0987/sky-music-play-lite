@@ -9,6 +9,7 @@ import {
   DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
   DEFAULT_V1_TO_V2_MAX_DURATION_MS,
   DEFAULT_V1_TO_V2_OVERLAP_MS,
+  DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
   getV1ToV2ConversionValidationError,
   type V1ToV2ConversionOptions,
   type V1ToV2ConversionValidationError,
@@ -26,6 +27,7 @@ type UpgradeScoreToV2DialogProps = {
 export type UpgradeScoreToV2FormValues = {
   name: string;
   overlapMs: string;
+  restGapThresholdMs: string;
   maxDurationMs: string;
   finalGroupDurationMs: string;
 };
@@ -50,6 +52,41 @@ export async function runSingleFlightScoreUpgrade(
   }
 }
 
+export type UpgradeScoreToV2FormState = {
+  operationError: string;
+  validationError: V1ToV2ConversionValidationError | null;
+  values: UpgradeScoreToV2FormValues;
+};
+
+export function getEditedUpgradeScoreToV2FormState(
+  currentState: UpgradeScoreToV2FormState,
+  nextValues: UpgradeScoreToV2FormValues,
+): UpgradeScoreToV2FormState {
+  return {
+    ...currentState,
+    operationError: "",
+    validationError: null,
+    values: nextValues,
+  };
+}
+
+export function getUpgradeScoreToV2SubmissionResultState(
+  values: UpgradeScoreToV2FormValues,
+  result: UpgradeSongToV2Result,
+) {
+  return result.status === "created"
+    ? {
+        operationError: "",
+        shouldClose: true,
+        values,
+      }
+    : {
+        operationError: result.message,
+        shouldClose: false,
+        values,
+      };
+}
+
 export function getDefaultUpgradeScoreToV2FormValues(
   sourceName: string,
   text: UiText["library"]["upgradeToV2"],
@@ -57,6 +94,9 @@ export function getDefaultUpgradeScoreToV2FormValues(
   return {
     name: formatText(text.defaultName, { songName: sourceName }),
     overlapMs: String(DEFAULT_V1_TO_V2_OVERLAP_MS),
+    restGapThresholdMs: String(
+      DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
+    ),
     maxDurationMs: String(DEFAULT_V1_TO_V2_MAX_DURATION_MS),
     finalGroupDurationMs: String(DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS),
   };
@@ -68,6 +108,7 @@ export function buildV1ToV2OptionsFromDialogValues(
   return {
     name: values.name,
     overlapMs: parseNumericField(values.overlapMs),
+    restGapThresholdMs: parseNumericField(values.restGapThresholdMs),
     maxDurationMs: parseNumericField(values.maxDurationMs),
     finalGroupDurationMs: parseNumericField(values.finalGroupDurationMs),
   };
@@ -114,12 +155,17 @@ export function UpgradeScoreToV2Dialog({
       return;
     }
 
-    if (result.status === "created") {
+    const resultState = getUpgradeScoreToV2SubmissionResultState(
+      values,
+      result,
+    );
+
+    if (resultState.shouldClose) {
       onClose();
       return;
     }
 
-    setOperationError(result.message);
+    setOperationError(resultState.operationError);
   }
 
   const validationMessage =
@@ -127,6 +173,17 @@ export function UpgradeScoreToV2Dialog({
       ? ""
       : getValidationMessage(validationError, text);
   const errorMessage = validationMessage || operationError;
+
+  function handleValuesChange(nextValues: UpgradeScoreToV2FormValues) {
+    const nextState = getEditedUpgradeScoreToV2FormState(
+      { operationError, validationError, values },
+      nextValues,
+    );
+
+    setValues(nextState.values);
+    setValidationError(nextState.validationError);
+    setOperationError(nextState.operationError);
+  }
 
   return (
     <Dialog.Root
@@ -153,7 +210,7 @@ export function UpgradeScoreToV2Dialog({
               values={values}
               onCancel={onClose}
               onSubmit={handleSubmit}
-              onValuesChange={setValues}
+              onValuesChange={handleValuesChange}
             />
           </Dialog.Content>
         </Dialog.Overlay>
@@ -233,6 +290,20 @@ export function UpgradeScoreToV2Form({
 
         <DurationField
           errorId={errorId}
+          helpText={text.restGapThresholdHelp}
+          invalid={validationError === "invalid-rest-gap-threshold"}
+          label={text.restGapThresholdLabel}
+          max={60000}
+          min={25}
+          text={text}
+          value={values.restGapThresholdMs}
+          onChange={(restGapThresholdMs) =>
+            onValuesChange({ ...values, restGapThresholdMs })
+          }
+        />
+
+        <DurationField
+          errorId={errorId}
           invalid={
             validationError === "invalid-maximum-duration" ||
             validationError === "final-duration-exceeds-maximum"
@@ -293,6 +364,7 @@ export function UpgradeScoreToV2Form({
 
 function DurationField({
   errorId,
+  helpText,
   invalid,
   label,
   max,
@@ -302,6 +374,7 @@ function DurationField({
   value,
 }: {
   errorId: string | undefined;
+  helpText?: string;
   invalid: boolean;
   label: string;
   max: number;
@@ -327,6 +400,7 @@ function DurationField({
         />
         <span>{text.millisecondsUnit}</span>
       </span>
+      {helpText ? <small>{helpText}</small> : null}
     </label>
   );
 }
@@ -340,6 +414,8 @@ function getValidationMessage(
       return text.validation.emptyName;
     case "invalid-overlap":
       return text.validation.invalidOverlap;
+    case "invalid-rest-gap-threshold":
+      return text.validation.invalidRestGapThreshold;
     case "invalid-maximum-duration":
       return text.validation.invalidMaximumDuration;
     case "invalid-final-duration":

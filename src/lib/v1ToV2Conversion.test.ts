@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Song } from "../types/score";
 import {
   convertV1SongToV2,
+  DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
   V1ToV2ConversionError,
   type V1ToV2ConversionOptions,
 } from "./v1ToV2Conversion";
@@ -9,6 +10,7 @@ import {
 const options: V1ToV2ConversionOptions = {
   name: "Test Song (V2 Long Note)",
   overlapMs: 40,
+  restGapThresholdMs: DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
   maxDurationMs: 2000,
   finalGroupDurationMs: 500,
 };
@@ -30,6 +32,10 @@ function createV1Song(overrides: Partial<Song> = {}): Song {
 }
 
 describe("convertV1SongToV2", () => {
+  it("uses a 2000ms default rest-gap threshold", () => {
+    expect(DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS).toBe(2000);
+  });
+
   it("creates V2 notes with chord, overlap, and final-group durations", () => {
     const converted = convertV1SongToV2(createV1Song(), options);
 
@@ -107,6 +113,7 @@ describe("convertV1SongToV2", () => {
       {
         ...options,
         overlapMs: 0,
+        restGapThresholdMs: 60000,
         maxDurationMs: 1000,
         finalGroupDurationMs: 25,
       },
@@ -133,6 +140,62 @@ describe("convertV1SongToV2", () => {
     expect(converted.songNotes.map((note) => note.duration)).toEqual([141, 501]);
   });
 
+  it("sustains gaps below or equal to the threshold and omits duration above it", () => {
+    const converted = convertV1SongToV2(
+      createV1Song({
+        songNotes: [
+          { time: 0, key: "below" },
+          { time: 499, key: "equal" },
+          { time: 999, key: "rest" },
+          { time: 1500, key: "final" },
+        ],
+      }),
+      { ...options, restGapThresholdMs: 500 },
+    );
+
+    expect(converted.songNotes).toEqual([
+      { time: 0, key: "below", duration: 539 },
+      { time: 499, key: "equal", duration: 540 },
+      { time: 999, key: "rest" },
+      { time: 1500, key: "final", duration: 500 },
+    ]);
+  });
+
+  it("omits duration from every note in a rest-classified chord", () => {
+    const converted = convertV1SongToV2(
+      createV1Song({
+        songNotes: [
+          { time: 0, key: "rest-a" },
+          { time: 0, key: "rest-b" },
+          { time: 3000, key: "final" },
+        ],
+      }),
+      options,
+    );
+
+    expect(converted.songNotes).toEqual([
+      { time: 0, key: "rest-a" },
+      { time: 0, key: "rest-b" },
+      { time: 3000, key: "final", duration: 500 },
+    ]);
+  });
+
+  it("keeps the source immutable when a converted group omits duration", () => {
+    const source = createV1Song({
+      songNotes: [
+        { time: 0, key: "rest", duration: 9999 },
+        { time: 4000, key: "final" },
+      ],
+    });
+    const snapshot = structuredClone(source);
+
+    const converted = convertV1SongToV2(source, options);
+
+    expect(source).toEqual(snapshot);
+    expect(converted.songNotes[0]).toEqual({ time: 0, key: "rest" });
+    expect(converted.songNotes[0]).not.toBe(source.songNotes[0]);
+  });
+
   it("rejects V2 input and scores without valid notes", () => {
     expect(() =>
       convertV1SongToV2(createV1Song({ formatVersion: 2 }), options),
@@ -152,6 +215,12 @@ describe("convertV1SongToV2", () => {
     [{ ...options, name: " " }, "empty-name"],
     [{ ...options, overlapMs: Number.NaN }, "invalid-overlap"],
     [{ ...options, overlapMs: 501 }, "invalid-overlap"],
+    [
+      { ...options, restGapThresholdMs: Number.NaN },
+      "invalid-rest-gap-threshold",
+    ],
+    [{ ...options, restGapThresholdMs: 24 }, "invalid-rest-gap-threshold"],
+    [{ ...options, restGapThresholdMs: 60001 }, "invalid-rest-gap-threshold"],
     [{ ...options, maxDurationMs: 24 }, "invalid-maximum-duration"],
     [{ ...options, maxDurationMs: 60001 }, "invalid-maximum-duration"],
     [{ ...options, finalGroupDurationMs: 24 }, "invalid-final-duration"],

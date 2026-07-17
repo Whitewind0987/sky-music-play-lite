@@ -77,6 +77,10 @@ import {
   createV2LocalLibraryCopy,
   getCreatedV2LibraryCopyState,
 } from "../lib/v1ToV2LibraryUpgrade";
+import {
+  getIsScoreUpgradeInProgress as readScoreUpgradeInProgress,
+  runWithScoreUpgradeInProgress,
+} from "../lib/scoreUpgradeOperation";
 
 type UseScoreLibraryOptions = {
   appendLog: (entry: string) => void;
@@ -777,7 +781,7 @@ export function useScoreLibrary({
     conversionOptions: V1ToV2ConversionOptions,
     executionOptions: UpgradeSongToV2ExecutionOptions = {},
   ): Promise<UpgradeSongToV2Result> {
-    if (isScoreUpgradeInProgressRef.current) {
+    if (getIsScoreUpgradeInProgress()) {
       return reportUpgradeFailure(text.logs.scoreUpgradeAlreadyInProgress);
     }
 
@@ -810,9 +814,9 @@ export function useScoreLibrary({
       return reportUpgradeFailure(blockedMessage);
     }
 
-    isScoreUpgradeInProgressRef.current = true;
-
-    try {
+    return runWithScoreUpgradeInProgress(
+      isScoreUpgradeInProgressRef,
+      async () => {
       const result = await createV2LocalLibraryCopy({
         conversionOptions,
         getExistingLibrarySongs: () => librarySongsRef.current,
@@ -901,9 +905,12 @@ export function useScoreLibrary({
       appendLog(message);
       showNotice?.(message);
       return { librarySong: result.librarySong, status: "created" };
-    } finally {
-      isScoreUpgradeInProgressRef.current = false;
-    }
+      },
+    );
+  }
+
+  function getIsScoreUpgradeInProgress() {
+    return readScoreUpgradeInProgress(isScoreUpgradeInProgressRef);
   }
 
   function reportUpgradeFailure(message: string): UpgradeSongToV2Result {
@@ -1299,6 +1306,7 @@ export function useScoreLibrary({
     handleSelectImportedSong,
     handleToggleLikedSong,
     handleUpgradeSongToV2,
+    getIsScoreUpgradeInProgress,
     builtInPagination,
     hasSearchQuery,
     hasLoadedBuiltInSongs,

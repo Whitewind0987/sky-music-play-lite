@@ -59,6 +59,7 @@ import {
   type RemovedLibrarySong,
 } from "./lib/missingScorePlaybackSync";
 import { shouldStopPlaybackForRemovedSong } from "./lib/missingScorePlaybackActivity";
+import { runScoreUpgradePlaybackStartGuard } from "./lib/scoreUpgradePlaybackGuard";
 import { forceCloseApp } from "./lib/tauriApi";
 import type { LibrarySongId } from "./types/library";
 import "../font/iconfont.css";
@@ -421,24 +422,38 @@ function App() {
 
   useEffect(() => {
     playbackShortcutsController.setPlaybackHotkeyControls({
-      next: playbackCoordinator.handleNextPlayback,
+      next: () => {
+        runScoreUpgradePlaybackStartGuard({
+          getIsScoreUpgradeInProgress:
+            scoreLibrary.getIsScoreUpgradeInProgress,
+          onBlocked: scoreUpgradeGuard.reportPlaybackStartBlocked,
+          onStart: playbackCoordinator.handleNextPlayback,
+        });
+      },
       pauseResume: () => {
         if (playbackOutput.playbackState === "playing") {
           playbackOutput.onPause();
           return;
         }
 
-        if (playbackOutput.playbackState === "paused") {
-          playbackOutput.onResume();
-          return;
-        }
+        runScoreUpgradePlaybackStartGuard({
+          getIsScoreUpgradeInProgress:
+            scoreLibrary.getIsScoreUpgradeInProgress,
+          onBlocked: scoreUpgradeGuard.reportPlaybackStartBlocked,
+          onStart: () => {
+            if (playbackOutput.playbackState === "paused") {
+              playbackOutput.onResume();
+              return;
+            }
 
-        if (
-          playbackOutput.canPlay &&
-          !playbackCoordinator.isCurrentSongLoading
-        ) {
-          void playbackCoordinator.handleBottomPlayerPlay();
-        }
+            if (
+              playbackOutput.canPlay &&
+              !playbackCoordinator.isCurrentSongLoading
+            ) {
+              void playbackCoordinator.handleBottomPlayerPlay();
+            }
+          },
+        });
       },
       stop: playbackOutput.onStop,
     });

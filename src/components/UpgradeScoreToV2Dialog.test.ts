@@ -6,6 +6,8 @@ import { uiText } from "../i18n/uiText";
 import { getV1ToV2ConversionValidationError } from "../lib/v1ToV2Conversion";
 import {
   buildV1ToV2OptionsFromDialogValues,
+  getEditedUpgradeScoreToV2FormState,
+  getUpgradeScoreToV2SubmissionResultState,
   getDefaultUpgradeScoreToV2FormValues,
   runSingleFlightScoreUpgrade,
   UpgradeScoreToV2Form,
@@ -21,6 +23,7 @@ describe("UpgradeScoreToV2Dialog form model", () => {
     ).toEqual({
       name: "原曲名（V2 长音版）",
       overlapMs: "40",
+      restGapThresholdMs: "2000",
       maxDurationMs: "2000",
       finalGroupDurationMs: "500",
     });
@@ -36,6 +39,7 @@ describe("UpgradeScoreToV2Dialog form model", () => {
     const options = buildV1ToV2OptionsFromDialogValues({
       name: "Copy",
       overlapMs: "",
+      restGapThresholdMs: "2000",
       maxDurationMs: "2000",
       finalGroupDurationMs: "500",
     });
@@ -52,6 +56,7 @@ describe("UpgradeScoreToV2Dialog form model", () => {
         buildV1ToV2OptionsFromDialogValues({
           name: " ",
           overlapMs: "40",
+          restGapThresholdMs: "2000",
           maxDurationMs: "2000",
           finalGroupDurationMs: "500",
         }),
@@ -62,11 +67,95 @@ describe("UpgradeScoreToV2Dialog form model", () => {
         buildV1ToV2OptionsFromDialogValues({
           name: "Copy",
           overlapMs: "40",
+          restGapThresholdMs: "2000",
           maxDurationMs: "400",
           finalGroupDurationMs: "500",
         }),
       ),
     ).toBe("final-duration-exceeds-maximum");
+  });
+
+  it("clears stale validation and operation errors after any field edit", () => {
+    const text = uiText["en-US"].library.upgradeToV2;
+    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
+    const nextValues = { ...values, restGapThresholdMs: "2500" };
+
+    expect(
+      getEditedUpgradeScoreToV2FormState(
+        {
+          operationError: "storage failed",
+          validationError: "invalid-rest-gap-threshold",
+          values,
+        },
+        nextValues,
+      ),
+    ).toEqual({
+      operationError: "",
+      validationError: null,
+      values: nextValues,
+    });
+  });
+
+  it("validates the rest-gap threshold from dialog values", () => {
+    const text = uiText["en-US"].library.upgradeToV2;
+    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
+
+    expect(
+      getV1ToV2ConversionValidationError(
+        buildV1ToV2OptionsFromDialogValues({
+          ...values,
+          restGapThresholdMs: "60001",
+        }),
+      ),
+    ).toBe("invalid-rest-gap-threshold");
+  });
+
+  it("preserves values after failure or duplicate and closes only on success", () => {
+    const text = uiText["en-US"].library.upgradeToV2;
+    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
+
+    expect(
+      getUpgradeScoreToV2SubmissionResultState(values, {
+        message: "storage failed",
+        status: "failed",
+      }),
+    ).toEqual({
+      operationError: "storage failed",
+      shouldClose: false,
+      values,
+    });
+    expect(
+      getUpgradeScoreToV2SubmissionResultState(values, {
+        message: "duplicate",
+        status: "duplicate",
+      }),
+    ).toEqual({
+      operationError: "duplicate",
+      shouldClose: false,
+      values,
+    });
+    expect(
+      getUpgradeScoreToV2SubmissionResultState(values, {
+        librarySong: {
+          id: "local-copy",
+          importedAt: 1,
+          metadata: {
+            bitsPerPage: 16,
+            bpm: 120,
+            fingerprint: "copy",
+            formatVersion: 2,
+            isComposed: false,
+            lastNoteTimeMs: 0,
+            name: values.name,
+            noteCount: 1,
+            noteGroupCount: 1,
+            pitchLevel: 0,
+          },
+          source: "local-import",
+        },
+        status: "created",
+      }),
+    ).toMatchObject({ operationError: "", shouldClose: true, values });
   });
 
   it("disables through one async submission and ignores duplicate submission", async () => {
@@ -128,6 +217,9 @@ describe("UpgradeScoreToV2Dialog form model", () => {
     );
 
     expect(markup).toContain('value="Original (V2 Long Note)"');
+    expect(markup.match(/<input/g)).toHaveLength(5);
+    expect(markup).toContain('value="2000"');
+    expect(markup).toContain(text.restGapThresholdHelp);
     expect(markup).toContain("<fieldset disabled");
     expect(markup.match(/<button[^>]*disabled/g)).toHaveLength(2);
     expect(markup).toContain(text.creating);

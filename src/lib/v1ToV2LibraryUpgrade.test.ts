@@ -47,6 +47,7 @@ function createBuiltInSong(song: Song): BuiltInLibrarySong {
 const conversionOptions = {
   name: "Source (V2 Long Note)",
   overlapMs: 40,
+  restGapThresholdMs: 2000,
   maxDurationMs: 2000,
   finalGroupDurationMs: 500,
 };
@@ -104,6 +105,39 @@ describe("createV2LocalLibraryCopy", () => {
     expect(seed).not.toHaveBeenCalled();
   });
 
+  it("does not resolve or seed the new record before storage finishes", async () => {
+    let finishSave: () => void = () => {};
+    let hasResolved = false;
+    const seed = vi.fn();
+    const upgrade = createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("local-copy", song),
+      getExistingLibrarySongs: () => [],
+      loadSourceSong: async () => createV1Song(),
+      saveImportedScoreSong: () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+      seedImportedScoreSong: seed,
+      sourceSongId: "local-source",
+    }).then((result) => {
+      hasResolved = true;
+      return result;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(hasResolved).toBe(false);
+    expect(seed).not.toHaveBeenCalled();
+
+    finishSave();
+    await expect(upgrade).resolves.toMatchObject({ status: "created" });
+    expect(seed).toHaveBeenCalledWith(
+      "local-copy",
+      expect.objectContaining({ formatVersion: 2 }),
+    );
+  });
+
   it("does not write or create another record for a duplicate conversion", async () => {
     const sourceSong = createV1Song();
     const firstSave = vi.fn().mockResolvedValue(undefined);
@@ -121,6 +155,39 @@ describe("createV2LocalLibraryCopy", () => {
     const existingCopy =
       first.status === "created" ? first.librarySong : null;
     const duplicateSave = vi.fn();
+    const duplicate = await createV2LocalLibraryCopy({
+      conversionOptions,
+      getExistingLibrarySongs: () =>
+        existingCopy === null ? [] : [existingCopy],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: duplicateSave,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(duplicate).toEqual({ status: "duplicate" });
+    expect(duplicateSave).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates conversions whose long-rest groups omit duration", async () => {
+    const sourceSong = createV1Song();
+    sourceSong.songNotes = [
+      { time: 0, key: "1Key0" },
+      { time: 4000, key: "1Key1" },
+    ];
+    const first = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("local-copy", song),
+      getExistingLibrarySongs: () => [],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: vi.fn().mockResolvedValue(undefined),
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+    const existingCopy =
+      first.status === "created" ? first.librarySong : null;
+    const duplicateSave = vi.fn();
+
     const duplicate = await createV2LocalLibraryCopy({
       conversionOptions,
       getExistingLibrarySongs: () =>

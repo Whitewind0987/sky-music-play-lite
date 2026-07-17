@@ -211,10 +211,14 @@ export const uiText = {
       upgradeToV2: {
         menuAction: "升级为 V2（保留原曲谱）",
         title: "升级为 V2",
-        description: "将创建一份新的 V2 曲谱，原 V1 曲谱不会被修改。",
+        description:
+          "将根据相邻音组的时间间隔生成一份新的 V2 长音曲谱。V1 不包含松键时间，生成结果仅为自动建议，原 V1 曲谱不会被修改。",
         defaultName: "{songName}（V2 长音版）",
         newNameLabel: "新曲谱名称",
         overlapLabel: "长音重叠",
+        restGapThresholdLabel: "超过此间隔视为休止",
+        restGapThresholdHelp:
+          "相邻音组间隔超过此值时，该音组保持普通点按，不生成长音。",
         maximumDurationLabel: "单个音符最大时长",
         finalGroupDurationLabel: "最后一组音符时长",
         millisecondsUnit: "毫秒",
@@ -224,6 +228,8 @@ export const uiText = {
         validation: {
           emptyName: "请输入新曲谱名称。",
           invalidOverlap: "长音重叠必须是 0–500 毫秒之间的数字。",
+          invalidRestGapThreshold:
+            "休止判定间隔必须是 25–60000 毫秒之间的数字。",
           invalidMaximumDuration:
             "单个音符最大时长必须是 25–60000 毫秒之间的数字。",
           invalidFinalDuration:
@@ -386,6 +392,8 @@ export const uiText = {
         "播放进行中，已阻止导入曲谱。请先停止播放。",
       scoreUpgradePlaybackBlocked:
         "播放进行中，无法升级曲谱。请先停止播放。",
+      scoreUpgradePlaybackStartBlocked:
+        "正在创建 V2 曲谱，暂时无法开始播放。",
       scoreUpgradeMutationBlocked:
         "本地曲谱文件正在整理，暂时无法升级曲谱。请稍后重试。",
       scoreUpgradeAlreadyInProgress: "正在创建 V2 曲谱，请勿重复提交。",
@@ -816,10 +824,13 @@ export const uiText = {
         menuAction: "Upgrade to V2 (Keep Original)",
         title: "Upgrade to V2",
         description:
-          "A new V2 score will be created. The original V1 score will not be modified.",
+          "A new V2 sustained-note score will be generated from the gaps between note groups. V1 does not contain key-release timing, so the generated durations are only automatic suggestions. The original V1 score will not be modified.",
         defaultName: "{songName} (V2 Long Note)",
         newNameLabel: "New score name",
         overlapLabel: "Note overlap",
+        restGapThresholdLabel: "Treat longer gaps as rests",
+        restGapThresholdHelp:
+          "When the gap to the next note group exceeds this value, the current group remains a normal tap instead of becoming a sustained note.",
         maximumDurationLabel: "Maximum note duration",
         finalGroupDurationLabel: "Final note-group duration",
         millisecondsUnit: "ms",
@@ -829,6 +840,8 @@ export const uiText = {
         validation: {
           emptyName: "Enter a name for the new score.",
           invalidOverlap: "Note overlap must be a number from 0 to 500 ms.",
+          invalidRestGapThreshold:
+            "The rest-gap threshold must be a number from 25 to 60000 ms.",
           invalidMaximumDuration:
             "Maximum note duration must be a number from 25 to 60000 ms.",
           invalidFinalDuration:
@@ -998,6 +1011,8 @@ export const uiText = {
         "Import was blocked while playback is active. Please stop playback first.",
       scoreUpgradePlaybackBlocked:
         "Score upgrade is unavailable during playback. Stop playback first.",
+      scoreUpgradePlaybackStartBlocked:
+        "A V2 score is being created. Playback cannot start yet.",
       scoreUpgradeMutationBlocked:
         "Local score files are being organized. Try upgrading again shortly.",
       scoreUpgradeAlreadyInProgress:

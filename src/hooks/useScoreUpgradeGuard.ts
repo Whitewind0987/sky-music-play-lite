@@ -38,5 +38,9 @@ export function useScoreUpgradeGuard({
       appendLog(currentBlockedMessage);
       showNotice(currentBlockedMessage);
     },
+    reportPlaybackStartBlocked() {
+      appendLog(text.scoreUpgradePlaybackStartBlocked);
+      showNotice(text.scoreUpgradePlaybackStartBlocked);
+    },
   };
 }

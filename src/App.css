@@ -1720,6 +1720,13 @@ button {
   font-weight: 700;
 }
 
+.score-upgrade-field small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 .score-upgrade-field > input,
 .score-upgrade-number-input input {
   min-width: 0;
