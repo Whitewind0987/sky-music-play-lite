@@ -6,6 +6,8 @@ import { uiText } from "../i18n/uiText";
 import {
   createInitialUpgradeScoreToV2FormState,
   editUpgradeScoreToV2FormField,
+  restoreRecommendedUpgradeScoreToV2State,
+  selectV1ToV2SustainStyle,
   type UpgradeScoreToV2FormState,
 } from "../lib/v1ToV2DialogModel";
 import {
@@ -36,7 +38,6 @@ function renderForm({
         errorMessage,
         formState,
         isCreating,
-        onAdvancedOpenChange: () => {},
         onCancel: () => {},
         onFieldChange: () => {},
         onRestoreRecommended: () => {},
@@ -147,14 +148,8 @@ describe("UpgradeScoreToV2Dialog", () => {
     ).toMatchObject({ operationError: "", shouldClose: true, values });
   });
 
-  it("renders Balanced as the default with a readable collapsed dialog", () => {
+  it("renders Balanced by default without custom numeric controls", () => {
     const markup = renderForm();
-    const detailsOpeningTag = markup.match(
-      /<details class="score-upgrade-advanced"[^>]*>/,
-    )?.[0];
-    const detailsStart = markup.indexOf("<details");
-    const detailsEnd = markup.indexOf("</details>");
-    const detailsMarkup = markup.slice(detailsStart, detailsEnd);
 
     expect(markup).toContain(text.sustainStyles.conservative.label);
     expect(markup).toContain(text.sustainStyles.balanced.label);
@@ -165,17 +160,90 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(markup).toContain(
       "Gaps longer than 2 seconds are treated as rests; each note can last up to about 2 seconds.",
     );
-    expect(markup).toContain(`<summary>${text.advancedSettingsLabel}</summary>`);
-    expect(detailsOpeningTag).not.toContain(" open");
-    expect(detailsStart).toBeGreaterThan(-1);
-    expect(detailsEnd).toBeGreaterThan(detailsStart);
-    expect(detailsMarkup.match(/type="number"/g)).toHaveLength(4);
-    ["40", "2000", "500"].forEach((value) => {
-      const inputIndex = markup.indexOf(`value="${value}"`, detailsStart);
-      expect(inputIndex).toBeGreaterThan(detailsStart);
-      expect(inputIndex).toBeLessThan(detailsEnd);
-    });
+    expect(markup).not.toContain('type="number"');
+    expect(markup).not.toContain(text.customSettingsLabel);
+    expect(markup).not.toContain("Advanced Settings");
+    expect(markup).not.toContain(text.restoreRecommended);
+    expect(markup).not.toContain("<details");
     expect(markup).not.toContain('role="alert"');
+  });
+
+  it.each(["conservative", "connected"] as const)(
+    "does not render numeric controls for %s",
+    (style) => {
+      const formState = selectV1ToV2SustainStyle(
+        createInitialUpgradeScoreToV2FormState("Generated"),
+        style,
+      );
+      const markup = renderForm({ formState });
+
+      expect(getInputMarkup(markup, style)).toContain('checked=""');
+      expect(markup).toContain(text.sustainStyles[style].description);
+      expect(markup).not.toContain('type="number"');
+      expect(markup).not.toContain(text.customSettingsLabel);
+      expect(markup).not.toContain(text.restoreRecommended);
+    },
+  );
+
+  it("renders all four numeric controls and restore only for Custom", () => {
+    const formState = selectV1ToV2SustainStyle(
+      selectV1ToV2SustainStyle(
+        createInitialUpgradeScoreToV2FormState("Generated"),
+        "connected",
+      ),
+      "custom",
+    );
+    const markup = renderForm({ formState });
+
+    expect(getInputMarkup(markup, "custom")).toContain('checked=""');
+    expect(markup).toContain(text.sustainStyles.custom.description);
+    expect(markup).toContain(text.customSettingsLabel);
+    expect(markup.match(/type="number"/g)).toHaveLength(4);
+    expect(markup).toContain(text.restoreRecommended);
+    expect(markup).not.toContain("<details");
+    ["80", "4000", "3000", "800"].forEach((value) => {
+      expect(markup).toContain(`value="${value}"`);
+    });
+  });
+
+  it("hides custom controls after switching to Balanced or restoring", () => {
+    const customState = editUpgradeScoreToV2FormField(
+      selectV1ToV2SustainStyle(
+        createInitialUpgradeScoreToV2FormState("Keep name"),
+        "custom",
+      ),
+      "maxDurationMs",
+      "3456",
+    );
+    const balancedState = selectV1ToV2SustainStyle(
+      customState,
+      "balanced",
+    );
+    const restoredState = restoreRecommendedUpgradeScoreToV2State({
+      ...customState,
+      operationError: "duplicate",
+      validationError: "invalid-maximum-duration",
+    });
+
+    [balancedState, restoredState].forEach((formState) => {
+      const markup = renderForm({ formState });
+
+      expect(formState).toMatchObject({
+        operationError: "",
+        selectedStyle: "balanced",
+        validationError: null,
+        values: {
+          name: "Keep name",
+          overlapMs: "40",
+          restGapThresholdMs: "2000",
+          maxDurationMs: "2000",
+          finalGroupDurationMs: "500",
+        },
+      });
+      expect(markup).not.toContain('type="number"');
+      expect(markup).not.toContain(text.customSettingsLabel);
+      expect(markup).not.toContain(text.restoreRecommended);
+    });
   });
 
   it("renders neutral readable text for invalid custom values", () => {
@@ -191,7 +259,7 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(markup).not.toContain("NaN");
   });
 
-  it("associates readable help with an advanced input without an error", () => {
+  it("associates readable help with a custom input without an error", () => {
     const customState = editUpgradeScoreToV2FormField(
       createInitialUpgradeScoreToV2FormState("Generated"),
       "restGapThresholdMs",
@@ -221,7 +289,6 @@ describe("UpgradeScoreToV2Dialog", () => {
         "restGapThresholdMs",
         "24",
       ),
-      isAdvancedOpen: true,
       validationError: "invalid-rest-gap-threshold" as const,
     };
     const markup = renderForm({
@@ -252,13 +319,19 @@ describe("UpgradeScoreToV2Dialog", () => {
     });
   });
 
-  it("disables style choices, advanced fields, restore, and actions while creating", () => {
-    const markup = renderForm({ isCreating: true });
+  it("disables all visible Custom controls while creating", () => {
+    const formState = selectV1ToV2SustainStyle(
+      createInitialUpgradeScoreToV2FormState(
+        "Original (V2 Long Note)",
+      ),
+      "custom",
+    );
+    const markup = renderForm({ formState, isCreating: true });
     const styleFieldset = markup.match(
       /<fieldset[^>]*class="score-upgrade-style-fieldset"[^>]*>/,
     )?.[0];
-    const advancedFieldset = markup.match(
-      /<fieldset[^>]*class="score-upgrade-advanced-fields"[^>]*>/,
+    const customFieldset = markup.match(
+      /<fieldset[^>]*class="score-upgrade-custom-fields"[^>]*>/,
     )?.[0];
     const restoreButton = markup.match(
       /<button[^>]*class="score-upgrade-restore-button"[^>]*>/,
@@ -268,7 +341,7 @@ describe("UpgradeScoreToV2Dialog", () => {
       "disabled",
     );
     expect(styleFieldset).toContain("disabled");
-    expect(advancedFieldset).toContain("disabled");
+    expect(customFieldset).toContain("disabled");
     expect(restoreButton).toContain("disabled");
     expect(restoreButton).toContain('type="button"');
     expect(markup.match(/<button[^>]*disabled/g)).toHaveLength(3);

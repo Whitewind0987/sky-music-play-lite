@@ -1773,27 +1773,22 @@ button {
   background: #f8fafc;
 }
 
-.score-upgrade-advanced {
+.score-upgrade-custom-settings {
+  display: grid;
+  gap: 12px;
   border-top: 1px solid #e2e8f0;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 10px 0;
+  padding-top: 12px;
 }
 
-.score-upgrade-advanced > summary {
+.score-upgrade-custom-settings > h4 {
+  margin: 0;
   color: #334155;
-  cursor: pointer;
   font-size: 13px;
   font-weight: 700;
 }
 
-.score-upgrade-advanced > summary:focus-visible {
-  border-radius: 4px;
-  outline: 2px solid rgba(37, 99, 235, 0.28);
-  outline-offset: 3px;
-}
-
-.score-upgrade-dialog .score-upgrade-advanced-fields {
-  margin-top: 12px;
+.score-upgrade-custom-fields {
+  min-width: 0;
 }
 
 .score-upgrade-restore-button {

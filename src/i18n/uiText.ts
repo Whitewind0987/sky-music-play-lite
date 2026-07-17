@@ -231,13 +231,13 @@ export const uiText = {
           },
           custom: {
             label: "自定义",
-            description: "使用高级设置中的自定义参数。",
+            description: "手动调整延音参数。",
           },
         },
         activeValuesSummary:
           "超过 {restSeconds} 秒的间隔会视为停顿；单个音最长约 {maxSeconds} 秒。",
-        activeValuesFallback: "请在高级设置中检查自定义参数。",
-        advancedSettingsLabel: "高级设置",
+        activeValuesFallback: "请检查下方的自定义参数。",
+        customSettingsLabel: "自定义参数",
         overlapLabel: "长音重叠",
         overlapHelp: "让一个音稍微延续到下一个音开始之后。",
         restGapThresholdLabel: "超过此间隔视为休止",
@@ -879,15 +879,13 @@ export const uiText = {
           },
           custom: {
             label: "Custom",
-            description:
-              "Uses the values configured in Advanced Settings.",
+            description: "Adjust the sustain values manually.",
           },
         },
         activeValuesSummary:
           "Gaps longer than {restSeconds} seconds are treated as rests; each note can last up to about {maxSeconds} seconds.",
-        activeValuesFallback:
-          "Check the custom values in Advanced Settings.",
-        advancedSettingsLabel: "Advanced Settings",
+        activeValuesFallback: "Check the custom values below.",
+        customSettingsLabel: "Custom Settings",
         overlapLabel: "Note overlap",
         overlapHelp:
           "Lets a note continue slightly after the next note starts.",

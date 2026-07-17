@@ -20,15 +20,17 @@ const balancedValues = {
 };
 
 describe("V1 to V2 dialog model", () => {
-  it("starts with the Balanced preset and a collapsed advanced section", () => {
-    expect(createInitialUpgradeScoreToV2FormState("Generated")).toMatchObject({
-      isAdvancedOpen: false,
+  it("starts with Balanced and has no Advanced Settings state", () => {
+    const state = createInitialUpgradeScoreToV2FormState("Generated");
+
+    expect(state).toMatchObject({
       selectedStyle: "balanced",
       values: {
         name: "Generated",
         ...balancedValues,
       },
     });
+    expect(state).not.toHaveProperty("isAdvancedOpen");
   });
 
   it("defines every preset with the exact required numeric values", () => {
@@ -115,6 +117,26 @@ describe("V1 to V2 dialog model", () => {
     },
   );
 
+  it("keeps Custom selected when another numeric value is edited", () => {
+    const customState = selectV1ToV2SustainStyle(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+      "custom",
+    );
+
+    expect(
+      editUpgradeScoreToV2FormField(
+        customState,
+        "finalGroupDurationMs",
+        "650",
+      ),
+    ).toMatchObject({
+      selectedStyle: "custom",
+      values: {
+        finalGroupDurationMs: "650",
+      },
+    });
+  });
+
   it("editing the score name preserves the selected preset", () => {
     const currentState = {
       ...selectV1ToV2SustainStyle(
@@ -162,27 +184,23 @@ describe("V1 to V2 dialog model", () => {
     });
   });
 
-  it("opens Advanced Settings only for numeric validation errors", () => {
-    const initialState = createInitialUpgradeScoreToV2FormState("Generated");
+  it("validation and operation errors preserve the selected style", () => {
+    const presetState = selectV1ToV2SustainStyle(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+      "connected",
+    );
 
     expect(
-      applyUpgradeScoreToV2Validation(initialState, "invalid-overlap")
-        .isAdvancedOpen,
-    ).toBe(true);
-    expect(
-      applyUpgradeScoreToV2Validation(initialState, "empty-name")
-        .isAdvancedOpen,
-    ).toBe(false);
-  });
-
-  it("does not open Advanced Settings for an operation error", () => {
-    const initialState = createInitialUpgradeScoreToV2FormState("Generated");
-
-    expect(
-      applyUpgradeScoreToV2OperationError(initialState, "storage failed"),
+      applyUpgradeScoreToV2Validation(presetState, "invalid-overlap"),
     ).toMatchObject({
-      isAdvancedOpen: false,
+      selectedStyle: "connected",
+      validationError: "invalid-overlap",
+    });
+    expect(
+      applyUpgradeScoreToV2OperationError(presetState, "storage failed"),
+    ).toMatchObject({
       operationError: "storage failed",
+      selectedStyle: "connected",
     });
   });
 

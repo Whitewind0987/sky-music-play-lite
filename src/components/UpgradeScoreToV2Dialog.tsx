@@ -15,7 +15,6 @@ import {
   getReadableSustainTimeValues,
   restoreRecommendedUpgradeScoreToV2State,
   selectV1ToV2SustainStyle,
-  setUpgradeScoreToV2AdvancedOpen,
   V1_TO_V2_SUSTAIN_STYLE_OPTIONS,
   type UpgradeScoreToV2FormField,
   type UpgradeScoreToV2FormState,
@@ -165,14 +164,6 @@ export function UpgradeScoreToV2Dialog({
               isCreating={isCreating}
               text={text}
               validationId={validationId}
-              onAdvancedOpenChange={(isAdvancedOpen) =>
-                setFormState((currentState) =>
-                  setUpgradeScoreToV2AdvancedOpen(
-                    currentState,
-                    isAdvancedOpen,
-                  ),
-                )
-              }
               onCancel={onClose}
               onFieldChange={(field, value) =>
                 setFormState((currentState) =>
@@ -207,7 +198,6 @@ export function UpgradeScoreToV2Form({
   errorMessage,
   formState,
   isCreating,
-  onAdvancedOpenChange,
   onCancel,
   onFieldChange,
   onRestoreRecommended,
@@ -220,7 +210,6 @@ export function UpgradeScoreToV2Form({
   errorMessage: string;
   formState: UpgradeScoreToV2FormState;
   isCreating: boolean;
-  onAdvancedOpenChange: (isOpen: boolean) => void;
   onCancel: () => void;
   onFieldChange: (
     field: UpgradeScoreToV2FormField,
@@ -233,6 +222,7 @@ export function UpgradeScoreToV2Form({
   validationId: string;
 }) {
   const errorId = errorMessage ? validationId : undefined;
+  const customSettingsId = useId();
   const styleDescriptionId = useId();
   const styleGroupName = useId();
   const readableTimeValues = getReadableSustainTimeValues(
@@ -317,118 +307,119 @@ export function UpgradeScoreToV2Form({
 
       <p className="score-upgrade-readable-summary">{readableSummary}</p>
 
-      <details
-        className="score-upgrade-advanced"
-        open={formState.isAdvancedOpen}
-        onToggle={(event) =>
-          onAdvancedOpenChange(event.currentTarget.open)
-        }
-      >
-        <summary>{text.advancedSettingsLabel}</summary>
-        <fieldset
-          className="score-upgrade-advanced-fields"
-          disabled={isCreating}
+      {formState.selectedStyle === "custom" ? (
+        <section
+          className="score-upgrade-custom-settings"
+          aria-labelledby={customSettingsId}
         >
-          <DurationField
-            errorId={errorId}
-            helpText={text.overlapHelp}
-            invalid={formState.validationError === "invalid-overlap"}
-            label={text.overlapLabel}
-            max={500}
-            min={0}
-            text={text}
-            value={formState.values.overlapMs}
-            onChange={(overlapMs) =>
-              onFieldChange("overlapMs", overlapMs)
-            }
-          />
-
-          <DurationField
-            errorId={errorId}
-            helpText={
-              restSeconds === null
-                ? text.restGapThresholdHelpFallback
-                : formatText(text.restGapThresholdHelp, {
-                    seconds: restSeconds,
-                  })
-            }
-            invalid={
-              formState.validationError === "invalid-rest-gap-threshold"
-            }
-            label={text.restGapThresholdLabel}
-            max={60000}
-            min={25}
-            text={text}
-            value={formState.values.restGapThresholdMs}
-            onChange={(restGapThresholdMs) =>
-              onFieldChange(
-                "restGapThresholdMs",
-                restGapThresholdMs,
-              )
-            }
-          />
-
-          <DurationField
-            errorId={errorId}
-            helpText={
-              maximumSeconds === null
-                ? text.maximumDurationHelpFallback
-                : formatText(text.maximumDurationHelp, {
-                    seconds: maximumSeconds,
-                  })
-            }
-            invalid={
-              formState.validationError === "invalid-maximum-duration" ||
-              formState.validationError ===
-                "final-duration-exceeds-maximum"
-            }
-            label={text.maximumDurationLabel}
-            max={60000}
-            min={25}
-            text={text}
-            value={formState.values.maxDurationMs}
-            onChange={(maxDurationMs) =>
-              onFieldChange("maxDurationMs", maxDurationMs)
-            }
-          />
-
-          <DurationField
-            errorId={errorId}
-            helpText={
-              finalSeconds === null
-                ? text.finalGroupDurationHelpFallback
-                : formatText(text.finalGroupDurationHelp, {
-                    seconds: finalSeconds,
-                  })
-            }
-            invalid={
-              formState.validationError === "invalid-final-duration" ||
-              formState.validationError ===
-                "final-duration-exceeds-maximum"
-            }
-            label={text.finalGroupDurationLabel}
-            max={60000}
-            min={25}
-            text={text}
-            value={formState.values.finalGroupDurationMs}
-            onChange={(finalGroupDurationMs) =>
-              onFieldChange(
-                "finalGroupDurationMs",
-                finalGroupDurationMs,
-              )
-            }
-          />
-
-          <button
-            className="score-upgrade-restore-button"
+          <h4 id={customSettingsId}>{text.customSettingsLabel}</h4>
+          <fieldset
+            className="score-upgrade-custom-fields"
             disabled={isCreating}
-            type="button"
-            onClick={onRestoreRecommended}
           >
-            {text.restoreRecommended}
-          </button>
-        </fieldset>
-      </details>
+            <DurationField
+              errorId={errorId}
+              helpText={text.overlapHelp}
+              invalid={formState.validationError === "invalid-overlap"}
+              label={text.overlapLabel}
+              max={500}
+              min={0}
+              text={text}
+              value={formState.values.overlapMs}
+              onChange={(overlapMs) =>
+                onFieldChange("overlapMs", overlapMs)
+              }
+            />
+
+            <DurationField
+              errorId={errorId}
+              helpText={
+                restSeconds === null
+                  ? text.restGapThresholdHelpFallback
+                  : formatText(text.restGapThresholdHelp, {
+                      seconds: restSeconds,
+                    })
+              }
+              invalid={
+                formState.validationError ===
+                "invalid-rest-gap-threshold"
+              }
+              label={text.restGapThresholdLabel}
+              max={60000}
+              min={25}
+              text={text}
+              value={formState.values.restGapThresholdMs}
+              onChange={(restGapThresholdMs) =>
+                onFieldChange(
+                  "restGapThresholdMs",
+                  restGapThresholdMs,
+                )
+              }
+            />
+
+            <DurationField
+              errorId={errorId}
+              helpText={
+                maximumSeconds === null
+                  ? text.maximumDurationHelpFallback
+                  : formatText(text.maximumDurationHelp, {
+                      seconds: maximumSeconds,
+                    })
+              }
+              invalid={
+                formState.validationError ===
+                  "invalid-maximum-duration" ||
+                formState.validationError ===
+                  "final-duration-exceeds-maximum"
+              }
+              label={text.maximumDurationLabel}
+              max={60000}
+              min={25}
+              text={text}
+              value={formState.values.maxDurationMs}
+              onChange={(maxDurationMs) =>
+                onFieldChange("maxDurationMs", maxDurationMs)
+              }
+            />
+
+            <DurationField
+              errorId={errorId}
+              helpText={
+                finalSeconds === null
+                  ? text.finalGroupDurationHelpFallback
+                  : formatText(text.finalGroupDurationHelp, {
+                      seconds: finalSeconds,
+                    })
+              }
+              invalid={
+                formState.validationError === "invalid-final-duration" ||
+                formState.validationError ===
+                  "final-duration-exceeds-maximum"
+              }
+              label={text.finalGroupDurationLabel}
+              max={60000}
+              min={25}
+              text={text}
+              value={formState.values.finalGroupDurationMs}
+              onChange={(finalGroupDurationMs) =>
+                onFieldChange(
+                  "finalGroupDurationMs",
+                  finalGroupDurationMs,
+                )
+              }
+            />
+
+            <button
+              className="score-upgrade-restore-button"
+              disabled={isCreating}
+              type="button"
+              onClick={onRestoreRecommended}
+            >
+              {text.restoreRecommended}
+            </button>
+          </fieldset>
+        </section>
+      ) : null}
 
       {errorMessage ? (
         <p className="score-upgrade-error" id={validationId} role="alert">

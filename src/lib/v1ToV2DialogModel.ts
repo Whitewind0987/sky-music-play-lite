@@ -33,7 +33,6 @@ export type UpgradeScoreToV2FormValues = V1ToV2NumericFormValues & {
 };
 
 export type UpgradeScoreToV2FormState = {
-  isAdvancedOpen: boolean;
   operationError: string;
   selectedStyle: V1ToV2SustainStyle;
   validationError: V1ToV2ConversionValidationError | null;
@@ -75,7 +74,6 @@ export function createInitialUpgradeScoreToV2FormState(
   generatedName: string,
 ): UpgradeScoreToV2FormState {
   return {
-    isAdvancedOpen: false,
     operationError: "",
     selectedStyle: "balanced",
     validationError: null,
@@ -132,26 +130,12 @@ export function restoreRecommendedUpgradeScoreToV2State(
   });
 }
 
-export function setUpgradeScoreToV2AdvancedOpen(
-  currentState: UpgradeScoreToV2FormState,
-  isAdvancedOpen: boolean,
-): UpgradeScoreToV2FormState {
-  return {
-    ...currentState,
-    isAdvancedOpen,
-  };
-}
-
 export function applyUpgradeScoreToV2Validation(
   currentState: UpgradeScoreToV2FormState,
   validationError: V1ToV2ConversionValidationError | null,
 ): UpgradeScoreToV2FormState {
   return {
     ...currentState,
-    isAdvancedOpen:
-      validationError !== null && validationError !== "empty-name"
-        ? true
-        : currentState.isAdvancedOpen,
     operationError: "",
     validationError,
   };
