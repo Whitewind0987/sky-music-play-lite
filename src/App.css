@@ -1712,6 +1712,113 @@ button {
   line-height: 1.5;
 }
 
+.score-upgrade-style-fieldset legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.score-upgrade-style-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.score-upgrade-style-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #c7d0dc;
+  border-radius: 8px;
+  color: #334155;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.score-upgrade-style-option:hover {
+  border-color: #93a4b8;
+  background: #f8fafc;
+}
+
+.score-upgrade-style-option.is-selected {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+
+.score-upgrade-style-option input {
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.score-upgrade-style-description,
+.score-upgrade-readable-summary {
+  margin: 0;
+  color: #52616f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.score-upgrade-readable-summary {
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.score-upgrade-advanced {
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 0;
+}
+
+.score-upgrade-advanced > summary {
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.score-upgrade-advanced > summary:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 3px;
+}
+
+.score-upgrade-dialog .score-upgrade-advanced-fields {
+  margin-top: 12px;
+}
+
+.score-upgrade-restore-button {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #c7d0dc;
+  border-radius: 7px;
+  color: #475569;
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.score-upgrade-restore-button:hover:not(:disabled) {
+  border-color: #93a4b8;
+  background: #f8fafc;
+}
+
+.score-upgrade-style-fieldset:disabled .score-upgrade-style-option {
+  cursor: not-allowed;
+}
+
 .score-upgrade-field {
   display: grid;
   gap: 6px;

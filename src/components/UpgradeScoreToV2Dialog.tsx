@@ -6,10 +6,23 @@ import type {
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import {
-  DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
-  DEFAULT_V1_TO_V2_MAX_DURATION_MS,
-  DEFAULT_V1_TO_V2_OVERLAP_MS,
-  DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
+  applyUpgradeScoreToV2OperationError,
+  applyUpgradeScoreToV2Validation,
+  buildV1ToV2OptionsFromDialogValues,
+  createInitialUpgradeScoreToV2FormState,
+  editUpgradeScoreToV2FormField,
+  formatValidDurationMillisecondsAsSeconds,
+  getReadableSustainTimeValues,
+  restoreRecommendedUpgradeScoreToV2State,
+  selectV1ToV2SustainStyle,
+  setUpgradeScoreToV2AdvancedOpen,
+  V1_TO_V2_SUSTAIN_STYLE_OPTIONS,
+  type UpgradeScoreToV2FormField,
+  type UpgradeScoreToV2FormState,
+  type UpgradeScoreToV2FormValues,
+  type V1ToV2SustainStyle,
+} from "../lib/v1ToV2DialogModel";
+import {
   getV1ToV2ConversionValidationError,
   type V1ToV2ConversionOptions,
   type V1ToV2ConversionValidationError,
@@ -22,14 +35,6 @@ type UpgradeScoreToV2DialogProps = {
   ) => Promise<UpgradeSongToV2Result>;
   sourceName: string;
   text: UiText["library"]["upgradeToV2"];
-};
-
-export type UpgradeScoreToV2FormValues = {
-  name: string;
-  overlapMs: string;
-  restGapThresholdMs: string;
-  maxDurationMs: string;
-  finalGroupDurationMs: string;
 };
 
 export async function runSingleFlightScoreUpgrade(
@@ -52,24 +57,6 @@ export async function runSingleFlightScoreUpgrade(
   }
 }
 
-export type UpgradeScoreToV2FormState = {
-  operationError: string;
-  validationError: V1ToV2ConversionValidationError | null;
-  values: UpgradeScoreToV2FormValues;
-};
-
-export function getEditedUpgradeScoreToV2FormState(
-  currentState: UpgradeScoreToV2FormState,
-  nextValues: UpgradeScoreToV2FormValues,
-): UpgradeScoreToV2FormState {
-  return {
-    ...currentState,
-    operationError: "",
-    validationError: null,
-    values: nextValues,
-  };
-}
-
 export function getUpgradeScoreToV2SubmissionResultState(
   values: UpgradeScoreToV2FormValues,
   result: UpgradeSongToV2Result,
@@ -87,45 +74,17 @@ export function getUpgradeScoreToV2SubmissionResultState(
       };
 }
 
-export function getDefaultUpgradeScoreToV2FormValues(
-  sourceName: string,
-  text: UiText["library"]["upgradeToV2"],
-): UpgradeScoreToV2FormValues {
-  return {
-    name: formatText(text.defaultName, { songName: sourceName }),
-    overlapMs: String(DEFAULT_V1_TO_V2_OVERLAP_MS),
-    restGapThresholdMs: String(
-      DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
-    ),
-    maxDurationMs: String(DEFAULT_V1_TO_V2_MAX_DURATION_MS),
-    finalGroupDurationMs: String(DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS),
-  };
-}
-
-export function buildV1ToV2OptionsFromDialogValues(
-  values: UpgradeScoreToV2FormValues,
-): V1ToV2ConversionOptions {
-  return {
-    name: values.name,
-    overlapMs: parseNumericField(values.overlapMs),
-    restGapThresholdMs: parseNumericField(values.restGapThresholdMs),
-    maxDurationMs: parseNumericField(values.maxDurationMs),
-    finalGroupDurationMs: parseNumericField(values.finalGroupDurationMs),
-  };
-}
-
 export function UpgradeScoreToV2Dialog({
   onClose,
   onCreate,
   sourceName,
   text,
 }: UpgradeScoreToV2DialogProps) {
-  const [values, setValues] = useState(() =>
-    getDefaultUpgradeScoreToV2FormValues(sourceName, text),
+  const [formState, setFormState] = useState(() =>
+    createInitialUpgradeScoreToV2FormState(
+      formatText(text.defaultName, { songName: sourceName }),
+    ),
   );
-  const [validationError, setValidationError] =
-    useState<V1ToV2ConversionValidationError | null>(null);
-  const [operationError, setOperationError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const isCreatingRef = useRef(false);
   const descriptionId = useId();
@@ -134,12 +93,16 @@ export function UpgradeScoreToV2Dialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const options = buildV1ToV2OptionsFromDialogValues(values);
+    const options = buildV1ToV2OptionsFromDialogValues(formState.values);
     const nextValidationError =
       getV1ToV2ConversionValidationError(options);
 
-    setValidationError(nextValidationError);
-    setOperationError("");
+    setFormState((currentState) =>
+      applyUpgradeScoreToV2Validation(
+        currentState,
+        nextValidationError,
+      ),
+    );
 
     if (nextValidationError !== null) {
       return;
@@ -156,7 +119,7 @@ export function UpgradeScoreToV2Dialog({
     }
 
     const resultState = getUpgradeScoreToV2SubmissionResultState(
-      values,
+      formState.values,
       result,
     );
 
@@ -165,25 +128,20 @@ export function UpgradeScoreToV2Dialog({
       return;
     }
 
-    setOperationError(resultState.operationError);
+    setFormState((currentState) =>
+      applyUpgradeScoreToV2OperationError(
+        currentState,
+        resultState.operationError,
+      ),
+    );
   }
 
   const validationMessage =
-    validationError === null
+    formState.validationError === null
       ? ""
-      : getValidationMessage(validationError, text);
-  const errorMessage = validationMessage || operationError;
-
-  function handleValuesChange(nextValues: UpgradeScoreToV2FormValues) {
-    const nextState = getEditedUpgradeScoreToV2FormState(
-      { operationError, validationError, values },
-      nextValues,
-    );
-
-    setValues(nextState.values);
-    setValidationError(nextState.validationError);
-    setOperationError(nextState.operationError);
-  }
+      : getValidationMessage(formState.validationError, text);
+  const errorMessage =
+    validationMessage || formState.operationError;
 
   return (
     <Dialog.Root
@@ -203,14 +161,39 @@ export function UpgradeScoreToV2Dialog({
             <UpgradeScoreToV2Form
               descriptionId={descriptionId}
               errorMessage={errorMessage}
+              formState={formState}
               isCreating={isCreating}
               text={text}
-              validationError={validationError}
               validationId={validationId}
-              values={values}
+              onAdvancedOpenChange={(isAdvancedOpen) =>
+                setFormState((currentState) =>
+                  setUpgradeScoreToV2AdvancedOpen(
+                    currentState,
+                    isAdvancedOpen,
+                  ),
+                )
+              }
               onCancel={onClose}
+              onFieldChange={(field, value) =>
+                setFormState((currentState) =>
+                  editUpgradeScoreToV2FormField(
+                    currentState,
+                    field,
+                    value,
+                  ),
+                )
+              }
+              onRestoreRecommended={() =>
+                setFormState((currentState) =>
+                  restoreRecommendedUpgradeScoreToV2State(currentState),
+                )
+              }
+              onStyleChange={(style) =>
+                setFormState((currentState) =>
+                  selectV1ToV2SustainStyle(currentState, style),
+                )
+              }
               onSubmit={handleSubmit}
-              onValuesChange={handleValuesChange}
             />
           </Dialog.Content>
         </Dialog.Overlay>
@@ -222,27 +205,52 @@ export function UpgradeScoreToV2Dialog({
 export function UpgradeScoreToV2Form({
   descriptionId,
   errorMessage,
+  formState,
   isCreating,
+  onAdvancedOpenChange,
   onCancel,
+  onFieldChange,
+  onRestoreRecommended,
+  onStyleChange,
   onSubmit,
-  onValuesChange,
   text,
-  validationError,
   validationId,
-  values,
 }: {
   descriptionId: string;
   errorMessage: string;
+  formState: UpgradeScoreToV2FormState;
   isCreating: boolean;
+  onAdvancedOpenChange: (isOpen: boolean) => void;
   onCancel: () => void;
+  onFieldChange: (
+    field: UpgradeScoreToV2FormField,
+    value: string,
+  ) => void;
+  onRestoreRecommended: () => void;
+  onStyleChange: (style: V1ToV2SustainStyle) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onValuesChange: (values: UpgradeScoreToV2FormValues) => void;
   text: UiText["library"]["upgradeToV2"];
-  validationError: V1ToV2ConversionValidationError | null;
   validationId: string;
-  values: UpgradeScoreToV2FormValues;
 }) {
   const errorId = errorMessage ? validationId : undefined;
+  const styleDescriptionId = useId();
+  const styleGroupName = useId();
+  const readableTimeValues = getReadableSustainTimeValues(
+    formState.values,
+  );
+  const readableSummary =
+    readableTimeValues === null
+      ? text.activeValuesFallback
+      : formatText(text.activeValuesSummary, readableTimeValues);
+  const restSeconds = formatValidDurationMillisecondsAsSeconds(
+    formState.values.restGapThresholdMs,
+  );
+  const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
+    formState.values.maxDurationMs,
+  );
+  const finalSeconds = formatValidDurationMillisecondsAsSeconds(
+    formState.values.finalGroupDurationMs,
+  );
 
   return (
     <form onSubmit={onSubmit}>
@@ -257,83 +265,170 @@ export function UpgradeScoreToV2Form({
         </div>
       </div>
 
-      <fieldset disabled={isCreating}>
-        <label className="score-upgrade-field">
-          <span>{text.newNameLabel}</span>
-          <input
-            aria-describedby={errorId}
-            aria-invalid={validationError === "empty-name"}
-            autoFocus
-            type="text"
-            value={values.name}
-            onChange={(event) =>
-              onValuesChange({
-                ...values,
-                name: event.currentTarget.value,
-              })
+      <label className="score-upgrade-field">
+        <span>{text.newNameLabel}</span>
+        <input
+          aria-describedby={errorId}
+          aria-invalid={formState.validationError === "empty-name"}
+          autoFocus
+          disabled={isCreating}
+          type="text"
+          value={formState.values.name}
+          onChange={(event) =>
+            onFieldChange("name", event.currentTarget.value)
+          }
+        />
+      </label>
+
+      <fieldset
+        className="score-upgrade-style-fieldset"
+        disabled={isCreating}
+        aria-describedby={styleDescriptionId}
+      >
+        <legend>{text.sustainStyleLabel}</legend>
+        <div className="score-upgrade-style-options">
+          {V1_TO_V2_SUSTAIN_STYLE_OPTIONS.map((style) => (
+            <label
+              className={
+                formState.selectedStyle === style
+                  ? "score-upgrade-style-option is-selected"
+                  : "score-upgrade-style-option"
+              }
+              key={style}
+            >
+              <input
+                checked={formState.selectedStyle === style}
+                name={styleGroupName}
+                type="radio"
+                value={style}
+                onChange={() => onStyleChange(style)}
+              />
+              <span>{text.sustainStyles[style].label}</span>
+            </label>
+          ))}
+        </div>
+        <p
+          className="score-upgrade-style-description"
+          id={styleDescriptionId}
+        >
+          {text.sustainStyles[formState.selectedStyle].description}
+        </p>
+      </fieldset>
+
+      <p className="score-upgrade-readable-summary">{readableSummary}</p>
+
+      <details
+        className="score-upgrade-advanced"
+        open={formState.isAdvancedOpen}
+        onToggle={(event) =>
+          onAdvancedOpenChange(event.currentTarget.open)
+        }
+      >
+        <summary>{text.advancedSettingsLabel}</summary>
+        <fieldset
+          className="score-upgrade-advanced-fields"
+          disabled={isCreating}
+        >
+          <DurationField
+            errorId={errorId}
+            helpText={text.overlapHelp}
+            invalid={formState.validationError === "invalid-overlap"}
+            label={text.overlapLabel}
+            max={500}
+            min={0}
+            text={text}
+            value={formState.values.overlapMs}
+            onChange={(overlapMs) =>
+              onFieldChange("overlapMs", overlapMs)
             }
           />
-        </label>
 
-        <DurationField
-          errorId={errorId}
-          invalid={validationError === "invalid-overlap"}
-          label={text.overlapLabel}
-          max={500}
-          min={0}
-          text={text}
-          value={values.overlapMs}
-          onChange={(overlapMs) =>
-            onValuesChange({ ...values, overlapMs })
-          }
-        />
+          <DurationField
+            errorId={errorId}
+            helpText={
+              restSeconds === null
+                ? text.restGapThresholdHelpFallback
+                : formatText(text.restGapThresholdHelp, {
+                    seconds: restSeconds,
+                  })
+            }
+            invalid={
+              formState.validationError === "invalid-rest-gap-threshold"
+            }
+            label={text.restGapThresholdLabel}
+            max={60000}
+            min={25}
+            text={text}
+            value={formState.values.restGapThresholdMs}
+            onChange={(restGapThresholdMs) =>
+              onFieldChange(
+                "restGapThresholdMs",
+                restGapThresholdMs,
+              )
+            }
+          />
 
-        <DurationField
-          errorId={errorId}
-          helpText={text.restGapThresholdHelp}
-          invalid={validationError === "invalid-rest-gap-threshold"}
-          label={text.restGapThresholdLabel}
-          max={60000}
-          min={25}
-          text={text}
-          value={values.restGapThresholdMs}
-          onChange={(restGapThresholdMs) =>
-            onValuesChange({ ...values, restGapThresholdMs })
-          }
-        />
+          <DurationField
+            errorId={errorId}
+            helpText={
+              maximumSeconds === null
+                ? text.maximumDurationHelpFallback
+                : formatText(text.maximumDurationHelp, {
+                    seconds: maximumSeconds,
+                  })
+            }
+            invalid={
+              formState.validationError === "invalid-maximum-duration" ||
+              formState.validationError ===
+                "final-duration-exceeds-maximum"
+            }
+            label={text.maximumDurationLabel}
+            max={60000}
+            min={25}
+            text={text}
+            value={formState.values.maxDurationMs}
+            onChange={(maxDurationMs) =>
+              onFieldChange("maxDurationMs", maxDurationMs)
+            }
+          />
 
-        <DurationField
-          errorId={errorId}
-          invalid={
-            validationError === "invalid-maximum-duration" ||
-            validationError === "final-duration-exceeds-maximum"
-          }
-          label={text.maximumDurationLabel}
-          max={60000}
-          min={25}
-          text={text}
-          value={values.maxDurationMs}
-          onChange={(maxDurationMs) =>
-            onValuesChange({ ...values, maxDurationMs })
-          }
-        />
+          <DurationField
+            errorId={errorId}
+            helpText={
+              finalSeconds === null
+                ? text.finalGroupDurationHelpFallback
+                : formatText(text.finalGroupDurationHelp, {
+                    seconds: finalSeconds,
+                  })
+            }
+            invalid={
+              formState.validationError === "invalid-final-duration" ||
+              formState.validationError ===
+                "final-duration-exceeds-maximum"
+            }
+            label={text.finalGroupDurationLabel}
+            max={60000}
+            min={25}
+            text={text}
+            value={formState.values.finalGroupDurationMs}
+            onChange={(finalGroupDurationMs) =>
+              onFieldChange(
+                "finalGroupDurationMs",
+                finalGroupDurationMs,
+              )
+            }
+          />
 
-        <DurationField
-          errorId={errorId}
-          invalid={
-            validationError === "invalid-final-duration" ||
-            validationError === "final-duration-exceeds-maximum"
-          }
-          label={text.finalGroupDurationLabel}
-          max={60000}
-          min={25}
-          text={text}
-          value={values.finalGroupDurationMs}
-          onChange={(finalGroupDurationMs) =>
-            onValuesChange({ ...values, finalGroupDurationMs })
-          }
-        />
-      </fieldset>
+          <button
+            className="score-upgrade-restore-button"
+            disabled={isCreating}
+            type="button"
+            onClick={onRestoreRecommended}
+          >
+            {text.restoreRecommended}
+          </button>
+        </fieldset>
+      </details>
 
       {errorMessage ? (
         <p className="score-upgrade-error" id={validationId} role="alert">
@@ -374,7 +469,7 @@ function DurationField({
   value,
 }: {
   errorId: string | undefined;
-  helpText?: string;
+  helpText: string;
   invalid: boolean;
   label: string;
   max: number;
@@ -385,9 +480,7 @@ function DurationField({
 }) {
   const helpTextId = useId();
   const describedBy =
-    [helpText ? helpTextId : undefined, errorId]
-      .filter(Boolean)
-      .join(" ") || undefined;
+    [helpTextId, errorId].filter(Boolean).join(" ") || undefined;
 
   return (
     <label className="score-upgrade-field">
@@ -406,7 +499,7 @@ function DurationField({
         />
         <span>{text.millisecondsUnit}</span>
       </span>
-      {helpText ? <small id={helpTextId}>{helpText}</small> : null}
+      <small id={helpTextId}>{helpText}</small>
     </label>
   );
 }
@@ -429,8 +522,4 @@ function getValidationMessage(
     case "final-duration-exceeds-maximum":
       return text.validation.finalDurationExceedsMaximum;
   }
-}
-
-function parseNumericField(value: string) {
-  return value.trim() === "" ? Number.NaN : Number(value);
 }

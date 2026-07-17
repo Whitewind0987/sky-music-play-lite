@@ -1,0 +1,251 @@
+import {
+  DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
+  DEFAULT_V1_TO_V2_MAX_DURATION_MS,
+  DEFAULT_V1_TO_V2_OVERLAP_MS,
+  DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
+  type V1ToV2ConversionOptions,
+  type V1ToV2ConversionValidationError,
+} from "./v1ToV2Conversion";
+
+export type V1ToV2SustainStyle =
+  | "conservative"
+  | "balanced"
+  | "connected"
+  | "custom";
+
+export const V1_TO_V2_SUSTAIN_STYLE_OPTIONS = [
+  "conservative",
+  "balanced",
+  "connected",
+  "custom",
+] as const satisfies readonly V1ToV2SustainStyle[];
+
+export type V1ToV2NumericFormValues = {
+  overlapMs: string;
+  restGapThresholdMs: string;
+  maxDurationMs: string;
+  finalGroupDurationMs: string;
+};
+
+export type UpgradeScoreToV2FormValues = V1ToV2NumericFormValues & {
+  name: string;
+};
+
+export type UpgradeScoreToV2FormState = {
+  isAdvancedOpen: boolean;
+  operationError: string;
+  selectedStyle: V1ToV2SustainStyle;
+  validationError: V1ToV2ConversionValidationError | null;
+  values: UpgradeScoreToV2FormValues;
+};
+
+export type UpgradeScoreToV2FormField = keyof UpgradeScoreToV2FormValues;
+export type V1ToV2PresetStyle = Exclude<V1ToV2SustainStyle, "custom">;
+
+type V1ToV2NumericPreset = {
+  overlapMs: number;
+  restGapThresholdMs: number;
+  maxDurationMs: number;
+  finalGroupDurationMs: number;
+};
+
+export const V1_TO_V2_SUSTAIN_STYLE_PRESETS = {
+  conservative: {
+    overlapMs: 20,
+    restGapThresholdMs: 1000,
+    maxDurationMs: 1000,
+    finalGroupDurationMs: 300,
+  },
+  balanced: {
+    overlapMs: DEFAULT_V1_TO_V2_OVERLAP_MS,
+    restGapThresholdMs: DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
+    maxDurationMs: DEFAULT_V1_TO_V2_MAX_DURATION_MS,
+    finalGroupDurationMs: DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
+  },
+  connected: {
+    overlapMs: 80,
+    restGapThresholdMs: 4000,
+    maxDurationMs: 3000,
+    finalGroupDurationMs: 800,
+  },
+} as const satisfies Record<V1ToV2PresetStyle, V1ToV2NumericPreset>;
+
+export function createInitialUpgradeScoreToV2FormState(
+  generatedName: string,
+): UpgradeScoreToV2FormState {
+  return {
+    isAdvancedOpen: false,
+    operationError: "",
+    selectedStyle: "balanced",
+    validationError: null,
+    values: {
+      name: generatedName,
+      ...getPresetFormValues("balanced"),
+    },
+  };
+}
+
+export function selectV1ToV2SustainStyle(
+  currentState: UpgradeScoreToV2FormState,
+  selectedStyle: V1ToV2SustainStyle,
+): UpgradeScoreToV2FormState {
+  return clearUpgradeScoreToV2Errors({
+    ...currentState,
+    selectedStyle,
+    values:
+      selectedStyle === "custom"
+        ? currentState.values
+        : {
+            ...currentState.values,
+            ...getPresetFormValues(selectedStyle),
+          },
+  });
+}
+
+export function editUpgradeScoreToV2FormField(
+  currentState: UpgradeScoreToV2FormState,
+  field: UpgradeScoreToV2FormField,
+  value: string,
+): UpgradeScoreToV2FormState {
+  return clearUpgradeScoreToV2Errors({
+    ...currentState,
+    selectedStyle:
+      field === "name" ? currentState.selectedStyle : "custom",
+    values: {
+      ...currentState.values,
+      [field]: value,
+    },
+  });
+}
+
+export function restoreRecommendedUpgradeScoreToV2State(
+  currentState: UpgradeScoreToV2FormState,
+): UpgradeScoreToV2FormState {
+  return clearUpgradeScoreToV2Errors({
+    ...currentState,
+    selectedStyle: "balanced",
+    values: {
+      name: currentState.values.name,
+      ...getPresetFormValues("balanced"),
+    },
+  });
+}
+
+export function setUpgradeScoreToV2AdvancedOpen(
+  currentState: UpgradeScoreToV2FormState,
+  isAdvancedOpen: boolean,
+): UpgradeScoreToV2FormState {
+  return {
+    ...currentState,
+    isAdvancedOpen,
+  };
+}
+
+export function applyUpgradeScoreToV2Validation(
+  currentState: UpgradeScoreToV2FormState,
+  validationError: V1ToV2ConversionValidationError | null,
+): UpgradeScoreToV2FormState {
+  return {
+    ...currentState,
+    isAdvancedOpen:
+      validationError !== null && validationError !== "empty-name"
+        ? true
+        : currentState.isAdvancedOpen,
+    operationError: "",
+    validationError,
+  };
+}
+
+export function applyUpgradeScoreToV2OperationError(
+  currentState: UpgradeScoreToV2FormState,
+  operationError: string,
+): UpgradeScoreToV2FormState {
+  return {
+    ...currentState,
+    operationError,
+    validationError: null,
+  };
+}
+
+export function buildV1ToV2OptionsFromDialogValues(
+  values: UpgradeScoreToV2FormValues,
+): V1ToV2ConversionOptions {
+  return {
+    name: values.name,
+    overlapMs: parseNumericField(values.overlapMs),
+    restGapThresholdMs: parseNumericField(values.restGapThresholdMs),
+    maxDurationMs: parseNumericField(values.maxDurationMs),
+    finalGroupDurationMs: parseNumericField(values.finalGroupDurationMs),
+  };
+}
+
+export function formatMillisecondsAsSeconds(
+  value: string | number,
+): string | null {
+  const milliseconds =
+    typeof value === "number"
+      ? value
+      : value.trim() === ""
+        ? Number.NaN
+        : Number(value);
+
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
+    return null;
+  }
+
+  return String(milliseconds / 1000);
+}
+
+export function formatValidDurationMillisecondsAsSeconds(
+  value: string,
+): string | null {
+  const milliseconds = parseNumericField(value);
+
+  if (milliseconds < 25 || milliseconds > 60000) {
+    return null;
+  }
+
+  return formatMillisecondsAsSeconds(milliseconds);
+}
+
+export function getReadableSustainTimeValues(
+  values: UpgradeScoreToV2FormValues,
+): { maxSeconds: string; restSeconds: string } | null {
+  const maxSeconds = formatValidDurationMillisecondsAsSeconds(
+    values.maxDurationMs,
+  );
+  const restSeconds = formatValidDurationMillisecondsAsSeconds(
+    values.restGapThresholdMs,
+  );
+
+  return maxSeconds === null || restSeconds === null
+    ? null
+    : { maxSeconds, restSeconds };
+}
+
+function getPresetFormValues(
+  style: V1ToV2PresetStyle,
+): V1ToV2NumericFormValues {
+  const preset = V1_TO_V2_SUSTAIN_STYLE_PRESETS[style];
+
+  return {
+    overlapMs: String(preset.overlapMs),
+    restGapThresholdMs: String(preset.restGapThresholdMs),
+    maxDurationMs: String(preset.maxDurationMs),
+    finalGroupDurationMs: String(preset.finalGroupDurationMs),
+  };
+}
+
+function clearUpgradeScoreToV2Errors(
+  state: UpgradeScoreToV2FormState,
+): UpgradeScoreToV2FormState {
+  return {
+    ...state,
+    operationError: "",
+    validationError: null,
+  };
+}
+
+function parseNumericField(value: string) {
+  return value.trim() === "" ? Number.NaN : Number(value);
+}

@@ -264,18 +264,6 @@ Before adding a package or crate, explain:
 
 Do not add dependencies for polish or convenience during early phases.
 
-## Beginner Explanation Requirement
-
-After each change, explain for a beginner:
-
-- What changed
-- Why it changed
-- Which files changed
-- How to run it
-- How to verify it
-- Which beginner concepts matter
-- What should not be changed yet
-
 ## Current Phase Rule
 
 Only implement the current phase.

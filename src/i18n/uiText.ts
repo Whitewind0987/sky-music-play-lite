@@ -215,13 +215,47 @@ export const uiText = {
           "将根据相邻音组的时间间隔生成一份新的 V2 长音曲谱。V1 不包含松键时间，生成结果仅为自动建议，原 V1 曲谱不会被修改。",
         defaultName: "{songName}（V2 长音版）",
         newNameLabel: "新曲谱名称",
+        sustainStyleLabel: "延音风格",
+        sustainStyles: {
+          conservative: {
+            label: "保守",
+            description: "延音较短，优先减少不必要的拖音。",
+          },
+          balanced: {
+            label: "均衡",
+            description: "适合大多数曲谱，推荐使用。",
+          },
+          connected: {
+            label: "连贯",
+            description: "更容易连接相邻音符，延音效果更明显。",
+          },
+          custom: {
+            label: "自定义",
+            description: "使用高级设置中的自定义参数。",
+          },
+        },
+        activeValuesSummary:
+          "超过 {restSeconds} 秒的间隔会视为停顿；单个音最长约 {maxSeconds} 秒。",
+        activeValuesFallback: "请在高级设置中检查自定义参数。",
+        advancedSettingsLabel: "高级设置",
         overlapLabel: "长音重叠",
+        overlapHelp: "让一个音稍微延续到下一个音开始之后。",
         restGapThresholdLabel: "超过此间隔视为休止",
         restGapThresholdHelp:
-          "相邻音组间隔超过此值时，该音组保持普通点按，不生成长音。",
+          "相邻音组间隔超过 {seconds} 秒时，前一个音保持普通点按。",
+        restGapThresholdHelpFallback:
+          "相邻音组间隔超过此值时，前一个音保持普通点按。",
         maximumDurationLabel: "单个音符最大时长",
+        maximumDurationHelp: "单个音最长持续约 {seconds} 秒。",
+        maximumDurationHelpFallback:
+          "此值决定单个音的最长持续时间。",
         finalGroupDurationLabel: "最后一组音符时长",
+        finalGroupDurationHelp:
+          "曲谱最后一组音默认持续约 {seconds} 秒。",
+        finalGroupDurationHelpFallback:
+          "此值决定曲谱最后一组音的默认持续时间。",
         millisecondsUnit: "毫秒",
+        restoreRecommended: "恢复推荐设置",
         cancel: "取消",
         confirm: "创建 V2 曲谱",
         creating: "正在创建…",
@@ -827,13 +861,53 @@ export const uiText = {
           "A new V2 sustained-note score will be generated from the gaps between note groups. V1 does not contain key-release timing, so the generated durations are only automatic suggestions. The original V1 score will not be modified.",
         defaultName: "{songName} (V2 Long Note)",
         newNameLabel: "New score name",
+        sustainStyleLabel: "Sustain style",
+        sustainStyles: {
+          conservative: {
+            label: "Conservative",
+            description:
+              "Uses shorter sustains to reduce unwanted dragging notes.",
+          },
+          balanced: {
+            label: "Balanced",
+            description: "Recommended for most scores.",
+          },
+          connected: {
+            label: "Connected",
+            description:
+              "Connects more neighboring notes for a stronger sustain effect.",
+          },
+          custom: {
+            label: "Custom",
+            description:
+              "Uses the values configured in Advanced Settings.",
+          },
+        },
+        activeValuesSummary:
+          "Gaps longer than {restSeconds} seconds are treated as rests; each note can last up to about {maxSeconds} seconds.",
+        activeValuesFallback:
+          "Check the custom values in Advanced Settings.",
+        advancedSettingsLabel: "Advanced Settings",
         overlapLabel: "Note overlap",
+        overlapHelp:
+          "Lets a note continue slightly after the next note starts.",
         restGapThresholdLabel: "Treat longer gaps as rests",
         restGapThresholdHelp:
-          "When the gap to the next note group exceeds this value, the current group remains a normal tap instead of becoming a sustained note.",
+          "When the next note group is more than {seconds} seconds away, the previous note remains a normal tap.",
+        restGapThresholdHelpFallback:
+          "When the next note group is farther away than this value, the previous note remains a normal tap.",
         maximumDurationLabel: "Maximum note duration",
+        maximumDurationHelp:
+          "A single note can last up to about {seconds} seconds.",
+        maximumDurationHelpFallback:
+          "This value controls how long a single note can last.",
         finalGroupDurationLabel: "Final note-group duration",
+        finalGroupDurationHelp:
+          "The final note group lasts about {seconds} seconds by default.",
+        finalGroupDurationHelpFallback:
+          "This value controls the final note group's default duration.",
         millisecondsUnit: "ms",
+        restoreRecommended: "Restore Recommended Settings",
         cancel: "Cancel",
         confirm: "Create V2 Score",
         creating: "Creating…",

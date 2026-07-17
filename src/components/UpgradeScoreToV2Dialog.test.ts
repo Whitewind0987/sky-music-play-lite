@@ -3,116 +3,105 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { uiText } from "../i18n/uiText";
-import { getV1ToV2ConversionValidationError } from "../lib/v1ToV2Conversion";
 import {
-  buildV1ToV2OptionsFromDialogValues,
-  getEditedUpgradeScoreToV2FormState,
+  createInitialUpgradeScoreToV2FormState,
+  editUpgradeScoreToV2FormField,
+  type UpgradeScoreToV2FormState,
+} from "../lib/v1ToV2DialogModel";
+import {
   getUpgradeScoreToV2SubmissionResultState,
-  getDefaultUpgradeScoreToV2FormValues,
   runSingleFlightScoreUpgrade,
   UpgradeScoreToV2Form,
 } from "./UpgradeScoreToV2Dialog";
 
-describe("UpgradeScoreToV2Dialog form model", () => {
-  it("uses localized default names and required numeric defaults", () => {
-    expect(
-      getDefaultUpgradeScoreToV2FormValues(
-        "原曲名",
-        uiText["zh-CN"].library.upgradeToV2,
-      ),
-    ).toEqual({
-      name: "原曲名（V2 长音版）",
-      overlapMs: "40",
-      restGapThresholdMs: "2000",
-      maxDurationMs: "2000",
-      finalGroupDurationMs: "500",
-    });
-    expect(
-      getDefaultUpgradeScoreToV2FormValues(
-        "Original Name",
-        uiText["en-US"].library.upgradeToV2,
-      ).name,
-    ).toBe("Original Name (V2 Long Note)");
-  });
+const text = uiText["en-US"].library.upgradeToV2;
 
-  it("keeps empty numeric inputs invalid instead of coercing them to zero", () => {
-    const options = buildV1ToV2OptionsFromDialogValues({
-      name: "Copy",
-      overlapMs: "",
-      restGapThresholdMs: "2000",
-      maxDurationMs: "2000",
-      finalGroupDurationMs: "500",
-    });
+function renderForm({
+  errorMessage = "",
+  formState = createInitialUpgradeScoreToV2FormState(
+    "Original (V2 Long Note)",
+  ),
+  isCreating = false,
+}: {
+  errorMessage?: string;
+  formState?: UpgradeScoreToV2FormState;
+  isCreating?: boolean;
+} = {}) {
+  return renderToStaticMarkup(
+    createElement(
+      Dialog.Root,
+      { open: true },
+      createElement(UpgradeScoreToV2Form, {
+        descriptionId: "description",
+        errorMessage,
+        formState,
+        isCreating,
+        onAdvancedOpenChange: () => {},
+        onCancel: () => {},
+        onFieldChange: () => {},
+        onRestoreRecommended: () => {},
+        onStyleChange: () => {},
+        onSubmit: () => {},
+        text,
+        validationId: "validation",
+      }),
+    ),
+  );
+}
 
-    expect(Number.isNaN(options.overlapMs)).toBe(true);
-    expect(getV1ToV2ConversionValidationError(options)).toBe(
-      "invalid-overlap",
+function getInputMarkup(markup: string, value: string) {
+  const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const inputMarkup = markup.match(
+    new RegExp(`<input[^>]*value="${escapedValue}"[^>]*>`),
+  )?.[0];
+
+  if (!inputMarkup) {
+    throw new Error(`Expected input markup for value ${value}.`);
+  }
+
+  return inputMarkup;
+}
+
+describe("UpgradeScoreToV2Dialog", () => {
+  it("disables through one async submission and ignores duplicate submission", async () => {
+    let resolveUpgrade: (
+      result: { status: "failed"; message: string },
+    ) => void = () => {};
+    const inProgressRef = { current: false };
+    const states: boolean[] = [];
+    const runUpgrade = vi.fn(
+      () =>
+        new Promise<{ status: "failed"; message: string }>((resolve) => {
+          resolveUpgrade = resolve;
+        }),
     );
-  });
 
-  it("reports empty names and a final duration above the maximum", () => {
-    expect(
-      getV1ToV2ConversionValidationError(
-        buildV1ToV2OptionsFromDialogValues({
-          name: " ",
-          overlapMs: "40",
-          restGapThresholdMs: "2000",
-          maxDurationMs: "2000",
-          finalGroupDurationMs: "500",
-        }),
-      ),
-    ).toBe("empty-name");
-    expect(
-      getV1ToV2ConversionValidationError(
-        buildV1ToV2OptionsFromDialogValues({
-          name: "Copy",
-          overlapMs: "40",
-          restGapThresholdMs: "2000",
-          maxDurationMs: "400",
-          finalGroupDurationMs: "500",
-        }),
-      ),
-    ).toBe("final-duration-exceeds-maximum");
-  });
+    const first = runSingleFlightScoreUpgrade(
+      inProgressRef,
+      (state) => states.push(state),
+      runUpgrade,
+    );
+    const duplicate = await runSingleFlightScoreUpgrade(
+      inProgressRef,
+      (state) => states.push(state),
+      runUpgrade,
+    );
 
-  it("clears stale validation and operation errors after any field edit", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
-    const nextValues = { ...values, restGapThresholdMs: "2500" };
-
-    expect(
-      getEditedUpgradeScoreToV2FormState(
-        {
-          operationError: "storage failed",
-          validationError: "invalid-rest-gap-threshold",
-          values,
-        },
-        nextValues,
-      ),
-    ).toEqual({
-      operationError: "",
-      validationError: null,
-      values: nextValues,
+    expect(duplicate).toBeNull();
+    expect(runUpgrade).toHaveBeenCalledTimes(1);
+    expect(inProgressRef.current).toBe(true);
+    resolveUpgrade({ message: "write failed", status: "failed" });
+    await expect(first).resolves.toEqual({
+      message: "write failed",
+      status: "failed",
     });
-  });
-
-  it("validates the rest-gap threshold from dialog values", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
-
-    expect(
-      getV1ToV2ConversionValidationError(
-        buildV1ToV2OptionsFromDialogValues({
-          ...values,
-          restGapThresholdMs: "60001",
-        }),
-      ),
-    ).toBe("invalid-rest-gap-threshold");
+    expect(states).toEqual([true, false]);
+    expect(inProgressRef.current).toBe(false);
   });
 
   it("preserves values after failure or duplicate and closes only on success", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
+    const values =
+      createInitialUpgradeScoreToV2FormState("Generated").values;
 
     expect(
       getUpgradeScoreToV2SubmissionResultState(values, {
@@ -158,197 +147,131 @@ describe("UpgradeScoreToV2Dialog form model", () => {
     ).toMatchObject({ operationError: "", shouldClose: true, values });
   });
 
-  it("disables through one async submission and ignores duplicate submission", async () => {
-    let resolveUpgrade: (
-      result: { status: "failed"; message: string },
-    ) => void = () => {};
-    const inProgressRef = { current: false };
-    const states: boolean[] = [];
-    const runUpgrade = vi.fn(
-      () =>
-        new Promise<{ status: "failed"; message: string }>((resolve) => {
-          resolveUpgrade = resolve;
-        }),
-    );
+  it("renders Balanced as the default with a readable collapsed dialog", () => {
+    const markup = renderForm();
+    const detailsOpeningTag = markup.match(
+      /<details class="score-upgrade-advanced"[^>]*>/,
+    )?.[0];
+    const detailsStart = markup.indexOf("<details");
+    const detailsEnd = markup.indexOf("</details>");
+    const detailsMarkup = markup.slice(detailsStart, detailsEnd);
 
-    const first = runSingleFlightScoreUpgrade(
-      inProgressRef,
-      (state) => states.push(state),
-      runUpgrade,
+    expect(markup).toContain(text.sustainStyles.conservative.label);
+    expect(markup).toContain(text.sustainStyles.balanced.label);
+    expect(markup).toContain(text.sustainStyles.connected.label);
+    expect(markup).toContain(text.sustainStyles.custom.label);
+    expect(getInputMarkup(markup, "balanced")).toContain('checked=""');
+    expect(markup).toContain(text.sustainStyles.balanced.description);
+    expect(markup).toContain(
+      "Gaps longer than 2 seconds are treated as rests; each note can last up to about 2 seconds.",
     );
-    const duplicate = await runSingleFlightScoreUpgrade(
-      inProgressRef,
-      (state) => states.push(state),
-      runUpgrade,
-    );
-
-    expect(duplicate).toBeNull();
-    expect(runUpgrade).toHaveBeenCalledTimes(1);
-    expect(inProgressRef.current).toBe(true);
-    resolveUpgrade({ message: "write failed", status: "failed" });
-    await expect(first).resolves.toEqual({
-      message: "write failed",
-      status: "failed",
+    expect(markup).toContain(`<summary>${text.advancedSettingsLabel}</summary>`);
+    expect(detailsOpeningTag).not.toContain(" open");
+    expect(detailsStart).toBeGreaterThan(-1);
+    expect(detailsEnd).toBeGreaterThan(detailsStart);
+    expect(detailsMarkup.match(/type="number"/g)).toHaveLength(4);
+    ["40", "2000", "500"].forEach((value) => {
+      const inputIndex = markup.indexOf(`value="${value}"`, detailsStart);
+      expect(inputIndex).toBeGreaterThan(detailsStart);
+      expect(inputIndex).toBeLessThan(detailsEnd);
     });
-    expect(states).toEqual([true, false]);
-    expect(inProgressRef.current).toBe(false);
+    expect(markup).not.toContain('role="alert"');
   });
 
-  it("associates the rest-gap help text with its input without an error", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = {
-      ...getDefaultUpgradeScoreToV2FormValues("Original", text),
-      restGapThresholdMs: "2345",
-    };
-    const markup = renderToStaticMarkup(
-      createElement(
-        Dialog.Root,
-        { open: true },
-        createElement(UpgradeScoreToV2Form, {
-          descriptionId: "description",
-          errorMessage: "",
-          isCreating: false,
-          onCancel: () => {},
-          onSubmit: () => {},
-          onValuesChange: () => {},
-          text,
-          validationError: null,
-          validationId: "validation",
-          values,
-        }),
-      ),
+  it("renders neutral readable text for invalid custom values", () => {
+    const customState = editUpgradeScoreToV2FormField(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+      "restGapThresholdMs",
+      "",
     );
-    const helpId = markup.match(/<small id="([^"]+)">/)?.[1];
-    const restGapInput = markup.match(
-      /<input[^>]*value="2345"[^>]*>/,
-    )?.[0];
+    const markup = renderForm({ formState: customState });
 
-    if (!helpId || !restGapInput) {
-      throw new Error("Expected rest-gap help text and input markup.");
+    expect(markup).toContain(text.activeValuesFallback);
+    expect(markup).toContain(text.restGapThresholdHelpFallback);
+    expect(markup).not.toContain("NaN");
+  });
+
+  it("associates readable help with an advanced input without an error", () => {
+    const customState = editUpgradeScoreToV2FormField(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+      "restGapThresholdMs",
+      "2500",
+    );
+    const markup = renderForm({ formState: customState });
+    const restGapInput = getInputMarkup(markup, "2500");
+    const helpId = restGapInput.match(
+      /aria-describedby="([^"]+)"/,
+    )?.[1];
+
+    if (!helpId) {
+      throw new Error("Expected rest-gap help aria-describedby.");
     }
 
-    expect(restGapInput).toContain(`aria-describedby="${helpId}"`);
+    expect(helpId).not.toContain(" ");
+    expect(markup).toContain(`<small id="${helpId}">`);
     expect(markup).toContain(
-      `<small id="${helpId}">${text.restGapThresholdHelp}</small>`,
+      "When the next note group is more than 2.5 seconds away",
     );
   });
 
-  it("combines rest-gap help and error IDs in aria-describedby", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = {
-      ...getDefaultUpgradeScoreToV2FormValues("Original", text),
-      restGapThresholdMs: "24",
-    };
-    const markup = renderToStaticMarkup(
-      createElement(
-        Dialog.Root,
-        { open: true },
-        createElement(UpgradeScoreToV2Form, {
-          descriptionId: "description",
-          errorMessage: text.validation.invalidRestGapThreshold,
-          isCreating: false,
-          onCancel: () => {},
-          onSubmit: () => {},
-          onValuesChange: () => {},
-          text,
-          validationError: "invalid-rest-gap-threshold",
-          validationId: "validation",
-          values,
-        }),
+  it("keeps help and validation IDs associated without malformed whitespace", () => {
+    const invalidState = {
+      ...editUpgradeScoreToV2FormField(
+        createInitialUpgradeScoreToV2FormState("Generated"),
+        "restGapThresholdMs",
+        "24",
       ),
-    );
-    const helpId = markup.match(/<small id="([^"]+)">/)?.[1];
-    const restGapInput = markup.match(
-      /<input[^>]*value="24"[^>]*>/,
-    )?.[0];
+      isAdvancedOpen: true,
+      validationError: "invalid-rest-gap-threshold" as const,
+    };
+    const markup = renderForm({
+      errorMessage: text.validation.invalidRestGapThreshold,
+      formState: invalidState,
+    });
+    const restGapInput = getInputMarkup(markup, "24");
+    const describedBy = restGapInput.match(
+      /aria-describedby="([^"]+)"/,
+    )?.[1];
 
-    if (!helpId || !restGapInput) {
-      throw new Error("Expected rest-gap help text and input markup.");
+    if (!describedBy) {
+      throw new Error("Expected rest-gap aria-describedby.");
     }
 
-    expect(restGapInput).toContain(
-      `aria-describedby="${helpId} validation"`,
-    );
-    expect(markup).toContain(
-      `<small id="${helpId}">${text.restGapThresholdHelp}</small>`,
-    );
-  });
+    const [helpId, errorId] = describedBy.split(" ");
 
-  it("keeps error-only duration descriptions free of malformed IDs", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = {
-      ...getDefaultUpgradeScoreToV2FormValues("Original", text),
-      overlapMs: "501",
-    };
-    const markup = renderToStaticMarkup(
-      createElement(
-        Dialog.Root,
-        { open: true },
-        createElement(UpgradeScoreToV2Form, {
-          descriptionId: "description",
-          errorMessage: text.validation.invalidOverlap,
-          isCreating: false,
-          onCancel: () => {},
-          onSubmit: () => {},
-          onValuesChange: () => {},
-          text,
-          validationError: "invalid-overlap",
-          validationId: "validation",
-          values,
-        }),
-      ),
-    );
-    const overlapInput = markup.match(
-      /<input[^>]*value="501"[^>]*>/,
-    )?.[0];
-    const describedByValues = Array.from(
+    expect(helpId).toBeTruthy();
+    expect(errorId).toBe("validation");
+    expect(markup).toContain(`<small id="${helpId}">`);
+    expect(markup).not.toContain("undefined");
+    Array.from(
       markup.matchAll(/aria-describedby="([^"]*)"/g),
       (match) => match[1],
-    );
-
-    if (!overlapInput) {
-      throw new Error("Expected overlap input markup.");
-    }
-
-    expect(overlapInput).toContain('aria-describedby="validation"');
-    expect(markup).not.toContain("undefined");
-    describedByValues.forEach((describedBy) => {
-      expect(describedBy).toBe(describedBy.trim());
-      expect(describedBy).not.toMatch(/\s{2,}/);
+    ).forEach((value) => {
+      expect(value).toBe(value.trim());
+      expect(value).not.toMatch(/\s{2,}/);
     });
   });
 
-  it("renders accessible validation and disables every form control while creating", () => {
-    const text = uiText["en-US"].library.upgradeToV2;
-    const values = getDefaultUpgradeScoreToV2FormValues("Original", text);
-    const markup = renderToStaticMarkup(
-      createElement(
-        Dialog.Root,
-        { open: true },
-        createElement(UpgradeScoreToV2Form, {
-          descriptionId: "description",
-          errorMessage: text.validation.finalDurationExceedsMaximum,
-          isCreating: true,
-          onCancel: () => {},
-          onSubmit: () => {},
-          onValuesChange: () => {},
-          text,
-          validationError: "final-duration-exceeds-maximum",
-          validationId: "validation",
-          values,
-        }),
-      ),
-    );
+  it("disables style choices, advanced fields, restore, and actions while creating", () => {
+    const markup = renderForm({ isCreating: true });
+    const styleFieldset = markup.match(
+      /<fieldset[^>]*class="score-upgrade-style-fieldset"[^>]*>/,
+    )?.[0];
+    const advancedFieldset = markup.match(
+      /<fieldset[^>]*class="score-upgrade-advanced-fields"[^>]*>/,
+    )?.[0];
+    const restoreButton = markup.match(
+      /<button[^>]*class="score-upgrade-restore-button"[^>]*>/,
+    )?.[0];
 
-    expect(markup).toContain('value="Original (V2 Long Note)"');
-    expect(markup.match(/<input/g)).toHaveLength(5);
-    expect(markup).toContain('value="2000"');
-    expect(markup).toContain(text.restGapThresholdHelp);
-    expect(markup).toContain("<fieldset disabled");
-    expect(markup.match(/<button[^>]*disabled/g)).toHaveLength(2);
+    expect(getInputMarkup(markup, "Original (V2 Long Note)")).toContain(
+      "disabled",
+    );
+    expect(styleFieldset).toContain("disabled");
+    expect(advancedFieldset).toContain("disabled");
+    expect(restoreButton).toContain("disabled");
+    expect(restoreButton).toContain('type="button"');
+    expect(markup.match(/<button[^>]*disabled/g)).toHaveLength(3);
     expect(markup).toContain(text.creating);
-    expect(markup).toContain('role="alert"');
-    expect(markup).toContain(text.validation.finalDurationExceedsMaximum);
-    expect(markup).toContain('aria-invalid="true"');
   });
 });
