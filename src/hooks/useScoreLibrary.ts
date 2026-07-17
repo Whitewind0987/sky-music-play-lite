@@ -817,94 +817,94 @@ export function useScoreLibrary({
     return runWithScoreUpgradeInProgress(
       isScoreUpgradeInProgressRef,
       async () => {
-      const result = await createV2LocalLibraryCopy({
-        conversionOptions,
-        getExistingLibrarySongs: () => librarySongsRef.current,
-        isMutationBlocked: () =>
-          (executionOptions.getBlockedMessage?.() ?? null) !== null,
-        loadSourceSong: () => {
-          const currentSongIndex = librarySongsRef.current.findIndex(
-            (librarySong) => librarySong.id === sourceSongId,
+        const result = await createV2LocalLibraryCopy({
+          conversionOptions,
+          getExistingLibrarySongs: () => librarySongsRef.current,
+          isMutationBlocked: () =>
+            (executionOptions.getBlockedMessage?.() ?? null) !== null,
+          loadSourceSong: () => {
+            const currentSongIndex = librarySongsRef.current.findIndex(
+              (librarySong) => librarySong.id === sourceSongId,
+            );
+
+            return currentSongIndex < 0
+              ? Promise.resolve(null)
+              : resolveLibrarySong(currentSongIndex, {
+                  shouldLogFailure: false,
+                });
+          },
+          saveImportedScoreSong: saveImportedScoreSongFile,
+          seedImportedScoreSong: (songId, song) => {
+            importedScoreSongLoaderRef.current.seed(songId, song);
+          },
+          sourceSongId,
+        });
+
+        if (result.status === "duplicate") {
+          const message = formatText(text.logs.scoreUpgradeDuplicate, {
+            songName: conversionOptions.name.trim(),
+          });
+
+          appendLog(message);
+          showNotice?.(message);
+          return { message, status: "duplicate" };
+        }
+
+        if (result.status === "failed") {
+          if (result.reason === "blocked") {
+            return reportUpgradeFailure(
+              executionOptions.getBlockedMessage?.() ??
+                text.logs.scoreUpgradeMutationBlocked,
+            );
+          }
+
+          if (result.reason === "source-load") {
+            return reportUpgradeFailure(
+              formatText(text.logs.scoreUpgradeSourceLoadFailed, {
+                songName: getLibrarySongName(sourceLibrarySong),
+              }),
+            );
+          }
+
+          if (result.reason === "storage") {
+            return reportUpgradeFailure(
+              formatText(text.logs.scoreUpgradeStorageFailed, {
+                error: formatUpgradeError(result.error),
+                songName: conversionOptions.name.trim(),
+              }),
+            );
+          }
+
+          return reportUpgradeFailure(
+            getConversionFailureMessage(result.error, text),
           );
+        }
 
-          return currentSongIndex < 0
-            ? Promise.resolve(null)
-            : resolveLibrarySong(currentSongIndex, {
-                shouldLogFailure: false,
-              });
-        },
-        saveImportedScoreSong: saveImportedScoreSongFile,
-        seedImportedScoreSong: (songId, song) => {
-          importedScoreSongLoaderRef.current.seed(songId, song);
-        },
-        sourceSongId,
-      });
+        const successState = getCreatedV2LibraryCopyState(
+          localLibrarySongsRef.current,
+          result.librarySong,
+        );
 
-      if (result.status === "duplicate") {
-        const message = formatText(text.logs.scoreUpgradeDuplicate, {
-          songName: conversionOptions.name.trim(),
+        localLibrarySongsRef.current = successState.localLibrarySongs;
+        librarySongsRef.current = [
+          ...librarySongsRef.current.filter(
+            (librarySong) => librarySong.source === "built-in",
+          ),
+          ...successState.localLibrarySongs,
+        ];
+        setLocalLibrarySongs(successState.localLibrarySongs);
+        updateSelectedSongId(successState.selectedSongId);
+        setSelectedLibraryCategory(successState.selectedCategory);
+        setSearchQuery(successState.searchQuery);
+        requestLocateSong(successState.locateSongId);
+
+        const message = formatText(text.logs.scoreUpgradeSucceeded, {
+          songName: result.librarySong.metadata.name,
         });
 
         appendLog(message);
         showNotice?.(message);
-        return { message, status: "duplicate" };
-      }
-
-      if (result.status === "failed") {
-        if (result.reason === "blocked") {
-          return reportUpgradeFailure(
-            executionOptions.getBlockedMessage?.() ??
-              text.logs.scoreUpgradeMutationBlocked,
-          );
-        }
-
-        if (result.reason === "source-load") {
-          return reportUpgradeFailure(
-            formatText(text.logs.scoreUpgradeSourceLoadFailed, {
-              songName: getLibrarySongName(sourceLibrarySong),
-            }),
-          );
-        }
-
-        if (result.reason === "storage") {
-          return reportUpgradeFailure(
-            formatText(text.logs.scoreUpgradeStorageFailed, {
-              error: formatUpgradeError(result.error),
-              songName: conversionOptions.name.trim(),
-            }),
-          );
-        }
-
-        return reportUpgradeFailure(
-          getConversionFailureMessage(result.error, text),
-        );
-      }
-
-      const successState = getCreatedV2LibraryCopyState(
-        localLibrarySongsRef.current,
-        result.librarySong,
-      );
-
-      localLibrarySongsRef.current = successState.localLibrarySongs;
-      librarySongsRef.current = [
-        ...librarySongsRef.current.filter(
-          (librarySong) => librarySong.source === "built-in",
-        ),
-        ...successState.localLibrarySongs,
-      ];
-      setLocalLibrarySongs(successState.localLibrarySongs);
-      updateSelectedSongId(successState.selectedSongId);
-      setSelectedLibraryCategory(successState.selectedCategory);
-      setSearchQuery(successState.searchQuery);
-      requestLocateSong(successState.locateSongId);
-
-      const message = formatText(text.logs.scoreUpgradeSucceeded, {
-        songName: result.librarySong.metadata.name,
-      });
-
-      appendLog(message);
-      showNotice?.(message);
-      return { librarySong: result.librarySong, status: "created" };
+        return { librarySong: result.librarySong, status: "created" };
       },
     );
   }

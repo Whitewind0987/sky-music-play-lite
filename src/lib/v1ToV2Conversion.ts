@@ -46,22 +46,22 @@ export function getV1ToV2ConversionValidationError(
 
   if (
     !isFiniteNumberInRange(
-      options.restGapThresholdMs,
-      MIN_V2_NOTE_DURATION_MS,
-      MAX_EXPLICIT_NOTE_DURATION_MS,
-    )
-  ) {
-    return "invalid-rest-gap-threshold";
-  }
-
-  if (
-    !isFiniteNumberInRange(
       options.overlapMs,
       0,
       MAX_V1_TO_V2_OVERLAP_MS,
     )
   ) {
     return "invalid-overlap";
+  }
+
+  if (
+    !isFiniteNumberInRange(
+      options.restGapThresholdMs,
+      MIN_V2_NOTE_DURATION_MS,
+      MAX_EXPLICIT_NOTE_DURATION_MS,
+    )
+  ) {
+    return "invalid-rest-gap-threshold";
   }
 
   if (

@@ -3,6 +3,7 @@ import type { Song } from "../types/score";
 import {
   convertV1SongToV2,
   DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
+  getV1ToV2ConversionValidationError,
   V1ToV2ConversionError,
   type V1ToV2ConversionOptions,
 } from "./v1ToV2Conversion";
@@ -34,6 +35,24 @@ function createV1Song(overrides: Partial<Song> = {}): Song {
 describe("convertV1SongToV2", () => {
   it("uses a 2000ms default rest-gap threshold", () => {
     expect(DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS).toBe(2000);
+  });
+
+  it("validates overlap before the rest-gap threshold", () => {
+    const invalidOptions = {
+      ...options,
+      overlapMs: Number.NaN,
+      restGapThresholdMs: Number.NaN,
+    };
+
+    expect(getV1ToV2ConversionValidationError(invalidOptions)).toBe(
+      "invalid-overlap",
+    );
+    expect(
+      getV1ToV2ConversionValidationError({
+        ...invalidOptions,
+        overlapMs: options.overlapMs,
+      }),
+    ).toBe("invalid-rest-gap-threshold");
   });
 
   it("creates V2 notes with chord, overlap, and final-group durations", () => {

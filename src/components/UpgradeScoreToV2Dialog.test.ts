@@ -194,6 +194,130 @@ describe("UpgradeScoreToV2Dialog form model", () => {
     expect(inProgressRef.current).toBe(false);
   });
 
+  it("associates the rest-gap help text with its input without an error", () => {
+    const text = uiText["en-US"].library.upgradeToV2;
+    const values = {
+      ...getDefaultUpgradeScoreToV2FormValues("Original", text),
+      restGapThresholdMs: "2345",
+    };
+    const markup = renderToStaticMarkup(
+      createElement(
+        Dialog.Root,
+        { open: true },
+        createElement(UpgradeScoreToV2Form, {
+          descriptionId: "description",
+          errorMessage: "",
+          isCreating: false,
+          onCancel: () => {},
+          onSubmit: () => {},
+          onValuesChange: () => {},
+          text,
+          validationError: null,
+          validationId: "validation",
+          values,
+        }),
+      ),
+    );
+    const helpId = markup.match(/<small id="([^"]+)">/)?.[1];
+    const restGapInput = markup.match(
+      /<input[^>]*value="2345"[^>]*>/,
+    )?.[0];
+
+    if (!helpId || !restGapInput) {
+      throw new Error("Expected rest-gap help text and input markup.");
+    }
+
+    expect(restGapInput).toContain(`aria-describedby="${helpId}"`);
+    expect(markup).toContain(
+      `<small id="${helpId}">${text.restGapThresholdHelp}</small>`,
+    );
+  });
+
+  it("combines rest-gap help and error IDs in aria-describedby", () => {
+    const text = uiText["en-US"].library.upgradeToV2;
+    const values = {
+      ...getDefaultUpgradeScoreToV2FormValues("Original", text),
+      restGapThresholdMs: "24",
+    };
+    const markup = renderToStaticMarkup(
+      createElement(
+        Dialog.Root,
+        { open: true },
+        createElement(UpgradeScoreToV2Form, {
+          descriptionId: "description",
+          errorMessage: text.validation.invalidRestGapThreshold,
+          isCreating: false,
+          onCancel: () => {},
+          onSubmit: () => {},
+          onValuesChange: () => {},
+          text,
+          validationError: "invalid-rest-gap-threshold",
+          validationId: "validation",
+          values,
+        }),
+      ),
+    );
+    const helpId = markup.match(/<small id="([^"]+)">/)?.[1];
+    const restGapInput = markup.match(
+      /<input[^>]*value="24"[^>]*>/,
+    )?.[0];
+
+    if (!helpId || !restGapInput) {
+      throw new Error("Expected rest-gap help text and input markup.");
+    }
+
+    expect(restGapInput).toContain(
+      `aria-describedby="${helpId} validation"`,
+    );
+    expect(markup).toContain(
+      `<small id="${helpId}">${text.restGapThresholdHelp}</small>`,
+    );
+  });
+
+  it("keeps error-only duration descriptions free of malformed IDs", () => {
+    const text = uiText["en-US"].library.upgradeToV2;
+    const values = {
+      ...getDefaultUpgradeScoreToV2FormValues("Original", text),
+      overlapMs: "501",
+    };
+    const markup = renderToStaticMarkup(
+      createElement(
+        Dialog.Root,
+        { open: true },
+        createElement(UpgradeScoreToV2Form, {
+          descriptionId: "description",
+          errorMessage: text.validation.invalidOverlap,
+          isCreating: false,
+          onCancel: () => {},
+          onSubmit: () => {},
+          onValuesChange: () => {},
+          text,
+          validationError: "invalid-overlap",
+          validationId: "validation",
+          values,
+        }),
+      ),
+    );
+    const overlapInput = markup.match(
+      /<input[^>]*value="501"[^>]*>/,
+    )?.[0];
+    const describedByValues = Array.from(
+      markup.matchAll(/aria-describedby="([^"]*)"/g),
+      (match) => match[1],
+    );
+
+    if (!overlapInput) {
+      throw new Error("Expected overlap input markup.");
+    }
+
+    expect(overlapInput).toContain('aria-describedby="validation"');
+    expect(markup).not.toContain("undefined");
+    describedByValues.forEach((describedBy) => {
+      expect(describedBy).toBe(describedBy.trim());
+      expect(describedBy).not.toMatch(/\s{2,}/);
+    });
+  });
+
   it("renders accessible validation and disables every form control while creating", () => {
     const text = uiText["en-US"].library.upgradeToV2;
     const values = getDefaultUpgradeScoreToV2FormValues("Original", text);

@@ -383,12 +383,18 @@ function DurationField({
   text: UiText["library"]["upgradeToV2"];
   value: string;
 }) {
+  const helpTextId = useId();
+  const describedBy =
+    [helpText ? helpTextId : undefined, errorId]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
   return (
     <label className="score-upgrade-field">
       <span>{label}</span>
       <span className="score-upgrade-number-input">
         <input
-          aria-describedby={errorId}
+          aria-describedby={describedBy}
           aria-invalid={invalid}
           inputMode="numeric"
           max={max}
@@ -400,7 +406,7 @@ function DurationField({
         />
         <span>{text.millisecondsUnit}</span>
       </span>
-      {helpText ? <small>{helpText}</small> : null}
+      {helpText ? <small id={helpTextId}>{helpText}</small> : null}
     </label>
   );
 }
