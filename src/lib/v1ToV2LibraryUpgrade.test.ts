@@ -46,9 +46,10 @@ function createBuiltInSong(song: Song): BuiltInLibrarySong {
 
 const conversionOptions = {
   name: "Source (V2 Long Note)",
-  overlapMs: 40,
-  restGapThresholdMs: 2000,
-  maxDurationMs: 2000,
+  minimumSustainGapMs: 250,
+  releaseLeadMs: 30,
+  restGapThresholdMs: 1200,
+  maxDurationMs: 1200,
   finalGroupDurationMs: 500,
 };
 

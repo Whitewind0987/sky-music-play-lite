@@ -219,15 +219,18 @@ export const uiText = {
         sustainStyles: {
           conservative: {
             label: "保守",
-            description: "延音较短，优先减少不必要的拖音。",
+            description:
+              "只延长明显较长的音，并提前松开，优先保持快速段落清晰。",
           },
           balanced: {
             label: "均衡",
-            description: "适合大多数曲谱，推荐使用。",
+            description:
+              "延长中等间隔的音，快速音仍保持普通点按，推荐使用。",
           },
           connected: {
             label: "连贯",
-            description: "更容易连接相邻音符，延音效果更明显。",
+            description:
+              "允许较短间隔生成延音，但仍会在下一组音开始前松开。",
           },
           custom: {
             label: "自定义",
@@ -235,15 +238,17 @@ export const uiText = {
           },
         },
         activeValuesSummary:
-          "超过 {restSeconds} 秒的间隔会视为停顿；单个音最长约 {maxSeconds} 秒。",
+          "仅对 {minimumSeconds}–{restSeconds} 秒的间隔生成延音，并在下一组音前约 {releaseLeadMs} 毫秒松开；单个音最长约 {maximumSeconds} 秒。",
         activeValuesFallback: "请检查下方的自定义参数。",
         customSettingsLabel: "自定义参数",
-        overlapLabel: "长音重叠",
-        overlapHelp: "让一个音稍微延续到下一个音开始之后。",
+        minimumSustainGapLabel: "最小延音间隔",
+        minimumSustainGapHelp:
+          "相邻音组间隔短于此值时，保持普通点按，避免快速段落粘连。",
+        releaseLeadLabel: "提前松开",
+        releaseLeadHelp:
+          "延音会在下一组音开始前提前这么久松开，避免音组重叠。",
         restGapThresholdLabel: "超过此间隔视为休止",
         restGapThresholdHelp:
-          "相邻音组间隔超过 {seconds} 秒时，前一个音保持普通点按。",
-        restGapThresholdHelpFallback:
           "相邻音组间隔超过此值时，前一个音保持普通点按。",
         maximumDurationLabel: "单个音符最大时长",
         maximumDurationHelp: "单个音最长持续约 {seconds} 秒。",
@@ -261,13 +266,20 @@ export const uiText = {
         creating: "正在创建…",
         validation: {
           emptyName: "请输入新曲谱名称。",
-          invalidOverlap: "长音重叠必须是 0–500 毫秒之间的数字。",
+          invalidMinimumSustainGap:
+            "最小延音间隔必须是 25 到 60000 毫秒之间的数字。",
+          invalidReleaseLead:
+            "提前松开必须是 1 到 500 毫秒之间的数字。",
           invalidRestGapThreshold:
-            "休止判定间隔必须是 25–60000 毫秒之间的数字。",
+            "休止间隔必须是 25 到 60000 毫秒之间的数字。",
           invalidMaximumDuration:
-            "单个音符最大时长必须是 25–60000 毫秒之间的数字。",
+            "单个音符最大时长必须是 25 到 60000 毫秒之间的数字。",
           invalidFinalDuration:
-            "最后一组音符时长必须是 25–60000 毫秒之间的数字。",
+            "最后一组音符时长必须是 25 到 60000 毫秒之间的数字。",
+          minimumGapExceedsRestThreshold:
+            "最小延音间隔不能大于休止间隔。",
+          minimumGapTooShortForReleaseLead:
+            "最小延音间隔必须至少比提前松开长 25 毫秒。",
           finalDurationExceedsMaximum:
             "最后一组音符时长不能超过单个音符最大时长。",
         },
@@ -866,16 +878,17 @@ export const uiText = {
           conservative: {
             label: "Conservative",
             description:
-              "Uses shorter sustains to reduce unwanted dragging notes.",
+              "Sustains only clearly longer notes and releases early to keep rapid passages clear.",
           },
           balanced: {
             label: "Balanced",
-            description: "Recommended for most scores.",
+            description:
+              "Sustains medium-length gaps while keeping rapid notes as normal taps. Recommended.",
           },
           connected: {
             label: "Connected",
             description:
-              "Connects more neighboring notes for a stronger sustain effect.",
+              "Allows shorter gaps to sustain, but still releases before the next note group.",
           },
           custom: {
             label: "Custom",
@@ -883,16 +896,17 @@ export const uiText = {
           },
         },
         activeValuesSummary:
-          "Gaps longer than {restSeconds} seconds are treated as rests; each note can last up to about {maxSeconds} seconds.",
+          "Only gaps from {minimumSeconds} to {restSeconds} seconds are sustained, releasing about {releaseLeadMs} ms before the next group; each note can last up to about {maximumSeconds} seconds.",
         activeValuesFallback: "Check the custom values below.",
         customSettingsLabel: "Custom Settings",
-        overlapLabel: "Note overlap",
-        overlapHelp:
-          "Lets a note continue slightly after the next note starts.",
+        minimumSustainGapLabel: "Minimum sustain gap",
+        minimumSustainGapHelp:
+          "Gaps shorter than this stay as normal taps so rapid passages do not blur together.",
+        releaseLeadLabel: "Release before next group",
+        releaseLeadHelp:
+          "Sustained notes are released this long before the next note group to prevent overlap.",
         restGapThresholdLabel: "Treat longer gaps as rests",
         restGapThresholdHelp:
-          "When the next note group is more than {seconds} seconds away, the previous note remains a normal tap.",
-        restGapThresholdHelpFallback:
           "When the next note group is farther away than this value, the previous note remains a normal tap.",
         maximumDurationLabel: "Maximum note duration",
         maximumDurationHelp:
@@ -911,13 +925,20 @@ export const uiText = {
         creating: "Creating…",
         validation: {
           emptyName: "Enter a name for the new score.",
-          invalidOverlap: "Note overlap must be a number from 0 to 500 ms.",
+          invalidMinimumSustainGap:
+            "Minimum sustain gap must be a number from 25 to 60000 ms.",
+          invalidReleaseLead:
+            "Release lead must be a number from 1 to 500 ms.",
           invalidRestGapThreshold:
             "The rest-gap threshold must be a number from 25 to 60000 ms.",
           invalidMaximumDuration:
             "Maximum note duration must be a number from 25 to 60000 ms.",
           invalidFinalDuration:
             "Final note-group duration must be a number from 25 to 60000 ms.",
+          minimumGapExceedsRestThreshold:
+            "Minimum sustain gap cannot exceed the rest-gap threshold.",
+          minimumGapTooShortForReleaseLead:
+            "Minimum sustain gap must be at least 25 ms longer than the release lead.",
           finalDurationExceedsMaximum:
             "Final note-group duration cannot exceed the maximum note duration.",
         },

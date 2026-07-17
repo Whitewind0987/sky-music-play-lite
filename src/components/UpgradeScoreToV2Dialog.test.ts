@@ -158,7 +158,7 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(getInputMarkup(markup, "balanced")).toContain('checked=""');
     expect(markup).toContain(text.sustainStyles.balanced.description);
     expect(markup).toContain(
-      "Gaps longer than 2 seconds are treated as rests; each note can last up to about 2 seconds.",
+      "Only gaps from 0.25 to 1.2 seconds are sustained, releasing about 30 ms before the next group; each note can last up to about 1.2 seconds.",
     );
     expect(markup).not.toContain('type="number"');
     expect(markup).not.toContain(text.customSettingsLabel);
@@ -185,7 +185,7 @@ describe("UpgradeScoreToV2Dialog", () => {
     },
   );
 
-  it("renders all four numeric controls and restore only for Custom", () => {
+  it("renders all five numeric controls and restore only for Custom", () => {
     const formState = selectV1ToV2SustainStyle(
       selectV1ToV2SustainStyle(
         createInitialUpgradeScoreToV2FormState("Generated"),
@@ -198,12 +198,14 @@ describe("UpgradeScoreToV2Dialog", () => {
     expect(getInputMarkup(markup, "custom")).toContain('checked=""');
     expect(markup).toContain(text.sustainStyles.custom.description);
     expect(markup).toContain(text.customSettingsLabel);
-    expect(markup.match(/type="number"/g)).toHaveLength(4);
+    expect(markup.match(/type="number"/g)).toHaveLength(5);
     expect(markup).toContain(text.restoreRecommended);
     expect(markup).not.toContain("<details");
-    ["80", "4000", "3000", "800"].forEach((value) => {
+    ["150", "15", "2000", "800"].forEach((value) => {
       expect(markup).toContain(`value="${value}"`);
     });
+    expect(markup).toContain(text.minimumSustainGapLabel);
+    expect(markup).toContain(text.releaseLeadLabel);
   });
 
   it("hides custom controls after switching to Balanced or restoring", () => {
@@ -234,9 +236,10 @@ describe("UpgradeScoreToV2Dialog", () => {
         validationError: null,
         values: {
           name: "Keep name",
-          overlapMs: "40",
-          restGapThresholdMs: "2000",
-          maxDurationMs: "2000",
+          minimumSustainGapMs: "250",
+          releaseLeadMs: "30",
+          restGapThresholdMs: "1200",
+          maxDurationMs: "1200",
           finalGroupDurationMs: "500",
         },
       });
@@ -255,8 +258,10 @@ describe("UpgradeScoreToV2Dialog", () => {
     const markup = renderForm({ formState: customState });
 
     expect(markup).toContain(text.activeValuesFallback);
-    expect(markup).toContain(text.restGapThresholdHelpFallback);
+    expect(markup).toContain(text.restGapThresholdHelp);
     expect(markup).not.toContain("NaN");
+    expect(markup).not.toContain("Infinity");
+    expect(markup).not.toContain("undefined");
   });
 
   it("associates readable help with a custom input without an error", () => {
@@ -277,9 +282,7 @@ describe("UpgradeScoreToV2Dialog", () => {
 
     expect(helpId).not.toContain(" ");
     expect(markup).toContain(`<small id="${helpId}">`);
-    expect(markup).toContain(
-      "When the next note group is more than 2.5 seconds away",
-    );
+    expect(markup).toContain(text.restGapThresholdHelp);
   });
 
   it("keeps help and validation IDs associated without malformed whitespace", () => {

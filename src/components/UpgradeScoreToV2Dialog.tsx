@@ -232,9 +232,6 @@ export function UpgradeScoreToV2Form({
     readableTimeValues === null
       ? text.activeValuesFallback
       : formatText(text.activeValuesSummary, readableTimeValues);
-  const restSeconds = formatValidDurationMillisecondsAsSeconds(
-    formState.values.restGapThresholdMs,
-  );
   const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
     formState.values.maxDurationMs,
   );
@@ -319,30 +316,54 @@ export function UpgradeScoreToV2Form({
           >
             <DurationField
               errorId={errorId}
-              helpText={text.overlapHelp}
-              invalid={formState.validationError === "invalid-overlap"}
-              label={text.overlapLabel}
-              max={500}
-              min={0}
+              helpText={text.minimumSustainGapHelp}
+              invalid={
+                formState.validationError ===
+                  "invalid-minimum-sustain-gap" ||
+                formState.validationError ===
+                  "minimum-gap-exceeds-rest-threshold" ||
+                formState.validationError ===
+                  "minimum-gap-too-short-for-release-lead"
+              }
+              label={text.minimumSustainGapLabel}
+              max={60000}
+              min={25}
               text={text}
-              value={formState.values.overlapMs}
-              onChange={(overlapMs) =>
-                onFieldChange("overlapMs", overlapMs)
+              value={formState.values.minimumSustainGapMs}
+              onChange={(minimumSustainGapMs) =>
+                onFieldChange(
+                  "minimumSustainGapMs",
+                  minimumSustainGapMs,
+                )
               }
             />
 
             <DurationField
               errorId={errorId}
-              helpText={
-                restSeconds === null
-                  ? text.restGapThresholdHelpFallback
-                  : formatText(text.restGapThresholdHelp, {
-                      seconds: restSeconds,
-                    })
+              helpText={text.releaseLeadHelp}
+              invalid={
+                formState.validationError === "invalid-release-lead" ||
+                formState.validationError ===
+                  "minimum-gap-too-short-for-release-lead"
               }
+              label={text.releaseLeadLabel}
+              max={500}
+              min={1}
+              text={text}
+              value={formState.values.releaseLeadMs}
+              onChange={(releaseLeadMs) =>
+                onFieldChange("releaseLeadMs", releaseLeadMs)
+              }
+            />
+
+            <DurationField
+              errorId={errorId}
+              helpText={text.restGapThresholdHelp}
               invalid={
                 formState.validationError ===
-                "invalid-rest-gap-threshold"
+                  "invalid-rest-gap-threshold" ||
+                formState.validationError ===
+                  "minimum-gap-exceeds-rest-threshold"
               }
               label={text.restGapThresholdLabel}
               max={60000}
@@ -502,14 +523,20 @@ function getValidationMessage(
   switch (error) {
     case "empty-name":
       return text.validation.emptyName;
-    case "invalid-overlap":
-      return text.validation.invalidOverlap;
+    case "invalid-minimum-sustain-gap":
+      return text.validation.invalidMinimumSustainGap;
+    case "invalid-release-lead":
+      return text.validation.invalidReleaseLead;
     case "invalid-rest-gap-threshold":
       return text.validation.invalidRestGapThreshold;
     case "invalid-maximum-duration":
       return text.validation.invalidMaximumDuration;
     case "invalid-final-duration":
       return text.validation.invalidFinalDuration;
+    case "minimum-gap-exceeds-rest-threshold":
+      return text.validation.minimumGapExceedsRestThreshold;
+    case "minimum-gap-too-short-for-release-lead":
+      return text.validation.minimumGapTooShortForReleaseLead;
     case "final-duration-exceeds-maximum":
       return text.validation.finalDurationExceedsMaximum;
   }

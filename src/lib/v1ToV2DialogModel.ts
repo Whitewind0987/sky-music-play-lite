@@ -1,7 +1,8 @@
 import {
   DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
   DEFAULT_V1_TO_V2_MAX_DURATION_MS,
-  DEFAULT_V1_TO_V2_OVERLAP_MS,
+  DEFAULT_V1_TO_V2_MINIMUM_SUSTAIN_GAP_MS,
+  DEFAULT_V1_TO_V2_RELEASE_LEAD_MS,
   DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
   getV1ToV2ConversionValidationError,
   type V1ToV2ConversionOptions,
@@ -22,7 +23,8 @@ export const V1_TO_V2_SUSTAIN_STYLE_OPTIONS = [
 ] as const satisfies readonly V1ToV2SustainStyle[];
 
 export type V1ToV2NumericFormValues = {
-  overlapMs: string;
+  minimumSustainGapMs: string;
+  releaseLeadMs: string;
   restGapThresholdMs: string;
   maxDurationMs: string;
   finalGroupDurationMs: string;
@@ -43,7 +45,8 @@ export type UpgradeScoreToV2FormField = keyof UpgradeScoreToV2FormValues;
 export type V1ToV2PresetStyle = Exclude<V1ToV2SustainStyle, "custom">;
 
 type V1ToV2NumericPreset = {
-  overlapMs: number;
+  minimumSustainGapMs: number;
+  releaseLeadMs: number;
   restGapThresholdMs: number;
   maxDurationMs: number;
   finalGroupDurationMs: number;
@@ -51,21 +54,25 @@ type V1ToV2NumericPreset = {
 
 export const V1_TO_V2_SUSTAIN_STYLE_PRESETS = {
   conservative: {
-    overlapMs: 20,
+    minimumSustainGapMs: 400,
+    releaseLeadMs: 50,
     restGapThresholdMs: 1000,
     maxDurationMs: 1000,
     finalGroupDurationMs: 300,
   },
   balanced: {
-    overlapMs: DEFAULT_V1_TO_V2_OVERLAP_MS,
+    minimumSustainGapMs:
+      DEFAULT_V1_TO_V2_MINIMUM_SUSTAIN_GAP_MS,
+    releaseLeadMs: DEFAULT_V1_TO_V2_RELEASE_LEAD_MS,
     restGapThresholdMs: DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
     maxDurationMs: DEFAULT_V1_TO_V2_MAX_DURATION_MS,
     finalGroupDurationMs: DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
   },
   connected: {
-    overlapMs: 80,
-    restGapThresholdMs: 4000,
-    maxDurationMs: 3000,
+    minimumSustainGapMs: 150,
+    releaseLeadMs: 15,
+    restGapThresholdMs: 2000,
+    maxDurationMs: 2000,
     finalGroupDurationMs: 800,
   },
 } as const satisfies Record<V1ToV2PresetStyle, V1ToV2NumericPreset>;
@@ -157,7 +164,10 @@ export function buildV1ToV2OptionsFromDialogValues(
 ): V1ToV2ConversionOptions {
   return {
     name: values.name,
-    overlapMs: parseNumericField(values.overlapMs),
+    minimumSustainGapMs: parseNumericField(
+      values.minimumSustainGapMs,
+    ),
+    releaseLeadMs: parseNumericField(values.releaseLeadMs),
     restGapThresholdMs: parseNumericField(values.restGapThresholdMs),
     maxDurationMs: parseNumericField(values.maxDurationMs),
     finalGroupDurationMs: parseNumericField(values.finalGroupDurationMs),
@@ -195,7 +205,12 @@ export function formatValidDurationMillisecondsAsSeconds(
 
 export function getReadableSustainTimeValues(
   values: UpgradeScoreToV2FormValues,
-): { maxSeconds: string; restSeconds: string } | null {
+): {
+  maximumSeconds: string;
+  minimumSeconds: string;
+  releaseLeadMs: string;
+  restSeconds: string;
+} | null {
   const options = buildV1ToV2OptionsFromDialogValues(values);
   const validationError = getV1ToV2ConversionValidationError(
     options.name.trim().length === 0
@@ -207,16 +222,26 @@ export function getReadableSustainTimeValues(
     return null;
   }
 
-  const maxSeconds = formatValidDurationMillisecondsAsSeconds(
+  const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
     values.maxDurationMs,
+  );
+  const minimumSeconds = formatValidDurationMillisecondsAsSeconds(
+    values.minimumSustainGapMs,
   );
   const restSeconds = formatValidDurationMillisecondsAsSeconds(
     values.restGapThresholdMs,
   );
 
-  return maxSeconds === null || restSeconds === null
+  return maximumSeconds === null ||
+    minimumSeconds === null ||
+    restSeconds === null
     ? null
-    : { maxSeconds, restSeconds };
+    : {
+        maximumSeconds,
+        minimumSeconds,
+        releaseLeadMs: String(options.releaseLeadMs),
+        restSeconds,
+      };
 }
 
 function getPresetFormValues(
@@ -225,7 +250,8 @@ function getPresetFormValues(
   const preset = V1_TO_V2_SUSTAIN_STYLE_PRESETS[style];
 
   return {
-    overlapMs: String(preset.overlapMs),
+    minimumSustainGapMs: String(preset.minimumSustainGapMs),
+    releaseLeadMs: String(preset.releaseLeadMs),
     restGapThresholdMs: String(preset.restGapThresholdMs),
     maxDurationMs: String(preset.maxDurationMs),
     finalGroupDurationMs: String(preset.finalGroupDurationMs),

@@ -13,53 +13,56 @@ import {
 } from "./v1ToV2DialogModel";
 
 const balancedValues = {
-  overlapMs: "40",
-  restGapThresholdMs: "2000",
-  maxDurationMs: "2000",
+  minimumSustainGapMs: "250",
+  releaseLeadMs: "30",
+  restGapThresholdMs: "1200",
+  maxDurationMs: "1200",
   finalGroupDurationMs: "500",
 };
 
 describe("V1 to V2 dialog model", () => {
-  it("starts with Balanced and has no Advanced Settings state", () => {
-    const state = createInitialUpgradeScoreToV2FormState("Generated");
-
-    expect(state).toMatchObject({
+  it("starts with the exact Balanced values", () => {
+    expect(
+      createInitialUpgradeScoreToV2FormState("Generated"),
+    ).toMatchObject({
       selectedStyle: "balanced",
       values: {
         name: "Generated",
         ...balancedValues,
       },
     });
-    expect(state).not.toHaveProperty("isAdvancedOpen");
   });
 
   it("defines every preset with the exact required numeric values", () => {
     expect(V1_TO_V2_SUSTAIN_STYLE_PRESETS).toEqual({
       conservative: {
-        overlapMs: 20,
+        minimumSustainGapMs: 400,
+        releaseLeadMs: 50,
         restGapThresholdMs: 1000,
         maxDurationMs: 1000,
         finalGroupDurationMs: 300,
       },
       balanced: {
-        overlapMs: 40,
-        restGapThresholdMs: 2000,
-        maxDurationMs: 2000,
+        minimumSustainGapMs: 250,
+        releaseLeadMs: 30,
+        restGapThresholdMs: 1200,
+        maxDurationMs: 1200,
         finalGroupDurationMs: 500,
       },
       connected: {
-        overlapMs: 80,
-        restGapThresholdMs: 4000,
-        maxDurationMs: 3000,
+        minimumSustainGapMs: 150,
+        releaseLeadMs: 15,
+        restGapThresholdMs: 2000,
+        maxDurationMs: 2000,
         finalGroupDurationMs: 800,
       },
     });
   });
 
   it.each([
-    ["conservative", ["20", "1000", "1000", "300"]],
-    ["balanced", ["40", "2000", "2000", "500"]],
-    ["connected", ["80", "4000", "3000", "800"]],
+    ["conservative", ["400", "50", "1000", "1000", "300"]],
+    ["balanced", ["250", "30", "1200", "1200", "500"]],
+    ["connected", ["150", "15", "2000", "2000", "800"]],
   ] as const)("selecting %s applies all numeric values", (style, expected) => {
     const nextState = selectV1ToV2SustainStyle(
       createInitialUpgradeScoreToV2FormState("Generated"),
@@ -68,14 +71,15 @@ describe("V1 to V2 dialog model", () => {
 
     expect(nextState.selectedStyle).toBe(style);
     expect([
-      nextState.values.overlapMs,
+      nextState.values.minimumSustainGapMs,
+      nextState.values.releaseLeadMs,
       nextState.values.restGapThresholdMs,
       nextState.values.maxDurationMs,
       nextState.values.finalGroupDurationMs,
     ]).toEqual(expected);
   });
 
-  it("selecting Custom preserves current numeric values", () => {
+  it("selecting Custom preserves the currently active values", () => {
     const currentState = selectV1ToV2SustainStyle(
       createInitialUpgradeScoreToV2FormState("Generated"),
       "connected",
@@ -90,54 +94,38 @@ describe("V1 to V2 dialog model", () => {
   });
 
   it.each([
-    "overlapMs",
+    "minimumSustainGapMs",
+    "releaseLeadMs",
     "restGapThresholdMs",
     "maxDurationMs",
     "finalGroupDurationMs",
   ] as const)(
-    "editing the %s numeric field selects Custom and clears stale errors",
+    "editing the %s numeric field keeps Custom and clears stale errors",
     (field) => {
       const currentState = {
-        ...createInitialUpgradeScoreToV2FormState("Generated"),
+        ...selectV1ToV2SustainStyle(
+          createInitialUpgradeScoreToV2FormState("Generated"),
+          "custom",
+        ),
         operationError: "storage failed",
-        validationError: "invalid-overlap" as const,
+        validationError: "invalid-minimum-sustain-gap" as const,
       };
       const nextState = editUpgradeScoreToV2FormField(
         currentState,
         field,
-        "123",
+        "321",
       );
 
       expect(nextState).toMatchObject({
         operationError: "",
         selectedStyle: "custom",
         validationError: null,
-        values: { [field]: "123" },
+        values: { [field]: "321" },
       });
     },
   );
 
-  it("keeps Custom selected when another numeric value is edited", () => {
-    const customState = selectV1ToV2SustainStyle(
-      createInitialUpgradeScoreToV2FormState("Generated"),
-      "custom",
-    );
-
-    expect(
-      editUpgradeScoreToV2FormField(
-        customState,
-        "finalGroupDurationMs",
-        "650",
-      ),
-    ).toMatchObject({
-      selectedStyle: "custom",
-      values: {
-        finalGroupDurationMs: "650",
-      },
-    });
-  });
-
-  it("editing the score name preserves the selected preset", () => {
+  it("editing the score name preserves the selected style", () => {
     const currentState = {
       ...selectV1ToV2SustainStyle(
         createInitialUpgradeScoreToV2FormState("Generated"),
@@ -157,7 +145,7 @@ describe("V1 to V2 dialog model", () => {
     });
   });
 
-  it("restores Balanced values, preserves the name, and clears errors", () => {
+  it("restores Balanced, preserves the name, and clears all errors", () => {
     const editedState = {
       ...editUpgradeScoreToV2FormField(
         createInitialUpgradeScoreToV2FormState("Generated"),
@@ -184,48 +172,52 @@ describe("V1 to V2 dialog model", () => {
     });
   });
 
-  it("validation and operation errors preserve the selected style", () => {
+  it("validation and operation errors preserve style and values", () => {
     const presetState = selectV1ToV2SustainStyle(
       createInitialUpgradeScoreToV2FormState("Generated"),
       "connected",
     );
 
     expect(
-      applyUpgradeScoreToV2Validation(presetState, "invalid-overlap"),
+      applyUpgradeScoreToV2Validation(
+        presetState,
+        "invalid-minimum-sustain-gap",
+      ),
     ).toMatchObject({
       selectedStyle: "connected",
-      validationError: "invalid-overlap",
+      validationError: "invalid-minimum-sustain-gap",
+      values: presetState.values,
     });
     expect(
       applyUpgradeScoreToV2OperationError(presetState, "storage failed"),
     ).toMatchObject({
       operationError: "storage failed",
       selectedStyle: "connected",
+      values: presetState.values,
     });
   });
 
-  it("keeps selected values intact after valid validation", () => {
+  it("builds the complete conversion option shape", () => {
     const currentState = selectV1ToV2SustainStyle(
       createInitialUpgradeScoreToV2FormState("Generated"),
       "connected",
     );
 
-    expect(applyUpgradeScoreToV2Validation(currentState, null)).toMatchObject({
-      selectedStyle: "connected",
-      values: currentState.values,
-    });
-    expect(buildV1ToV2OptionsFromDialogValues(currentState.values)).toEqual({
+    expect(
+      buildV1ToV2OptionsFromDialogValues(currentState.values),
+    ).toEqual({
       name: "Generated",
-      overlapMs: 80,
-      restGapThresholdMs: 4000,
-      maxDurationMs: 3000,
+      minimumSustainGapMs: 150,
+      releaseLeadMs: 15,
+      restGapThresholdMs: 2000,
+      maxDurationMs: 2000,
       finalGroupDurationMs: 800,
     });
   });
 
   it.each([
-    [1000, "1"],
-    [2000, "2"],
+    [250, "0.25"],
+    [1200, "1.2"],
     [2500, "2.5"],
     ["", null],
     ["not-a-number", null],
@@ -234,14 +226,30 @@ describe("V1 to V2 dialog model", () => {
   });
 
   it.each([
-    ["invalid overlap", { overlapMs: "501" }],
-    ["invalid rest-gap threshold", { restGapThresholdMs: "24" }],
+    [
+      "invalid minimum sustain gap",
+      { minimumSustainGapMs: "24" },
+    ],
+    ["invalid release lead", { releaseLeadMs: "0" }],
+    ["invalid rest threshold", { restGapThresholdMs: "24" }],
     ["invalid maximum duration", { maxDurationMs: "24" }],
-    ["invalid final-group duration", { finalGroupDurationMs: "24" }],
+    ["invalid final duration", { finalGroupDurationMs: "24" }],
+    [
+      "minimum above rest threshold",
+      {
+        minimumSustainGapMs: "1300",
+        restGapThresholdMs: "1200",
+      },
+    ],
+    [
+      "minimum too short for release lead",
+      { minimumSustainGapMs: "250", releaseLeadMs: "226" },
+    ],
     [
       "final duration above maximum",
-      { maxDurationMs: "1000", finalGroupDurationMs: "1500" },
+      { maxDurationMs: "1000", finalGroupDurationMs: "1001" },
     ],
+    ["non-finite value", { releaseLeadMs: "Infinity" }],
   ])("returns a neutral-summary signal for %s", (_, overrides) => {
     const values =
       createInitialUpgradeScoreToV2FormState("Generated").values;
@@ -256,32 +264,30 @@ describe("V1 to V2 dialog model", () => {
       createInitialUpgradeScoreToV2FormState("Generated").values;
 
     expect(getReadableSustainTimeValues({ ...values, name: "" })).toEqual({
-      maxSeconds: "2",
-      restSeconds: "2",
+      maximumSeconds: "1.2",
+      minimumSeconds: "0.25",
+      releaseLeadMs: "30",
+      restSeconds: "1.2",
     });
-    expect(
-      getReadableSustainTimeValues({
-        ...values,
-        name: "",
-        overlapMs: "501",
-      }),
-    ).toBeNull();
   });
 
-  it("formats valid custom values after complete numeric validation", () => {
+  it("formats a valid custom summary after complete validation", () => {
     const values =
       createInitialUpgradeScoreToV2FormState("Generated").values;
 
     expect(
       getReadableSustainTimeValues({
         ...values,
-        overlapMs: "60",
+        minimumSustainGapMs: "300",
+        releaseLeadMs: "40",
         restGapThresholdMs: "2500",
         maxDurationMs: "3500",
         finalGroupDurationMs: "750",
       }),
     ).toEqual({
-      maxSeconds: "3.5",
+      maximumSeconds: "3.5",
+      minimumSeconds: "0.3",
+      releaseLeadMs: "40",
       restSeconds: "2.5",
     });
   });
