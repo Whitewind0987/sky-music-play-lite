@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { uiText } from "../i18n/uiText";
 import {
   buildV1ToV2OptionsFromDialogValues,
-  createInitialUpgradeScoreToV2FormState,
-  selectV1ToV2SustainStyle,
+  createInitialUpgradeScoreToV2FormState as createModelState,
+  selectV1ToV2SustainStyle as selectModelStyle,
 } from "../lib/v1ToV2DialogModel";
 import { createDefaultV1ToV2UpgradePreferences } from "../lib/v1ToV2UpgradePreferences";
 import type { Song } from "../types/score";
@@ -24,6 +24,7 @@ import {
 } from "./UpgradeScoreToV2Dialog";
 
 const text = uiText["en-US"].library.upgradeToV2;
+const generatedNameTemplates = text.generatedNames;
 const denseSong: Song = {
   formatVersion: 1,
   name: "Dense",
@@ -77,6 +78,30 @@ function preferences(
   };
 }
 
+function createInitialUpgradeScoreToV2FormState(
+  name: string,
+  rawPreferences = createDefaultV1ToV2UpgradePreferences(),
+) {
+  const state = createModelState(
+    "Source",
+    generatedNameTemplates,
+    rawPreferences,
+  );
+
+  return {
+    ...state,
+    isNameManuallyEdited: true,
+    values: { ...state.values, name },
+  };
+}
+
+function selectV1ToV2SustainStyle(
+  state: ReturnType<typeof createModelState>,
+  style: V1ToV2SustainStyle,
+) {
+  return selectModelStyle(state, style, generatedNameTemplates);
+}
+
 function renderForm({
   formState = createInitialUpgradeScoreToV2FormState("Dense V2"),
   isCreating = false,
@@ -119,6 +144,33 @@ function expectStyleChecked(markup: string, style: V1ToV2SustainStyle) {
 }
 
 describe("UpgradeScoreToV2Dialog rendering", () => {
+  it("renders first-use and persisted generated names in the input", () => {
+    const firstUse = createModelState(
+      "Test",
+      generatedNameTemplates,
+    );
+    const balanced = createModelState(
+      "Test",
+      generatedNameTemplates,
+      preferences("balanced"),
+    );
+    const custom = createModelState(
+      "Test",
+      generatedNameTemplates,
+      preferences("custom"),
+    );
+
+    expect(renderForm({ formState: firstUse })).toContain(
+      'value="Test (V2 Connected)"',
+    );
+    expect(renderForm({ formState: balanced })).toContain(
+      'value="Test (V2 Balanced)"',
+    );
+    expect(renderForm({ formState: custom })).toContain(
+      'value="Test (V2 Custom 333-22-1444-1333-444)"',
+    );
+  });
+
   it("checks Connected for first-use defaults", () => {
     expectStyleChecked(renderForm(), "connected");
   });
@@ -181,7 +233,10 @@ describe("UpgradeScoreToV2Dialog rendering", () => {
       "conservative",
     );
     const restored =
-      getUpgradeDialogRestoreRecommendedResult(conservative).formState;
+      getUpgradeDialogRestoreRecommendedResult(
+        conservative,
+        generatedNameTemplates,
+      ).formState;
 
     expect(renderForm({ formState: conservative })).toContain(
       "The current style will add about 2 sustained notes.",
@@ -207,6 +262,71 @@ describe("UpgradeScoreToV2Dialog rendering", () => {
 });
 
 describe("UpgradeScoreToV2Dialog preference transitions", () => {
+  it("updates automatic names through style and valid Custom transitions", () => {
+    const connected = createModelState(
+      "Test",
+      generatedNameTemplates,
+    );
+    const balanced = getUpgradeDialogStyleChangeResult(
+      connected,
+      "balanced",
+      generatedNameTemplates,
+    ).formState;
+    const custom = getUpgradeDialogStyleChangeResult(
+      balanced,
+      "custom",
+      generatedNameTemplates,
+    ).formState;
+    const valid = getUpgradeDialogFieldChangeResult(
+      custom,
+      "minimumSustainGapMs",
+      "350",
+      generatedNameTemplates,
+    ).formState;
+    const invalid = getUpgradeDialogFieldChangeResult(
+      valid,
+      "releaseLeadMs",
+      "",
+      generatedNameTemplates,
+    ).formState;
+
+    expect(balanced.values.name).toBe("Test (V2 Balanced)");
+    expect(custom.values.name).toBe(
+      "Test (V2 Custom 150-15-2000-2000-800)",
+    );
+    expect(valid.values.name).toBe(
+      "Test (V2 Custom 350-15-2000-2000-800)",
+    );
+    expect(invalid.values.name).toBe(valid.values.name);
+  });
+
+  it("keeps a manually edited name through later component transitions", () => {
+    const automatic = createModelState(
+      "Test",
+      generatedNameTemplates,
+    );
+    const manual = getUpgradeDialogFieldChangeResult(
+      automatic,
+      "name",
+      automatic.values.name,
+      generatedNameTemplates,
+    ).formState;
+    const balanced = getUpgradeDialogStyleChangeResult(
+      manual,
+      "balanced",
+      generatedNameTemplates,
+    ).formState;
+    const custom = getUpgradeDialogFieldChangeResult(
+      balanced,
+      "minimumSustainGapMs",
+      "350",
+      generatedNameTemplates,
+    ).formState;
+
+    expect(manual.isNameManuallyEdited).toBe(true);
+    expect(balanced.values.name).toBe(automatic.values.name);
+    expect(custom.values.name).toBe(automatic.values.name);
+  });
   it.each(["conservative", "balanced", "connected"] as const)(
     "immediately returns persisted %s selection while retaining Custom memory",
     (selectedStyle) => {
@@ -217,6 +337,7 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
       const result = getUpgradeDialogStyleChangeResult(
         initial,
         selectedStyle,
+        generatedNameTemplates,
       );
 
       expect(result.preferences).toEqual(preferences(selectedStyle));
@@ -228,7 +349,11 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
       "New",
       preferences("connected"),
     );
-    const result = getUpgradeDialogStyleChangeResult(initial, "custom");
+    const result = getUpgradeDialogStyleChangeResult(
+      initial,
+      "custom",
+      generatedNameTemplates,
+    );
 
     expect(result.preferences).toEqual(preferences("custom"));
     expect(
@@ -245,6 +370,7 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
       initial,
       "minimumSustainGapMs",
       "350",
+      generatedNameTemplates,
     );
 
     expect(result.preferences).toEqual({
@@ -265,6 +391,7 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
       initial,
       "minimumSustainGapMs",
       "",
+      generatedNameTemplates,
     );
 
     expect(result.formState.values.minimumSustainGapMs).toBe("");
@@ -280,6 +407,7 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
       initial,
       "name",
       "Song B",
+      generatedNameTemplates,
     );
 
     expect(result.preferences).toBeNull();
@@ -291,7 +419,10 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
       "Keep",
       preferences("custom"),
     );
-    const result = getUpgradeDialogRestoreRecommendedResult(initial);
+    const result = getUpgradeDialogRestoreRecommendedResult(
+      initial,
+      generatedNameTemplates,
+    );
 
     expect(result.preferences).toEqual(preferences("connected"));
     expect(result.formState.values.name).toBe("Keep");
@@ -305,6 +436,7 @@ describe("UpgradeScoreToV2Dialog preference transitions", () => {
     const result = getUpgradeDialogStyleChangeResult(
       initial,
       "conservative",
+      generatedNameTemplates,
     );
     const onCancel = vi.fn();
 

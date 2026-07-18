@@ -96,6 +96,7 @@ type LibraryPanelProps = {
   selectedPlaylist: UserPlaylist | null;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  isV1ToV2UpgradePreferenceReady: boolean;
   upgradeBlocked: boolean;
   v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
   isBuiltInSongLoading: (songId: LibrarySongId) => boolean;
@@ -117,6 +118,65 @@ export function getVisibleUpgradeActionCount(
   item: LibrarySongListItem,
 ): number {
   return shouldShowUpgradeToV2Action(item) ? 1 : 0;
+}
+
+export function getNextUpgradeSourceRequestId(
+  currentRequestId: number,
+  isV1ToV2UpgradePreferenceReady: boolean,
+) {
+  return isV1ToV2UpgradePreferenceReady
+    ? currentRequestId + 1
+    : currentRequestId;
+}
+
+export function getV1ToV2UpgradePreferenceReadiness(
+  hasLoadedAppData: boolean,
+) {
+  return hasLoadedAppData;
+}
+
+export function getUpgradeToV2ActionState(
+  item: LibrarySongListItem,
+  isV1ToV2UpgradePreferenceReady: boolean,
+) {
+  return {
+    disabled: !isV1ToV2UpgradePreferenceReady,
+    visible: shouldShowUpgradeToV2Action(item),
+  };
+}
+
+export async function requestUpgradeSourceWhenReady({
+  getLatestRequestId,
+  isV1ToV2UpgradePreferenceReady,
+  loadSource,
+  onFailed,
+  onLoaded,
+  setLatestRequestId,
+}: {
+  getLatestRequestId: () => number;
+  isV1ToV2UpgradePreferenceReady: boolean;
+  loadSource: () => Promise<Song | null>;
+  onFailed: () => void;
+  onLoaded: (sourceSong: Song) => void;
+  setLatestRequestId: (requestId: number) => void;
+}): Promise<"failed" | "loaded" | "not-ready" | "stale"> {
+  if (!isV1ToV2UpgradePreferenceReady) {
+    return "not-ready";
+  }
+
+  const requestId = getNextUpgradeSourceRequestId(
+    getLatestRequestId(),
+    isV1ToV2UpgradePreferenceReady,
+  );
+  setLatestRequestId(requestId);
+
+  return resolveUpgradeSourceRequest({
+    getLatestRequestId,
+    loadSource,
+    onFailed,
+    onLoaded,
+    requestId,
+  });
 }
 
 export async function resolveUpgradeSourceRequest({
@@ -478,6 +538,7 @@ function AddToPlaylistPopup({
 }
 
 function LibraryActionMenu({
+  isV1ToV2UpgradePreferenceReady,
   item,
   onAddToQueue,
   onClose,
@@ -501,6 +562,7 @@ function LibraryActionMenu({
   | "onPrepareSong"
   | "onRemoveFromLiked"
   | "onRemoveSongFromPlaylist"
+  | "isV1ToV2UpgradePreferenceReady"
   | "selectedCategory"
   | "selectedPlaylist"
   | "text"
@@ -510,6 +572,11 @@ function LibraryActionMenu({
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   onRequestUpgrade: (item: LibrarySongListItem) => void;
 }) {
+  const upgradeActionState = getUpgradeToV2ActionState(
+    item,
+    isV1ToV2UpgradePreferenceReady,
+  );
+
   function runAction(event: Event, action: () => void) {
     event.preventDefault();
     action();
@@ -584,14 +651,20 @@ function LibraryActionMenu({
           <button type="button">{text.removeFromPlaylist}</button>
         </DropdownMenu.Item>
       ) : null}
-      {getVisibleUpgradeActionCount(item) === 1 ? (
+      {upgradeActionState.visible ? (
         <DropdownMenu.Item
           asChild
+          disabled={upgradeActionState.disabled}
           onSelect={(event) =>
             runAction(event, () => onRequestUpgrade(item))
           }
         >
-          <button type="button">{text.upgradeToV2.menuAction}</button>
+          <button
+            disabled={upgradeActionState.disabled}
+            type="button"
+          >
+            {text.upgradeToV2.menuAction}
+          </button>
         </DropdownMenu.Item>
       ) : null}
       {item.librarySong.source === "local-import" ? (
@@ -611,6 +684,7 @@ function LibraryActionMenu({
 }
 
 function LibrarySongTable({
+  isV1ToV2UpgradePreferenceReady,
   items,
   locateScoreRequest,
   onAddToQueue,
@@ -637,6 +711,7 @@ function LibrarySongTable({
 }: Pick<
   LibraryPanelProps,
   | "items"
+  | "isV1ToV2UpgradePreferenceReady"
   | "locateScoreRequest"
   | "onAddToQueue"
   | "onDeleteLocalSong"
@@ -863,6 +938,9 @@ function LibrarySongTable({
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Portal>
                         <LibraryActionMenu
+                          isV1ToV2UpgradePreferenceReady={
+                            isV1ToV2UpgradePreferenceReady
+                          }
                           item={item}
                           onAddToQueue={onAddToQueue}
                           onClose={onCloseActionMenu}
@@ -929,6 +1007,7 @@ export function LibraryPanel({
   hasSearchQuery,
   importDisabled,
   importError,
+  isV1ToV2UpgradePreferenceReady,
   isQueueOpen,
   items,
   locateScoreRequest,
@@ -998,22 +1077,26 @@ export function LibraryPanel({
   function requestUpgrade(item: LibrarySongListItem) {
     setOpenActionMenuSongId(null);
 
+    if (!isV1ToV2UpgradePreferenceReady) {
+      return;
+    }
+
     if (upgradeBlocked) {
       onUpgradeBlocked();
       return;
     }
 
-    const requestId = latestUpgradeSourceRequestIdRef.current + 1;
-    latestUpgradeSourceRequestIdRef.current = requestId;
-
-    void resolveUpgradeSourceRequest({
+    void requestUpgradeSourceWhenReady({
       getLatestRequestId: () =>
         latestUpgradeSourceRequestIdRef.current,
+      isV1ToV2UpgradePreferenceReady,
       loadSource: () => onResolveUpgradeSource(item.songIndex),
       onFailed: () => onUpgradeSourceLoadFailed(item),
       onLoaded: (sourceSong) =>
         setUpgradeDialogState({ item, sourceSong }),
-      requestId,
+      setLatestRequestId: (requestId) => {
+        latestUpgradeSourceRequestIdRef.current = requestId;
+      },
     });
   }
   useEffect(() => {
@@ -1149,6 +1232,9 @@ export function LibraryPanel({
           </div>
         ) : (
           <LibrarySongTable
+            isV1ToV2UpgradePreferenceReady={
+              isV1ToV2UpgradePreferenceReady
+            }
             emptyDescription={listEmptyState.description}
             emptyTitle={listEmptyState.title}
             items={items}

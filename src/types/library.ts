@@ -6,6 +6,7 @@ export type LibrarySongSource = "built-in" | "local-import";
 export type LocalSongMetadata = {
   bitsPerPage: number;
   bpm: number;
+  contentFingerprint?: string;
   fingerprint: string;
   formatVersion?: 1 | 2;
   isComposed: boolean;

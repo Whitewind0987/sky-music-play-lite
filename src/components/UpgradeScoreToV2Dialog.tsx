@@ -10,6 +10,7 @@ import type {
   V1ToV2UpgradePreferences,
 } from "../types/v1ToV2Upgrade";
 import { formatText } from "../lib/formatText";
+import type { V1ToV2GeneratedNameTemplates } from "../lib/v1ToV2GeneratedName";
 import {
   applyUpgradeScoreToV2OperationError,
   applyUpgradeScoreToV2Validation,
@@ -55,8 +56,13 @@ type PreferenceTransitionResult = {
 export function getUpgradeDialogStyleChangeResult(
   formState: UpgradeScoreToV2FormState,
   style: V1ToV2SustainStyle,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
 ): PreferenceTransitionResult {
-  const nextFormState = selectV1ToV2SustainStyle(formState, style);
+  const nextFormState = selectV1ToV2SustainStyle(
+    formState,
+    style,
+    generatedNameTemplates,
+  );
 
   return {
     formState: nextFormState,
@@ -68,11 +74,13 @@ export function getUpgradeDialogFieldChangeResult(
   formState: UpgradeScoreToV2FormState,
   field: UpgradeScoreToV2FormField,
   value: string,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
 ): PreferenceTransitionResult {
   const nextFormState = editUpgradeScoreToV2FormField(
     formState,
     field,
     value,
+    generatedNameTemplates,
   );
 
   return {
@@ -86,9 +94,13 @@ export function getUpgradeDialogFieldChangeResult(
 
 export function getUpgradeDialogRestoreRecommendedResult(
   formState: UpgradeScoreToV2FormState,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
 ): PreferenceTransitionResult {
   const nextFormState =
-    restoreRecommendedUpgradeScoreToV2State(formState);
+    restoreRecommendedUpgradeScoreToV2State(
+      formState,
+      generatedNameTemplates,
+    );
 
   return {
     formState: nextFormState,
@@ -143,7 +155,8 @@ export function UpgradeScoreToV2Dialog({
 }: UpgradeScoreToV2DialogProps) {
   const [formState, setFormState] = useState(() =>
     createInitialUpgradeScoreToV2FormState(
-      formatText(text.defaultName, { songName: sourceSong.name }),
+      sourceSong.name,
+      text.generatedNames,
       preferences,
     ),
   );
@@ -245,17 +258,25 @@ export function UpgradeScoreToV2Dialog({
                     formState,
                     field,
                     value,
+                    text.generatedNames,
                   ),
                 )
               }
               onRestoreRecommended={() =>
                 applyPreferenceTransition(
-                  getUpgradeDialogRestoreRecommendedResult(formState),
+                  getUpgradeDialogRestoreRecommendedResult(
+                    formState,
+                    text.generatedNames,
+                  ),
                 )
               }
               onStyleChange={(style) =>
                 applyPreferenceTransition(
-                  getUpgradeDialogStyleChangeResult(formState, style),
+                  getUpgradeDialogStyleChangeResult(
+                    formState,
+                    style,
+                    text.generatedNames,
+                  ),
                 )
               }
               onSubmit={handleSubmit}

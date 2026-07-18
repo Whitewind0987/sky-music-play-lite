@@ -16,7 +16,10 @@ import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
-import { LibraryPanel } from "./components/LibraryPanel";
+import {
+  getV1ToV2UpgradePreferenceReadiness,
+  LibraryPanel,
+} from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
@@ -675,6 +678,11 @@ function App() {
           builtInPagination={scoreLibrary.builtInPagination}
           importError={scoreLibrary.importError}
           importDisabled={isAnyPlaybackActive}
+          isV1ToV2UpgradePreferenceReady={
+            getV1ToV2UpgradePreferenceReadiness(
+              appPersistence.hasLoadedAppData,
+            )
+          }
           isQueueOpen={queueOpen}
           hasSearchQuery={scoreLibrary.hasSearchQuery}
           items={scoreLibrary.pagedVisibleLibraryItems}

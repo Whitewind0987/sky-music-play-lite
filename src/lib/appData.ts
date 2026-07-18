@@ -614,6 +614,11 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
   );
 
   const rawSustainTailMs = rawMetadata.sustainTailMs;
+  const contentFingerprint =
+    typeof rawMetadata.contentFingerprint === "string" &&
+    rawMetadata.contentFingerprint.length > 0
+      ? rawMetadata.contentFingerprint
+      : undefined;
 
   if (
     rawSustainTailMs !== undefined &&
@@ -627,6 +632,7 @@ function sanitizeLocalSongMetadata(rawMetadata: unknown): LocalSongMetadata | nu
   return {
     bitsPerPage: rawMetadata.bitsPerPage as number,
     bpm: rawMetadata.bpm as number,
+    ...(contentFingerprint === undefined ? {} : { contentFingerprint }),
     fingerprint: rawMetadata.fingerprint,
     ...(rawMetadata.formatVersion === 1 || rawMetadata.formatVersion === 2
       ? { formatVersion: rawMetadata.formatVersion }

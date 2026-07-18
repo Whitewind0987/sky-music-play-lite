@@ -5,7 +5,11 @@ import type {
   LocalLibrarySong,
 } from "../types/library";
 import {
+  getNextUpgradeSourceRequestId,
+  getUpgradeToV2ActionState,
+  getV1ToV2UpgradePreferenceReadiness,
   getVisibleUpgradeActionCount,
+  requestUpgradeSourceWhenReady,
   resolveUpgradeSourceRequest,
   shouldShowUpgradeToV2Action,
 } from "./LibraryPanel";
@@ -80,6 +84,93 @@ describe("LibraryPanel V2 upgrade menu visibility", () => {
   it("shows exactly one upgrade action for V1 and none for V2", () => {
     expect(getVisibleUpgradeActionCount(asItem(createLocal(1)))).toBe(1);
     expect(getVisibleUpgradeActionCount(asItem(createLocal(2)))).toBe(0);
+  });
+
+  it("keeps the V1 action visible while preference loading disables request advancement", () => {
+    const item = asItem(createLocal(1));
+
+    expect(getVisibleUpgradeActionCount(item)).toBe(1);
+    expect(getUpgradeToV2ActionState(item, false)).toEqual({
+      disabled: true,
+      visible: true,
+    });
+    expect(getUpgradeToV2ActionState(item, true)).toEqual({
+      disabled: false,
+      visible: true,
+    });
+    expect(getNextUpgradeSourceRequestId(7, false)).toBe(7);
+    expect(getNextUpgradeSourceRequestId(7, true)).toBe(8);
+  });
+
+  it("maps app-data loading readiness directly to the panel prop", () => {
+    expect(getV1ToV2UpgradePreferenceReadiness(false)).toBe(false);
+    expect(getV1ToV2UpgradePreferenceReadiness(true)).toBe(true);
+  });
+
+  it("does not preload, advance, fail, or open before readiness", async () => {
+    let latestRequestId = 4;
+    const loadSource = vi.fn().mockResolvedValue(createBuiltIn(1).song);
+    const onFailed = vi.fn();
+    const onLoaded = vi.fn();
+    const setLatestRequestId = vi.fn((requestId: number) => {
+      latestRequestId = requestId;
+    });
+
+    await expect(
+      requestUpgradeSourceWhenReady({
+        getLatestRequestId: () => latestRequestId,
+        isV1ToV2UpgradePreferenceReady: false,
+        loadSource,
+        onFailed,
+        onLoaded,
+        setLatestRequestId,
+      }),
+    ).resolves.toBe("not-ready");
+    expect(latestRequestId).toBe(4);
+    expect(setLatestRequestId).not.toHaveBeenCalled();
+    expect(loadSource).not.toHaveBeenCalled();
+    expect(onFailed).not.toHaveBeenCalled();
+    expect(onLoaded).not.toHaveBeenCalled();
+  });
+
+  it("preloads and opens normally after readiness", async () => {
+    let latestRequestId = 4;
+    const sourceSong = createBuiltIn(1).song;
+    const loadSource = vi.fn().mockResolvedValue(sourceSong);
+    const onLoaded = vi.fn();
+
+    await expect(
+      requestUpgradeSourceWhenReady({
+        getLatestRequestId: () => latestRequestId,
+        isV1ToV2UpgradePreferenceReady: true,
+        loadSource,
+        onFailed: vi.fn(),
+        onLoaded,
+        setLatestRequestId: (requestId) => {
+          latestRequestId = requestId;
+        },
+      }),
+    ).resolves.toBe("loaded");
+    expect(latestRequestId).toBe(5);
+    expect(loadSource).toHaveBeenCalledOnce();
+    expect(onLoaded).toHaveBeenCalledWith(sourceSong);
+  });
+
+  it("readiness never changes format eligibility", () => {
+    for (const isReady of [false, true]) {
+      expect(
+        getUpgradeToV2ActionState(asItem(createLocal(1)), isReady).visible,
+      ).toBe(true);
+      expect(
+        getUpgradeToV2ActionState(asItem(createLocal(2)), isReady).visible,
+      ).toBe(false);
+      expect(
+        getUpgradeToV2ActionState(
+          asItem(createLocal(undefined)),
+          isReady,
+        ).visible,
+      ).toBe(false);
+    }
   });
 });
 

@@ -213,7 +213,13 @@ export const uiText = {
         title: "升级为 V2",
         description:
           "将根据相邻音组的时间间隔生成一份新的 V2 长音曲谱。V1 不包含松键时间，生成结果仅为自动建议，原 V1 曲谱不会被修改。",
-        defaultName: "{songName}（V2 长音版）",
+        generatedNames: {
+          conservative: "{songName}（V2 保守版）",
+          balanced: "{songName}（V2 均衡版）",
+          connected: "{songName}（V2 连贯版）",
+          custom:
+            "{songName}（V2 自定义 {minimumSustainGapMs}-{releaseLeadMs}-{restGapThresholdMs}-{maxDurationMs}-{finalGroupDurationMs}）",
+        },
         newNameLabel: "新曲谱名称",
         sustainStyleLabel: "延音风格",
         sustainStyles: {
@@ -454,7 +460,8 @@ export const uiText = {
       scoreUpgradeUnknownFormat: "无法确认该曲谱为 V1 格式，已取消升级。",
       scoreUpgradeEmptyScore: "曲谱没有可转换的有效音符。",
       scoreUpgradeInvalidOptions: "V2 升级参数无效，请检查后重试。",
-      scoreUpgradeDuplicate: "V2 曲谱已存在，未重复创建：{songName}",
+      scoreUpgradeDuplicate:
+        "已存在内容相同的 V2 曲谱：《{songName}》。",
       scoreUpgradeStorageFailed:
         "保存 V2 曲谱失败：{songName}；{error}",
       scoreUpgradeSucceeded: "已创建 V2 曲谱：{songName}",
@@ -877,7 +884,13 @@ export const uiText = {
         title: "Upgrade to V2",
         description:
           "A new V2 sustained-note score will be generated from the gaps between note groups. V1 does not contain key-release timing, so the generated durations are only automatic suggestions. The original V1 score will not be modified.",
-        defaultName: "{songName} (V2 Long Note)",
+        generatedNames: {
+          conservative: "{songName} (V2 Conservative)",
+          balanced: "{songName} (V2 Balanced)",
+          connected: "{songName} (V2 Connected)",
+          custom:
+            "{songName} (V2 Custom {minimumSustainGapMs}-{releaseLeadMs}-{restGapThresholdMs}-{maxDurationMs}-{finalGroupDurationMs})",
+        },
         newNameLabel: "New score name",
         sustainStyleLabel: "Sustain style",
         sustainStyles: {
@@ -1132,7 +1145,7 @@ export const uiText = {
       scoreUpgradeInvalidOptions:
         "The V2 upgrade settings are invalid. Review them and try again.",
       scoreUpgradeDuplicate:
-        "An identical V2 score already exists: {songName}",
+        "A V2 score with identical content already exists: “{songName}”.",
       scoreUpgradeStorageFailed:
         "Failed to save V2 score {songName}: {error}",
       scoreUpgradeSucceeded: "Created V2 score: {songName}",

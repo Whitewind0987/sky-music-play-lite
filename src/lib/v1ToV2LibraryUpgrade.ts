@@ -4,11 +4,13 @@ import type {
 } from "../types/library";
 import type { Song } from "../types/score";
 import {
+  createLocalSongMetadata,
   createLibrarySong as createDefaultLibrarySong,
-  getLibrarySongFingerprint,
-  getSongFingerprint,
-  hasReliableDuplicateFingerprint,
+  getLibrarySongName,
+  getLibrarySongFormatVersion,
+  getSongContentFingerprint,
 } from "./libraryCollections";
+import { formatText } from "./formatText";
 import {
   convertV1SongToV2,
   type V1ToV2ConversionOptions,
@@ -22,7 +24,10 @@ export type CreateV2LibraryCopyResult =
       librarySong: LocalLibrarySong;
       song: Song;
     }
-  | { status: "duplicate" }
+  | {
+      status: "duplicate";
+      existingLibrarySong: LibrarySong;
+    }
   | {
       status: "failed";
       reason: "blocked" | "source-load" | "conversion" | "storage";
@@ -35,6 +40,9 @@ type CreateV2LibraryCopyOptions = {
   getExistingLibrarySongs: () => LibrarySong[];
   loadSourceSong: () => Promise<Song | null>;
   isMutationBlocked?: () => boolean;
+  loadExistingSong?: (
+    songId: LibrarySong["id"],
+  ) => Promise<Song | null>;
   saveImportedScoreSong: (
     songId: LocalLibrarySong["id"],
     song: Song,
@@ -59,11 +67,21 @@ export function getCreatedV2LibraryCopyState(
   };
 }
 
+export function getV2UpgradeDuplicateNotice(
+  existingLibrarySong: LibrarySong,
+  template: string,
+) {
+  return formatText(template, {
+    songName: getLibrarySongName(existingLibrarySong),
+  });
+}
+
 export async function createV2LocalLibraryCopy({
   conversionOptions,
   createLibrarySong = createDefaultLibrarySong,
   getExistingLibrarySongs,
   isMutationBlocked,
+  loadExistingSong,
   loadSourceSong,
   saveImportedScoreSong,
   seedImportedScoreSong,
@@ -93,17 +111,68 @@ export async function createV2LocalLibraryCopy({
     return { error, reason: "conversion", status: "failed" };
   }
 
-  const convertedFingerprint = getSongFingerprint(convertedSong);
-  const isDuplicate = getExistingLibrarySongs()
-    .filter((librarySong) => librarySong.id !== sourceSongId)
-    .filter(hasReliableDuplicateFingerprint)
-    .some(
-      (librarySong) =>
-        getLibrarySongFingerprint(librarySong) === convertedFingerprint,
-    );
+  const convertedMetadata = createLocalSongMetadata(convertedSong);
+  const convertedContentFingerprint =
+    getSongContentFingerprint(convertedSong);
 
-  if (isDuplicate) {
-    return { status: "duplicate" };
+  for (const existingLibrarySong of getExistingLibrarySongs()) {
+    if (
+      existingLibrarySong.id === sourceSongId ||
+      getLibrarySongFormatVersion(existingLibrarySong) !== 2
+    ) {
+      continue;
+    }
+
+    if (existingLibrarySong.source === "built-in") {
+      if (
+        existingLibrarySong.isBuiltInLoaded === true &&
+        getSongContentFingerprint(existingLibrarySong.song) ===
+          convertedContentFingerprint
+      ) {
+        return { existingLibrarySong, status: "duplicate" };
+      }
+
+      continue;
+    }
+
+    if (
+      existingLibrarySong.metadata.contentFingerprint !== undefined
+    ) {
+      if (
+        existingLibrarySong.metadata.contentFingerprint ===
+        convertedContentFingerprint
+      ) {
+        return { existingLibrarySong, status: "duplicate" };
+      }
+
+      continue;
+    }
+
+    if (
+      loadExistingSong === undefined ||
+      !couldMatchV2ContentByMetadata(
+        existingLibrarySong,
+        convertedMetadata,
+      )
+    ) {
+      continue;
+    }
+
+    try {
+      const existingSong = await loadExistingSong(
+        existingLibrarySong.id,
+      );
+
+      if (
+        existingSong !== null &&
+        getSongContentFingerprint(existingSong) ===
+          convertedContentFingerprint
+      ) {
+        return { existingLibrarySong, status: "duplicate" };
+      }
+    } catch {
+      // A stale or unreadable candidate must not block creation.
+    }
   }
 
   const librarySong = createLibrarySong(convertedSong);
@@ -121,4 +190,59 @@ export async function createV2LocalLibraryCopy({
   seedImportedScoreSong(librarySong.id, convertedSong);
 
   return { librarySong, song: convertedSong, status: "created" };
+}
+
+function couldMatchV2ContentByMetadata(
+  existingLibrarySong: LocalLibrarySong,
+  convertedMetadata: LocalLibrarySong["metadata"],
+) {
+  const existingMetadata = existingLibrarySong.metadata;
+
+  if (
+    existingMetadata.bpm !== convertedMetadata.bpm ||
+    existingMetadata.bitsPerPage !== convertedMetadata.bitsPerPage ||
+    existingMetadata.pitchLevel !== convertedMetadata.pitchLevel ||
+    existingMetadata.isComposed !== convertedMetadata.isComposed ||
+    existingMetadata.noteCount !== convertedMetadata.noteCount ||
+    existingMetadata.noteGroupCount !== convertedMetadata.noteGroupCount ||
+    existingMetadata.lastNoteTimeMs !== convertedMetadata.lastNoteTimeMs
+  ) {
+    return false;
+  }
+
+  return (
+    optionalNumberMatches(
+      existingMetadata.sustainTailMs,
+      convertedMetadata.sustainTailMs,
+    ) &&
+    optionalNumberArrayMatches(
+      existingMetadata.noteGroupDelaysMs,
+      convertedMetadata.noteGroupDelaysMs,
+    ) &&
+    optionalNumberArrayMatches(
+      existingMetadata.noteGroupMaxHoldMs,
+      convertedMetadata.noteGroupMaxHoldMs,
+    )
+  );
+}
+
+function optionalNumberMatches(
+  existingValue: number | undefined,
+  convertedValue: number | undefined,
+) {
+  return existingValue === undefined || existingValue === convertedValue;
+}
+
+function optionalNumberArrayMatches(
+  existingValues: number[] | undefined,
+  convertedValues: number[] | undefined,
+) {
+  return (
+    existingValues === undefined ||
+    (convertedValues !== undefined &&
+      existingValues.length === convertedValues.length &&
+      existingValues.every(
+        (value, index) => value === convertedValues[index],
+      ))
+  );
 }

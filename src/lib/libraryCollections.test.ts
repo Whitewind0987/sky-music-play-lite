@@ -14,6 +14,7 @@ import {
   filterSongsByQuery,
   getLibrarySongFormatVersion,
   getLibrarySongRawDurationMs,
+  getSongContentFingerprint,
   getSongFingerprint,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
@@ -64,6 +65,7 @@ describe("createLocalSongMetadata", () => {
     expect(createLocalSongMetadata(song)).toEqual({
       bitsPerPage: 15,
       bpm: 120,
+      contentFingerprint: getSongContentFingerprint(song),
       fingerprint: getSongFingerprint(song),
       formatVersion: 1,
       isComposed: true,
@@ -343,6 +345,107 @@ describe("getSongFingerprint", () => {
     };
 
     expect(getSongFingerprint(songA)).not.toBe(getSongFingerprint(songB));
+  });
+});
+
+describe("getSongContentFingerprint", () => {
+  it("returns the same value for the same song", () => {
+    const song = createTestSong("Same");
+
+    expect(getSongContentFingerprint(song)).toBe(
+      getSongContentFingerprint(structuredClone(song)),
+    );
+  });
+
+  it("ignores the score name without changing the existing name-sensitive fingerprint", () => {
+    const first = createTestSong("First name");
+    const renamed = { ...first, name: "Another name" };
+
+    expect(getSongContentFingerprint(first)).toBe(
+      getSongContentFingerprint(renamed),
+    );
+    expect(getSongFingerprint(first)).not.toBe(getSongFingerprint(renamed));
+  });
+
+  it("distinguishes format version and an omitted duration from an explicit duration", () => {
+    const v1 = createTestSong("Same");
+    const v2WithoutDuration = { ...v1, formatVersion: 2 as const };
+    const v2WithDuration = {
+      ...v2WithoutDuration,
+      songNotes: [
+        { ...v2WithoutDuration.songNotes[0], duration: 25 },
+        v2WithoutDuration.songNotes[1],
+      ],
+    };
+
+    expect(getSongContentFingerprint(v1)).not.toBe(
+      getSongContentFingerprint(v2WithoutDuration),
+    );
+    expect(getSongContentFingerprint(v2WithoutDuration)).not.toBe(
+      getSongContentFingerprint(v2WithDuration),
+    );
+    expect(getSongContentFingerprint(v2WithDuration)).not.toBe(
+      getSongContentFingerprint({
+        ...v2WithDuration,
+        songNotes: [
+          { ...v2WithDuration.songNotes[0], duration: 26 },
+          v2WithDuration.songNotes[1],
+        ],
+      }),
+    );
+  });
+
+  it("is deterministic and does not mutate the score", () => {
+    const song = createTestSong("Stable");
+    const snapshot = structuredClone(song);
+
+    expect(getSongContentFingerprint(song)).toBe(
+      getSongContentFingerprint(song),
+    );
+    expect(song).toEqual(snapshot);
+  });
+
+  it.each([
+    [
+      "key",
+      (song: Song) => ({
+        ...song,
+        songNotes: [{ ...song.songNotes[0], key: "Other" }, song.songNotes[1]],
+      }),
+    ],
+    [
+      "timestamp",
+      (song: Song) => ({
+        ...song,
+        songNotes: [{ ...song.songNotes[0], time: 1 }, song.songNotes[1]],
+      }),
+    ],
+    [
+      "note order",
+      (song: Song) => ({
+        ...song,
+        songNotes: [...song.songNotes].reverse(),
+      }),
+    ],
+    ["BPM", (song: Song) => ({ ...song, bpm: song.bpm + 1 })],
+    [
+      "bits per page",
+      (song: Song) => ({ ...song, bitsPerPage: song.bitsPerPage + 1 }),
+    ],
+    [
+      "pitch level",
+      (song: Song) => ({ ...song, pitchLevel: song.pitchLevel + 1 }),
+    ],
+    [
+      "composed flag",
+      (song: Song) => ({ ...song, isComposed: !song.isComposed }),
+    ],
+  ] as const)("distinguishes a different %s", (_, mutateSong) => {
+    const song = createTestSong("Fields");
+
+    expect(getSongContentFingerprint(song)).not.toBe(
+      getSongContentFingerprint(mutateSong(song)),
+    );
   });
 });
 

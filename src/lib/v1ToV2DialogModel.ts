@@ -15,6 +15,10 @@ import {
   type V1ToV2SustainStyle,
   type V1ToV2UpgradePreferences,
 } from "../types/v1ToV2Upgrade";
+import {
+  getV1ToV2GeneratedName,
+  type V1ToV2GeneratedNameTemplates,
+} from "./v1ToV2GeneratedName";
 
 export type { V1ToV2SustainStyle } from "../types/v1ToV2Upgrade";
 export { V1_TO_V2_SUSTAIN_STYLE_PRESETS };
@@ -34,9 +38,11 @@ export type UpgradeScoreToV2FormValues = V1ToV2NumericFormValues & {
 };
 
 export type UpgradeScoreToV2FormState = {
+  isNameManuallyEdited: boolean;
   operationError: string;
   rememberedCustomValues: V1ToV2CustomValues;
   selectedStyle: V1ToV2SustainStyle;
+  sourceSongName: string;
   validationError: V1ToV2ConversionValidationError | null;
   values: UpgradeScoreToV2FormValues;
 };
@@ -46,7 +52,8 @@ export type UpgradeScoreToV2FormField =
   | "name";
 
 export function createInitialUpgradeScoreToV2FormState(
-  generatedName: string,
+  sourceSongName: string,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
   rawPreferences: V1ToV2UpgradePreferences =
     createDefaultV1ToV2UpgradePreferences(),
 ): UpgradeScoreToV2FormState {
@@ -58,12 +65,19 @@ export function createInitialUpgradeScoreToV2FormState(
       : V1_TO_V2_SUSTAIN_STYLE_PRESETS[preferences.selectedStyle];
 
   return {
+    isNameManuallyEdited: false,
     operationError: "",
     rememberedCustomValues: { ...preferences.customValues },
     selectedStyle: preferences.selectedStyle,
+    sourceSongName,
     validationError: null,
     values: {
-      name: generatedName,
+      name: getV1ToV2GeneratedName({
+        songName: sourceSongName,
+        style: preferences.selectedStyle,
+        templates: generatedNameTemplates,
+        values: numericValues,
+      }),
       ...formatNumericValues(numericValues),
     },
   };
@@ -72,20 +86,30 @@ export function createInitialUpgradeScoreToV2FormState(
 export function selectV1ToV2SustainStyle(
   currentState: UpgradeScoreToV2FormState,
   selectedStyle: V1ToV2SustainStyle,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
 ): UpgradeScoreToV2FormState {
+  const numericValues =
+    selectedStyle === "custom"
+      ? currentState.rememberedCustomValues
+      : V1_TO_V2_SUSTAIN_STYLE_PRESETS[selectedStyle];
+
   return clearUpgradeScoreToV2Errors({
     ...currentState,
     selectedStyle,
-    values:
-      selectedStyle === "custom"
-        ? {
-            ...currentState.values,
-            ...formatNumericValues(currentState.rememberedCustomValues),
-          }
+    values: {
+      ...currentState.values,
+      ...(currentState.isNameManuallyEdited
+        ? {}
         : {
-            ...currentState.values,
-            ...getPresetFormValues(selectedStyle),
-          },
+            name: getV1ToV2GeneratedName({
+              songName: currentState.sourceSongName,
+              style: selectedStyle,
+              templates: generatedNameTemplates,
+              values: numericValues,
+            }),
+          }),
+      ...formatNumericValues(numericValues),
+    },
   });
 }
 
@@ -93,6 +117,7 @@ export function editUpgradeScoreToV2FormField(
   currentState: UpgradeScoreToV2FormState,
   field: UpgradeScoreToV2FormField,
   value: string,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
 ): UpgradeScoreToV2FormState {
   const nextState = clearUpgradeScoreToV2Errors({
     ...currentState,
@@ -105,30 +130,58 @@ export function editUpgradeScoreToV2FormField(
   });
 
   if (field === "name") {
-    return nextState;
+    return {
+      ...nextState,
+      isNameManuallyEdited: true,
+    };
   }
 
   const validCustomValues = getValidV1ToV2CustomValues(
     nextState.values,
   );
 
-  return validCustomValues === null
-    ? nextState
-    : {
-        ...nextState,
-        rememberedCustomValues: validCustomValues,
-      };
+  if (validCustomValues === null) {
+    return nextState;
+  }
+
+  return {
+    ...nextState,
+    rememberedCustomValues: validCustomValues,
+    values: {
+      ...nextState.values,
+      ...(nextState.isNameManuallyEdited
+        ? {}
+        : {
+            name: getV1ToV2GeneratedName({
+              songName: nextState.sourceSongName,
+              style: "custom",
+              templates: generatedNameTemplates,
+              values: validCustomValues,
+            }),
+          }),
+    },
+  };
 }
 
 export function restoreRecommendedUpgradeScoreToV2State(
   currentState: UpgradeScoreToV2FormState,
+  generatedNameTemplates: V1ToV2GeneratedNameTemplates,
 ): UpgradeScoreToV2FormState {
+  const connectedValues = V1_TO_V2_SUSTAIN_STYLE_PRESETS.connected;
+
   return clearUpgradeScoreToV2Errors({
     ...currentState,
     selectedStyle: "connected",
     values: {
-      name: currentState.values.name,
-      ...getPresetFormValues("connected"),
+      name: currentState.isNameManuallyEdited
+        ? currentState.values.name
+        : getV1ToV2GeneratedName({
+            songName: currentState.sourceSongName,
+            style: "connected",
+            templates: generatedNameTemplates,
+            values: connectedValues,
+          }),
+      ...formatNumericValues(connectedValues),
     },
   });
 }
@@ -253,12 +306,6 @@ export function getReadableSustainTimeValues(
         releaseLeadMs: String(options.releaseLeadMs),
         restSeconds,
       };
-}
-
-function getPresetFormValues(
-  style: Exclude<V1ToV2SustainStyle, "custom">,
-): V1ToV2NumericFormValues {
-  return formatNumericValues(V1_TO_V2_SUSTAIN_STYLE_PRESETS[style]);
 }
 
 function formatNumericValues(

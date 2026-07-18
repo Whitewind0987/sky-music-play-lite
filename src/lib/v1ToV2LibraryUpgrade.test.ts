@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
+import { uiText } from "../i18n/uiText";
 import type {
   BuiltInLibrarySong,
   LocalLibrarySong,
 } from "../types/library";
 import type { Song } from "../types/score";
 import { createLocalSongMetadata } from "./libraryCollections";
+import { convertV1SongToV2 } from "./v1ToV2Conversion";
 import {
   createV2LocalLibraryCopy,
   getCreatedV2LibraryCopyState,
+  getV2UpgradeDuplicateNotice,
 } from "./v1ToV2LibraryUpgrade";
 
 function createV1Song(name = "Source"): Song {
@@ -54,6 +57,30 @@ const conversionOptions = {
 };
 
 describe("createV2LocalLibraryCopy", () => {
+  it.each([
+    ["null", async () => null],
+    [
+      "rejection",
+      async () => {
+        throw new Error("source load failed");
+      },
+    ],
+  ])("keeps %s source-load failure handling", async (_, loadSourceSong) => {
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      getExistingLibrarySongs: () => [],
+      loadSourceSong,
+      saveImportedScoreSong: vi.fn(),
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result).toMatchObject({
+      reason: "source-load",
+      status: "failed",
+    });
+  });
+
   it.each([
     ["built-in", createBuiltInSong(createV1Song())],
     ["local", createLocalSong("local-source", createV1Song())],
@@ -166,7 +193,10 @@ describe("createV2LocalLibraryCopy", () => {
       sourceSongId: "local-source",
     });
 
-    expect(duplicate).toEqual({ status: "duplicate" });
+    expect(duplicate).toEqual({
+      existingLibrarySong: existingCopy,
+      status: "duplicate",
+    });
     expect(duplicateSave).not.toHaveBeenCalled();
   });
 
@@ -199,8 +229,407 @@ describe("createV2LocalLibraryCopy", () => {
       sourceSongId: "local-source",
     });
 
-    expect(duplicate).toEqual({ status: "duplicate" });
+    expect(duplicate).toEqual({
+      existingLibrarySong: existingCopy,
+      status: "duplicate",
+    });
     expect(duplicateSave).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates identical V2 content even when the proposed and existing names differ", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(sourceSong, {
+      ...conversionOptions,
+      name: "Existing name",
+    });
+    const existingCopy = createLocalSong("existing-v2", existingSong);
+    const createLibrarySong = vi.fn();
+    const save = vi.fn();
+    const seed = vi.fn();
+    const loadExistingSong = vi.fn();
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions: {
+        ...conversionOptions,
+        name: "A completely different proposed name",
+      },
+      createLibrarySong,
+      getExistingLibrarySongs: () => [existingCopy],
+      loadExistingSong,
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: seed,
+      sourceSongId: "local-source",
+    });
+
+    expect(result).toEqual({
+      existingLibrarySong: existingCopy,
+      status: "duplicate",
+    });
+    expect(loadExistingSong).not.toHaveBeenCalled();
+    expect(createLibrarySong).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(seed).not.toHaveBeenCalled();
+  });
+
+  it("does not deduplicate V2 scores with different playable durations", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(
+      sourceSong,
+      conversionOptions,
+    );
+    existingSong.songNotes = existingSong.songNotes.map((note, index) =>
+      index === 0
+        ? { ...note, duration: (note.duration ?? 0) + 1 }
+        : note,
+    );
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("new-v2", song),
+      getExistingLibrarySongs: () => [
+        createLocalSong("different-v2", existingSong),
+      ],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result.status).toBe("created");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("allows Connected and Balanced when they generate different durations", async () => {
+    const sourceSong = createV1Song();
+    const connectedOptions = {
+      ...conversionOptions,
+      name: "Connected",
+      minimumSustainGapMs: 150,
+      releaseLeadMs: 15,
+      restGapThresholdMs: 2000,
+      maxDurationMs: 2000,
+      finalGroupDurationMs: 800,
+    };
+    const connectedSong = convertV1SongToV2(
+      sourceSong,
+      connectedOptions,
+    );
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("balanced-v2", song),
+      getExistingLibrarySongs: () => [
+        createLocalSong("connected-v2", connectedSong),
+      ],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result.status).toBe("created");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("deduplicates different Custom settings that generate identical playable content", async () => {
+    const sourceSong = createV1Song();
+    const firstOptions = {
+      ...conversionOptions,
+      name: "Custom one",
+      minimumSustainGapMs: 150,
+      maxDurationMs: 2000,
+      restGapThresholdMs: 1800,
+    };
+    const secondOptions = {
+      ...firstOptions,
+      name: "Custom two",
+      minimumSustainGapMs: 200,
+      maxDurationMs: 1900,
+      restGapThresholdMs: 1700,
+    };
+    const firstSong = convertV1SongToV2(sourceSong, firstOptions);
+    const existingCopy = createLocalSong("custom-one", firstSong);
+    const save = vi.fn();
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions: secondOptions,
+      createLibrarySong: vi.fn(),
+      getExistingLibrarySongs: () => [existingCopy],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result).toEqual({
+      existingLibrarySong: existingCopy,
+      status: "duplicate",
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("allows a V2 score whose note content differs", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(
+      sourceSong,
+      conversionOptions,
+    );
+    existingSong.songNotes = existingSong.songNotes.map((note, index) =>
+      index === 0 ? { ...note, key: "DifferentKey" } : note,
+    );
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("new-v2", song),
+      getExistingLibrarySongs: () => [
+        createLocalSong("different-v2", existingSong),
+      ],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result.status).toBe("created");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("never treats another known V1 score as a V2 duplicate candidate", async () => {
+    const sourceSong = createV1Song();
+    const v1Candidate = createLocalSong("other-v1", sourceSong);
+    const loadExistingSong = vi.fn();
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("new-v2", song),
+      getExistingLibrarySongs: () => [v1Candidate],
+      loadExistingSong,
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "source-v1",
+    });
+
+    expect(result.status).toBe("created");
+    expect(loadExistingSong).not.toHaveBeenCalled();
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("matches a loaded built-in V2 score by content", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(sourceSong, {
+      ...conversionOptions,
+      name: "Built-in existing",
+    });
+    const existingBuiltIn: BuiltInLibrarySong = {
+      builtInFormatVersion: 2,
+      id: "built-in-v2",
+      importedAt: 0,
+      isBuiltInLoaded: true,
+      song: existingSong,
+      source: "built-in",
+    };
+    const save = vi.fn();
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      getExistingLibrarySongs: () => [existingBuiltIn],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result).toEqual({
+      existingLibrarySong: existingBuiltIn,
+      status: "duplicate",
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("loads a matching legacy local V2 candidate that has no content fingerprint", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(sourceSong, {
+      ...conversionOptions,
+      name: "Legacy existing",
+    });
+    const currentMetadata = createLocalSongMetadata(existingSong);
+    const { contentFingerprint: _removed, ...legacyMetadata } =
+      currentMetadata;
+    const legacyCopy: LocalLibrarySong = {
+      id: "legacy-v2",
+      importedAt: 1,
+      metadata: legacyMetadata,
+      source: "local-import",
+    };
+    const loadExistingSong = vi.fn().mockResolvedValue(existingSong);
+    const save = vi.fn();
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      getExistingLibrarySongs: () => [legacyCopy],
+      loadExistingSong,
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(loadExistingSong).toHaveBeenCalledWith("legacy-v2");
+    expect(result).toEqual({
+      existingLibrarySong: legacyCopy,
+      status: "duplicate",
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("uses the legacy metadata prefilter before loading candidate files", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(
+      sourceSong,
+      conversionOptions,
+    );
+    const { contentFingerprint: _removed, ...legacyMetadata } =
+      createLocalSongMetadata(existingSong);
+    const mismatchedCopy: LocalLibrarySong = {
+      id: "mismatched-v2",
+      importedAt: 1,
+      metadata: { ...legacyMetadata, bpm: legacyMetadata.bpm + 1 },
+      source: "local-import",
+    };
+    const loadExistingSong = vi.fn();
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("new-v2", song),
+      getExistingLibrarySongs: () => [mismatchedCopy],
+      loadExistingSong,
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: vi.fn().mockResolvedValue(undefined),
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result.status).toBe("created");
+    expect(loadExistingSong).not.toHaveBeenCalled();
+  });
+
+  it("allows a loaded legacy V2 candidate with different full content", async () => {
+    const sourceSong = createV1Song();
+    const expectedSong = convertV1SongToV2(
+      sourceSong,
+      conversionOptions,
+    );
+    const { contentFingerprint: _removed, ...legacyMetadata } =
+      createLocalSongMetadata(expectedSong);
+    const legacyCopy: LocalLibrarySong = {
+      id: "legacy-different-v2",
+      importedAt: 1,
+      metadata: legacyMetadata,
+      source: "local-import",
+    };
+    const differentSong = {
+      ...expectedSong,
+      songNotes: expectedSong.songNotes.map((note, index) =>
+        index === 0 ? { ...note, key: "DifferentKey" } : note,
+      ),
+    };
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("new-v2", song),
+      getExistingLibrarySongs: () => [legacyCopy],
+      loadExistingSong: vi.fn().mockResolvedValue(differentSong),
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result.status).toBe("created");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a failed legacy candidate load and continues creating", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(
+      sourceSong,
+      conversionOptions,
+    );
+    const { contentFingerprint: _removed, ...legacyMetadata } =
+      createLocalSongMetadata(existingSong);
+    const legacyCopy: LocalLibrarySong = {
+      id: "unreadable-v2",
+      importedAt: 1,
+      metadata: legacyMetadata,
+      source: "local-import",
+    };
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      createLibrarySong: (song) => createLocalSong("new-v2", song),
+      getExistingLibrarySongs: () => [legacyCopy],
+      loadExistingSong: vi.fn().mockRejectedValue(new Error("gone")),
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(result.status).toBe("created");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("continues from an unreadable legacy candidate to a later exact match", async () => {
+    const sourceSong = createV1Song();
+    const existingSong = convertV1SongToV2(
+      sourceSong,
+      conversionOptions,
+    );
+    const { contentFingerprint: _removed, ...legacyMetadata } =
+      createLocalSongMetadata(existingSong);
+    const unreadable: LocalLibrarySong = {
+      id: "unreadable-v2",
+      importedAt: 1,
+      metadata: legacyMetadata,
+      source: "local-import",
+    };
+    const matching: LocalLibrarySong = {
+      ...unreadable,
+      id: "matching-v2",
+    };
+    const loadExistingSong = vi.fn(async (songId: string) => {
+      if (songId === unreadable.id) {
+        throw new Error("gone");
+      }
+
+      return existingSong;
+    });
+    const save = vi.fn();
+
+    const result = await createV2LocalLibraryCopy({
+      conversionOptions,
+      getExistingLibrarySongs: () => [unreadable, matching],
+      loadExistingSong,
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: save,
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(loadExistingSong).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      existingLibrarySong: matching,
+      status: "duplicate",
+    });
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("never treats the original V1 record as the generated V2 duplicate", async () => {
@@ -252,6 +681,22 @@ describe("createV2LocalLibraryCopy", () => {
     expect({ likedSongs, playlists, source }).toEqual(snapshot);
   });
 
+  it("does not mutate the loaded source song", async () => {
+    const sourceSong = createV1Song();
+    const snapshot = structuredClone(sourceSong);
+
+    await createV2LocalLibraryCopy({
+      conversionOptions,
+      getExistingLibrarySongs: () => [],
+      loadSourceSong: async () => sourceSong,
+      saveImportedScoreSong: vi.fn().mockResolvedValue(undefined),
+      seedImportedScoreSong: vi.fn(),
+      sourceSongId: "local-source",
+    });
+
+    expect(sourceSong).toEqual(snapshot);
+  });
+
   it("selects and locates the appended local copy without replacing the source", () => {
     const source = createLocalSong("local-source", createV1Song());
     const copy = createLocalSong(
@@ -286,5 +731,32 @@ describe("createV2LocalLibraryCopy", () => {
 
     expect(result).toEqual({ reason: "blocked", status: "failed" });
     expect(save).not.toHaveBeenCalled();
+  });
+});
+
+describe("getV2UpgradeDuplicateNotice", () => {
+  const existing = createLocalSong(
+    "existing",
+    convertV1SongToV2(createV1Song(), {
+      ...conversionOptions,
+      name: "Existing V2",
+    }),
+  );
+
+  it("identifies the existing matching song in Chinese and English", () => {
+    expect(
+      getV2UpgradeDuplicateNotice(
+        existing,
+        uiText["zh-CN"].logs.scoreUpgradeDuplicate,
+      ),
+    ).toBe("已存在内容相同的 V2 曲谱：《Existing V2》。");
+    expect(
+      getV2UpgradeDuplicateNotice(
+        existing,
+        uiText["en-US"].logs.scoreUpgradeDuplicate,
+      ),
+    ).toBe(
+      "A V2 score with identical content already exists: “Existing V2”.",
+    );
   });
 });

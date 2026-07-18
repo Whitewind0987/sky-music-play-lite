@@ -42,6 +42,7 @@ export function createLocalSongMetadata(song: Song): LocalSongMetadata {
     ...(sustainTailMs > 0 ? { sustainTailMs } : {}),
     bitsPerPage: song.bitsPerPage,
     bpm: song.bpm,
+    contentFingerprint: getSongContentFingerprint(song),
     fingerprint: getSongFingerprint(song),
     formatVersion: song.formatVersion === 2 ? 2 : 1,
     isComposed: song.isComposed,
@@ -139,6 +140,23 @@ export function getSongFingerprint(song: Song) {
           : [note.time, note.key, note.duration],
       ),
       pitchLevel: song.pitchLevel,
+    }),
+  );
+}
+
+export function getSongContentFingerprint(song: Song) {
+  return hashString(
+    JSON.stringify({
+      formatVersion: song.formatVersion === 2 ? 2 : 1,
+      bpm: song.bpm,
+      bitsPerPage: song.bitsPerPage,
+      pitchLevel: song.pitchLevel,
+      isComposed: song.isComposed,
+      notes: song.songNotes.map((note) =>
+        note.duration === undefined
+          ? [note.time, note.key]
+          : [note.time, note.key, note.duration],
+      ),
     }),
   );
 }

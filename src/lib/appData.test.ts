@@ -463,6 +463,65 @@ describe("sanitizePersistedAppData sustainTailMs", () => {
   });
 });
 
+describe("sanitizePersistedAppData contentFingerprint", () => {
+  function sanitizeWithContentFingerprint(contentFingerprint: unknown) {
+    const librarySong = createLocalLibrarySong("local-content");
+
+    return sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          {
+            ...librarySong,
+            metadata: {
+              ...librarySong.metadata,
+              contentFingerprint,
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  it("preserves a non-empty content fingerprint", () => {
+    expect(
+      sanitizeWithContentFingerprint("content-1")?.library.librarySongs[0]
+        ?.metadata.contentFingerprint,
+    ).toBe("content-1");
+  });
+
+  it.each(["", 12, null])(
+    "discards invalid value %p without deleting the song",
+    (contentFingerprint) => {
+      const result = sanitizeWithContentFingerprint(contentFingerprint);
+
+      expect(result?.library.librarySongs).toHaveLength(1);
+      expect(
+        result?.library.librarySongs[0]?.metadata.contentFingerprint,
+      ).toBeUndefined();
+    },
+  );
+
+  it("keeps legacy metadata with no content fingerprint", () => {
+    const librarySong = createLocalLibrarySong("local-legacy-content");
+    const { contentFingerprint: _removed, ...legacyMetadata } =
+      librarySong.metadata;
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {
+        librarySongs: [
+          { ...librarySong, metadata: legacyMetadata },
+        ],
+      },
+    });
+
+    expect(result?.library.librarySongs).toHaveLength(1);
+    expect(
+      result?.library.librarySongs[0]?.metadata.contentFingerprint,
+    ).toBeUndefined();
+  });
+});
+
 describe("sanitizePersistedAppData noteGroupMaxHoldMs", () => {
   function sanitizeWithHolds(noteGroupMaxHoldMs: unknown) {
     const librarySong = createLocalLibrarySong("local-holds");

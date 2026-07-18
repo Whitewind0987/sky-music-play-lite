@@ -76,6 +76,7 @@ import {
 import {
   createV2LocalLibraryCopy,
   getCreatedV2LibraryCopyState,
+  getV2UpgradeDuplicateNotice,
 } from "../lib/v1ToV2LibraryUpgrade";
 import {
   getIsScoreUpgradeInProgress as readScoreUpgradeInProgress,
@@ -840,6 +841,17 @@ export function useScoreLibrary({
                   shouldLogFailure: false,
                 });
           },
+          loadExistingSong: async (songId) => {
+            const currentSongIndex = librarySongsRef.current.findIndex(
+              (librarySong) => librarySong.id === songId,
+            );
+
+            return currentSongIndex < 0
+              ? null
+              : resolveLibrarySong(currentSongIndex, {
+                  shouldLogFailure: false,
+                });
+          },
           saveImportedScoreSong: saveImportedScoreSongFile,
           seedImportedScoreSong: (songId, song) => {
             importedScoreSongLoaderRef.current.seed(songId, song);
@@ -848,9 +860,10 @@ export function useScoreLibrary({
         });
 
         if (result.status === "duplicate") {
-          const message = formatText(text.logs.scoreUpgradeDuplicate, {
-            songName: conversionOptions.name.trim(),
-          });
+          const message = getV2UpgradeDuplicateNotice(
+            result.existingLibrarySong,
+            text.logs.scoreUpgradeDuplicate,
+          );
 
           appendLog(message);
           showNotice?.(message);
