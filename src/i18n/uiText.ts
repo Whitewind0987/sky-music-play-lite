@@ -225,12 +225,12 @@ export const uiText = {
           balanced: {
             label: "均衡",
             description:
-              "在长音数量和连贯性之间取得平衡，推荐使用。",
+              "在长音数量和连贯性之间取中；密集旋律中可能仍有断续。",
           },
           connected: {
             label: "连贯",
             description:
-              "允许更多较短间隔生成长音，让旋律衔接更连贯。",
+              "允许更多短间隔生成长音，让旋律衔接更连续，推荐用于长音乐器。",
           },
           custom: {
             label: "自定义",
@@ -241,7 +241,7 @@ export const uiText = {
           "仅对 {minimumSeconds}–{restSeconds} 秒的间隔生成延音，并在下一组音前约 {releaseLeadMs} 毫秒松开；单个音最长约 {maximumSeconds} 秒。",
         activeValuesFallback: "请检查下方的自定义参数。",
         denseWarning:
-          "该曲谱较密集，普通升级会保留全部原音，长音乐器可能仍然出现快速连续弹奏。",
+          "检测到大量密集音组，转换后可能仍出现快速连续弹奏。",
         currentStyleEstimate: "当前风格预计添加 {count} 个长音。",
         profileEstimateFallback:
           "修正自定义参数后可查看预计生成的长音数量。",
@@ -889,12 +889,12 @@ export const uiText = {
           balanced: {
             label: "Balanced",
             description:
-              "Balances the number of sustained notes with melodic connection. Recommended.",
+              "Balances sustain count and continuity; dense melodies may still sound interrupted.",
           },
           connected: {
             label: "Connected",
             description:
-              "Allows more short gaps to sustain for a more connected result.",
+              "Adds sustain across more short gaps for smoother continuity and is recommended for sustain instruments.",
           },
           custom: {
             label: "Custom",
@@ -905,7 +905,7 @@ export const uiText = {
           "Only gaps from {minimumSeconds} to {restSeconds} seconds are sustained, releasing about {releaseLeadMs} ms before the next group; each note can last up to about {maximumSeconds} seconds.",
         activeValuesFallback: "Check the custom values below.",
         denseWarning:
-          "This score is dense. A normal V2 upgrade keeps every original note, so sustain instruments may still play rapidly.",
+          "Many densely spaced note groups were detected. The converted score may still trigger rapid repeated playing.",
         currentStyleEstimate:
           "The current style will add about {count} sustained notes.",
         profileEstimateFallback:

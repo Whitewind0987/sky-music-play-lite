@@ -46,6 +46,11 @@ import type {
 } from "../types/library";
 import type { Song } from "../types/score";
 import { normalizePersistedSong } from "./scoreNormalization";
+import {
+  createDefaultV1ToV2UpgradePreferences,
+  sanitizeV1ToV2UpgradePreferences,
+} from "./v1ToV2UpgradePreferences";
+import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
@@ -140,6 +145,9 @@ export function sanitizePersistedAppData(
     },
     playbackShortcuts: sanitizePlaybackShortcuts(rawData.playbackShortcuts),
     playbackSettings: sanitizePlaybackSettings(rawData.playbackSettings),
+    v1ToV2UpgradePreferences: sanitizeV1ToV2UpgradePreferences(
+      rawData.v1ToV2UpgradePreferences,
+    ),
   };
 }
 
@@ -162,6 +170,8 @@ export function buildPersistedAppData({
   selectedLibraryCategory,
   selectedPlaylistId,
   selectedSongIndex,
+  v1ToV2UpgradePreferences =
+    createDefaultV1ToV2UpgradePreferences(),
 }: {
   confirmBeforeExit?: boolean;
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
@@ -181,6 +191,7 @@ export function buildPersistedAppData({
   selectedLibraryCategory: LibraryCategoryId;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  v1ToV2UpgradePreferences?: V1ToV2UpgradePreferences;
 }): PersistedAppData {
   const sanitizedLibrary = sanitizeV3Library(
     librarySongs,
@@ -237,6 +248,9 @@ export function buildPersistedAppData({
       playbackMode,
       playbackSpeed: normalizePlaybackSpeed(playbackSpeed),
     },
+    v1ToV2UpgradePreferences: sanitizeV1ToV2UpgradePreferences(
+      v1ToV2UpgradePreferences,
+    ),
   };
 }
 

@@ -10,6 +10,7 @@ import {
 } from "../types/playbackOptions";
 import { defaultKeyMapping } from "../types/keyMapping";
 import { defaultPlaybackShortcuts } from "../types/playbackShortcuts";
+import { createDefaultV1ToV2UpgradePreferences } from "./v1ToV2UpgradePreferences";
 
 function createSong(name: string): Song {
   return {
@@ -68,6 +69,8 @@ function createAppData(): PersistedAppData {
       playbackMode: defaultPlaybackMode,
       playbackSpeed: defaultPlaybackSpeed,
     },
+    v1ToV2UpgradePreferences:
+      createDefaultV1ToV2UpgradePreferences(),
   };
 }
 
@@ -115,6 +118,9 @@ describe("finalizeAppDataMigration", () => {
     expect(result.appData.library.playlists).toEqual(appData.library.playlists);
     expect(result.appData.library.selectedSongIndex).toBe(1);
     expect(result.appData.playbackSettings).toEqual(appData.playbackSettings);
+    expect(result.appData.v1ToV2UpgradePreferences).toEqual(
+      appData.v1ToV2UpgradePreferences,
+    );
   });
 
   it("keeps the complete original recovery state when v3 save fails", async () => {

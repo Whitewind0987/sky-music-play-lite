@@ -17,6 +17,10 @@ import {
 } from "./appData";
 import { createLocalSongMetadata } from "./libraryCollections";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
+import {
+  createDefaultV1ToV2UpgradePreferences,
+  V1_TO_V2_SUSTAIN_STYLE_PRESETS,
+} from "./v1ToV2UpgradePreferences";
 
 function createTestSong(name = "Test Song"): Song {
   return {
@@ -89,6 +93,30 @@ function buildMinimalPersistedAppData(
 describe("buildPersistedAppData", () => {
   it("writes the current appDataVersion", () => {
     expect(buildMinimalPersistedAppData().appDataVersion).toBe(appDataVersion);
+    expect(appDataVersion).toBe(3);
+  });
+
+  it("always includes the current V1 to V2 upgrade preference", () => {
+    const preferences = {
+      selectedStyle: "custom" as const,
+      customValues: {
+        minimumSustainGapMs: 333,
+        releaseLeadMs: 22,
+        restGapThresholdMs: 1444,
+        maxDurationMs: 1333,
+        finalGroupDurationMs: 444,
+      },
+    };
+    const result = buildMinimalPersistedAppData({
+      v1ToV2UpgradePreferences: preferences,
+    });
+
+    expect(result.v1ToV2UpgradePreferences).toEqual(preferences);
+    expect(
+      sanitizePersistedAppData(
+        JSON.parse(JSON.stringify(result)),
+      )?.v1ToV2UpgradePreferences,
+    ).toEqual(preferences);
   });
 
   it("persists the managed imported-score directory without a version bump", () => {
@@ -225,6 +253,40 @@ describe("buildPersistedAppData", () => {
 });
 
 describe("sanitizePersistedAppData current version", () => {
+  it.each([1, 2, 3] as const)(
+    "loads old version-%s data without preferences as Connected",
+    (version) => {
+      const result = sanitizePersistedAppData({
+        appDataVersion: version,
+        library:
+          version === 1
+            ? { importedSongs: [] }
+            : { librarySongs: [] },
+      });
+
+      expect(result?.v1ToV2UpgradePreferences).toEqual(
+        createDefaultV1ToV2UpgradePreferences(),
+      );
+      expect(result?.appDataVersion).toBe(3);
+    },
+  );
+
+  it("preserves a valid persisted preset preference", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      v1ToV2UpgradePreferences: {
+        selectedStyle: "conservative",
+        customValues: V1_TO_V2_SUSTAIN_STYLE_PRESETS.connected,
+      },
+    });
+
+    expect(result?.v1ToV2UpgradePreferences).toEqual({
+      selectedStyle: "conservative",
+      customValues: V1_TO_V2_SUSTAIN_STYLE_PRESETS.connected,
+    });
+  });
+
   it("migrates legacy shortcut strings to scoped bindings", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,

@@ -48,6 +48,7 @@ import type {
   MigrationFallbackSongs,
   UserPlaylist,
 } from "../types/library";
+import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 
 const saveDebounceMs = 500;
 
@@ -64,6 +65,9 @@ type UseAppPersistenceOptions = {
   ) => void;
   applyPlaybackShortcuts: (playbackShortcuts: PlaybackShortcuts) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
+  applyV1ToV2UpgradePreferences: (
+    preferences: V1ToV2UpgradePreferences,
+  ) => void;
   canSaveAppData?: boolean;
   confirmBeforeExit: boolean;
   experimentalInputEnabled: boolean;
@@ -91,7 +95,31 @@ type UseAppPersistenceOptions = {
   targetWindowMessageMethod: TargetWindowMessageMethod;
   text: UiText["logs"];
   validCollectionSongIds?: string[];
+  v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
 };
+
+export function canScheduleNormalAppDataPersistence({
+  canSaveAppData,
+  hasLoadedAppData,
+  isNormalPersistenceEnabled,
+}: {
+  canSaveAppData: boolean;
+  hasLoadedAppData: boolean;
+  isNormalPersistenceEnabled: boolean;
+}) {
+  return (
+    hasLoadedAppData &&
+    canSaveAppData &&
+    isNormalPersistenceEnabled
+  );
+}
+
+export function applyLoadedV1ToV2UpgradePreferences(
+  appData: PersistedAppData,
+  applyPreferences: (preferences: V1ToV2UpgradePreferences) => void,
+) {
+  applyPreferences(appData.v1ToV2UpgradePreferences);
+}
 
 export function useAppPersistence({
   appendDetailedLog,
@@ -102,6 +130,7 @@ export function useAppPersistence({
   applyPlaybackSettings,
   applyPlaybackShortcuts,
   applyScoreLibrary,
+  applyV1ToV2UpgradePreferences,
   canSaveAppData = true,
   confirmBeforeExit,
   experimentalInputEnabled,
@@ -129,6 +158,7 @@ export function useAppPersistence({
   targetWindowMessageMethod,
   text,
   validCollectionSongIds,
+  v1ToV2UpgradePreferences,
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
   const explicitlySavedAppDataSnapshotRef = useRef<string | null>(null);
@@ -183,6 +213,7 @@ export function useAppPersistence({
       selectedPlaylistId,
       selectedSongIndex,
       validCollectionSongIds,
+      v1ToV2UpgradePreferences,
     });
   }
 
@@ -388,6 +419,10 @@ export function useAppPersistence({
         applyExperimentalInputPreferences(
           runtimeAppData.experimentalInputPreferences,
         );
+        applyLoadedV1ToV2UpgradePreferences(
+          runtimeAppData,
+          applyV1ToV2UpgradePreferences,
+        );
         appendLog(text.appDataLoaded);
         setIsNormalPersistenceEnabled(canEnableNormalPersistence);
         setHasLoadedAppData(true);
@@ -412,9 +447,11 @@ export function useAppPersistence({
 
   useEffect(() => {
     if (
-      !hasLoadedAppData ||
-      !canSaveAppData ||
-      !isNormalPersistenceEnabled
+      !canScheduleNormalAppDataPersistence({
+        canSaveAppData,
+        hasLoadedAppData,
+        isNormalPersistenceEnabled,
+      })
     ) {
       return;
     }
@@ -473,6 +510,7 @@ export function useAppPersistence({
     targetWindowKeyHoldMs,
     targetWindowMessageMethod,
     validCollectionSongIds,
+    v1ToV2UpgradePreferences,
   ]);
 
   return {

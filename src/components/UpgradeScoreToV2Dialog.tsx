@@ -5,6 +5,10 @@ import type {
 } from "../hooks/useScoreLibrary";
 import type { UiText } from "../i18n/uiText";
 import type { Song } from "../types/score";
+import type {
+  V1ToV2SustainStyle,
+  V1ToV2UpgradePreferences,
+} from "../types/v1ToV2Upgrade";
 import { formatText } from "../lib/formatText";
 import {
   applyUpgradeScoreToV2OperationError,
@@ -14,13 +18,14 @@ import {
   editUpgradeScoreToV2FormField,
   formatValidDurationMillisecondsAsSeconds,
   getReadableSustainTimeValues,
+  getUpgradeScoreToV2Preferences,
   restoreRecommendedUpgradeScoreToV2State,
   selectV1ToV2SustainStyle,
+  shouldShowV1ToV2DenseWarning,
   V1_TO_V2_SUSTAIN_STYLE_OPTIONS,
   type UpgradeScoreToV2FormField,
   type UpgradeScoreToV2FormState,
   type UpgradeScoreToV2FormValues,
-  type V1ToV2SustainStyle,
 } from "../lib/v1ToV2DialogModel";
 import {
   getV1ToV2ConversionValidationError,
@@ -34,9 +39,62 @@ type UpgradeScoreToV2DialogProps = {
   onCreate: (
     options: V1ToV2ConversionOptions,
   ) => Promise<UpgradeSongToV2Result>;
+  onPreferencesChange: (
+    preferences: V1ToV2UpgradePreferences,
+  ) => void;
+  preferences: V1ToV2UpgradePreferences;
   sourceSong: Song;
   text: UiText["library"]["upgradeToV2"];
 };
+
+type PreferenceTransitionResult = {
+  formState: UpgradeScoreToV2FormState;
+  preferences: V1ToV2UpgradePreferences | null;
+};
+
+export function getUpgradeDialogStyleChangeResult(
+  formState: UpgradeScoreToV2FormState,
+  style: V1ToV2SustainStyle,
+): PreferenceTransitionResult {
+  const nextFormState = selectV1ToV2SustainStyle(formState, style);
+
+  return {
+    formState: nextFormState,
+    preferences: getUpgradeScoreToV2Preferences(nextFormState),
+  };
+}
+
+export function getUpgradeDialogFieldChangeResult(
+  formState: UpgradeScoreToV2FormState,
+  field: UpgradeScoreToV2FormField,
+  value: string,
+): PreferenceTransitionResult {
+  const nextFormState = editUpgradeScoreToV2FormField(
+    formState,
+    field,
+    value,
+  );
+
+  return {
+    formState: nextFormState,
+    preferences:
+      field === "name"
+        ? null
+        : getUpgradeScoreToV2Preferences(nextFormState),
+  };
+}
+
+export function getUpgradeDialogRestoreRecommendedResult(
+  formState: UpgradeScoreToV2FormState,
+): PreferenceTransitionResult {
+  const nextFormState =
+    restoreRecommendedUpgradeScoreToV2State(formState);
+
+  return {
+    formState: nextFormState,
+    preferences: getUpgradeScoreToV2Preferences(nextFormState),
+  };
+}
 
 export async function runSingleFlightScoreUpgrade(
   inProgressRef: { current: boolean },
@@ -78,12 +136,15 @@ export function getUpgradeScoreToV2SubmissionResultState(
 export function UpgradeScoreToV2Dialog({
   onClose,
   onCreate,
+  onPreferencesChange,
+  preferences,
   sourceSong,
   text,
 }: UpgradeScoreToV2DialogProps) {
   const [formState, setFormState] = useState(() =>
     createInitialUpgradeScoreToV2FormState(
       formatText(text.defaultName, { songName: sourceSong.name }),
+      preferences,
     ),
   );
   const [isCreating, setIsCreating] = useState(false);
@@ -144,6 +205,16 @@ export function UpgradeScoreToV2Dialog({
   const errorMessage =
     validationMessage || formState.operationError;
 
+  function applyPreferenceTransition(
+    result: PreferenceTransitionResult,
+  ) {
+    setFormState(result.formState);
+
+    if (result.preferences !== null) {
+      onPreferencesChange(result.preferences);
+    }
+  }
+
   return (
     <Dialog.Root
       open
@@ -169,22 +240,22 @@ export function UpgradeScoreToV2Dialog({
               validationId={validationId}
               onCancel={onClose}
               onFieldChange={(field, value) =>
-                setFormState((currentState) =>
-                  editUpgradeScoreToV2FormField(
-                    currentState,
+                applyPreferenceTransition(
+                  getUpgradeDialogFieldChangeResult(
+                    formState,
                     field,
                     value,
                   ),
                 )
               }
               onRestoreRecommended={() =>
-                setFormState((currentState) =>
-                  restoreRecommendedUpgradeScoreToV2State(currentState),
+                applyPreferenceTransition(
+                  getUpgradeDialogRestoreRecommendedResult(formState),
                 )
               }
               onStyleChange={(style) =>
-                setFormState((currentState) =>
-                  selectV1ToV2SustainStyle(currentState, style),
+                applyPreferenceTransition(
+                  getUpgradeDialogStyleChangeResult(formState, style),
                 )
               }
               onSubmit={handleSubmit}
@@ -261,8 +332,8 @@ export function UpgradeScoreToV2Form({
           count: conversionPreview.generatedSustainCount,
         });
   const showDenseWarning =
-    conversionPreview?.profile.isDenseTiming === true ||
-    conversionPreview?.profile.isPolyphonic === true;
+    conversionPreview !== null &&
+    shouldShowV1ToV2DenseWarning(conversionPreview.profile);
   const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
     formState.values.maxDurationMs,
   );

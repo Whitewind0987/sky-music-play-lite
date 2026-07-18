@@ -38,6 +38,7 @@ import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
 import { useScoreUpgradeGuard } from "./hooks/useScoreUpgradeGuard";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
+import { useV1ToV2UpgradePreferences } from "./hooks/useV1ToV2UpgradePreferences";
 import {
   defaultLanguage,
   uiText,
@@ -135,6 +136,8 @@ function App() {
     keyMapping,
     listeningSkyKey,
   } = useKeyMapping();
+  const v1ToV2UpgradePreferences =
+    useV1ToV2UpgradePreferences();
   const scoreLibrary = useScoreLibrary({
     appendLog,
     onBeforeLibraryMutation: () => stopPreviewRef.current(),
@@ -242,6 +245,8 @@ function App() {
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
     applyPlaybackShortcuts: playbackShortcutsController.setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
+    applyV1ToV2UpgradePreferences:
+      v1ToV2UpgradePreferences.applyPersistedPreferences,
     canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
     confirmBeforeExit,
     experimentalInputEnabled: experimentalInput.experimentalInputEnabled,
@@ -270,6 +275,8 @@ function App() {
     targetWindowMessageMethod: experimentalInput.targetWindowMessageMethod,
     text: text.logs,
     validCollectionSongIds: scoreLibrary.validCollectionSongIds,
+    v1ToV2UpgradePreferences:
+      v1ToV2UpgradePreferences.preferences,
   });
   const playbackOutput = usePlaybackOutput({
     experimentalInput,
@@ -704,6 +711,9 @@ function App() {
               resolvedSourceSong: sourceSong,
             })
           }
+          onV1ToV2UpgradePreferencesChange={
+            v1ToV2UpgradePreferences.updatePreferences
+          }
           playlists={scoreLibrary.playlists}
           searchQuery={scoreLibrary.searchQuery}
           selectedCategory={scoreLibrary.selectedLibraryCategory}
@@ -711,6 +721,9 @@ function App() {
           selectedPlaylistId={scoreLibrary.selectedPlaylistId}
           selectedSongIndex={scoreLibrary.selectedSongIndex}
           upgradeBlocked={scoreUpgradeGuard.isBlocked}
+          v1ToV2UpgradePreferences={
+            v1ToV2UpgradePreferences.preferences
+          }
           isBuiltInSongLoading={scoreLibrary.isBuiltInSongLoading}
           text={text.library}
         />

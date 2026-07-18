@@ -12,6 +12,7 @@ import type {
   PlaybackSpeed,
 } from "./playbackOptions";
 import type { PlaybackShortcuts } from "./playbackShortcuts";
+import type { V1ToV2UpgradePreferences } from "./v1ToV2Upgrade";
 import type {
   LikedSongEntry,
   LocalLibrarySong,
@@ -59,4 +60,5 @@ export type PersistedAppData = {
     playbackMode: PlaybackMode;
     playbackSpeed: PlaybackSpeed;
   };
+  v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
 };

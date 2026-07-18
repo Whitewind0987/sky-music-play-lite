@@ -1,26 +1,25 @@
 import {
-  DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
-  DEFAULT_V1_TO_V2_MAX_DURATION_MS,
-  DEFAULT_V1_TO_V2_MINIMUM_SUSTAIN_GAP_MS,
-  DEFAULT_V1_TO_V2_RELEASE_LEAD_MS,
-  DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
   getV1ToV2ConversionValidationError,
   type V1ToV2ConversionOptions,
   type V1ToV2ConversionValidationError,
+  type V1ToV2ScoreProfile,
 } from "./v1ToV2Conversion";
+import {
+  createDefaultV1ToV2UpgradePreferences,
+  sanitizeV1ToV2UpgradePreferences,
+  V1_TO_V2_SUSTAIN_STYLE_PRESETS,
+} from "./v1ToV2UpgradePreferences";
+import {
+  V1_TO_V2_SUSTAIN_STYLES,
+  type V1ToV2CustomValues,
+  type V1ToV2SustainStyle,
+  type V1ToV2UpgradePreferences,
+} from "../types/v1ToV2Upgrade";
 
-export type V1ToV2SustainStyle =
-  | "conservative"
-  | "balanced"
-  | "connected"
-  | "custom";
-
-export const V1_TO_V2_SUSTAIN_STYLE_OPTIONS = [
-  "conservative",
-  "balanced",
-  "connected",
-  "custom",
-] as const satisfies readonly V1ToV2SustainStyle[];
+export type { V1ToV2SustainStyle } from "../types/v1ToV2Upgrade";
+export { V1_TO_V2_SUSTAIN_STYLE_PRESETS };
+export const V1_TO_V2_SUSTAIN_STYLE_OPTIONS =
+  V1_TO_V2_SUSTAIN_STYLES;
 
 export type V1ToV2NumericFormValues = {
   minimumSustainGapMs: string;
@@ -36,6 +35,7 @@ export type UpgradeScoreToV2FormValues = V1ToV2NumericFormValues & {
 
 export type UpgradeScoreToV2FormState = {
   operationError: string;
+  rememberedCustomValues: V1ToV2CustomValues;
   selectedStyle: V1ToV2SustainStyle;
   validationError: V1ToV2ConversionValidationError | null;
   values: UpgradeScoreToV2FormValues;
@@ -44,51 +44,27 @@ export type UpgradeScoreToV2FormState = {
 export type UpgradeScoreToV2FormField =
   | keyof V1ToV2NumericFormValues
   | "name";
-export type V1ToV2PresetStyle = Exclude<V1ToV2SustainStyle, "custom">;
-
-type V1ToV2NumericPreset = {
-  minimumSustainGapMs: number;
-  releaseLeadMs: number;
-  restGapThresholdMs: number;
-  maxDurationMs: number;
-  finalGroupDurationMs: number;
-};
-
-export const V1_TO_V2_SUSTAIN_STYLE_PRESETS = {
-  conservative: {
-    minimumSustainGapMs: 400,
-    releaseLeadMs: 50,
-    restGapThresholdMs: 1000,
-    maxDurationMs: 1000,
-    finalGroupDurationMs: 300,
-  },
-  balanced: {
-    minimumSustainGapMs:
-      DEFAULT_V1_TO_V2_MINIMUM_SUSTAIN_GAP_MS,
-    releaseLeadMs: DEFAULT_V1_TO_V2_RELEASE_LEAD_MS,
-    restGapThresholdMs: DEFAULT_V1_TO_V2_REST_GAP_THRESHOLD_MS,
-    maxDurationMs: DEFAULT_V1_TO_V2_MAX_DURATION_MS,
-    finalGroupDurationMs: DEFAULT_V1_TO_V2_FINAL_GROUP_DURATION_MS,
-  },
-  connected: {
-    minimumSustainGapMs: 150,
-    releaseLeadMs: 15,
-    restGapThresholdMs: 2000,
-    maxDurationMs: 2000,
-    finalGroupDurationMs: 800,
-  },
-} as const satisfies Record<V1ToV2PresetStyle, V1ToV2NumericPreset>;
 
 export function createInitialUpgradeScoreToV2FormState(
   generatedName: string,
+  rawPreferences: V1ToV2UpgradePreferences =
+    createDefaultV1ToV2UpgradePreferences(),
 ): UpgradeScoreToV2FormState {
+  const preferences =
+    sanitizeV1ToV2UpgradePreferences(rawPreferences);
+  const numericValues =
+    preferences.selectedStyle === "custom"
+      ? preferences.customValues
+      : V1_TO_V2_SUSTAIN_STYLE_PRESETS[preferences.selectedStyle];
+
   return {
     operationError: "",
-    selectedStyle: "balanced",
+    rememberedCustomValues: { ...preferences.customValues },
+    selectedStyle: preferences.selectedStyle,
     validationError: null,
     values: {
       name: generatedName,
-      ...getPresetFormValues("balanced"),
+      ...formatNumericValues(numericValues),
     },
   };
 }
@@ -102,7 +78,10 @@ export function selectV1ToV2SustainStyle(
     selectedStyle,
     values:
       selectedStyle === "custom"
-        ? currentState.values
+        ? {
+            ...currentState.values,
+            ...formatNumericValues(currentState.rememberedCustomValues),
+          }
         : {
             ...currentState.values,
             ...getPresetFormValues(selectedStyle),
@@ -115,7 +94,7 @@ export function editUpgradeScoreToV2FormField(
   field: UpgradeScoreToV2FormField,
   value: string,
 ): UpgradeScoreToV2FormState {
-  return clearUpgradeScoreToV2Errors({
+  const nextState = clearUpgradeScoreToV2Errors({
     ...currentState,
     selectedStyle:
       field === "name" ? currentState.selectedStyle : "custom",
@@ -124,6 +103,21 @@ export function editUpgradeScoreToV2FormField(
       [field]: value,
     },
   });
+
+  if (field === "name") {
+    return nextState;
+  }
+
+  const validCustomValues = getValidV1ToV2CustomValues(
+    nextState.values,
+  );
+
+  return validCustomValues === null
+    ? nextState
+    : {
+        ...nextState,
+        rememberedCustomValues: validCustomValues,
+      };
 }
 
 export function restoreRecommendedUpgradeScoreToV2State(
@@ -131,12 +125,27 @@ export function restoreRecommendedUpgradeScoreToV2State(
 ): UpgradeScoreToV2FormState {
   return clearUpgradeScoreToV2Errors({
     ...currentState,
-    selectedStyle: "balanced",
+    selectedStyle: "connected",
     values: {
       name: currentState.values.name,
-      ...getPresetFormValues("balanced"),
+      ...getPresetFormValues("connected"),
     },
   });
+}
+
+export function getUpgradeScoreToV2Preferences(
+  formState: UpgradeScoreToV2FormState,
+): V1ToV2UpgradePreferences {
+  return {
+    selectedStyle: formState.selectedStyle,
+    customValues: { ...formState.rememberedCustomValues },
+  };
+}
+
+export function shouldShowV1ToV2DenseWarning(
+  profile: V1ToV2ScoreProfile,
+) {
+  return profile.isDenseTiming;
 }
 
 export function applyUpgradeScoreToV2Validation(
@@ -247,16 +256,41 @@ export function getReadableSustainTimeValues(
 }
 
 function getPresetFormValues(
-  style: V1ToV2PresetStyle,
+  style: Exclude<V1ToV2SustainStyle, "custom">,
 ): V1ToV2NumericFormValues {
-  const preset = V1_TO_V2_SUSTAIN_STYLE_PRESETS[style];
+  return formatNumericValues(V1_TO_V2_SUSTAIN_STYLE_PRESETS[style]);
+}
+
+function formatNumericValues(
+  values: V1ToV2CustomValues,
+): V1ToV2NumericFormValues {
+  return {
+    minimumSustainGapMs: String(values.minimumSustainGapMs),
+    releaseLeadMs: String(values.releaseLeadMs),
+    restGapThresholdMs: String(values.restGapThresholdMs),
+    maxDurationMs: String(values.maxDurationMs),
+    finalGroupDurationMs: String(values.finalGroupDurationMs),
+  };
+}
+
+function getValidV1ToV2CustomValues(
+  values: UpgradeScoreToV2FormValues,
+): V1ToV2CustomValues | null {
+  const options = buildV1ToV2OptionsFromDialogValues({
+    ...values,
+    name: "persisted-custom-preference",
+  });
+
+  if (getV1ToV2ConversionValidationError(options) !== null) {
+    return null;
+  }
 
   return {
-    minimumSustainGapMs: String(preset.minimumSustainGapMs),
-    releaseLeadMs: String(preset.releaseLeadMs),
-    restGapThresholdMs: String(preset.restGapThresholdMs),
-    maxDurationMs: String(preset.maxDurationMs),
-    finalGroupDurationMs: String(preset.finalGroupDurationMs),
+    minimumSustainGapMs: options.minimumSustainGapMs,
+    releaseLeadMs: options.releaseLeadMs,
+    restGapThresholdMs: options.restGapThresholdMs,
+    maxDurationMs: options.maxDurationMs,
+    finalGroupDurationMs: options.finalGroupDurationMs,
   };
 }
 

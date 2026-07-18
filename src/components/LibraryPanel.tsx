@@ -35,6 +35,7 @@ import type {
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
+import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 
 type LibraryPanelProps = {
   builtInPagination: {
@@ -86,6 +87,9 @@ type LibraryPanelProps = {
     sourceSong: Song,
     options: V1ToV2ConversionOptions,
   ) => Promise<UpgradeSongToV2Result>;
+  onV1ToV2UpgradePreferencesChange: (
+    preferences: V1ToV2UpgradePreferences,
+  ) => void;
   playlists: UserPlaylist[];
   searchQuery: string;
   selectedCategory: LibraryCategoryId;
@@ -93,6 +97,7 @@ type LibraryPanelProps = {
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
   upgradeBlocked: boolean;
+  v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
   isBuiltInSongLoading: (songId: LibrarySongId) => boolean;
   text: UiText["library"];
 };
@@ -944,6 +949,7 @@ export function LibraryPanel({
   onUpgradeSourceLoadFailed,
   onUpgradeBlocked,
   onUpgradeSongToV2,
+  onV1ToV2UpgradePreferencesChange,
   onRenamePlaylist,
   onSearchQueryChange,
   onSelectSong,
@@ -955,6 +961,7 @@ export function LibraryPanel({
   selectedPlaylistId,
   selectedSongIndex,
   upgradeBlocked,
+  v1ToV2UpgradePreferences,
   isBuiltInSongLoading,
   text,
 }: LibraryPanelProps) {
@@ -1248,6 +1255,7 @@ export function LibraryPanel({
       ) : null}
       {upgradeDialogState ? (
         <UpgradeScoreToV2Dialog
+          preferences={v1ToV2UpgradePreferences}
           sourceSong={upgradeDialogState.sourceSong}
           text={text.upgradeToV2}
           onClose={() => setUpgradeDialogState(null)}
@@ -1258,6 +1266,7 @@ export function LibraryPanel({
               options,
             )
           }
+          onPreferencesChange={onV1ToV2UpgradePreferencesChange}
         />
       ) : null}
     </section>
