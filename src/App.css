@@ -830,6 +830,15 @@ button {
   background: #e8edf3;
 }
 
+.always-on-top-action.is-active {
+  color: var(--app-primary);
+  background: rgba(var(--app-primary-rgb), 0.15);
+}
+
+.always-on-top-action.is-active:hover:not(:disabled) {
+  background: rgba(var(--app-primary-rgb), 0.19);
+}
+
 .icon-action .iconfont {
   font-size: 22px;
   line-height: 1;

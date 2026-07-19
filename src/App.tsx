@@ -28,6 +28,7 @@ import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
 import { useAppFileLogger } from "./hooks/useAppFileLogger";
 import { useAppPersistence } from "./hooks/useAppPersistence";
+import { useAlwaysOnTop } from "./hooks/useAlwaysOnTop";
 import { useExperimentalInput } from "./hooks/useExperimentalInput";
 import { useKeyMapping } from "./hooks/useKeyMapping";
 import { useLibraryDialogs } from "./hooks/useLibraryDialogs";
@@ -128,6 +129,12 @@ function App() {
       },
     },
   );
+  const alwaysOnTop = useAlwaysOnTop({
+    appendDetailedLog: appFileLogger.appendDetailedLog,
+    appendLog,
+    showNotice: showAppNotice,
+    text: text.logs,
+  });
   const playbackShortcutsController = usePlaybackShortcuts({
     appendLog,
     showNotice: showAppNotice,
@@ -239,8 +246,10 @@ function App() {
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
+    alwaysOnTop: alwaysOnTop.isAlwaysOnTop,
     appendDetailedLog: appFileLogger.appendDetailedLog,
     appendLog,
+    applyAlwaysOnTop: alwaysOnTop.applyPersistedPreference,
     applyConfirmBeforeExit: handleConfirmBeforeExitChange,
     applyExperimentalInputPreferences:
       experimentalInput.applyExperimentalInputPreferences,
@@ -281,6 +290,14 @@ function App() {
     v1ToV2UpgradePreferences:
       v1ToV2UpgradePreferences.preferences,
   });
+  useEffect(() => {
+    if (appPersistence.hasLoadedAppData) {
+      void alwaysOnTop.initializeNativeState();
+    }
+  }, [
+    alwaysOnTop.initializeNativeState,
+    appPersistence.hasLoadedAppData,
+  ]);
   const playbackOutput = usePlaybackOutput({
     experimentalInput,
     previewPlayback,
@@ -846,6 +863,12 @@ function App() {
       <section className="workspace-shell" aria-label={text.app.contentAria}>
         <WorkspaceHeader
           activeSection={activeSection}
+          isAlwaysOnTop={alwaysOnTop.isAlwaysOnTop}
+          isAlwaysOnTopReady={alwaysOnTop.isReady}
+          isAlwaysOnTopUpdating={alwaysOnTop.isUpdating}
+          onAlwaysOnTopToggle={() => {
+            void alwaysOnTop.toggle();
+          }}
           onLogsClick={() => setActiveSection("Logs")}
           onSettingsClick={() => setActiveSection("Settings")}
           onUserManualClick={handleOpenUserManual}

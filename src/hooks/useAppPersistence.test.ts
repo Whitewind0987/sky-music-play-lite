@@ -8,8 +8,12 @@ import {
 } from "../types/playbackOptions";
 import { defaultPlaybackShortcuts } from "../types/playbackShortcuts";
 import {
+  applyLoadedAlwaysOnTopPreference,
   applyLoadedV1ToV2UpgradePreferences,
+  buildAppDataForPersistence,
   canScheduleNormalAppDataPersistence,
+  finishFailedAppDataLoad,
+  normalAppDataSaveDebounceMs,
 } from "./useAppPersistence";
 
 const preferences = {
@@ -23,8 +27,9 @@ const preferences = {
   },
 };
 
-function createAppData() {
+function createAppData(alwaysOnTop = false) {
   return buildPersistedAppData({
+    alwaysOnTop,
     isShuffleEnabled: false,
     keyMapping: defaultKeyMapping,
     language: "zh-CN",
@@ -87,5 +92,54 @@ describe("V1 to V2 preference persistence wiring", () => {
         isNormalPersistenceEnabled: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("always-on-top persistence wiring", () => {
+  it("applies the loaded preference before readiness is reported", () => {
+    const order: string[] = [];
+
+    applyLoadedAlwaysOnTopPreference(createAppData(true), (value) => {
+      order.push(`apply:${value}`);
+    });
+    order.push("ready");
+
+    expect(order).toEqual(["apply:true", "ready"]);
+  });
+
+  it("applies false after app-data load failure", () => {
+    const order: string[] = [];
+
+    finishFailedAppDataLoad({
+      applyAlwaysOnTop: (value) => order.push(`apply:${value}`),
+      reportLoaded: () => order.push("loaded"),
+    });
+
+    expect(order).toEqual(["apply:false", "loaded"]);
+  });
+
+  it("includes the current value in normal persisted app data", () => {
+    const appData = buildAppDataForPersistence({
+      alwaysOnTop: true,
+      isShuffleEnabled: false,
+      keyMapping: defaultKeyMapping,
+      language: "zh-CN",
+      librarySongs: [],
+      likedSongs: [],
+      noteIntervalDelayMs: defaultNoteIntervalDelayMs,
+      playbackMode: defaultPlaybackMode,
+      playbackShortcuts: defaultPlaybackShortcuts,
+      playbackSpeed: defaultPlaybackSpeed,
+      playlists: [],
+      selectedLibraryCategory: "local-imports",
+      selectedPlaylistId: null,
+      selectedSongIndex: null,
+    });
+
+    expect(appData.alwaysOnTop).toBe(true);
+  });
+
+  it("reuses the existing normal 500ms debounce", () => {
+    expect(normalAppDataSaveDebounceMs).toBe(500);
   });
 });

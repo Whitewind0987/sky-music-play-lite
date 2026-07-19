@@ -2,7 +2,6 @@ import {
   getV1ToV2ConversionValidationError,
   type V1ToV2ConversionOptions,
   type V1ToV2ConversionValidationError,
-  type V1ToV2ScoreProfile,
 } from "./v1ToV2Conversion";
 import {
   createDefaultV1ToV2UpgradePreferences,
@@ -193,12 +192,6 @@ export function getUpgradeScoreToV2Preferences(
     selectedStyle: formState.selectedStyle,
     customValues: { ...formState.rememberedCustomValues },
   };
-}
-
-export function shouldShowV1ToV2DenseWarning(
-  profile: V1ToV2ScoreProfile,
-) {
-  return profile.isDenseTiming;
 }
 
 export function applyUpgradeScoreToV2Validation(

@@ -110,6 +110,10 @@ export function sanitizePersistedAppData(
   );
 
   return {
+    alwaysOnTop:
+      typeof rawData.alwaysOnTop === "boolean"
+        ? rawData.alwaysOnTop
+        : false,
     appDataVersion,
     confirmBeforeExit:
       typeof rawData.confirmBeforeExit === "boolean"
@@ -152,6 +156,7 @@ export function sanitizePersistedAppData(
 }
 
 export function buildPersistedAppData({
+  alwaysOnTop = false,
   confirmBeforeExit = defaultConfirmBeforeExit,
   experimentalInputPreferences,
   librarySongs,
@@ -173,6 +178,7 @@ export function buildPersistedAppData({
   v1ToV2UpgradePreferences =
     createDefaultV1ToV2UpgradePreferences(),
 }: {
+  alwaysOnTop?: boolean;
   confirmBeforeExit?: boolean;
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
   librarySongs: LocalLibrarySong[];
@@ -210,6 +216,7 @@ export function buildPersistedAppData({
   );
 
   return {
+    alwaysOnTop,
     appDataVersion,
     confirmBeforeExit,
     ...(importedScoreStoragePath === undefined

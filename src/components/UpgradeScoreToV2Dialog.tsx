@@ -22,7 +22,6 @@ import {
   getUpgradeScoreToV2Preferences,
   restoreRecommendedUpgradeScoreToV2State,
   selectV1ToV2SustainStyle,
-  shouldShowV1ToV2DenseWarning,
   V1_TO_V2_SUSTAIN_STYLE_OPTIONS,
   type UpgradeScoreToV2FormField,
   type UpgradeScoreToV2FormState,
@@ -352,9 +351,6 @@ export function UpgradeScoreToV2Form({
       : formatText(text.currentStyleEstimate, {
           count: conversionPreview.generatedSustainCount,
         });
-  const showDenseWarning =
-    conversionPreview !== null &&
-    shouldShowV1ToV2DenseWarning(conversionPreview.profile);
   const maximumSeconds = formatValidDurationMillisecondsAsSeconds(
     formState.values.maxDurationMs,
   );
@@ -426,9 +422,6 @@ export function UpgradeScoreToV2Form({
       </fieldset>
 
       <p className="score-upgrade-readable-summary">{readableSummary}</p>
-      {showDenseWarning ? (
-        <p className="score-upgrade-profile-summary">{text.denseWarning}</p>
-      ) : null}
       <p className="score-upgrade-profile-summary">{estimateSummary}</p>
 
       {formState.selectedStyle === "custom" ? (

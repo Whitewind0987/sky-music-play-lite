@@ -96,6 +96,24 @@ describe("buildPersistedAppData", () => {
     expect(appDataVersion).toBe(3);
   });
 
+  it("defaults always-on-top to false and preserves explicit true", () => {
+    expect(buildMinimalPersistedAppData().alwaysOnTop).toBe(false);
+    expect(
+      buildMinimalPersistedAppData({ alwaysOnTop: true }).alwaysOnTop,
+    ).toBe(true);
+  });
+
+  it.each([false, true])(
+    "preserves always-on-top %s through a build and sanitize round trip",
+    (alwaysOnTop) => {
+      const built = buildMinimalPersistedAppData({ alwaysOnTop });
+
+      expect(sanitizePersistedAppData(built)?.alwaysOnTop).toBe(
+        alwaysOnTop,
+      );
+    },
+  );
+
   it("always includes the current V1 to V2 upgrade preference", () => {
     const preferences = {
       selectedStyle: "custom" as const,
@@ -268,6 +286,7 @@ describe("sanitizePersistedAppData current version", () => {
         createDefaultV1ToV2UpgradePreferences(),
       );
       expect(result?.appDataVersion).toBe(3);
+      expect(result?.alwaysOnTop).toBe(false);
     },
   );
 
@@ -488,6 +507,38 @@ describe("sanitizePersistedAppData contentFingerprint", () => {
       sanitizeWithContentFingerprint("content-1")?.library.librarySongs[0]
         ?.metadata.contentFingerprint,
     ).toBe("content-1");
+  });
+
+  it.each([
+    [true, true],
+    [false, false],
+    ["true", false],
+    [1, false],
+    [null, false],
+  ])(
+    "sanitizes always-on-top value %p to %s",
+    (alwaysOnTop, expected) => {
+      expect(
+        sanitizePersistedAppData({
+          alwaysOnTop,
+          appDataVersion,
+          library: {},
+        })?.alwaysOnTop,
+      ).toBe(expected);
+    },
+  );
+
+  it("does not mutate raw always-on-top app data", () => {
+    const rawData = {
+      alwaysOnTop: true,
+      appDataVersion,
+      library: {},
+    };
+    const snapshot = structuredClone(rawData);
+
+    sanitizePersistedAppData(rawData);
+
+    expect(rawData).toEqual(snapshot);
   });
 
   it.each(["", 12, null])(

@@ -50,11 +50,13 @@ import type {
 } from "../types/library";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 
-const saveDebounceMs = 500;
+export const normalAppDataSaveDebounceMs = 500;
 
 type UseAppPersistenceOptions = {
+  alwaysOnTop: boolean;
   appendDetailedLog?: (entry: AppLogEntry) => void;
   appendLog: (entry: string) => void;
+  applyAlwaysOnTop: (alwaysOnTop: boolean) => void;
   applyConfirmBeforeExit: (confirmBeforeExit: boolean) => void;
   applyExperimentalInputPreferences: (
     preferences: PersistedAppData["experimentalInputPreferences"],
@@ -121,9 +123,41 @@ export function applyLoadedV1ToV2UpgradePreferences(
   applyPreferences(appData.v1ToV2UpgradePreferences);
 }
 
+export function applyLoadedAlwaysOnTopPreference(
+  appData: PersistedAppData,
+  applyAlwaysOnTop: (alwaysOnTop: boolean) => void,
+) {
+  applyAlwaysOnTop(appData.alwaysOnTop);
+}
+
+export function applyFallbackAlwaysOnTopPreference(
+  applyAlwaysOnTop: (alwaysOnTop: boolean) => void,
+) {
+  applyAlwaysOnTop(false);
+}
+
+export function finishFailedAppDataLoad({
+  applyAlwaysOnTop,
+  reportLoaded,
+}: {
+  applyAlwaysOnTop: (alwaysOnTop: boolean) => void;
+  reportLoaded: () => void;
+}) {
+  applyFallbackAlwaysOnTopPreference(applyAlwaysOnTop);
+  reportLoaded();
+}
+
+export function buildAppDataForPersistence(
+  options: Parameters<typeof buildPersistedAppData>[0],
+) {
+  return buildPersistedAppData(options);
+}
+
 export function useAppPersistence({
+  alwaysOnTop,
   appendDetailedLog,
   appendLog,
+  applyAlwaysOnTop,
   applyConfirmBeforeExit,
   applyExperimentalInputPreferences,
   applyKeyMapping,
@@ -186,7 +220,8 @@ export function useAppPersistence({
         currentImportedScoreStoragePathRef.current;
     }
 
-    return buildPersistedAppData({
+    return buildAppDataForPersistence({
+      alwaysOnTop,
       confirmBeforeExit: nextConfirmBeforeExit,
       experimentalInputPreferences: {
         experimentalInputEnabled,
@@ -238,7 +273,10 @@ export function useAppPersistence({
         if (appData === null || sourceVersion === null) {
           appendLog(text.appDataInvalid);
           setIsNormalPersistenceEnabled(false);
-          setHasLoadedAppData(true);
+          finishFailedAppDataLoad({
+            applyAlwaysOnTop,
+            reportLoaded: () => setHasLoadedAppData(true),
+          });
           return;
         }
 
@@ -410,6 +448,10 @@ export function useAppPersistence({
         startupLibrarySongIdsRef.current = new Set(
           runtimeAppData.library.librarySongs.map(({ id }) => id),
         );
+        applyLoadedAlwaysOnTopPreference(
+          runtimeAppData,
+          applyAlwaysOnTop,
+        );
         setLanguage(runtimeAppData.language);
         applyConfirmBeforeExit(runtimeAppData.confirmBeforeExit);
         applyKeyMapping(runtimeAppData.keyMapping);
@@ -433,7 +475,10 @@ export function useAppPersistence({
               error: String(error),
             }),
           );
-          setHasLoadedAppData(true);
+          finishFailedAppDataLoad({
+            applyAlwaysOnTop,
+            reportLoaded: () => setHasLoadedAppData(true),
+          });
         }
       }
     }
@@ -476,7 +521,7 @@ export function useAppPersistence({
           }),
         );
       });
-    }, saveDebounceMs);
+    }, normalAppDataSaveDebounceMs);
 
     return () => {
       if (saveTimerRef.current !== null) {
@@ -484,6 +529,7 @@ export function useAppPersistence({
       }
     };
   }, [
+    alwaysOnTop,
     canSaveAppData,
     confirmBeforeExit,
     experimentalInputMode,

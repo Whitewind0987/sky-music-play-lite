@@ -28,6 +28,7 @@ function createAppData(): PersistedAppData {
   const two = createSong("Two");
 
   return {
+    alwaysOnTop: true,
     appDataVersion: 3,
     confirmBeforeExit: true,
     keyMapping: defaultKeyMapping,
@@ -118,6 +119,7 @@ describe("finalizeAppDataMigration", () => {
     expect(result.appData.library.playlists).toEqual(appData.library.playlists);
     expect(result.appData.library.selectedSongIndex).toBe(1);
     expect(result.appData.playbackSettings).toEqual(appData.playbackSettings);
+    expect(result.appData.alwaysOnTop).toBe(true);
     expect(result.appData.v1ToV2UpgradePreferences).toEqual(
       appData.v1ToV2UpgradePreferences,
     );

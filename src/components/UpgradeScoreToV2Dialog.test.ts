@@ -212,18 +212,27 @@ describe("UpgradeScoreToV2Dialog rendering", () => {
     },
   );
 
-  it("shows the warning for dense timing without changing Connected", () => {
+  it("renders only the style estimate for dense timing without an extra warning element", () => {
     const markup = renderForm();
 
-    expect(markup).toContain(text.denseWarning);
+    expect(
+      markup.match(/class="score-upgrade-profile-summary"/g),
+    ).toHaveLength(1);
+    expect(markup).toContain(
+      "The current style will add about 5 sustained notes.",
+    );
     expectStyleChecked(markup, "connected");
   });
 
   it.each([
     ["sparse monophonic input", sparseMonophonicSong],
     ["sparse polyphonic chords", sparsePolyphonicSong],
-  ])("does not warn for %s", (_, sourceSong) => {
-    expect(renderForm({ sourceSong })).not.toContain(text.denseWarning);
+  ])("renders no extra warning element for %s", (_, sourceSong) => {
+    const markup = renderForm({ sourceSong });
+
+    expect(
+      markup.match(/class="score-upgrade-profile-summary"/g),
+    ).toHaveLength(1);
   });
 
   it("keeps preview options and estimate tied to the visible style", () => {

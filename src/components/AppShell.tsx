@@ -7,6 +7,7 @@ import {
   Heart,
   Library,
   ListMusic,
+  Pin,
   Plus,
   ScrollText,
   Settings,
@@ -543,25 +544,59 @@ export function AppSidebar({
 
 type WorkspaceHeaderProps = {
   activeSection: AppSection;
+  isAlwaysOnTop: boolean;
+  isAlwaysOnTopReady: boolean;
+  isAlwaysOnTopUpdating: boolean;
+  onAlwaysOnTopToggle: () => void;
   onLogsClick: () => void;
   onSettingsClick: () => void;
   onUserManualClick: () => void;
   text: UiText;
 };
 
+export function getAlwaysOnTopActionText(
+  isAlwaysOnTop: boolean,
+  text: UiText["actions"],
+) {
+  return isAlwaysOnTop
+    ? text.disableAlwaysOnTop
+    : text.enableAlwaysOnTop;
+}
+
 export function WorkspaceHeader({
   activeSection,
+  isAlwaysOnTop,
+  isAlwaysOnTopReady,
+  isAlwaysOnTopUpdating,
+  onAlwaysOnTopToggle,
   onLogsClick,
   onSettingsClick,
   onUserManualClick,
   text,
 }: WorkspaceHeaderProps) {
   const header = text.sections[activeSection];
+  const alwaysOnTopActionText = getAlwaysOnTopActionText(
+    isAlwaysOnTop,
+    text.actions,
+  );
 
   return (
     <header className="workspace-header">
       <h2>{header.title}</h2>
       <div className="header-actions" aria-label={text.app.placeholderActionsAria}>
+        <button
+          className={`icon-action always-on-top-action${
+            isAlwaysOnTop ? " is-active" : ""
+          }`}
+          type="button"
+          aria-label={alwaysOnTopActionText}
+          aria-pressed={isAlwaysOnTop}
+          disabled={!isAlwaysOnTopReady || isAlwaysOnTopUpdating}
+          title={alwaysOnTopActionText}
+          onClick={onAlwaysOnTopToggle}
+        >
+          <Pin aria-hidden="true" focusable="false" />
+        </button>
         <button
           className="icon-action"
           type="button"

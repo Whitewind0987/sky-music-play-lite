@@ -9,7 +9,6 @@ import {
   getUpgradeScoreToV2Preferences,
   restoreRecommendedUpgradeScoreToV2State as restoreModelState,
   selectV1ToV2SustainStyle as selectModelStyle,
-  shouldShowV1ToV2DenseWarning,
   V1_TO_V2_SUSTAIN_STYLE_PRESETS,
 } from "./v1ToV2DialogModel";
 import { createDefaultV1ToV2UpgradePreferences } from "./v1ToV2UpgradePreferences";
@@ -469,26 +468,5 @@ describe("V1 to V2 dialog model preference transitions", () => {
 
     expect(options).toEqual({ name: "Custom", ...rememberedCustomValues });
     expect(Object.keys(options)).toHaveLength(6);
-  });
-});
-
-describe("V1 to V2 dense warning decision", () => {
-  it("depends only on dense onset timing", () => {
-    expect(
-      shouldShowV1ToV2DenseWarning({
-        isDenseTiming: true,
-        isPolyphonic: false,
-        multiNoteGroupRatio: 0,
-        typicalGapMs: 160,
-      }),
-    ).toBe(true);
-    expect(
-      shouldShowV1ToV2DenseWarning({
-        isDenseTiming: false,
-        isPolyphonic: true,
-        multiNoteGroupRatio: 1,
-        typicalGapMs: 1000,
-      }),
-    ).toBe(false);
   });
 });

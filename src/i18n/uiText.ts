@@ -59,6 +59,8 @@ export const uiText = {
       },
     },
     actions: {
+      disableAlwaysOnTop: "取消置顶",
+      enableAlwaysOnTop: "始终置顶",
       logs: "日志",
       openReleasePage: "打开发布页面",
       settings: "设置",
@@ -246,8 +248,6 @@ export const uiText = {
         activeValuesSummary:
           "仅对 {minimumSeconds}–{restSeconds} 秒的间隔生成延音，并在下一组音前约 {releaseLeadMs} 毫秒松开；单个音最长约 {maximumSeconds} 秒。",
         activeValuesFallback: "请检查下方的自定义参数。",
-        denseWarning:
-          "检测到大量密集音组，转换后可能仍出现快速连续弹奏。",
         currentStyleEstimate: "当前风格预计添加 {count} 个长音。",
         profileEstimateFallback:
           "修正自定义参数后可查看预计生成的长音数量。",
@@ -408,6 +408,7 @@ export const uiText = {
       shuffleEnabled: "随机播放已开启，点击关闭",
     },
     logs: {
+      alwaysOnTopChangeFailed: "切换窗口置顶失败：{error}",
       panelTitle: "日志区",
       panelDescription: "运行消息会显示在这里。",
       emptyState: "还没有日志。",
@@ -724,6 +725,8 @@ export const uiText = {
       },
     },
     actions: {
+      disableAlwaysOnTop: "Disable always on top",
+      enableAlwaysOnTop: "Always on top",
       logs: "Logs",
       openReleasePage: "Open release page",
       settings: "Settings",
@@ -917,8 +920,6 @@ export const uiText = {
         activeValuesSummary:
           "Only gaps from {minimumSeconds} to {restSeconds} seconds are sustained, releasing about {releaseLeadMs} ms before the next group; each note can last up to about {maximumSeconds} seconds.",
         activeValuesFallback: "Check the custom values below.",
-        denseWarning:
-          "Many densely spaced note groups were detected. The converted score may still trigger rapid repeated playing.",
         currentStyleEstimate:
           "The current style will add about {count} sustained notes.",
         profileEstimateFallback:
@@ -1087,6 +1088,8 @@ export const uiText = {
       shuffleEnabled: "Shuffle is on. Click to turn it off.",
     },
     logs: {
+      alwaysOnTopChangeFailed:
+        "Failed to change always-on-top state: {error}",
       panelTitle: "Log area",
       panelDescription: "Runtime messages will appear here.",
       emptyState: "No log entries yet.",
