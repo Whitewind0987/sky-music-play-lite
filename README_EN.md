@@ -14,8 +14,8 @@ SkyMusicPlay Lite is a lightweight Windows desktop automatic music-playing tool 
 
 It is built with **Tauri v2 + React + TypeScript + Rust**, aiming to provide a clean, lightweight, and controllable desktop experience for score library management, preview playback, and real playback.
 
-Current version: **v0.4.0**.
-v0.4.0 is the current stable recommended release.
+Current version: **v0.5.0**.
+v0.5.0 is the current stable recommended release.
 
 ## 丨Download
 
@@ -23,15 +23,11 @@ Download the latest version from GitHub Releases:
 
 - [Releases](https://github.com/Whitewind0987/sky-music-play-lite/releases)
 
-For most Windows users, the `.exe` installer is recommended.
-
 ## 丨User Manual
 
 - [SkyMusicPlay Lite User Manual](https://www.kdocs.cn/l/ca0kaYgxB59Z)
 
 The manual is currently written in Simplified Chinese.
-
-For first-time users, it is recommended to read the quick start, real playback, and FAQ sections first.
 
 ## 丨Features
 
@@ -43,6 +39,7 @@ For first-time users, it is recommended to read the quick start, real playback, 
 - `scores-v2` score format
 - Per-note `duration` with long-note and sustained-note playback
 - V2 score badge
+- Upgrade V1 scores to V2
 - Encrypted numeric score import
 - Score library search
 - Liked scores
@@ -58,8 +55,10 @@ For first-time users, it is recommended to read the quick start, real playback, 
 - Repeat all / repeat one / shuffle
 - Custom key mapping
 - Local data persistence
+- Always-on-top window
 - Playback logs
 - In-app update notification
+- Preserve the existing installation directory during Windows installer upgrades
 - Sky window auto-detection, including recognition when Sky is opened, closed, and reopened
 - Local score record recovery, including missing library records from existing managed score files
 - Windows real playback
@@ -109,13 +108,6 @@ Background playback provides two compatibility options:
 - **Enhanced background playback (recommended)**
 - **Chord compatibility**
 
-It is generally recommended to try “Enhanced background playback” first.  
-If some chords or combined keys do not work correctly, try switching to “Chord compatibility”.
-
-If background playback does not work in your environment, try foreground playback instead.
-
-These features are still experimental and are not guaranteed to work on all systems, permission levels, window states, or game environments.
-
 ## 丨Administrator Permission
 
 SkyMusicPlay Lite may request administrator permission on Windows startup.
@@ -128,7 +120,7 @@ If Windows shows a User Account Control (UAC) prompt when launching the app, con
 
 SkyMusicPlay Lite supports update checks on startup.
 
-v0.4.0 is the current stable recommended release.
+v0.5.0 is the current stable recommended release.
 
 There are two update types:
 
@@ -208,17 +200,6 @@ npm run tauri build
 ## 丨Feedback
 
 If you encounter any issues, please submit feedback through [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues).
-
-When reporting an issue, please provide:
-
-- App version
-- Windows version
-- Screenshots
-- Steps to reproduce
-- Whether real playback is enabled
-- Whether you are using background playback or foreground playback
-- Whether the issue is reproducible
-- Log files or screen recordings
 
 ## 丨Community & Contact
 
