@@ -53,7 +53,7 @@ import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 export const normalAppDataSaveDebounceMs = 500;
 
 type UseAppPersistenceOptions = {
-  alwaysOnTop: boolean;
+  persistedAlwaysOnTop: boolean;
   appendDetailedLog?: (entry: AppLogEntry) => void;
   appendLog: (entry: string) => void;
   applyAlwaysOnTop: (alwaysOnTop: boolean) => void;
@@ -154,7 +154,7 @@ export function buildAppDataForPersistence(
 }
 
 export function useAppPersistence({
-  alwaysOnTop,
+  persistedAlwaysOnTop,
   appendDetailedLog,
   appendLog,
   applyAlwaysOnTop,
@@ -221,7 +221,7 @@ export function useAppPersistence({
     }
 
     return buildAppDataForPersistence({
-      alwaysOnTop,
+      alwaysOnTop: persistedAlwaysOnTop,
       confirmBeforeExit: nextConfirmBeforeExit,
       experimentalInputPreferences: {
         experimentalInputEnabled,
@@ -529,7 +529,7 @@ export function useAppPersistence({
       }
     };
   }, [
-    alwaysOnTop,
+    persistedAlwaysOnTop,
     canSaveAppData,
     confirmBeforeExit,
     experimentalInputMode,

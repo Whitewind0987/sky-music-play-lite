@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildPersistedAppData } from "../lib/appData";
+import { createAlwaysOnTopController } from "../lib/windowAlwaysOnTop";
 import { defaultKeyMapping } from "../types/keyMapping";
 import {
   defaultNoteIntervalDelayMs,
@@ -136,6 +137,37 @@ describe("always-on-top persistence wiring", () => {
       selectedSongIndex: null,
     });
 
+    expect(appData.alwaysOnTop).toBe(true);
+  });
+
+  it("persists the saved preference instead of a startup runtime fallback", async () => {
+    const controller = createAlwaysOnTopController({
+      setNativeAlwaysOnTop: vi
+        .fn()
+        .mockRejectedValue(new Error("temporarily unavailable")),
+    });
+    controller.applyPersistedPreference(true);
+    await controller.initializeNativeState();
+    const state = controller.getState();
+
+    const appData = buildAppDataForPersistence({
+      alwaysOnTop: state.persistedAlwaysOnTop,
+      isShuffleEnabled: false,
+      keyMapping: defaultKeyMapping,
+      language: "zh-CN",
+      librarySongs: [],
+      likedSongs: [],
+      noteIntervalDelayMs: defaultNoteIntervalDelayMs,
+      playbackMode: defaultPlaybackMode,
+      playbackShortcuts: defaultPlaybackShortcuts,
+      playbackSpeed: defaultPlaybackSpeed,
+      playlists: [],
+      selectedLibraryCategory: "local-imports",
+      selectedPlaylistId: null,
+      selectedSongIndex: null,
+    });
+
+    expect(state.isAlwaysOnTop).toBe(false);
     expect(appData.alwaysOnTop).toBe(true);
   });
 

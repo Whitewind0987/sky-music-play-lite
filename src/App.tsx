@@ -246,7 +246,6 @@ function App() {
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
-    alwaysOnTop: alwaysOnTop.isAlwaysOnTop,
     appendDetailedLog: appFileLogger.appendDetailedLog,
     appendLog,
     applyAlwaysOnTop: alwaysOnTop.applyPersistedPreference,
@@ -273,6 +272,7 @@ function App() {
     playbackMode: previewPlayback.playbackMode,
     playbackShortcuts: playbackShortcutsController.playbackShortcuts,
     playbackSpeed: previewPlayback.playbackSpeed,
+    persistedAlwaysOnTop: alwaysOnTop.persistedAlwaysOnTop,
     playlists: scoreLibrary.playlists,
     selectedLibraryCategory: scoreLibrary.selectedLibraryCategory,
     selectedPlaylistId: scoreLibrary.selectedPlaylistId,

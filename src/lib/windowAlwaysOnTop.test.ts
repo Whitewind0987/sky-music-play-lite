@@ -1,8 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyAlwaysOnTopTransition,
+  createAlwaysOnTopController,
   createAlwaysOnTopFailureReport,
 } from "./windowAlwaysOnTop";
+
+function createDeferredPromise() {
+  let rejectPromise: (error: unknown) => void = () => {};
+  let resolvePromise: () => void = () => {};
+  const promise = new Promise<void>((resolve, reject) => {
+    rejectPromise = reject;
+    resolvePromise = resolve;
+  });
+
+  return {
+    promise,
+    reject: rejectPromise,
+    resolve: resolvePromise,
+  };
+}
 
 describe("applyAlwaysOnTopTransition", () => {
   it.each([false, true])(
@@ -130,6 +146,179 @@ describe("applyAlwaysOnTopTransition", () => {
     await applyAlwaysOnTopTransition(options);
 
     expect(options).toEqual(snapshot);
+  });
+});
+
+describe("createAlwaysOnTopController", () => {
+  it.each([true, false])(
+    "keeps runtime and persisted startup value %s after native success",
+    async (savedValue) => {
+      const setNativeAlwaysOnTop = vi.fn().mockResolvedValue(undefined);
+      const controller = createAlwaysOnTopController({
+        setNativeAlwaysOnTop,
+      });
+
+      controller.applyPersistedPreference(savedValue);
+      await controller.initializeNativeState();
+
+      expect(setNativeAlwaysOnTop).toHaveBeenCalledOnce();
+      expect(setNativeAlwaysOnTop).toHaveBeenCalledWith(savedValue);
+      expect(controller.getState()).toEqual({
+        isAlwaysOnTop: savedValue,
+        isReady: true,
+        isUpdating: false,
+        persistedAlwaysOnTop: savedValue,
+      });
+    },
+  );
+
+  it("falls back at runtime without erasing persisted true after startup failure", async () => {
+    const controller = createAlwaysOnTopController({
+      setNativeAlwaysOnTop: vi
+        .fn()
+        .mockRejectedValue(new Error("denied")),
+    });
+
+    controller.applyPersistedPreference(true);
+    await controller.initializeNativeState();
+
+    expect(controller.getState()).toEqual({
+      isAlwaysOnTop: false,
+      isReady: true,
+      isUpdating: false,
+      persistedAlwaysOnTop: true,
+    });
+  });
+
+  it("routes startup failure through the localized and detailed failure report", async () => {
+    const normalLogs: string[] = [];
+    const detailedLogs: unknown[] = [];
+    const controller = createAlwaysOnTopController({
+      onFailure: (desiredAlwaysOnTop, error) => {
+        const report = createAlwaysOnTopFailureReport({
+          desiredAlwaysOnTop,
+          error,
+          messageTemplate: "切换窗口置顶失败：{error}",
+        });
+        normalLogs.push(report.message);
+        detailedLogs.push(report.detailedLog);
+      },
+      setNativeAlwaysOnTop: vi
+        .fn()
+        .mockRejectedValue(new Error("denied")),
+    });
+
+    controller.applyPersistedPreference(true);
+    await controller.initializeNativeState();
+
+    expect(normalLogs).toEqual(["切换窗口置顶失败：denied"]);
+    expect(detailedLogs).toEqual([
+      {
+        details: {
+          desiredAlwaysOnTop: true,
+          error: "Error: denied",
+        },
+        level: "error",
+        message: "Failed to change always-on-top state",
+        source: "window",
+      },
+    ]);
+  });
+
+  it("can become ready with false after app-data loading falls back", async () => {
+    const setNativeAlwaysOnTop = vi.fn().mockResolvedValue(undefined);
+    const controller = createAlwaysOnTopController({
+      setNativeAlwaysOnTop,
+    });
+
+    controller.applyPersistedPreference(false);
+    await controller.initializeNativeState();
+
+    expect(setNativeAlwaysOnTop).toHaveBeenCalledWith(false);
+    expect(controller.getState()).toEqual({
+      isAlwaysOnTop: false,
+      isReady: true,
+      isUpdating: false,
+      persistedAlwaysOnTop: false,
+    });
+  });
+
+  it("changes both values only after a user toggle succeeds", async () => {
+    const pendingToggle = createDeferredPromise();
+    const setNativeAlwaysOnTop = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => pendingToggle.promise);
+    const controller = createAlwaysOnTopController({
+      setNativeAlwaysOnTop,
+    });
+    controller.applyPersistedPreference(false);
+    await controller.initializeNativeState();
+
+    const toggle = controller.toggle();
+
+    expect(controller.getState()).toEqual({
+      isAlwaysOnTop: false,
+      isReady: true,
+      isUpdating: true,
+      persistedAlwaysOnTop: false,
+    });
+
+    pendingToggle.resolve();
+    await toggle;
+
+    expect(controller.getState()).toEqual({
+      isAlwaysOnTop: true,
+      isReady: true,
+      isUpdating: false,
+      persistedAlwaysOnTop: true,
+    });
+  });
+
+  it("keeps both values unchanged after a user toggle fails", async () => {
+    const controller = createAlwaysOnTopController({
+      setNativeAlwaysOnTop: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("denied")),
+    });
+    controller.applyPersistedPreference(true);
+    await controller.initializeNativeState();
+
+    await controller.toggle();
+
+    expect(controller.getState()).toEqual({
+      isAlwaysOnTop: true,
+      isReady: true,
+      isUpdating: false,
+      persistedAlwaysOnTop: true,
+    });
+  });
+
+  it("blocks overlapping user toggles in the controller used by the hook", async () => {
+    const pendingToggle = createDeferredPromise();
+    const setNativeAlwaysOnTop = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => pendingToggle.promise);
+    const controller = createAlwaysOnTopController({
+      setNativeAlwaysOnTop,
+    });
+    controller.applyPersistedPreference(false);
+    await controller.initializeNativeState();
+
+    const firstToggle = controller.toggle();
+    await expect(controller.toggle()).resolves.toEqual({
+      status: "blocked",
+      value: false,
+    });
+
+    expect(setNativeAlwaysOnTop).toHaveBeenCalledTimes(2);
+    expect(setNativeAlwaysOnTop.mock.calls).toEqual([[false], [true]]);
+    expect(controller.getState().persistedAlwaysOnTop).toBe(false);
+
+    pendingToggle.resolve();
+    await firstToggle;
   });
 });
 
