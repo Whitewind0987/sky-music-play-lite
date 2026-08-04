@@ -2709,23 +2709,23 @@ button {
   background: #fffbeb;
 }
 
-.shortcut-conflict-badge {
-  max-width: 180px;
-  min-height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px 8px;
-  border: 1px solid #fecaca;
-  border-radius: 999px;
-  color: #991b1b;
-  background: #fee2e2;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.shortcut-setting-item {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.shortcut-inline-notice {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .shortcut-warning {

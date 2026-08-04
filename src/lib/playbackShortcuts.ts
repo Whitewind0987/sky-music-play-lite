@@ -2,6 +2,7 @@ import {
   playbackShortcutActions,
   type PlaybackShortcutAction,
   type PlaybackShortcutBinding,
+  type PlaybackShortcutNotices,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
 
@@ -140,6 +141,40 @@ export function getPlaybackShortcutRecordingRequestDecision(
 ): PlaybackShortcutRecordingRequestDecision {
   if (currentAction === requestedAction) return "cancel-current";
   return currentAction === null ? "start" : "replace-current";
+}
+
+export function getPlaybackShortcutRecordingSessionAction(
+  activeAction: PlaybackShortcutAction | null,
+  pendingAction: PlaybackShortcutAction | null,
+) {
+  return activeAction ?? pendingAction;
+}
+
+export function canActivatePendingPlaybackShortcutRecording(
+  pendingAction: PlaybackShortcutAction | null,
+  pendingRequestId: number,
+  completedAction: PlaybackShortcutAction,
+  completedRequestId: number,
+) {
+  return (
+    pendingAction === completedAction && pendingRequestId === completedRequestId
+  );
+}
+
+export function getPlaybackShortcutNotice(
+  action: PlaybackShortcutAction,
+  localNotices: PlaybackShortcutNotices,
+  controllerNotices: PlaybackShortcutNotices,
+) {
+  return localNotices[action] ?? controllerNotices[action];
+}
+
+export function clearPlaybackShortcutNotice(
+  notices: PlaybackShortcutNotices,
+  action: PlaybackShortcutAction,
+): PlaybackShortcutNotices {
+  const { [action]: _notice, ...remainingNotices } = notices;
+  return remainingNotices;
 }
 
 export function formatShortcutCode(code: string) {

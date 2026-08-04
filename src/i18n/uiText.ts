@@ -663,7 +663,6 @@ export const uiText = {
         inApp: "仅应用内",
       },
       keyboardShortcutListening: "按下新的快捷键...",
-      keyboardShortcutConflictBadge: "快捷键警告",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutUnsafeGlobal:
         "裸普通键不能用作全局快捷键，否则会干扰正常键盘输入；已自动改为仅应用内。",
@@ -1371,7 +1370,6 @@ export const uiText = {
         inApp: "In app",
       },
       keyboardShortcutListening: "Press a new shortcut...",
-      keyboardShortcutConflictBadge: "Shortcut warning",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutUnsafeGlobal:
         "Bare ordinary keys cannot be global shortcuts because they would interfere with normal keyboard input. The scope was changed to In app.",

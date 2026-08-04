@@ -808,9 +808,6 @@ function App() {
           }}
           keyMapping={keyMapping}
           language={language}
-          isShortcutRecordingPending={
-            playbackShortcutsController.isRecordingPending
-          }
           listeningSkyKey={listeningSkyKey}
           listeningShortcutAction={
             playbackShortcutsController.recordingAction
@@ -821,7 +818,6 @@ function App() {
           appRuntimeInfo={appFileLogger.runtimeInfo}
           onOpenLogDirectory={appFileLogger.openLogDirectory}
           onPlaybackShortcutsChange={(nextShortcuts) => {
-            playbackShortcutsController.clearShortcutNotice();
             playbackShortcutsController.setPlaybackShortcuts(nextShortcuts);
           }}
           onShortcutNoticeClear={playbackShortcutsController.clearShortcutNotice}
@@ -830,6 +826,9 @@ function App() {
           }
           onShortcutRecordingStart={
             playbackShortcutsController.beginShortcutRecording
+          }
+          pendingShortcutRecordingAction={
+            playbackShortcutsController.pendingRecordingAction
           }
           playbackShortcuts={playbackShortcutsController.playbackShortcuts}
           shortcutNotice={playbackShortcutsController.shortcutNotice}

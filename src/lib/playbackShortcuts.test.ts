@@ -2,12 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyPlaybackShortcutRecordingOutcome,
   arePlaybackShortcutCombinationsEqual,
+  canActivatePendingPlaybackShortcutRecording,
+  clearPlaybackShortcutNotice,
   fallbackGlobalPlaybackShortcutToInApp,
   findDuplicatePlaybackShortcutAction,
   findMatchingInAppShortcutAction,
   formatPlaybackShortcut,
   getDesiredGlobalPlaybackShortcutActions,
+  getPlaybackShortcutNotice,
   getPlaybackShortcutRecordingRequestDecision,
+  getPlaybackShortcutRecordingSessionAction,
   getShortcutRecordingDecision,
   isModifierShortcutCode,
   isValidGlobalPlaybackShortcut,
@@ -279,6 +283,106 @@ describe("shortcut recording registration suspension", () => {
     expect(
       getPlaybackShortcutRecordingRequestDecision("next", "next"),
     ).toBe("cancel-current");
+  });
+
+  it("represents pending and active ownership with one effective action", () => {
+    expect(
+      getPlaybackShortcutRecordingSessionAction(null, "pauseResume"),
+    ).toBe("pauseResume");
+    expect(
+      getPlaybackShortcutRecordingSessionAction("next", null),
+    ).toBe("next");
+    expect(getPlaybackShortcutRecordingSessionAction(null, null)).toBeNull();
+  });
+
+  it("allows only the current pending request to activate", () => {
+    expect(
+      canActivatePendingPlaybackShortcutRecording(
+        "pauseResume",
+        4,
+        "pauseResume",
+        4,
+      ),
+    ).toBe(true);
+    expect(
+      canActivatePendingPlaybackShortcutRecording(
+        null,
+        5,
+        "pauseResume",
+        4,
+      ),
+    ).toBe(false);
+    expect(
+      canActivatePendingPlaybackShortcutRecording(
+        "pauseResume",
+        5,
+        "pauseResume",
+        4,
+      ),
+    ).toBe(false);
+    expect(
+      canActivatePendingPlaybackShortcutRecording("next", 5, "stop", 5),
+    ).toBe(false);
+  });
+});
+
+describe("shortcut notices", () => {
+  it("prefers the complete local message over a controller message", () => {
+    expect(
+      getPlaybackShortcutNotice(
+        "next",
+        { next: "That shortcut is already used." },
+        { next: "Global registration failed." },
+      ),
+    ).toBe("That shortcut is already used.");
+  });
+
+  it("uses the complete controller message and returns no value without one", () => {
+    expect(
+      getPlaybackShortcutNotice(
+        "pauseResume",
+        {},
+        { pauseResume: "Global registration failed." },
+      ),
+    ).toBe("Global registration failed.");
+    expect(getPlaybackShortcutNotice("stop", {}, {})).toBeUndefined();
+  });
+
+  it("keeps notices action-specific", () => {
+    const notices = {
+      next: "Duplicate shortcut.",
+      stop: "Registration failed.",
+    };
+
+    expect(getPlaybackShortcutNotice("next", notices, {})).toBe(
+      "Duplicate shortcut.",
+    );
+    expect(getPlaybackShortcutNotice("stop", notices, {})).toBe(
+      "Registration failed.",
+    );
+  });
+
+  it("clears only the completed action and preserves other notices", () => {
+    const notices = {
+      next: "Duplicate shortcut.",
+      stop: "Registration failed.",
+    };
+
+    expect(clearPlaybackShortcutNotice(notices, "next")).toEqual({
+      stop: "Registration failed.",
+    });
+    expect(notices).toEqual({
+      next: "Duplicate shortcut.",
+      stop: "Registration failed.",
+    });
+  });
+
+  it("does not erase a duplicate merely because recording ends", () => {
+    const localNotices = { next: "Duplicate shortcut." };
+
+    expect(getPlaybackShortcutNotice("next", localNotices, {})).toBe(
+      "Duplicate shortcut.",
+    );
   });
 });
 

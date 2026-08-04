@@ -7,11 +7,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import {
+  canActivatePendingPlaybackShortcutRecording,
+  clearPlaybackShortcutNotice,
   fallbackGlobalPlaybackShortcutToInApp,
   findMatchingInAppShortcutAction,
   formatPlaybackShortcut,
   getDesiredGlobalPlaybackShortcutActions,
   getPlaybackShortcutRecordingRequestDecision,
+  getPlaybackShortcutRecordingSessionAction,
   isUnsafeGlobalPlaybackShortcut,
   normalizeGlobalPlaybackShortcutScope,
   shouldUnregisterGlobalPlaybackShortcut,
@@ -85,13 +88,15 @@ export function usePlaybackShortcuts({
     defaultPlaybackShortcuts,
   );
   const recordingActionRef = useRef<PlaybackShortcutAction | null>(null);
+  const pendingRecordingActionRef =
+    useRef<PlaybackShortcutAction | null>(null);
   const recordingRequestIdRef = useRef(0);
-  const recordingPendingRef = useRef(false);
   const appendLogRef = useRef(appendLog);
   const showNoticeRef = useRef(showNotice);
   const [recordingAction, setRecordingAction] =
     useState<PlaybackShortcutAction | null>(null);
-  const [isRecordingPending, setIsRecordingPending] = useState(false);
+  const [pendingRecordingAction, setPendingRecordingAction] =
+    useState<PlaybackShortcutAction | null>(null);
   const [shortcutNotice, setShortcutNotice] =
     useState<PlaybackShortcutNotices>({});
   const [playbackShortcuts, setPlaybackShortcutsState] =
@@ -121,7 +126,15 @@ export function usePlaybackShortcuts({
     },
     [],
   );
-  const clearShortcutNotice = useCallback(() => setShortcutNotice({}), []);
+  const clearShortcutNotice = useCallback(
+    (action?: PlaybackShortcutAction) =>
+      setShortcutNotice((current) =>
+        action === undefined
+          ? {}
+          : clearPlaybackShortcutNotice(current, action),
+      ),
+    [],
+  );
   const setPlaybackShortcuts = useCallback(
     (bindings: PlaybackShortcuts) =>
       commitPlaybackShortcuts(normalizePlaybackShortcuts(bindings)),
@@ -155,7 +168,7 @@ export function usePlaybackShortcuts({
       if (
         event.repeat ||
         recordingActionRef.current !== null ||
-        recordingPendingRef.current
+        pendingRecordingActionRef.current !== null
       ) {
         return;
       }
@@ -267,7 +280,7 @@ export function usePlaybackShortcuts({
                 if (
                   event.state === "Pressed" &&
                   recordingActionRef.current === null &&
-                  !recordingPendingRef.current
+                  pendingRecordingActionRef.current === null
                 ) {
                   controlsRef.current[action]();
                 }
@@ -303,24 +316,29 @@ export function usePlaybackShortcuts({
   useEffect(() => {
     void enqueue(() =>
       synchronizeGlobalShortcuts(
-        recordingActionRef.current !== null || recordingPendingRef.current,
+        recordingActionRef.current !== null ||
+          pendingRecordingActionRef.current !== null,
       ),
     );
   }, [
     enqueue,
     playbackShortcuts,
+    pendingRecordingAction,
     recordingAction,
     synchronizeGlobalShortcuts,
   ]);
 
   const endShortcutRecording = useCallback(() => {
     const hadSession =
-      recordingActionRef.current !== null || recordingPendingRef.current;
+      getPlaybackShortcutRecordingSessionAction(
+        recordingActionRef.current,
+        pendingRecordingActionRef.current,
+      ) !== null;
     recordingRequestIdRef.current += 1;
     recordingActionRef.current = null;
-    recordingPendingRef.current = false;
+    pendingRecordingActionRef.current = null;
     setRecordingAction(null);
-    setIsRecordingPending(false);
+    setPendingRecordingAction(null);
 
     return hadSession
       ? enqueue(() => synchronizeGlobalShortcuts(false))
@@ -329,12 +347,15 @@ export function usePlaybackShortcuts({
 
   const beginShortcutRecording = useCallback(
     async (action: PlaybackShortcutAction) => {
-      const previousAction = recordingActionRef.current;
+      const previousAction = getPlaybackShortcutRecordingSessionAction(
+        recordingActionRef.current,
+        pendingRecordingActionRef.current,
+      );
       const requestDecision = getPlaybackShortcutRecordingRequestDecision(
         previousAction,
         action,
       );
-      if (requestDecision !== "start" || recordingPendingRef.current) {
+      if (requestDecision !== "start") {
         await endShortcutRecording();
         if (requestDecision === "cancel-current") {
           return false;
@@ -343,8 +364,8 @@ export function usePlaybackShortcuts({
 
       const requestId = recordingRequestIdRef.current + 1;
       recordingRequestIdRef.current = requestId;
-      recordingPendingRef.current = true;
-      setIsRecordingPending(true);
+      pendingRecordingActionRef.current = action;
+      setPendingRecordingAction(action);
 
       let suspended = false;
       await enqueue(async () => {
@@ -352,7 +373,14 @@ export function usePlaybackShortcuts({
           await synchronizeGlobalShortcuts(true);
           suspended = true;
         } catch (error) {
-          if (recordingRequestIdRef.current === requestId) {
+          if (
+            canActivatePendingPlaybackShortcutRecording(
+              pendingRecordingActionRef.current,
+              recordingRequestIdRef.current,
+              action,
+              requestId,
+            )
+          ) {
             const failedAction =
               error instanceof PlaybackShortcutSuspensionError
                 ? error.action
@@ -369,12 +397,19 @@ export function usePlaybackShortcuts({
         }
       });
 
-      if (recordingRequestIdRef.current !== requestId) {
+      if (
+        !canActivatePendingPlaybackShortcutRecording(
+          pendingRecordingActionRef.current,
+          recordingRequestIdRef.current,
+          action,
+          requestId,
+        )
+      ) {
         return false;
       }
 
-      recordingPendingRef.current = false;
-      setIsRecordingPending(false);
+      pendingRecordingActionRef.current = null;
+      setPendingRecordingAction(null);
       if (!suspended) {
         return false;
       }
@@ -396,7 +431,7 @@ export function usePlaybackShortcuts({
     () => () => {
       recordingRequestIdRef.current += 1;
       recordingActionRef.current = null;
-      recordingPendingRef.current = false;
+      pendingRecordingActionRef.current = null;
       void enqueue(async () => {
         for (const registered of registeredRef.current.values()) {
           await unregister(registered.accelerator).catch(() => {});
@@ -411,7 +446,7 @@ export function usePlaybackShortcuts({
     beginShortcutRecording,
     clearShortcutNotice,
     endShortcutRecording,
-    isRecordingPending,
+    pendingRecordingAction,
     playbackShortcuts,
     recordingAction,
     resetPlaybackShortcuts,
