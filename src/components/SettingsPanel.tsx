@@ -85,6 +85,9 @@ type SettingsPlaceholderProps = {
   onOpenLogDirectory: () => void;
   onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
   onShortcutRecordingEnd: () => Promise<void>;
+  onShortcutRecordingUnchanged: (
+    action: PlaybackShortcutAction,
+  ) => boolean;
   onShortcutRecordingStart: (
     action: PlaybackShortcutAction,
   ) => Promise<boolean>;
@@ -110,6 +113,7 @@ export function SettingsPlaceholder({
   onOpenLogDirectory,
   onPlaybackShortcutsChange,
   onShortcutRecordingEnd,
+  onShortcutRecordingUnchanged,
   onShortcutRecordingStart,
   pendingShortcutRecordingAction,
   playbackShortcuts,
@@ -258,9 +262,8 @@ export function SettingsPlaceholder({
           [currentAction]: text.keyboardShortcutDuplicate,
         }));
       } else if (recordingOutcome.type === "unchanged") {
-        setShortcutConflictNotices((current) =>
-          clearPlaybackShortcutNotice(current, currentAction),
-        );
+        onShortcutRecordingUnchanged(currentAction);
+        return;
       } else {
         onPlaybackShortcutsChange(
           applyPlaybackShortcutRecordingOutcome(
@@ -295,6 +298,7 @@ export function SettingsPlaceholder({
     listeningShortcutAction,
     onPlaybackShortcutsChange,
     onShortcutRecordingEnd,
+    onShortcutRecordingUnchanged,
     playbackShortcuts,
     text.keyboardShortcutDuplicate,
     text.keyboardShortcutUnsafeGlobal,

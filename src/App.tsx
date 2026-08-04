@@ -824,6 +824,9 @@ function App() {
           onShortcutRecordingEnd={
             playbackShortcutsController.endShortcutRecording
           }
+          onShortcutRecordingUnchanged={
+            playbackShortcutsController.completeShortcutRecordingAsUnchanged
+          }
           onShortcutRecordingStart={
             playbackShortcutsController.beginShortcutRecording
           }

@@ -3,12 +3,14 @@ import {
   applyPlaybackShortcutRecordingOutcome,
   arePlaybackShortcutCombinationsEqual,
   canActivatePendingPlaybackShortcutRecording,
+  canCompletePlaybackShortcutRecording,
   clearPlaybackShortcutNotice,
   fallbackGlobalPlaybackShortcutToInApp,
   findDuplicatePlaybackShortcutAction,
   findMatchingInAppShortcutAction,
   formatPlaybackShortcut,
   getDesiredGlobalPlaybackShortcutActions,
+  getGlobalPlaybackShortcutCallbackDecision,
   getPlaybackShortcutNotice,
   getPlaybackShortcutRecordingRequestDecision,
   getPlaybackShortcutRecordingSessionAction,
@@ -22,6 +24,7 @@ import {
   toGlobalShortcutAccelerator,
   tryRegisterGlobalPlaybackShortcut,
 } from "./playbackShortcuts";
+import { uiText } from "../i18n/uiText";
 import {
   defaultPlaybackShortcuts,
   type PlaybackShortcutBinding,
@@ -146,6 +149,32 @@ describe("shortcut recording outcomes", () => {
     expect(shouldEndPlaybackShortcutRecording(outcome)).toBe(true);
   });
 
+  it("treats scope as irrelevant but requires every modifier to match", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      pauseResume: binding("KeyA", { ctrl: true, scope: "in-app" }),
+    };
+
+    expect(
+      resolvePlaybackShortcutRecordingOutcome(shortcuts, "pauseResume", {
+        binding: binding("KeyA", { ctrl: true, scope: "global" }),
+        type: "capture",
+      }),
+    ).toEqual({ type: "unchanged" });
+    expect(
+      resolvePlaybackShortcutRecordingOutcome(shortcuts, "pauseResume", {
+        binding: binding("KeyA", { ctrl: true, shift: true }),
+        type: "capture",
+      }).type,
+    ).toBe("apply");
+    expect(
+      resolvePlaybackShortcutRecordingOutcome(shortcuts, "pauseResume", {
+        binding: binding("KeyA", { alt: true }),
+        type: "capture",
+      }).type,
+    ).toBe("apply");
+  });
+
   it("rejects a duplicate without modifying either binding and ends recording", () => {
     const shortcuts = { ...defaultPlaybackShortcuts };
     const outcome = resolvePlaybackShortcutRecordingOutcome(
@@ -255,9 +284,30 @@ describe("shortcut recording outcomes", () => {
 });
 
 describe("shortcut recording registration suspension", () => {
-  it("has no desired global shortcuts during recording", () => {
+  it("keeps only the current valid global action as a recording sentinel", () => {
     expect(
-      getDesiredGlobalPlaybackShortcutActions(defaultPlaybackShortcuts, true),
+      getDesiredGlobalPlaybackShortcutActions(
+        defaultPlaybackShortcuts,
+        "pauseResume",
+        new Set(["pauseResume"]),
+      ),
+    ).toEqual(["pauseResume"]);
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(
+        {
+          ...defaultPlaybackShortcuts,
+          pauseResume: binding("KeyA"),
+        },
+        "pauseResume",
+        new Set(["pauseResume"]),
+      ),
+    ).toEqual([]);
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(
+        defaultPlaybackShortcuts,
+        "pauseResume",
+        new Set(),
+      ),
     ).toEqual([]);
   });
 
@@ -267,10 +317,9 @@ describe("shortcut recording registration suspension", () => {
       next: binding("KeyN"),
     };
 
-    expect(getDesiredGlobalPlaybackShortcutActions(shortcuts, false)).toEqual([
-      "pauseResume",
-      "stop",
-    ]);
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(shortcuts, null, new Set()),
+    ).toEqual(["pauseResume", "stop"]);
   });
 
   it("keeps one active action when recording requests change", () => {
@@ -324,9 +373,191 @@ describe("shortcut recording registration suspension", () => {
       canActivatePendingPlaybackShortcutRecording("next", 5, "stop", 5),
     ).toBe(false);
   });
+
+  it("allows only the matching live session to complete", () => {
+    expect(
+      canCompletePlaybackShortcutRecording(
+        "pauseResume",
+        7,
+        "pauseResume",
+        7,
+      ),
+    ).toBe(true);
+    expect(
+      canCompletePlaybackShortcutRecording("pauseResume", 8, "pauseResume", 7),
+    ).toBe(false);
+    expect(
+      canCompletePlaybackShortcutRecording("next", 7, "pauseResume", 7),
+    ).toBe(false);
+    expect(
+      canCompletePlaybackShortcutRecording(null, 7, "pauseResume", 7),
+    ).toBe(false);
+  });
+});
+
+describe("global shortcut recording sentinel callbacks", () => {
+  it("completes unchanged only for the current action on Pressed", () => {
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "pauseResume",
+        "Pressed",
+        "pauseResume",
+        null,
+        "pauseResume",
+      ),
+    ).toBe("complete-unchanged");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "pauseResume",
+        "Released",
+        "pauseResume",
+        null,
+        "pauseResume",
+      ),
+    ).toBe("suppress");
+  });
+
+  it("suppresses other actions during pending or active recording", () => {
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "next",
+        "Pressed",
+        null,
+        "pauseResume",
+        "pauseResume",
+      ),
+    ).toBe("suppress");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "stop",
+        "Pressed",
+        "pauseResume",
+        null,
+        "pauseResume",
+      ),
+    ).toBe("suppress");
+  });
+
+  it("executes playback only for Pressed outside recording", () => {
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "next",
+        "Pressed",
+        null,
+        null,
+        null,
+      ),
+    ).toBe("execute-playback");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "next",
+        "Released",
+        null,
+        null,
+        null,
+      ),
+    ).toBe("suppress");
+  });
+
+  it("suppresses a late callback until serialized restoration finishes", () => {
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "pauseResume",
+        "Pressed",
+        null,
+        null,
+        "pauseResume",
+      ),
+    ).toBe("suppress");
+  });
+
+  it("lets the first DOM or global completion win without a timer", () => {
+    const sessionRequestId = 11;
+    const playback = vi.fn();
+    const unchangedNotice = vi.fn();
+
+    if (
+      canCompletePlaybackShortcutRecording(
+        "pauseResume",
+        sessionRequestId,
+        "pauseResume",
+        sessionRequestId,
+      )
+    ) {
+      unchangedNotice();
+    }
+    const lateGlobalDecision = getGlobalPlaybackShortcutCallbackDecision(
+      "pauseResume",
+      "Pressed",
+      null,
+      null,
+      "pauseResume",
+    );
+    if (lateGlobalDecision === "execute-playback") playback();
+    if (
+      canCompletePlaybackShortcutRecording(
+        null,
+        sessionRequestId + 1,
+        "pauseResume",
+        sessionRequestId,
+      )
+    ) {
+      unchangedNotice();
+    }
+
+    expect(lateGlobalDecision).toBe("suppress");
+    expect(unchangedNotice).toHaveBeenCalledTimes(1);
+    expect(playback).not.toHaveBeenCalled();
+  });
+
+  it("ignores a DOM twin after the global callback completes", () => {
+    const sessionRequestId = 14;
+    const unchangedNotice = vi.fn();
+
+    if (
+      canCompletePlaybackShortcutRecording(
+        "stop",
+        sessionRequestId,
+        "stop",
+        sessionRequestId,
+      )
+    ) {
+      unchangedNotice();
+    }
+    if (
+      canCompletePlaybackShortcutRecording(
+        null,
+        sessionRequestId + 1,
+        "stop",
+        sessionRequestId,
+      )
+    ) {
+      unchangedNotice();
+    }
+
+    expect(unchangedNotice).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("shortcut notices", () => {
+  it("provides the exact localized unchanged messages", () => {
+    expect(uiText["zh-CN"].settings.keyboardShortcutUnchanged).toBe(
+      "该快捷键与当前设置相同，未做更改。",
+    );
+    expect(uiText["en-US"].settings.keyboardShortcutUnchanged).toBe(
+      "This shortcut matches the current setting. No changes were made.",
+    );
+  });
+
+  it("keeps an unchanged notice on only the completed action", () => {
+    const unchanged = uiText["en-US"].settings.keyboardShortcutUnchanged;
+    const notices = { pauseResume: unchanged };
+
+    expect(getPlaybackShortcutNotice("pauseResume", {}, notices)).toBe(
+      unchanged,
+    );
+    expect(getPlaybackShortcutNotice("next", {}, notices)).toBeUndefined();
+  });
   it("prefers the complete local message over a controller message", () => {
     expect(
       getPlaybackShortcutNotice(

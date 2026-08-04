@@ -8,11 +8,13 @@ import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import {
   canActivatePendingPlaybackShortcutRecording,
+  canCompletePlaybackShortcutRecording,
   clearPlaybackShortcutNotice,
   fallbackGlobalPlaybackShortcutToInApp,
   findMatchingInAppShortcutAction,
   formatPlaybackShortcut,
   getDesiredGlobalPlaybackShortcutActions,
+  getGlobalPlaybackShortcutCallbackDecision,
   getPlaybackShortcutRecordingRequestDecision,
   getPlaybackShortcutRecordingSessionAction,
   isUnsafeGlobalPlaybackShortcut,
@@ -34,6 +36,11 @@ type PlaybackHotkeyControls = Record<PlaybackShortcutAction, () => void>;
 type RegisteredPlaybackShortcut = {
   accelerator: string;
   binding: PlaybackShortcutBinding;
+};
+type PlaybackShortcutRecordingSentinel = {
+  action: PlaybackShortcutAction;
+  completionPhase: "awaiting-pressed" | "awaiting-released" | "recording";
+  requestId: number;
 };
 type UsePlaybackShortcutsOptions = {
   appendLog: (entry: string) => void;
@@ -91,6 +98,15 @@ export function usePlaybackShortcuts({
   const pendingRecordingActionRef =
     useRef<PlaybackShortcutAction | null>(null);
   const recordingRequestIdRef = useRef(0);
+  const recordingSentinelRef =
+    useRef<PlaybackShortcutRecordingSentinel | null>(null);
+  const completeShortcutRecordingAsUnchangedRef = useRef<
+    (
+      action: PlaybackShortcutAction,
+      requestId: number,
+      source: "dom" | "global",
+    ) => boolean
+  >(() => false);
   const appendLogRef = useRef(appendLog);
   const showNoticeRef = useRef(showNotice);
   const [recordingAction, setRecordingAction] =
@@ -212,11 +228,13 @@ export function usePlaybackShortcuts({
   );
 
   const synchronizeGlobalShortcuts = useCallback(
-    async (isRecording: boolean) => {
+    async (recordingSessionAction: PlaybackShortcutAction | null) => {
+      const isRecording = recordingSessionAction !== null;
       const desiredActions = new Set(
         getDesiredGlobalPlaybackShortcutActions(
           latestBindingsRef.current,
-          isRecording,
+          recordingSessionAction,
+          new Set(registeredRef.current.keys()),
         ),
       );
 
@@ -261,6 +279,7 @@ export function usePlaybackShortcuts({
         ) {
           continue;
         }
+        if (isRecording) continue;
 
         const currentBinding = latestBindingsRef.current[action];
         if (isUnsafeGlobalPlaybackShortcut(currentBinding)) {
@@ -277,12 +296,41 @@ export function usePlaybackShortcuts({
             currentBinding,
             (accelerator) =>
               register(accelerator, (event: ShortcutEvent) => {
-                if (
-                  event.state === "Pressed" &&
-                  recordingActionRef.current === null &&
-                  pendingRecordingActionRef.current === null
-                ) {
+                const callbackDecision =
+                  getGlobalPlaybackShortcutCallbackDecision(
+                    action,
+                    event.state,
+                    recordingActionRef.current,
+                    pendingRecordingActionRef.current,
+                    recordingSentinelRef.current?.action ?? null,
+                  );
+                if (callbackDecision === "execute-playback") {
                   controlsRef.current[action]();
+                } else if (callbackDecision === "complete-unchanged") {
+                  completeShortcutRecordingAsUnchangedRef.current(
+                    action,
+                    recordingSentinelRef.current?.requestId ?? -1,
+                    "global",
+                  );
+                } else if (
+                  recordingActionRef.current === null &&
+                  pendingRecordingActionRef.current === null &&
+                  recordingSentinelRef.current?.action === action
+                ) {
+                  if (
+                    recordingSentinelRef.current.completionPhase ===
+                      "awaiting-pressed" &&
+                    event.state === "Pressed"
+                  ) {
+                    recordingSentinelRef.current.completionPhase =
+                      "awaiting-released";
+                  } else if (
+                    recordingSentinelRef.current.completionPhase ===
+                      "awaiting-released" &&
+                    event.state === "Released"
+                  ) {
+                    recordingSentinelRef.current = null;
+                  }
                 }
               }),
           );
@@ -316,15 +364,15 @@ export function usePlaybackShortcuts({
   useEffect(() => {
     void enqueue(() =>
       synchronizeGlobalShortcuts(
-        recordingActionRef.current !== null ||
-          pendingRecordingActionRef.current !== null,
+        getPlaybackShortcutRecordingSessionAction(
+          recordingActionRef.current,
+          pendingRecordingActionRef.current,
+        ),
       ),
     );
   }, [
     enqueue,
     playbackShortcuts,
-    pendingRecordingAction,
-    recordingAction,
     synchronizeGlobalShortcuts,
   ]);
 
@@ -334,6 +382,7 @@ export function usePlaybackShortcuts({
         recordingActionRef.current,
         pendingRecordingActionRef.current,
       ) !== null;
+    const requestId = recordingRequestIdRef.current;
     recordingRequestIdRef.current += 1;
     recordingActionRef.current = null;
     pendingRecordingActionRef.current = null;
@@ -341,12 +390,81 @@ export function usePlaybackShortcuts({
     setPendingRecordingAction(null);
 
     return hadSession
-      ? enqueue(() => synchronizeGlobalShortcuts(false))
+      ? enqueue(async () => {
+          await synchronizeGlobalShortcuts(null);
+          if (
+            recordingSentinelRef.current?.requestId === requestId &&
+            recordingSentinelRef.current.completionPhase === "recording"
+          ) {
+            recordingSentinelRef.current = null;
+          }
+        })
       : Promise.resolve();
   }, [enqueue, synchronizeGlobalShortcuts]);
 
+  const completeShortcutRecordingAsUnchanged = useCallback(
+    (
+      action: PlaybackShortcutAction,
+      requestId = recordingRequestIdRef.current,
+      source: "dom" | "global" = "dom",
+    ) => {
+      const sessionAction = getPlaybackShortcutRecordingSessionAction(
+        recordingActionRef.current,
+        pendingRecordingActionRef.current,
+      );
+      if (
+        !canCompletePlaybackShortcutRecording(
+          sessionAction,
+          recordingRequestIdRef.current,
+          action,
+          requestId,
+        )
+      ) {
+        return false;
+      }
+
+      if (recordingSentinelRef.current?.requestId === requestId) {
+        recordingSentinelRef.current.completionPhase =
+          source === "global"
+            ? "awaiting-released"
+            : registeredRef.current.has(action)
+              ? "awaiting-pressed"
+              : "recording";
+      }
+
+      recordingRequestIdRef.current += 1;
+      recordingActionRef.current = null;
+      pendingRecordingActionRef.current = null;
+      setRecordingAction(null);
+      setPendingRecordingAction(null);
+      setShortcutNotice((current) => ({
+        ...current,
+        [action]: text.settings.keyboardShortcutUnchanged,
+      }));
+      void enqueue(async () => {
+        await synchronizeGlobalShortcuts(null);
+        if (
+          recordingSentinelRef.current?.requestId === requestId &&
+          recordingSentinelRef.current.completionPhase === "recording"
+        ) {
+          recordingSentinelRef.current = null;
+        }
+      });
+      return true;
+    },
+    [
+      enqueue,
+      synchronizeGlobalShortcuts,
+      text.settings.keyboardShortcutUnchanged,
+    ],
+  );
+
+  completeShortcutRecordingAsUnchangedRef.current =
+    completeShortcutRecordingAsUnchanged;
+
   const beginShortcutRecording = useCallback(
     async (action: PlaybackShortcutAction) => {
+      clearShortcutNotice(action);
       const previousAction = getPlaybackShortcutRecordingSessionAction(
         recordingActionRef.current,
         pendingRecordingActionRef.current,
@@ -364,13 +482,18 @@ export function usePlaybackShortcuts({
 
       const requestId = recordingRequestIdRef.current + 1;
       recordingRequestIdRef.current = requestId;
+      recordingSentinelRef.current = {
+        action,
+        completionPhase: "recording",
+        requestId,
+      };
       pendingRecordingActionRef.current = action;
       setPendingRecordingAction(action);
 
       let suspended = false;
       await enqueue(async () => {
         try {
-          await synchronizeGlobalShortcuts(true);
+          await synchronizeGlobalShortcuts(action);
           suspended = true;
         } catch (error) {
           if (
@@ -393,7 +516,10 @@ export function usePlaybackShortcuts({
             showNoticeRef.current(message);
             appendLogRef.current(text.logs.shortcutRecordingSuspendFailed);
           }
-          await synchronizeGlobalShortcuts(false);
+          await synchronizeGlobalShortcuts(null);
+          if (recordingSentinelRef.current?.requestId === requestId) {
+            recordingSentinelRef.current = null;
+          }
         }
       });
 
@@ -421,6 +547,7 @@ export function usePlaybackShortcuts({
     [
       endShortcutRecording,
       enqueue,
+      clearShortcutNotice,
       synchronizeGlobalShortcuts,
       text.logs.shortcutRecordingSuspendFailed,
       text.settings.keyboardShortcutRecordingFailed,
@@ -432,6 +559,7 @@ export function usePlaybackShortcuts({
       recordingRequestIdRef.current += 1;
       recordingActionRef.current = null;
       pendingRecordingActionRef.current = null;
+      recordingSentinelRef.current = null;
       void enqueue(async () => {
         for (const registered of registeredRef.current.values()) {
           await unregister(registered.accelerator).catch(() => {});
@@ -445,6 +573,7 @@ export function usePlaybackShortcuts({
   return {
     beginShortcutRecording,
     clearShortcutNotice,
+    completeShortcutRecordingAsUnchanged,
     endShortcutRecording,
     pendingRecordingAction,
     playbackShortcuts,

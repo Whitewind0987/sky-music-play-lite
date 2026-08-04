@@ -35,6 +35,11 @@ export type PlaybackShortcutRecordingRequestDecision =
   | "replace-current"
   | "start";
 
+export type GlobalPlaybackShortcutCallbackDecision =
+  | "complete-unchanged"
+  | "execute-playback"
+  | "suppress";
+
 const modifierCodes = new Set([
   "ControlLeft",
   "ControlRight",
@@ -161,6 +166,39 @@ export function canActivatePendingPlaybackShortcutRecording(
   );
 }
 
+export function canCompletePlaybackShortcutRecording(
+  sessionAction: PlaybackShortcutAction | null,
+  currentRequestId: number,
+  completedAction: PlaybackShortcutAction,
+  completedRequestId: number,
+) {
+  return (
+    sessionAction === completedAction &&
+    currentRequestId === completedRequestId
+  );
+}
+
+export function getGlobalPlaybackShortcutCallbackDecision(
+  callbackAction: PlaybackShortcutAction,
+  eventState: "Pressed" | "Released",
+  recordingAction: PlaybackShortcutAction | null,
+  pendingRecordingAction: PlaybackShortcutAction | null,
+  restoringRecordingAction: PlaybackShortcutAction | null,
+): GlobalPlaybackShortcutCallbackDecision {
+  const sessionAction = getPlaybackShortcutRecordingSessionAction(
+    recordingAction,
+    pendingRecordingAction,
+  );
+  if (sessionAction === null) {
+    if (restoringRecordingAction !== null) return "suppress";
+    return eventState === "Pressed" ? "execute-playback" : "suppress";
+  }
+  if (eventState !== "Pressed") return "suppress";
+  return sessionAction === callbackAction
+    ? "complete-unchanged"
+    : "suppress";
+}
+
 export function getPlaybackShortcutNotice(
   action: PlaybackShortcutAction,
   localNotices: PlaybackShortcutNotices,
@@ -261,13 +299,19 @@ export function findMatchingInAppShortcutAction(
 
 export function getDesiredGlobalPlaybackShortcutActions(
   shortcuts: PlaybackShortcuts,
-  isRecording: boolean,
+  recordingAction: PlaybackShortcutAction | null,
+  registeredActions: ReadonlySet<PlaybackShortcutAction>,
 ) {
-  return isRecording
-    ? []
-    : playbackShortcutActions.filter(
-        (action) => shortcuts[action].scope === "global",
-      );
+  if (recordingAction !== null) {
+    return shortcuts[recordingAction].scope === "global" &&
+      isValidGlobalPlaybackShortcut(shortcuts[recordingAction]) &&
+      registeredActions.has(recordingAction)
+      ? [recordingAction]
+      : [];
+  }
+  return playbackShortcutActions.filter(
+    (action) => shortcuts[action].scope === "global",
+  );
 }
 
 export function isValidGlobalPlaybackShortcut(
