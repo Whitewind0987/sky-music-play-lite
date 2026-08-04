@@ -70,6 +70,7 @@ type LibraryPanelProps = {
   onLocateSelectedSong: () => void;
   onPrepareSong: (songIndex: number) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
+  onPlayAll: () => void;
   onPlaySongNext: (songIndex: number) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
@@ -1019,6 +1020,7 @@ export function LibraryPanel({
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
+  onPlayAll,
   onPlaySong,
   onPlaySongNext,
   onPrepareSong,
@@ -1193,15 +1195,11 @@ export function LibraryPanel({
         {isPlaylists && selectedPlaylist ? (
           <PlaylistHeader
             onDeletePlaylist={onDeletePlaylist}
-            onPlayAll={() => {
-              if (items[0]) {
-                onPlaySong(items[0]);
-              }
-            }}
+            onPlayAll={onPlayAll}
             onRenamePlaylist={onRenamePlaylist}
             selectedPlaylist={selectedPlaylist}
             selectedPlaylistId={selectedPlaylistId}
-            visibleSongCount={items.length}
+            visibleSongCount={selectedPlaylist.songIds.length}
             text={text}
           />
         ) : null}

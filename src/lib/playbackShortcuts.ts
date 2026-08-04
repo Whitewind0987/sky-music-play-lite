@@ -1,3 +1,5 @@
+import type { PlaybackShortcutBinding } from "../types/playbackShortcuts";
+
 export function formatShortcutCode(code: string) {
   if (code === "") {
     return "";
@@ -41,44 +43,32 @@ export function formatShortcutCode(code: string) {
 export function toGlobalShortcutAccelerators(code: string) {
   const trimmedCode = code.trim();
 
-  if (trimmedCode === "") {
-    return [];
-  }
-
-  if (
-    trimmedCode === "Space" ||
-    /^F([1-9]|1[0-9]|2[0-4])$/.test(trimmedCode)
-  ) {
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(trimmedCode)) {
     return [trimmedCode];
-  }
-
-  if (trimmedCode === "ArrowRight") {
-    return ["ArrowRight", "Right"];
-  }
-
-  if (trimmedCode === "ArrowLeft") {
-    return ["ArrowLeft", "Left"];
-  }
-
-  if (trimmedCode === "ArrowUp") {
-    return ["ArrowUp", "Up"];
-  }
-
-  if (trimmedCode === "ArrowDown") {
-    return ["ArrowDown", "Down"];
-  }
-
-  if (/^Key[A-Z]$/.test(trimmedCode)) {
-    return [trimmedCode.slice(3)];
-  }
-
-  if (/^Digit[0-9]$/.test(trimmedCode)) {
-    return [trimmedCode.slice(5)];
   }
 
   return [];
 }
 
-export function isUnsafeGlobalStopShortcut(code: string) {
-  return code === "Space" || code.startsWith("Arrow");
+export function isUnsafeGlobalPlaybackShortcut(code: string) {
+  return toGlobalShortcutAccelerators(code).length === 0;
+}
+
+export function normalizeGlobalPlaybackShortcutScope(
+  binding: PlaybackShortcutBinding,
+): PlaybackShortcutBinding {
+  return binding.scope === "global" &&
+    isUnsafeGlobalPlaybackShortcut(binding.code)
+    ? { ...binding, scope: "in-app" }
+    : binding;
+}
+
+export function shouldUnregisterGlobalPlaybackShortcut(
+  binding: PlaybackShortcutBinding,
+  registeredAccelerator: string,
+) {
+  return (
+    binding.scope !== "global" ||
+    !toGlobalShortcutAccelerators(binding.code).includes(registeredAccelerator)
+  );
 }

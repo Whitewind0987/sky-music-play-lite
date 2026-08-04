@@ -332,9 +332,27 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
-      next: { code: "KeyN", scope: "global" },
+      next: { code: "KeyN", scope: "in-app" },
       pauseResume: defaultPlaybackShortcuts.pauseResume,
       stop: { code: "F8", scope: "in-app" },
+    });
+  });
+
+  it("downgrades persisted unsafe global bindings before registration", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: { code: "ArrowRight", scope: "global" },
+        pauseResume: { code: "Space", scope: "global" },
+        stop: { code: "Digit9", scope: "global" },
+      },
+    });
+
+    expect(result?.playbackShortcuts).toEqual({
+      next: { code: "ArrowRight", scope: "in-app" },
+      pauseResume: { code: "Space", scope: "in-app" },
+      stop: { code: "Digit9", scope: "in-app" },
     });
   });
 

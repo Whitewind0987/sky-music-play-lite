@@ -19,7 +19,7 @@ export const playbackSpeedLimits = {
   defaultValue: 1,
   max: 3,
   min: 0.25,
-  step: 0.25,
+  step: 0.1,
 } as const;
 
 export const defaultPlaybackMode: PlaybackMode = "sequence";
@@ -55,9 +55,8 @@ export function normalizePlaybackSpeed(
   fallback: PlaybackSpeed = defaultPlaybackSpeed,
 ): PlaybackSpeed {
   const safeValue = Number.isFinite(value) ? value : fallback;
-  const steppedValue = roundToStep(safeValue, playbackSpeedLimits.step);
   const clampedValue = clamp(
-    steppedValue,
+    safeValue,
     playbackSpeedLimits.min,
     playbackSpeedLimits.max,
   );

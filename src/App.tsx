@@ -713,6 +713,7 @@ function App() {
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
           onPrepareSong={warmPlaybackPlan}
+          onPlayAll={playbackCoordinator.handlePlayAllPlaylist}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={handlePlaySongNext}
           onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}

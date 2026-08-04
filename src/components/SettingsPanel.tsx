@@ -9,7 +9,7 @@ import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
   formatShortcutCode,
-  isUnsafeGlobalStopShortcut,
+  isUnsafeGlobalPlaybackShortcut,
 } from "../lib/playbackShortcuts";
 import type {
   CandidateWindow,
@@ -167,12 +167,19 @@ export function SettingsPlaceholder({
 
       if (
         playbackShortcuts[currentAction].scope === "global" &&
-        currentAction === "stop" &&
-        isUnsafeGlobalStopShortcut(event.code)
+        isUnsafeGlobalPlaybackShortcut(event.code)
       ) {
-        setShortcutConflictNotices({
-          [currentAction]: text.keyboardShortcutUnsafeGlobalStop,
+        onPlaybackShortcutsChange({
+          ...playbackShortcuts,
+          [currentAction]: {
+            code: event.code,
+            scope: "in-app",
+          },
         });
+        setShortcutConflictNotices({
+          [currentAction]: text.keyboardShortcutUnsafeGlobal,
+        });
+        setListeningShortcutAction(null);
         return;
       }
 
@@ -197,7 +204,7 @@ export function SettingsPlaceholder({
     onPlaybackShortcutsChange,
     playbackShortcuts,
     text.keyboardShortcutDuplicate,
-    text.keyboardShortcutUnsafeGlobalStop,
+    text.keyboardShortcutUnsafeGlobal,
   ]);
 
   return (
@@ -618,16 +625,27 @@ export function SettingsPlaceholder({
                     }
                     onClick={() => {
                       onShortcutNoticeClear();
+                      const isRequestingUnsafeGlobal =
+                        playbackShortcuts[action].scope === "in-app" &&
+                        isUnsafeGlobalPlaybackShortcut(
+                          playbackShortcuts[action].code,
+                        );
                       onPlaybackShortcutsChange({
                         ...playbackShortcuts,
                         [action]: {
                           ...playbackShortcuts[action],
                           scope:
-                            playbackShortcuts[action].scope === "global"
+                            playbackShortcuts[action].scope === "global" ||
+                            isRequestingUnsafeGlobal
                               ? "in-app"
                               : "global",
                         },
                       });
+                      setShortcutConflictNotices(
+                        isRequestingUnsafeGlobal
+                          ? { [action]: text.keyboardShortcutUnsafeGlobal }
+                          : {},
+                      );
                     }}
                     className={`shortcut-scope-badge ${
                       playbackShortcuts[action].scope === "global"

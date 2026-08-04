@@ -4,6 +4,10 @@ import { getLibrarySongName } from "../lib/libraryCollections";
 import { resolveManualNextCurrentSong } from "../lib/manualNextPlayback";
 import { runPlaybackContextTransaction } from "../lib/playbackContextTransaction";
 import { getQueueSongIds } from "../lib/playbackQueueDecision";
+import {
+  resolvePlaylistSongIndices,
+  startPlaylistPlaybackQueue,
+} from "../lib/playlistPlayback";
 import type { LibrarySongId, LibrarySongListItem } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { useExperimentalInput } from "./useExperimentalInput";
@@ -94,6 +98,49 @@ export function usePlaybackCoordinator({
 
     if (!isAcceptedStartOutputMode(playbackOutput.mode)) {
       void startOutputSong(item.songIndex);
+    }
+  }
+
+  async function handlePlayAllPlaylist() {
+    const selectedPlaylist = scoreLibrary.selectedPlaylist;
+    const songs = scoreLibrary.librarySongsRef.current;
+    if (!selectedPlaylist) {
+      return;
+    }
+
+    const songIndices = resolvePlaylistSongIndices(
+      selectedPlaylist.songIds,
+      songs,
+    );
+    const firstSongIndex = songIndices[0];
+    const firstSong =
+      firstSongIndex === undefined ? undefined : songs[firstSongIndex];
+    if (!firstSong) {
+      return;
+    }
+
+    const playlistSongIds = songIndices.map((songIndex) => songs[songIndex]!.id);
+    const transaction = playbackOrder.beginPlaybackContextValue({
+      currentSongId: firstSong.id,
+      songIds: playlistSongIds,
+      source: "playlist",
+    });
+    const didStart = await startPlaylistPlaybackQueue({
+      replaceQueue: playbackQueue.replaceQueueWithSongIndices,
+      songIndices,
+      startFirstSong: async (songIndex) =>
+        (await runPlaybackContextTransaction({
+          commit: playbackOrder.commitPlaybackContext,
+          rollback: playbackOrder.rollbackPlaybackContext,
+          start: async () =>
+            (await ensureTargetWindowReadyForPlayback()) &&
+            (await startOutputSong(songIndex)),
+          transaction,
+        })) === "started",
+    });
+
+    if (didStart) {
+      scoreLibrary.setSelectedSongId(firstSong.id);
     }
   }
 
@@ -494,6 +541,7 @@ export function usePlaybackCoordinator({
     handleDeleteLocalSong,
     handleNextPlayback,
     handlePlayLibraryItem,
+    handlePlayAllPlaylist,
     handlePlayQueueItem,
     handleQueueClear,
     handleQueueItemRemove,

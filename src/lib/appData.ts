@@ -37,6 +37,7 @@ import {
   createLocalSongMetadata,
   ensureLibrarySongs,
 } from "./libraryCollections";
+import { normalizeGlobalPlaybackShortcutScope } from "./playbackShortcuts";
 import type {
   LikedSongEntry,
   LocalLibrarySong,
@@ -290,14 +291,14 @@ function sanitizePlaybackShortcutBinding(
   defaultBinding: PlaybackShortcutBinding,
 ): PlaybackShortcutBinding {
   if (typeof rawBinding === "string") {
-    return {
+    return normalizeGlobalPlaybackShortcutScope({
       code:
         rawBinding.trim().length > 0 ? rawBinding : defaultBinding.code,
       scope: defaultBinding.scope,
-    };
+    });
   }
 
-  return {
+  return normalizeGlobalPlaybackShortcutScope({
     code:
       typeof rawBinding?.code === "string" && rawBinding.code.trim().length > 0
         ? rawBinding.code
@@ -306,7 +307,7 @@ function sanitizePlaybackShortcutBinding(
       rawBinding?.scope === "in-app" || rawBinding?.scope === "global"
         ? rawBinding.scope
         : defaultBinding.scope,
-  };
+  });
 }
 
 function sanitizePlaybackSettings(

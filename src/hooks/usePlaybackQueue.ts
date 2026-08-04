@@ -16,6 +16,53 @@ type UsePlaybackQueueOptions = {
   text: UiText["logs"];
 };
 
+export function createReplacementPlaybackQueue(
+  songIndices: number[],
+  songCount: number,
+  createQueueItem: (songIndex: number) => PlaybackQueueItem,
+) {
+  return songIndices
+    .filter(
+      (songIndex) =>
+        Number.isInteger(songIndex) && songIndex >= 0 && songIndex < songCount,
+    )
+    .map(createQueueItem);
+}
+
+export function replacePlaybackQueueWithCurrent(
+  songIndex: number,
+  createQueueItem: (songIndex: number) => PlaybackQueueItem,
+) {
+  return [createQueueItem(songIndex)];
+}
+
+export function addSongToPlaybackQueue(
+  queueItems: PlaybackQueueItem[],
+  songIndex: number,
+  createQueueItem: (songIndex: number) => PlaybackQueueItem,
+) {
+  return queueItems.some((item) => item.songIndex === songIndex)
+    ? queueItems
+    : [...queueItems, createQueueItem(songIndex)];
+}
+
+export function playSongNextInPlaybackQueue(
+  queueItems: PlaybackQueueItem[],
+  songIndex: number,
+  createQueueItem: (songIndex: number) => PlaybackQueueItem,
+) {
+  if (queueItems.some((item) => item.songIndex === songIndex)) {
+    return queueItems;
+  }
+
+  const item = createQueueItem(songIndex);
+  const [currentItem, ...futureItems] = queueItems;
+
+  return currentItem
+    ? [currentItem, item, ...futureItems]
+    : [item, ...futureItems];
+}
+
 export function removeSongIndicesFromPlaybackQueue(
   queueItems: PlaybackQueueItem[],
   removedSongIndices: number[],
@@ -113,20 +160,31 @@ export function usePlaybackQueue({
   }
 
   function replaceQueueWithCurrent(songIndex: number) {
-    setQueueItemsAndRef([createQueueItem(songIndex)]);
+    setQueueItemsAndRef(
+      replacePlaybackQueueWithCurrent(songIndex, createQueueItem),
+    );
+  }
+
+  function replaceQueueWithSongIndices(songIndices: number[]) {
+    setQueueItemsAndRef(
+      createReplacementPlaybackQueue(
+        songIndices,
+        librarySongsRef.current.length,
+        createQueueItem,
+      ),
+    );
   }
 
   function playNext(songIndex: number) {
-    if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
+    const nextItems = playSongNextInPlaybackQueue(
+      queueItemsRef.current,
+      songIndex,
+      createQueueItem,
+    );
+    if (nextItems === queueItemsRef.current) {
       logAlreadyQueued(songIndex);
       return;
     }
-
-    const item = createQueueItem(songIndex);
-    const [currentItem, ...futureItems] = queueItemsRef.current;
-    const nextItems = currentItem
-      ? [currentItem, item, ...futureItems]
-      : [item, ...futureItems];
 
     setQueueItemsAndRef(nextItems);
     appendLog(
@@ -137,14 +195,17 @@ export function usePlaybackQueue({
   }
 
   function addToQueue(songIndex: number) {
-    if (queueItemsRef.current.some((item) => item.songIndex === songIndex)) {
+    const nextItems = addSongToPlaybackQueue(
+      queueItemsRef.current,
+      songIndex,
+      createQueueItem,
+    );
+    if (nextItems === queueItemsRef.current) {
       logAlreadyQueued(songIndex);
       return;
     }
 
-    const item = createQueueItem(songIndex);
-
-    setQueueItemsAndRef([...queueItemsRef.current, item]);
+    setQueueItemsAndRef(nextItems);
     appendLog(
       formatText(text.queueItemAdded, {
         songName: getSongName(songIndex),
@@ -315,6 +376,7 @@ export function usePlaybackQueue({
     playNext,
     queueItems,
     replaceQueueWithCurrent,
+    replaceQueueWithSongIndices,
     resolveNextQueueForCurrent,
     removeSongIndex,
     removeSongIndices,

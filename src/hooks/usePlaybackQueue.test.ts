@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { removeSongIndicesFromPlaybackQueue } from "./usePlaybackQueue";
+import {
+  addSongToPlaybackQueue,
+  createReplacementPlaybackQueue,
+  playSongNextInPlaybackQueue,
+  removeSongIndicesFromPlaybackQueue,
+  replacePlaybackQueueWithCurrent,
+} from "./usePlaybackQueue";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 
 function createQueueItem(
@@ -112,5 +118,73 @@ describe("removeSongIndicesFromPlaybackQueue", () => {
     );
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("createReplacementPlaybackQueue", () => {
+  it("creates every playlist item in order with independent IDs", () => {
+    let id = 0;
+    const result = createReplacementPlaybackQueue([2, 0, 1], 3, (songIndex) =>
+      createQueueItem(songIndex, `new-${++id}`),
+    );
+
+    expect(result.map((item) => item.songIndex)).toEqual([2, 0, 1]);
+    expect(result.map((item) => item.id)).toEqual(["new-1", "new-2", "new-3"]);
+  });
+
+  it("replaces an existing queue instead of depending on it", () => {
+    const existing = [createQueueItem(9, "old")];
+    const result = createReplacementPlaybackQueue([1, 2], 3, createQueueItem);
+
+    expect(existing.map((item) => item.id)).toEqual(["old"]);
+    expect(result.map((item) => item.songIndex)).toEqual([1, 2]);
+  });
+
+  it("creates a one-item queue for a one-song playlist", () => {
+    expect(
+      createReplacementPlaybackQueue([0], 1, createQueueItem).map(
+        (item) => item.songIndex,
+      ),
+    ).toEqual([0]);
+  });
+
+  it("skips invalid song indices safely", () => {
+    expect(
+      createReplacementPlaybackQueue(
+        [-1, 0, 1.5, 2, 3, Number.NaN],
+        3,
+        createQueueItem,
+      ).map((item) => item.songIndex),
+    ).toEqual([0, 2]);
+  });
+});
+
+describe("individual queue operations", () => {
+  it("keeps individual Play replacing the queue with the current song", () => {
+    expect(
+      replacePlaybackQueueWithCurrent(2, createQueueItem).map(
+        (item) => item.songIndex,
+      ),
+    ).toEqual([2]);
+  });
+
+  it("keeps Add to Queue appending without replacing existing items", () => {
+    const result = addSongToPlaybackQueue(
+      [createQueueItem(0)],
+      2,
+      createQueueItem,
+    );
+
+    expect(result.map((item) => item.songIndex)).toEqual([0, 2]);
+  });
+
+  it("keeps Play Next inserting after the current item", () => {
+    const result = playSongNextInPlaybackQueue(
+      [createQueueItem(0), createQueueItem(2)],
+      1,
+      createQueueItem,
+    );
+
+    expect(result.map((item) => item.songIndex)).toEqual([0, 1, 2]);
   });
 });
