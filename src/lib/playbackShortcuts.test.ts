@@ -49,11 +49,33 @@ describe("shortcut recording", () => {
     "AltRight",
     "ShiftLeft",
     "ShiftRight",
+    "MetaLeft",
+    "MetaRight",
   ])("ignores modifier-only primary code %s", (code) => {
     expect(isModifierShortcutCode(code)).toBe(true);
     expect(
       getShortcutRecordingDecision(
         { altKey: false, code, ctrlKey: true, shiftKey: false },
+        "global",
+      ),
+    ).toEqual({ type: "ignore" });
+  });
+
+  it.each([
+    ["Windows key alone", "MetaLeft", false],
+    ["Win + K", "KeyK", false],
+    ["Win + Ctrl + K", "KeyK", true],
+    ["Win + Escape", "Escape", false],
+  ])("ignores %s while continuing to record", (_, code, ctrlKey) => {
+    expect(
+      getShortcutRecordingDecision(
+        {
+          altKey: false,
+          code,
+          ctrlKey,
+          metaKey: true,
+          shiftKey: false,
+        },
         "global",
       ),
     ).toEqual({ type: "ignore" });
@@ -153,6 +175,48 @@ describe("in-app shortcut matching", () => {
     expect(matchesPlaybackShortcutEvent(binding("Space"), event("Space"))).toBe(true);
   });
 
+  it("rejects Meta-modified events without triggering an action", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      next: binding("KeyK"),
+      pauseResume: binding("Space", { ctrl: true }),
+    };
+
+    expect(matchesPlaybackShortcutEvent(shortcuts.next, event("KeyK"))).toBe(true);
+    expect(
+      matchesPlaybackShortcutEvent(
+        shortcuts.next,
+        event("KeyK", { metaKey: true }),
+      ),
+    ).toBe(false);
+    expect(
+      matchesPlaybackShortcutEvent(
+        shortcuts.pauseResume,
+        event("Space", { ctrlKey: true }),
+      ),
+    ).toBe(true);
+    expect(
+      matchesPlaybackShortcutEvent(
+        shortcuts.pauseResume,
+        event("Space", { ctrlKey: true, metaKey: true }),
+      ),
+    ).toBe(false);
+    expect(
+      findMatchingInAppShortcutAction(
+        shortcuts,
+        event("KeyK", { metaKey: true }),
+        false,
+      ),
+    ).toBeUndefined();
+    expect(
+      findMatchingInAppShortcutAction(
+        shortcuts,
+        event("Space", { ctrlKey: true, metaKey: true }),
+        false,
+      ),
+    ).toBeUndefined();
+  });
+
   it("ignores editable targets and unrelated combinations", () => {
     const shortcuts: PlaybackShortcuts = {
       ...defaultPlaybackShortcuts,
@@ -187,6 +251,8 @@ describe("global shortcut validation and accelerators", () => {
     binding("Digit1"),
     binding("Escape"),
     binding("ControlLeft", { ctrl: true }),
+    binding("MetaLeft"),
+    binding("MetaRight"),
   ])("rejects invalid bare or modifier-only bindings", (value) => {
     expect(isValidGlobalPlaybackShortcut(value)).toBe(false);
     expect(toGlobalShortcutAccelerator(value)).toBeNull();

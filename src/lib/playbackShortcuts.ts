@@ -24,6 +24,8 @@ const modifierCodes = new Set([
   "AltRight",
   "ShiftLeft",
   "ShiftRight",
+  "MetaLeft",
+  "MetaRight",
 ]);
 
 export function isModifierShortcutCode(code: string) {
@@ -34,6 +36,10 @@ export function getShortcutRecordingDecision(
   event: ShortcutKeyboardState,
   scope: PlaybackShortcutBinding["scope"],
 ): ShortcutRecordingDecision {
+  if (event.metaKey) {
+    return { type: "ignore" };
+  }
+
   if (isModifierShortcutCode(event.code)) {
     return { type: "ignore" };
   }

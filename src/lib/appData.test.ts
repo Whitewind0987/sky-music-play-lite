@@ -364,6 +364,30 @@ describe("sanitizePersistedAppData current version", () => {
     });
   });
 
+  it("falls back safely for persisted Meta modifier primary codes", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: { code: "MetaRight", scope: "global" },
+        pauseResume: { code: "MetaLeft", scope: "in-app" },
+        stop: { code: "F8", scope: "in-app" },
+      },
+    });
+
+    expect(result?.playbackShortcuts).toEqual({
+      next: defaultPlaybackShortcuts.next,
+      pauseResume: defaultPlaybackShortcuts.pauseResume,
+      stop: {
+        alt: false,
+        code: "F8",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
+    });
+  });
+
   it("downgrades persisted unsafe global bindings before registration", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
