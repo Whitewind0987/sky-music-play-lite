@@ -9,17 +9,19 @@ export const noteIntervalDelayOptions = [-100, -50, 0, 50, 100, 200] as const;
 export const playbackSpeedOptions = [0.5, 1, 1.25, 1.5, 2] as const;
 
 export const noteIntervalDelayLimits = {
+  buttonStep: 10,
   defaultValue: 0,
+  inputStep: 1,
   max: 500,
   min: -200,
-  step: 10,
 } as const;
 
 export const playbackSpeedLimits = {
+  buttonStep: 0.1,
   defaultValue: 1,
+  inputStep: 0.01,
   max: 3,
   min: 0.25,
-  step: 0.1,
 } as const;
 
 export const defaultPlaybackMode: PlaybackMode = "sequence";
@@ -32,19 +34,15 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function roundToStep(value: number, step: number) {
-  return Math.round(value / step) * step;
-}
-
 export function normalizeNoteIntervalDelay(
   value: number,
   fallback: NoteIntervalDelayMs = defaultNoteIntervalDelayMs,
 ): NoteIntervalDelayMs {
   const safeValue = Number.isFinite(value) ? value : fallback;
-  const steppedValue = roundToStep(safeValue, noteIntervalDelayLimits.step);
+  const roundedValue = Math.round(safeValue);
 
   return clamp(
-    steppedValue,
+    roundedValue,
     noteIntervalDelayLimits.min,
     noteIntervalDelayLimits.max,
   );

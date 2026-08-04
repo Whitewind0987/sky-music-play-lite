@@ -100,23 +100,25 @@ function formatNumberInputValue(value: number) {
 }
 
 type PlayerStepperProps = {
+  buttonStep: number;
+  inputStep: number;
   label: string;
   max: number;
   min: number;
   normalizeValue: (value: number) => number;
   onChange: (value: number) => void;
-  step: number;
   unit: string;
   value: number;
 };
 
 function PlayerStepper({
+  buttonStep,
+  inputStep,
   label,
   max,
   min,
   normalizeValue,
   onChange,
-  step,
   unit,
   value,
 }: PlayerStepperProps) {
@@ -146,7 +148,7 @@ function PlayerStepper({
   }
 
   function handleStepClick(direction: -1 | 1) {
-    const nextValue = normalizeValue(value + step * direction);
+    const nextValue = normalizeValue(value + buttonStep * direction);
 
     onChange(nextValue);
     setDraftValue(formatNumberInputValue(nextValue));
@@ -169,7 +171,7 @@ function PlayerStepper({
           aria-label={label}
           max={max}
           min={min}
-          step={step}
+          step={inputStep}
           value={draftValue}
           onBlur={commitDraftValue}
           onChange={(event) => setDraftValue(event.target.value)}
@@ -600,6 +602,8 @@ export function BottomPlayer({
             <div className="player-option">
               <span className="player-option-label">{text.delay}</span>
               <PlayerStepper
+                buttonStep={noteIntervalDelayLimits.buttonStep}
+                inputStep={noteIntervalDelayLimits.inputStep}
                 label={text.delay}
                 max={noteIntervalDelayLimits.max}
                 min={noteIntervalDelayLimits.min}
@@ -607,7 +611,6 @@ export function BottomPlayer({
                 onChange={(value) =>
                   onNoteIntervalDelayChange(value as NoteIntervalDelayMs)
                 }
-                step={noteIntervalDelayLimits.step}
                 unit="ms"
                 value={noteIntervalDelayMs}
               />
@@ -616,12 +619,13 @@ export function BottomPlayer({
             <div className="player-option">
               <span className="player-option-label">{text.speed}</span>
               <PlayerStepper
+                buttonStep={playbackSpeedLimits.buttonStep}
+                inputStep={playbackSpeedLimits.inputStep}
                 label={text.speed}
                 max={playbackSpeedLimits.max}
                 min={playbackSpeedLimits.min}
                 normalizeValue={normalizePlaybackSpeed}
                 onChange={(value) => onPlaybackSpeedChange(value as PlaybackSpeed)}
-                step={playbackSpeedLimits.step}
                 unit="x"
                 value={playbackSpeed}
               />

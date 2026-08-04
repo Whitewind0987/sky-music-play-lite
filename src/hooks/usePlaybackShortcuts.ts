@@ -3,11 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import {
-  formatShortcutCode,
+  findMatchingInAppShortcutAction,
+  fallbackGlobalPlaybackShortcutToInApp,
+  formatPlaybackShortcut,
   isUnsafeGlobalPlaybackShortcut,
   normalizeGlobalPlaybackShortcutScope,
   shouldUnregisterGlobalPlaybackShortcut,
-  toGlobalShortcutAccelerators,
+  tryRegisterGlobalPlaybackShortcut,
 } from "../lib/playbackShortcuts";
 import {
   defaultPlaybackShortcuts,
@@ -72,8 +74,12 @@ export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybac
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || isEditableTarget(event.target)) return;
-      const action = playbackShortcutActions.find((candidate) => latestBindingsRef.current[candidate].scope === "in-app" && latestBindingsRef.current[candidate].code === event.code);
+      if (event.repeat) return;
+      const action = findMatchingInAppShortcutAction(
+        latestBindingsRef.current,
+        event,
+        isEditableTarget(event.target),
+      );
       if (action) { event.preventDefault(); controlsRef.current[action](); }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -101,38 +107,41 @@ export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybac
             setShortcutNotice((current) => ({ ...current, [action]: message }));
             setPlaybackShortcutsState((current) => ({ ...current, [action]: registered.binding }));
             showNoticeRef.current(message);
-            appendLogRef.current(formatText(text.logs.globalHotkeyRegisterFailed, { shortcut: formatShortcutCode(registered.binding.code) || registered.binding.code }));
+            appendLogRef.current(
+              formatText(text.logs.globalHotkeyRegisterFailed, {
+                shortcut: formatPlaybackShortcut(registered.binding),
+              }),
+            );
             continue;
           }
         }
         if (binding.scope !== "global" || registeredRef.current.has(action)) continue;
-        const candidates = toGlobalShortcutAccelerators(binding.code);
-        const unsafeGlobal = isUnsafeGlobalPlaybackShortcut(binding.code);
-        if (unsafeGlobal || candidates.length === 0) {
+        const unsafeGlobal = isUnsafeGlobalPlaybackShortcut(binding);
+        if (unsafeGlobal) {
           failGlobalBinding(
             action,
-            binding.code,
-            unsafeGlobal
-              ? text.settings.keyboardShortcutUnsafeGlobal
-              : text.settings.keyboardShortcutGlobalFailed,
+            binding,
+            text.settings.keyboardShortcutUnsafeGlobal,
           );
           continue;
         }
-        let registeredAccelerator: string | null = null;
-        for (const accelerator of candidates) {
-          try {
-            await register(accelerator, (event: ShortcutEvent) => {
-              if (event.state === "Pressed") controlsRef.current[action]();
-            });
-            registeredAccelerator = accelerator;
-            break;
-          } catch { /* try alias */ }
-        }
+        const registeredAccelerator =
+          await tryRegisterGlobalPlaybackShortcut(
+            binding,
+            (accelerator) =>
+              register(accelerator, (event: ShortcutEvent) => {
+                if (event.state === "Pressed") controlsRef.current[action]();
+              }),
+          );
         if (registeredAccelerator) {
           registeredRef.current.set(action, { accelerator: registeredAccelerator, binding });
           setShortcutNotice((current) => { const { [action]: _notice, ...rest } = current; return rest; });
         } else {
-          failGlobalBinding(action, binding.code, text.settings.keyboardShortcutGlobalFailed);
+          failGlobalBinding(
+            action,
+            binding,
+            text.settings.keyboardShortcutGlobalFailed,
+          );
         }
       }
     });
@@ -144,12 +153,23 @@ export function usePlaybackShortcuts({ appendLog, showNotice, text }: UsePlaybac
     text.settings.keyboardShortcutUnsafeGlobal,
   ]);
 
-  function failGlobalBinding(action: PlaybackShortcutAction, code: string, message: string) {
+  function failGlobalBinding(
+    action: PlaybackShortcutAction,
+    binding: PlaybackShortcutBinding,
+    message: string,
+  ) {
     if (latestBindingsRef.current[action].scope !== "global") return;
     setShortcutNotice((current) => ({ ...current, [action]: message }));
-    setPlaybackShortcutsState((current) => ({ ...current, [action]: { ...current[action], scope: "in-app" } }));
+    setPlaybackShortcutsState((current) => ({
+      ...current,
+      [action]: fallbackGlobalPlaybackShortcutToInApp(current[action]),
+    }));
     showNoticeRef.current(message);
-    appendLogRef.current(formatText(text.logs.globalHotkeyRegisterFailed, { shortcut: formatShortcutCode(code) || code }));
+    appendLogRef.current(
+      formatText(text.logs.globalHotkeyRegisterFailed, {
+        shortcut: formatPlaybackShortcut(binding),
+      }),
+    );
   }
 
   useEffect(() => () => {

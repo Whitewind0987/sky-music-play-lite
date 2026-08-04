@@ -3,7 +3,10 @@ export type PlaybackShortcutAction = "pauseResume" | "next" | "stop";
 export type PlaybackShortcutScope = "in-app" | "global";
 
 export type PlaybackShortcutBinding = {
+  alt: boolean;
   code: string;
+  ctrl: boolean;
+  shift: boolean;
   scope: PlaybackShortcutScope;
 };
 
@@ -23,7 +26,25 @@ export const playbackShortcutActions: PlaybackShortcutAction[] = [
 ];
 
 export const defaultPlaybackShortcuts: PlaybackShortcuts = {
-  pauseResume: { code: "Space", scope: "in-app" },
-  next: { code: "ArrowRight", scope: "in-app" },
-  stop: { code: "F9", scope: "global" },
+  pauseResume: {
+    alt: false,
+    code: "Space",
+    ctrl: true,
+    shift: false,
+    scope: "global",
+  },
+  next: {
+    alt: false,
+    code: "ArrowRight",
+    ctrl: true,
+    shift: false,
+    scope: "global",
+  },
+  stop: {
+    alt: false,
+    code: "F9",
+    ctrl: false,
+    shift: false,
+    scope: "global",
+  },
 };

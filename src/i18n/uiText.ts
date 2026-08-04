@@ -650,7 +650,7 @@ export const uiText = {
       experimentalTargetWindowListHint: "未找到窗口时，请刷新或检测。",
       keyboardShortcutsTitle: "快捷键",
       keyboardShortcutWarning:
-        "普通按键仅在应用窗口内生效，避免干扰正常键盘输入。全局快捷键仅支持 F1-F24。",
+        "全局快捷键支持 F1-F24，或至少带 Ctrl、Alt、Shift 之一的组合键；裸普通键仅在应用内生效。",
       keyboardShortcutActions: {
         pauseResume: "暂停 / 继续",
         next: "下一首",
@@ -664,15 +664,15 @@ export const uiText = {
       keyboardShortcutConflictBadge: "快捷键警告",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutUnsafeGlobal:
-        "普通按键不能用作全局快捷键，否则会干扰正常键盘输入；已自动改为仅应用内。",
+        "裸普通键不能用作全局快捷键，否则会干扰正常键盘输入；已自动改为仅应用内。",
       keyboardShortcutGlobalFailed:
         "全局快捷键注册失败，可能已被系统或其他软件占用；已自动改为仅应用内。",
       keyboardShortcutMappingActive: "请先完成当前键位映射设置。",
       keyboardShortcutResetLabel: "快捷键预设",
       keyboardShortcutReset: "恢复默认快捷键",
       keyboardShortcuts: [
-        { key: "Space", label: "暂停 / 继续" },
-        { key: "ArrowRight", label: "下一首" },
+        { key: "Ctrl + Space", label: "暂停 / 继续" },
+        { key: "Ctrl + ArrowRight", label: "下一首" },
         { key: "F9", label: "停止" },
       ],
     },
@@ -1354,7 +1354,7 @@ export const uiText = {
         "Refresh or detect again if the window is not found.",
       keyboardShortcutsTitle: "Shortcuts",
       keyboardShortcutWarning:
-        "Ordinary keys work only while the app is focused to avoid interfering with normal keyboard input. Only F1-F24 can be global shortcuts.",
+        "Global shortcuts support F1-F24 or combinations using Ctrl, Alt, or Shift. Bare ordinary keys work only in app.",
       keyboardShortcutActions: {
         pauseResume: "Pause / Resume",
         next: "Next",
@@ -1368,15 +1368,15 @@ export const uiText = {
       keyboardShortcutConflictBadge: "Shortcut warning",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutUnsafeGlobal:
-        "Ordinary keys cannot be global shortcuts because they would interfere with normal keyboard input. The scope was changed to In app.",
+        "Bare ordinary keys cannot be global shortcuts because they would interfere with normal keyboard input. The scope was changed to In app.",
       keyboardShortcutGlobalFailed:
         "Failed to register the global shortcut because it may be used by the system or another app. The scope was changed to In app.",
       keyboardShortcutMappingActive: "Finish the current key mapping first.",
       keyboardShortcutResetLabel: "Shortcut preset",
       keyboardShortcutReset: "Reset shortcuts",
       keyboardShortcuts: [
-        { key: "Space", label: "Pause / Resume" },
-        { key: "ArrowRight", label: "Next" },
+        { key: "Ctrl + Space", label: "Pause / Resume" },
+        { key: "Ctrl + ArrowRight", label: "Next" },
         { key: "F9", label: "Stop" },
       ],
     },

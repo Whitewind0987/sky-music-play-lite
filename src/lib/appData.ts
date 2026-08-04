@@ -31,13 +31,17 @@ import {
   defaultPlaybackShortcuts,
   playbackShortcutActions,
   type PlaybackShortcutBinding,
+  type PlaybackShortcutAction,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
 import {
   createLocalSongMetadata,
   ensureLibrarySongs,
 } from "./libraryCollections";
-import { normalizeGlobalPlaybackShortcutScope } from "./playbackShortcuts";
+import {
+  isModifierShortcutCode,
+  normalizeGlobalPlaybackShortcutScope,
+} from "./playbackShortcuts";
 import type {
   LikedSongEntry,
   LocalLibrarySong,
@@ -279,6 +283,7 @@ function sanitizePlaybackShortcuts(
         [action]: sanitizePlaybackShortcutBinding(
           typeof shortcut === "string" ? shortcut : binding,
           defaultBinding,
+          action,
         ),
       };
     },
@@ -289,24 +294,80 @@ function sanitizePlaybackShortcuts(
 function sanitizePlaybackShortcutBinding(
   rawBinding: string | Record<string, unknown> | null,
   defaultBinding: PlaybackShortcutBinding,
+  action: PlaybackShortcutAction,
 ): PlaybackShortcutBinding {
+  if (rawBinding === null) {
+    return { ...defaultBinding };
+  }
+
+  const code =
+    typeof rawBinding === "string"
+      ? rawBinding.trim()
+      : typeof rawBinding.code === "string"
+        ? rawBinding.code.trim()
+        : "";
+  if (code === "") {
+    return { ...defaultBinding };
+  }
+  if (isModifierShortcutCode(code)) {
+    return { ...defaultBinding };
+  }
+
   if (typeof rawBinding === "string") {
-    return normalizeGlobalPlaybackShortcutScope({
-      code:
-        rawBinding.trim().length > 0 ? rawBinding : defaultBinding.code,
-      scope: defaultBinding.scope,
-    });
+    return sanitizeLegacyPlaybackShortcutBinding(
+      action,
+      code,
+      action === "stop" ? "global" : "in-app",
+      defaultBinding,
+    );
+  }
+
+  const scope =
+    rawBinding.scope === "in-app" || rawBinding.scope === "global"
+      ? rawBinding.scope
+      : defaultBinding.scope;
+  const hasModifierFields =
+    "ctrl" in rawBinding || "alt" in rawBinding || "shift" in rawBinding;
+
+  if (!hasModifierFields) {
+    return sanitizeLegacyPlaybackShortcutBinding(
+      action,
+      code,
+      scope,
+      defaultBinding,
+    );
   }
 
   return normalizeGlobalPlaybackShortcutScope({
-    code:
-      typeof rawBinding?.code === "string" && rawBinding.code.trim().length > 0
-        ? rawBinding.code
-        : defaultBinding.code,
-    scope:
-      rawBinding?.scope === "in-app" || rawBinding?.scope === "global"
-        ? rawBinding.scope
-        : defaultBinding.scope,
+    alt: rawBinding.alt === true,
+    code,
+    ctrl: rawBinding.ctrl === true,
+    shift: rawBinding.shift === true,
+    scope,
+  });
+}
+
+function sanitizeLegacyPlaybackShortcutBinding(
+  action: PlaybackShortcutAction,
+  code: string,
+  scope: PlaybackShortcutBinding["scope"],
+  defaultBinding: PlaybackShortcutBinding,
+) {
+  const isOldDefault =
+    (action === "pauseResume" && code === "Space" && scope === "in-app") ||
+    (action === "next" && code === "ArrowRight" && scope === "in-app") ||
+    (action === "stop" && code === "F9" && scope === "global");
+
+  if (isOldDefault) {
+    return { ...defaultBinding };
+  }
+
+  return normalizeGlobalPlaybackShortcutScope({
+    alt: false,
+    code,
+    ctrl: false,
+    shift: false,
+    scope,
   });
 }
 

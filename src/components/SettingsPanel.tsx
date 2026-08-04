@@ -8,8 +8,11 @@ import {
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
-  formatShortcutCode,
+  findDuplicatePlaybackShortcutAction,
+  formatPlaybackShortcut,
+  getShortcutRecordingDecision,
   isUnsafeGlobalPlaybackShortcut,
+  normalizeGlobalPlaybackShortcutScope,
 } from "../lib/playbackShortcuts";
 import type {
   CandidateWindow,
@@ -146,16 +149,28 @@ export function SettingsPlaceholder({
       event.preventDefault();
       event.stopPropagation();
 
-      if (event.code === "Escape") {
+      const recordingDecision = getShortcutRecordingDecision(
+        event,
+        playbackShortcuts[currentAction].scope,
+      );
+
+      if (recordingDecision.type === "ignore") {
+        return;
+      }
+
+      if (recordingDecision.type === "cancel") {
         setListeningShortcutAction(null);
         setShortcutConflictNotices({});
         return;
       }
 
-      const duplicateAction = playbackShortcutActions.find(
-        (action) =>
-          action !== currentAction &&
-          playbackShortcuts[action].code === event.code,
+      const nextBinding = normalizeGlobalPlaybackShortcutScope(
+        recordingDecision.binding,
+      );
+      const duplicateAction = findDuplicatePlaybackShortcutAction(
+        playbackShortcuts,
+        currentAction,
+        nextBinding,
       );
 
       if (duplicateAction !== undefined) {
@@ -165,33 +180,17 @@ export function SettingsPlaceholder({
         return;
       }
 
-      if (
-        playbackShortcuts[currentAction].scope === "global" &&
-        isUnsafeGlobalPlaybackShortcut(event.code)
-      ) {
-        onPlaybackShortcutsChange({
-          ...playbackShortcuts,
-          [currentAction]: {
-            code: event.code,
-            scope: "in-app",
-          },
-        });
-        setShortcutConflictNotices({
-          [currentAction]: text.keyboardShortcutUnsafeGlobal,
-        });
-        setListeningShortcutAction(null);
-        return;
-      }
-
       onPlaybackShortcutsChange({
         ...playbackShortcuts,
-        [currentAction]: {
-          ...playbackShortcuts[currentAction],
-          code: event.code,
-        },
+        [currentAction]: nextBinding,
       });
       setListeningShortcutAction(null);
-      setShortcutConflictNotices({});
+      setShortcutConflictNotices(
+        recordingDecision.binding.scope === "global" &&
+          nextBinding.scope === "in-app"
+          ? { [currentAction]: text.keyboardShortcutUnsafeGlobal }
+          : {},
+      );
     }
 
     window.addEventListener("keydown", handleShortcutKeyDown, true);
@@ -628,7 +627,7 @@ export function SettingsPlaceholder({
                       const isRequestingUnsafeGlobal =
                         playbackShortcuts[action].scope === "in-app" &&
                         isUnsafeGlobalPlaybackShortcut(
-                          playbackShortcuts[action].code,
+                          playbackShortcuts[action],
                         );
                       onPlaybackShortcutsChange({
                         ...playbackShortcuts,
@@ -685,7 +684,7 @@ export function SettingsPlaceholder({
                 >
                   {isListening
                     ? text.keyboardShortcutListening
-                    : formatShortcutCode(playbackShortcuts[action].code)}
+                    : formatPlaybackShortcut(playbackShortcuts[action])}
                 </button>
               </div>
             );

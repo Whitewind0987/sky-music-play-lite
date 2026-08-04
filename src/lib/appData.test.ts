@@ -320,6 +320,20 @@ describe("sanitizePersistedAppData current version", () => {
     expect(result?.playbackShortcuts).toEqual(defaultPlaybackShortcuts);
   });
 
+  it("migrates the three old structured defaults by action identity", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: { code: "ArrowRight", scope: "in-app" },
+        pauseResume: { code: "Space", scope: "in-app" },
+        stop: { code: "F9", scope: "global" },
+      },
+    });
+
+    expect(result?.playbackShortcuts).toEqual(defaultPlaybackShortcuts);
+  });
+
   it("sanitizes shortcut binding codes and scopes independently", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
@@ -332,9 +346,21 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
-      next: { code: "KeyN", scope: "in-app" },
+      next: {
+        alt: false,
+        code: "KeyN",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
       pauseResume: defaultPlaybackShortcuts.pauseResume,
-      stop: { code: "F8", scope: "in-app" },
+      stop: {
+        alt: false,
+        code: "F8",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
     });
   });
 
@@ -350,10 +376,96 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
-      next: { code: "ArrowRight", scope: "in-app" },
-      pauseResume: { code: "Space", scope: "in-app" },
-      stop: { code: "Digit9", scope: "in-app" },
+      next: {
+        alt: false,
+        code: "ArrowRight",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
+      pauseResume: {
+        alt: false,
+        code: "Space",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
+      stop: {
+        alt: false,
+        code: "Digit9",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
     });
+  });
+
+  it("preserves legacy custom shortcuts and valid bare function keys", () => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: { code: "KeyN", scope: "in-app" },
+        pauseResume: { code: "F2", scope: "global" },
+        stop: { code: "KeyS", scope: "global" },
+      },
+    });
+
+    expect(result?.playbackShortcuts).toEqual({
+      next: {
+        alt: false,
+        code: "KeyN",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
+      pauseResume: {
+        alt: false,
+        code: "F2",
+        ctrl: false,
+        shift: false,
+        scope: "global",
+      },
+      stop: {
+        alt: false,
+        code: "KeyS",
+        ctrl: false,
+        shift: false,
+        scope: "in-app",
+      },
+    });
+  });
+
+  it("preserves structured combinations without mutating persisted input", () => {
+    const raw = {
+      appDataVersion,
+      alwaysOnTop: true,
+      language: "en-US",
+      library: {},
+      playbackSettings: {
+        isShuffleEnabled: true,
+        noteIntervalDelayMs: 123,
+        playbackMode: "repeat-all",
+        playbackSpeed: 1.17,
+      },
+      playbackShortcuts: {
+        next: {
+          alt: true,
+          code: "ArrowRight",
+          ctrl: false,
+          shift: true,
+          scope: "global",
+        },
+      },
+    } as const;
+    const snapshot = structuredClone(raw);
+    const result = sanitizePersistedAppData(raw);
+
+    expect(raw).toEqual(snapshot);
+    expect(result?.playbackShortcuts.next).toEqual(raw.playbackShortcuts.next);
+    expect(result?.playbackSettings).toEqual(raw.playbackSettings);
+    expect(result?.alwaysOnTop).toBe(true);
+    expect(result?.language).toBe("en-US");
   });
 
   it("returns null for non-object input", () => {
@@ -991,12 +1103,30 @@ describe("sanitizePersistedAppData v3 recovery", () => {
       language: "en-US",
       librarySongs: [createLocalLibrarySong("local-roundtrip")],
       likedSongs: [{ likedAt: 7, songId: "local-roundtrip" }],
-      noteIntervalDelayMs: 50,
+      noteIntervalDelayMs: 123,
       playbackMode: "repeat-all",
       playbackShortcuts: {
-        next: { code: "KeyN", scope: "global" },
-        pauseResume: { code: "Space", scope: "in-app" },
-        stop: { code: "KeyS", scope: "global" },
+        next: {
+          alt: true,
+          code: "KeyN",
+          ctrl: false,
+          shift: true,
+          scope: "global",
+        },
+        pauseResume: {
+          alt: false,
+          code: "Space",
+          ctrl: true,
+          shift: false,
+          scope: "in-app",
+        },
+        stop: {
+          alt: false,
+          code: "F9",
+          ctrl: false,
+          shift: false,
+          scope: "global",
+        },
       },
       playbackSpeed: 1.5,
       playlists: [createPlaylist("playlist-a", ["local-roundtrip"])],
