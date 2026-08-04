@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   languageOptions,
   type LanguageCode,
@@ -8,11 +8,11 @@ import {
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
-  findDuplicatePlaybackShortcutAction,
+  applyPlaybackShortcutRecordingOutcome,
   formatPlaybackShortcut,
   getShortcutRecordingDecision,
   isUnsafeGlobalPlaybackShortcut,
-  normalizeGlobalPlaybackShortcutScope,
+  resolvePlaybackShortcutRecordingOutcome,
 } from "../lib/playbackShortcuts";
 import type {
   CandidateWindow,
@@ -74,13 +74,19 @@ type SettingsPlaceholderProps = {
   experimentalInput: ExperimentalInputPanelState;
   keyMapping: KeyMapping;
   language: LanguageCode;
+  isShortcutRecordingPending: boolean;
   listeningSkyKey: SkyKeyName | null;
+  listeningShortcutAction: PlaybackShortcutAction | null;
   onShortcutNoticeClear: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onConfirmBeforeExitChange: (confirmBeforeExit: boolean) => void;
   onLanguageChange: (language: LanguageCode) => void;
   onOpenLogDirectory: () => void;
   onPlaybackShortcutsChange: (playbackShortcuts: PlaybackShortcuts) => void;
+  onShortcutRecordingEnd: () => Promise<void>;
+  onShortcutRecordingStart: (
+    action: PlaybackShortcutAction,
+  ) => Promise<boolean>;
   playbackShortcuts: PlaybackShortcuts;
   shortcutNotice: PlaybackShortcutNotices;
   text: UiText["settings"];
@@ -93,21 +99,26 @@ export function SettingsPlaceholder({
   experimentalInput,
   keyMapping,
   language,
+  isShortcutRecordingPending,
   listeningSkyKey,
+  listeningShortcutAction,
   onShortcutNoticeClear,
   onKeyMappingListenStart,
   onConfirmBeforeExitChange,
   onLanguageChange,
   onOpenLogDirectory,
   onPlaybackShortcutsChange,
+  onShortcutRecordingEnd,
+  onShortcutRecordingStart,
   playbackShortcuts,
   shortcutNotice,
   text,
 }: SettingsPlaceholderProps) {
-  const [listeningShortcutAction, setListeningShortcutAction] =
-    useState<PlaybackShortcutAction | null>(null);
   const [shortcutConflictNotices, setShortcutConflictNotices] =
     useState<PlaybackShortcutNotices>({});
+  const shortcutBindingRefs = useRef<
+    Partial<Record<PlaybackShortcutAction, HTMLButtonElement | null>>
+  >({});
   const experimentalPlaybackPercent = Math.round(
     experimentalInput.experimentalPlaybackProgress.percent,
   );
@@ -133,10 +144,68 @@ export function SettingsPlaceholder({
 
   useEffect(() => {
     if (listeningSkyKey !== null) {
-      setListeningShortcutAction(null);
+      void onShortcutRecordingEnd();
       setShortcutConflictNotices({});
     }
-  }, [listeningSkyKey]);
+  }, [listeningSkyKey, onShortcutRecordingEnd]);
+
+  useEffect(
+    () => () => {
+      void onShortcutRecordingEnd();
+    },
+    [onShortcutRecordingEnd],
+  );
+
+  useEffect(() => {
+    if (listeningShortcutAction === null) {
+      return;
+    }
+    const activeAction = listeningShortcutAction;
+
+    function cancelRecording() {
+      setShortcutConflictNotices({});
+      void onShortcutRecordingEnd();
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const activeButton = shortcutBindingRefs.current[activeAction];
+      if (
+        event.target instanceof Node &&
+        activeButton?.contains(event.target)
+      ) {
+        return;
+      }
+      cancelRecording();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        cancelRecording();
+      }
+    }
+
+    function handleFocusIn(event: FocusEvent) {
+      const activeButton = shortcutBindingRefs.current[activeAction];
+      if (
+        event.target instanceof Node &&
+        !activeButton?.contains(event.target)
+      ) {
+        cancelRecording();
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("focusin", handleFocusIn, true);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", cancelRecording);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("focusin", handleFocusIn, true);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", cancelRecording);
+    };
+  }, [listeningShortcutAction, onShortcutRecordingEnd]);
 
   useEffect(() => {
     if (listeningShortcutAction === null) {
@@ -149,48 +218,43 @@ export function SettingsPlaceholder({
       event.preventDefault();
       event.stopPropagation();
 
-      const recordingDecision = getShortcutRecordingDecision(
-        event,
-        playbackShortcuts[currentAction].scope,
-      );
-
-      if (recordingDecision.type === "ignore") {
-        return;
-      }
-
-      if (recordingDecision.type === "cancel") {
-        setListeningShortcutAction(null);
-        setShortcutConflictNotices({});
-        return;
-      }
-
-      const nextBinding = normalizeGlobalPlaybackShortcutScope(
-        recordingDecision.binding,
-      );
-      const duplicateAction = findDuplicatePlaybackShortcutAction(
+      const recordingOutcome = resolvePlaybackShortcutRecordingOutcome(
         playbackShortcuts,
         currentAction,
-        nextBinding,
+        getShortcutRecordingDecision(
+          event,
+          playbackShortcuts[currentAction].scope,
+        ),
       );
 
-      if (duplicateAction !== undefined) {
+      if (recordingOutcome.type === "ignore") {
+        return;
+      }
+
+      if (recordingOutcome.type === "cancel") {
+        setShortcutConflictNotices({});
+      } else if (recordingOutcome.type === "duplicate") {
         setShortcutConflictNotices({
           [currentAction]: text.keyboardShortcutDuplicate,
         });
-        return;
+      } else if (recordingOutcome.type === "unchanged") {
+        setShortcutConflictNotices({});
+      } else {
+        onPlaybackShortcutsChange(
+          applyPlaybackShortcutRecordingOutcome(
+            playbackShortcuts,
+            currentAction,
+            recordingOutcome,
+          ),
+        );
+        setShortcutConflictNotices(
+          recordingOutcome.fellBackToInApp
+            ? { [currentAction]: text.keyboardShortcutUnsafeGlobal }
+            : {},
+        );
       }
 
-      onPlaybackShortcutsChange({
-        ...playbackShortcuts,
-        [currentAction]: nextBinding,
-      });
-      setListeningShortcutAction(null);
-      setShortcutConflictNotices(
-        recordingDecision.binding.scope === "global" &&
-          nextBinding.scope === "in-app"
-          ? { [currentAction]: text.keyboardShortcutUnsafeGlobal }
-          : {},
-      );
+      void onShortcutRecordingEnd();
     }
 
     window.addEventListener("keydown", handleShortcutKeyDown, true);
@@ -201,6 +265,7 @@ export function SettingsPlaceholder({
   }, [
     listeningShortcutAction,
     onPlaybackShortcutsChange,
+    onShortcutRecordingEnd,
     playbackShortcuts,
     text.keyboardShortcutDuplicate,
     text.keyboardShortcutUnsafeGlobal,
@@ -490,7 +555,10 @@ export function SettingsPlaceholder({
                 key={skyKey}
                 type="button"
                 aria-pressed={isListening}
-                onClick={() => onKeyMappingListenStart(skyKey)}
+                onClick={() => {
+                  void onShortcutRecordingEnd();
+                  onKeyMappingListenStart(skyKey);
+                }}
               >
                 <span className="key-binding-name">{skyKey}</span>
                 <span className="key-binding-value">
@@ -600,7 +668,8 @@ export function SettingsPlaceholder({
         <div className="setting-placeholder-list">
           {playbackShortcutActions.map((action) => {
             const isListening = listeningShortcutAction === action;
-            const isDisabled = listeningSkyKey !== null;
+            const isDisabled =
+              listeningSkyKey !== null || isShortcutRecordingPending;
             const rowShortcutNotice =
               shortcutConflictNotices[action] ?? shortcutNotice[action];
 
@@ -671,6 +740,9 @@ export function SettingsPlaceholder({
                   ) : null}
                 </div>
                 <button
+                  ref={(element) => {
+                    shortcutBindingRefs.current[action] = element;
+                  }}
                   className={`shortcut-binding-button${
                     isListening ? " is-listening" : ""
                   }`}
@@ -678,8 +750,8 @@ export function SettingsPlaceholder({
                   disabled={isDisabled}
                   onClick={() => {
                     onShortcutNoticeClear();
-                    setListeningShortcutAction(action);
                     setShortcutConflictNotices({});
+                    void onShortcutRecordingStart(action);
                   }}
                 >
                   {isListening
@@ -702,7 +774,7 @@ export function SettingsPlaceholder({
               onClick={() => {
                 onShortcutNoticeClear();
                 onPlaybackShortcutsChange(defaultPlaybackShortcuts);
-                setListeningShortcutAction(null);
+                void onShortcutRecordingEnd();
                 setShortcutConflictNotices({});
               }}
             >

@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  applyPlaybackShortcutRecordingOutcome,
   arePlaybackShortcutCombinationsEqual,
   fallbackGlobalPlaybackShortcutToInApp,
   findDuplicatePlaybackShortcutAction,
   findMatchingInAppShortcutAction,
   formatPlaybackShortcut,
+  getDesiredGlobalPlaybackShortcutActions,
+  getPlaybackShortcutRecordingRequestDecision,
   getShortcutRecordingDecision,
   isModifierShortcutCode,
   isValidGlobalPlaybackShortcut,
   matchesPlaybackShortcutEvent,
+  resolvePlaybackShortcutRecordingOutcome,
   shouldUnregisterGlobalPlaybackShortcut,
+  shouldEndPlaybackShortcutRecording,
   toGlobalShortcutAccelerator,
   tryRegisterGlobalPlaybackShortcut,
 } from "./playbackShortcuts";
@@ -111,6 +116,169 @@ describe("shortcut recording", () => {
         "global",
       ).type,
     ).toBe("capture");
+  });
+});
+
+describe("shortcut recording outcomes", () => {
+  it("completes successfully without changes for the current combination", () => {
+    const shortcuts = { ...defaultPlaybackShortcuts };
+    const outcome = resolvePlaybackShortcutRecordingOutcome(
+      shortcuts,
+      "pauseResume",
+      {
+        binding: binding("Space", { ctrl: true, scope: "global" }),
+        type: "capture",
+      },
+    );
+
+    expect(outcome).toEqual({ type: "unchanged" });
+    expect(
+      applyPlaybackShortcutRecordingOutcome(
+        shortcuts,
+        "pauseResume",
+        outcome,
+      ),
+    ).toBe(shortcuts);
+    expect(shouldEndPlaybackShortcutRecording(outcome)).toBe(true);
+  });
+
+  it("rejects a duplicate without modifying either binding and ends recording", () => {
+    const shortcuts = { ...defaultPlaybackShortcuts };
+    const outcome = resolvePlaybackShortcutRecordingOutcome(
+      shortcuts,
+      "next",
+      {
+        binding: binding("Space", { ctrl: true, scope: "global" }),
+        type: "capture",
+      },
+    );
+
+    expect(outcome).toEqual({
+      duplicateAction: "pauseResume",
+      type: "duplicate",
+    });
+    expect(
+      applyPlaybackShortcutRecordingOutcome(shortcuts, "next", outcome),
+    ).toBe(shortcuts);
+    expect(shouldEndPlaybackShortcutRecording(outcome)).toBe(true);
+  });
+
+  it("applies a valid new combination", () => {
+    const shortcuts = { ...defaultPlaybackShortcuts };
+    const outcome = resolvePlaybackShortcutRecordingOutcome(
+      shortcuts,
+      "next",
+      {
+        binding: binding("KeyN", { ctrl: true, scope: "global" }),
+        type: "capture",
+      },
+    );
+
+    expect(outcome).toEqual({
+      binding: binding("KeyN", { ctrl: true, scope: "global" }),
+      fellBackToInApp: false,
+      type: "apply",
+    });
+    expect(
+      applyPlaybackShortcutRecordingOutcome(shortcuts, "next", outcome).next,
+    ).toEqual(binding("KeyN", { ctrl: true, scope: "global" }));
+  });
+
+  it("keeps unsafe global fallback behavior", () => {
+    const outcome = resolvePlaybackShortcutRecordingOutcome(
+      defaultPlaybackShortcuts,
+      "next",
+      {
+        binding: binding("KeyN", { scope: "global" }),
+        type: "capture",
+      },
+    );
+
+    expect(outcome).toEqual({
+      binding: binding("KeyN"),
+      fellBackToInApp: true,
+      type: "apply",
+    });
+  });
+
+  it("keeps ignored events active and ends on bare Escape", () => {
+    const ignoredModifier = resolvePlaybackShortcutRecordingOutcome(
+      defaultPlaybackShortcuts,
+      "next",
+      getShortcutRecordingDecision(
+        {
+          altKey: false,
+          code: "ControlLeft",
+          ctrlKey: true,
+          shiftKey: false,
+        },
+        "global",
+      ),
+    );
+    const ignoredMeta = resolvePlaybackShortcutRecordingOutcome(
+      defaultPlaybackShortcuts,
+      "next",
+      getShortcutRecordingDecision(
+        {
+          altKey: false,
+          code: "KeyK",
+          ctrlKey: false,
+          metaKey: true,
+          shiftKey: false,
+        },
+        "global",
+      ),
+    );
+    const cancelled = resolvePlaybackShortcutRecordingOutcome(
+      defaultPlaybackShortcuts,
+      "next",
+      getShortcutRecordingDecision(
+        {
+          altKey: false,
+          code: "Escape",
+          ctrlKey: false,
+          shiftKey: false,
+        },
+        "global",
+      ),
+    );
+
+    expect(shouldEndPlaybackShortcutRecording(ignoredModifier)).toBe(false);
+    expect(shouldEndPlaybackShortcutRecording(ignoredMeta)).toBe(false);
+    expect(cancelled).toEqual({ type: "cancel" });
+    expect(shouldEndPlaybackShortcutRecording(cancelled)).toBe(true);
+  });
+});
+
+describe("shortcut recording registration suspension", () => {
+  it("has no desired global shortcuts during recording", () => {
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(defaultPlaybackShortcuts, true),
+    ).toEqual([]);
+  });
+
+  it("restores the currently configured global actions after recording", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      next: binding("KeyN"),
+    };
+
+    expect(getDesiredGlobalPlaybackShortcutActions(shortcuts, false)).toEqual([
+      "pauseResume",
+      "stop",
+    ]);
+  });
+
+  it("keeps one active action when recording requests change", () => {
+    expect(
+      getPlaybackShortcutRecordingRequestDecision(null, "pauseResume"),
+    ).toBe("start");
+    expect(
+      getPlaybackShortcutRecordingRequestDecision("pauseResume", "next"),
+    ).toBe("replace-current");
+    expect(
+      getPlaybackShortcutRecordingRequestDecision("next", "next"),
+    ).toBe("cancel-current");
   });
 });
 

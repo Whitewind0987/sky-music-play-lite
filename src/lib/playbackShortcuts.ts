@@ -1,7 +1,8 @@
-import type {
-  PlaybackShortcutAction,
-  PlaybackShortcutBinding,
-  PlaybackShortcuts,
+import {
+  playbackShortcutActions,
+  type PlaybackShortcutAction,
+  type PlaybackShortcutBinding,
+  type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
 
 type ShortcutKeyboardState = {
@@ -16,6 +17,22 @@ export type ShortcutRecordingDecision =
   | { type: "cancel" }
   | { type: "ignore" }
   | { binding: PlaybackShortcutBinding; type: "capture" };
+
+export type PlaybackShortcutRecordingOutcome =
+  | { type: "cancel" }
+  | { duplicateAction: PlaybackShortcutAction; type: "duplicate" }
+  | { type: "ignore" }
+  | {
+      binding: PlaybackShortcutBinding;
+      fellBackToInApp: boolean;
+      type: "apply";
+    }
+  | { type: "unchanged" };
+
+export type PlaybackShortcutRecordingRequestDecision =
+  | "cancel-current"
+  | "replace-current"
+  | "start";
 
 const modifierCodes = new Set([
   "ControlLeft",
@@ -63,6 +80,66 @@ export function getShortcutRecordingDecision(
     },
     type: "capture",
   };
+}
+
+export function resolvePlaybackShortcutRecordingOutcome(
+  shortcuts: PlaybackShortcuts,
+  currentAction: PlaybackShortcutAction,
+  decision: ShortcutRecordingDecision,
+): PlaybackShortcutRecordingOutcome {
+  if (decision.type !== "capture") {
+    return decision;
+  }
+
+  const nextBinding = normalizeGlobalPlaybackShortcutScope(decision.binding);
+  if (
+    arePlaybackShortcutCombinationsEqual(
+      shortcuts[currentAction],
+      nextBinding,
+    )
+  ) {
+    return { type: "unchanged" };
+  }
+
+  const duplicateAction = findDuplicatePlaybackShortcutAction(
+    shortcuts,
+    currentAction,
+    nextBinding,
+  );
+  if (duplicateAction !== undefined) {
+    return { duplicateAction, type: "duplicate" };
+  }
+
+  return {
+    binding: nextBinding,
+    fellBackToInApp:
+      decision.binding.scope === "global" && nextBinding.scope === "in-app",
+    type: "apply",
+  };
+}
+
+export function applyPlaybackShortcutRecordingOutcome(
+  shortcuts: PlaybackShortcuts,
+  currentAction: PlaybackShortcutAction,
+  outcome: PlaybackShortcutRecordingOutcome,
+) {
+  return outcome.type === "apply"
+    ? { ...shortcuts, [currentAction]: outcome.binding }
+    : shortcuts;
+}
+
+export function shouldEndPlaybackShortcutRecording(
+  outcome: PlaybackShortcutRecordingOutcome,
+) {
+  return outcome.type !== "ignore";
+}
+
+export function getPlaybackShortcutRecordingRequestDecision(
+  currentAction: PlaybackShortcutAction | null,
+  requestedAction: PlaybackShortcutAction,
+): PlaybackShortcutRecordingRequestDecision {
+  if (currentAction === requestedAction) return "cancel-current";
+  return currentAction === null ? "start" : "replace-current";
 }
 
 export function formatShortcutCode(code: string) {
@@ -145,6 +222,17 @@ export function findMatchingInAppShortcutAction(
       shortcuts[action].scope === "in-app" &&
       matchesPlaybackShortcutEvent(shortcuts[action], event),
   );
+}
+
+export function getDesiredGlobalPlaybackShortcutActions(
+  shortcuts: PlaybackShortcuts,
+  isRecording: boolean,
+) {
+  return isRecording
+    ? []
+    : playbackShortcutActions.filter(
+        (action) => shortcuts[action].scope === "global",
+      );
 }
 
 export function isValidGlobalPlaybackShortcut(

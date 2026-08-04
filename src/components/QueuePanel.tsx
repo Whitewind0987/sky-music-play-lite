@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
 import type { UiText } from "../i18n/uiText";
 import {
   getLibrarySongBpm,
   getLibrarySongName,
   getLibrarySongNoteCount,
 } from "../lib/libraryCollections";
+import { getQueueWheelRoutingDecision } from "../lib/queueWheel";
 import type { LibrarySong } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 
@@ -24,8 +26,45 @@ export function QueuePanel({
   songs,
   text,
 }: QueuePanelProps) {
+  const panelRef = useRef<HTMLElement>(null);
+  const listRef = useRef<HTMLOListElement>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel === null) {
+      return;
+    }
+    const panelElement: HTMLElement = panel;
+
+    function handleWheel(event: WheelEvent) {
+      const decision = getQueueWheelRoutingDecision(
+        event,
+        Math.max(
+          1,
+          listRef.current?.clientHeight ?? panelElement.clientHeight,
+        ),
+      );
+      if (!decision.blockBackground) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (listRef.current !== null) {
+        listRef.current.scrollTop += decision.scrollTopDelta;
+      }
+    }
+
+    panelElement.addEventListener("wheel", handleWheel, { passive: false });
+    return () => panelElement.removeEventListener("wheel", handleWheel);
+  }, []);
+
   return (
-    <section className="queue-panel" aria-label={text.queuePanelTitle}>
+    <section
+      ref={panelRef}
+      className="queue-panel"
+      aria-label={text.queuePanelTitle}
+    >
       <div className="queue-panel-header">
         <div>
           <p className="queue-panel-eyebrow">{text.queue}</p>
@@ -44,7 +83,7 @@ export function QueuePanel({
       {queueItems.length === 0 ? (
         <p className="queue-panel-empty">{text.queueEmpty}</p>
       ) : (
-        <ol className="queue-panel-list">
+        <ol ref={listRef} className="queue-panel-list">
           {queueItems.map((queueItem, index) => {
             const song = songs[queueItem.songIndex];
 

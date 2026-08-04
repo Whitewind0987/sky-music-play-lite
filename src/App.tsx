@@ -808,7 +808,13 @@ function App() {
           }}
           keyMapping={keyMapping}
           language={language}
+          isShortcutRecordingPending={
+            playbackShortcutsController.isRecordingPending
+          }
           listeningSkyKey={listeningSkyKey}
+          listeningShortcutAction={
+            playbackShortcutsController.recordingAction
+          }
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onConfirmBeforeExitChange={handleConfirmBeforeExitSettingChange}
           onLanguageChange={setLanguage}
@@ -819,6 +825,12 @@ function App() {
             playbackShortcutsController.setPlaybackShortcuts(nextShortcuts);
           }}
           onShortcutNoticeClear={playbackShortcutsController.clearShortcutNotice}
+          onShortcutRecordingEnd={
+            playbackShortcutsController.endShortcutRecording
+          }
+          onShortcutRecordingStart={
+            playbackShortcutsController.beginShortcutRecording
+          }
           playbackShortcuts={playbackShortcutsController.playbackShortcuts}
           shortcutNotice={playbackShortcutsController.shortcutNotice}
           text={text.settings}

@@ -3476,8 +3476,10 @@ button {
   width: min(360px, calc(100vw - 36px));
   max-height: min(420px, 60vh);
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   overflow: hidden;
+  overscroll-behavior-y: contain;
   padding: 14px;
   border: 1px solid #d7dce3;
   border-radius: 8px;
@@ -3537,8 +3539,11 @@ button {
 .queue-panel-list {
   min-height: 0;
   display: grid;
+  align-content: start;
   gap: 6px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   margin: 0;
   padding: 0;
   list-style: none;

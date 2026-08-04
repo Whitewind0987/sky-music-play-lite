@@ -545,6 +545,8 @@ export const uiText = {
       experimentalRestoredTargetWindowSendFailed:
         "已保存的游戏窗口无法接收按键，请重新检测或手动选择窗口。",
       globalHotkeyRegisterFailed: "全局快捷键注册失败：{shortcut}",
+      shortcutRecordingSuspendFailed:
+        "快捷键录制启动失败：无法临时停用已注册的全局快捷键。",
       globalHotkeyUnavailable:
         "快捷键 {shortcut} 可能已被系统或其他软件占用，请换一个按键。",
       globalHotkeyUnsupported:
@@ -667,6 +669,8 @@ export const uiText = {
         "裸普通键不能用作全局快捷键，否则会干扰正常键盘输入；已自动改为仅应用内。",
       keyboardShortcutGlobalFailed:
         "全局快捷键注册失败，可能已被系统或其他软件占用；已自动改为仅应用内。",
+      keyboardShortcutRecordingFailed:
+        "无法开始录制快捷键，因为现有全局快捷键未能安全暂停。请重试。",
       keyboardShortcutMappingActive: "请先完成当前键位映射设置。",
       keyboardShortcutResetLabel: "快捷键预设",
       keyboardShortcutReset: "恢复默认快捷键",
@@ -1239,6 +1243,8 @@ export const uiText = {
         "The saved game window cannot receive keys. Detect or select the window again.",
       globalHotkeyRegisterFailed:
         "Failed to register global hotkey: {shortcut}",
+      shortcutRecordingSuspendFailed:
+        "Failed to start shortcut recording because registered global shortcuts could not be suspended.",
       globalHotkeyUnavailable:
         "Hotkey {shortcut} may already be used by the system or another app. Please choose another key.",
       globalHotkeyUnsupported:
@@ -1371,6 +1377,8 @@ export const uiText = {
         "Bare ordinary keys cannot be global shortcuts because they would interfere with normal keyboard input. The scope was changed to In app.",
       keyboardShortcutGlobalFailed:
         "Failed to register the global shortcut because it may be used by the system or another app. The scope was changed to In app.",
+      keyboardShortcutRecordingFailed:
+        "Shortcut recording could not start because existing global shortcuts were not safely suspended. Please try again.",
       keyboardShortcutMappingActive: "Finish the current key mapping first.",
       keyboardShortcutResetLabel: "Shortcut preset",
       keyboardShortcutReset: "Reset shortcuts",
