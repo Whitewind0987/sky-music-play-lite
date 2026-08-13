@@ -505,9 +505,6 @@ export function useScoreRecording({
   }, []);
 
   return {
-    canCancel: lifecycle === "recording",
-    canStart: lifecycle === "idle" && !isSaving,
-    canStop: lifecycle === "recording",
     completedName,
     completedSession,
     handleCancel: cancel,
@@ -515,11 +512,6 @@ export function useScoreRecording({
     handleSave: saveCompletedRecording,
     handleStart: start,
     handleStop: stop,
-    isBusy:
-      lifecycle === "starting" ||
-      lifecycle === "stopping" ||
-      lifecycle === "cancelling",
-    isRecording: lifecycle === "recording",
     isSaving,
     lifecycle,
     recordedNoteCount,

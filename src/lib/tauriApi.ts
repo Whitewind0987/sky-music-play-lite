@@ -260,7 +260,6 @@ export function listenSkyWindowLifecycleEvents(
   return listen<SkyWindowLifecycleEventPayload>("sky-window-lifecycle-event", handler);
 }
 
-// Staged Phase 2 transport wrappers. Phase 3 will own subscription lifecycle.
 export function startScoreRecording(
   request: ScoreRecordingStartRequest,
 ): Promise<void> {

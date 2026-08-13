@@ -134,7 +134,6 @@ fn update_foreground_playback_options(
     experimental_input::update_foreground_playback_options(request)
 }
 
-// Staged internal APIs for Phase 2. Phase 3 will add frontend orchestration.
 #[tauri::command]
 fn start_score_recording(
     app: tauri::AppHandle,
