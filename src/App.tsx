@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
   AppSidebar,
@@ -73,6 +74,12 @@ import { forceCloseApp } from "./lib/tauriApi";
 import type { LibrarySongId } from "./types/library";
 import "../font/iconfont.css";
 import "./App.css";
+
+function preventMiddleMouseAutoscroll(event: ReactMouseEvent<HTMLElement>) {
+  if (event.button === 1) {
+    event.preventDefault();
+  }
+}
 
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
@@ -910,6 +917,8 @@ function App() {
       onDragLeave={handleAppDragLeave}
       onDragOver={handleAppDragOver}
       onDrop={handleAppDrop}
+      onAuxClickCapture={preventMiddleMouseAutoscroll}
+      onMouseDownCapture={preventMiddleMouseAutoscroll}
     >
       <AppSidebar
         activeSection={activeSection}

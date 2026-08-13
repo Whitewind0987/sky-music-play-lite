@@ -1,20 +1,20 @@
 import { ChevronDown } from "lucide-react";
-import { useMemo, type MouseEvent as ReactMouseEvent } from "react";
+import { useMemo } from "react";
 import type { UiText } from "../../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../../lib/playbackScheduler";
-import {
-  buildScoreVisualization,
-  findCurrentScoreVisualGroupIndex,
-  getActiveScoreVisualKeys,
-} from "../../lib/scoreVisualization";
+import { derivePlayerScoreVisualizationFrame } from "../../lib/playerScoreVisualization";
+import { buildScoreVisualization } from "../../lib/scoreVisualization";
 import type { PlaybackState } from "../../types/playback";
 import type {
   NoteIntervalDelayMs,
   PlaybackSpeed,
 } from "../../types/playbackOptions";
 import type { Song } from "../../types/score";
+import type { ScoreVisualGroup } from "../../types/scoreVisualization";
 import { ScoreTimelineVisualizer } from "./ScoreTimelineVisualizer";
 import { SkyKeyboardVisualizer } from "./SkyKeyboardVisualizer";
+
+const emptyScoreVisualGroups: readonly ScoreVisualGroup[] = [];
 
 type PlayerScoreVisualizerProps = {
   hasLoadFailed: boolean;
@@ -29,12 +29,6 @@ type PlayerScoreVisualizerProps = {
   songTitle: string;
   text: UiText["playerScoreVisualization"];
 };
-
-function preventMiddleMouseAutoscroll(event: ReactMouseEvent<HTMLElement>) {
-  if (event.button === 1) {
-    event.preventDefault();
-  }
-}
 
 export function PlayerScoreVisualizer({
   hasLoadFailed,
@@ -59,22 +53,15 @@ export function PlayerScoreVisualizer({
           }),
     [noteIntervalDelayMs, playbackSpeed, song],
   );
-  const followsProgress =
-    playbackState === "playing" ||
-    playbackState === "paused" ||
-    playbackState === "finished";
-  const showsActiveKeys =
-    playbackState === "playing" || playbackState === "paused";
-  const focusGroupIndex =
-    model !== null && followsProgress
-      ? findCurrentScoreVisualGroupIndex(model.groups, progress.currentMs)
-      : -1;
-  const activeKeys = useMemo(
+  const groups = model?.groups ?? emptyScoreVisualGroups;
+  const frame = useMemo(
     () =>
-      model !== null && showsActiveKeys
-        ? getActiveScoreVisualKeys(model.groups, progress.currentMs)
-        : [],
-    [model, progress.currentMs, showsActiveKeys],
+      derivePlayerScoreVisualizationFrame(
+        groups,
+        playbackState,
+        progress.currentMs,
+      ),
+    [groups, playbackState, progress.currentMs],
   );
 
   return (
@@ -82,8 +69,6 @@ export function PlayerScoreVisualizer({
       className={`player-score-visualizer${isOpen ? " is-open" : ""}`}
       aria-hidden={!isOpen}
       aria-label={text.aria}
-      onAuxClick={preventMiddleMouseAutoscroll}
-      onMouseDown={preventMiddleMouseAutoscroll}
     >
       <button
         className="player-score-visualizer__close"
@@ -111,19 +96,19 @@ export function PlayerScoreVisualizer({
               <div className="player-score-visualizer__column">
                 <h3>{text.keyboard}</h3>
                 <SkyKeyboardVisualizer
-                  activeKeys={activeKeys}
+                  activeKeys={frame.activeKeys}
                   ariaLabel={text.keyboardAria}
                 />
               </div>
               <div className="player-score-visualizer__column player-score-visualizer__score">
                 <h3>{text.score}</h3>
                 <ScoreTimelineVisualizer
-                  activeKeys={activeKeys}
+                  activeKeys={frame.activeKeys}
                   ariaLabel={text.scoreAria}
                   emptyMessage={text.emptyScore}
-                  focusGroupIndex={focusGroupIndex}
-                  groups={model.groups}
-                  markCurrentGroup={followsProgress && focusGroupIndex >= 0}
+                  focusGroupIndex={frame.focusGroupIndex}
+                  groups={groups}
+                  markCurrentGroup={frame.markCurrentGroup}
                 />
               </div>
             </>
