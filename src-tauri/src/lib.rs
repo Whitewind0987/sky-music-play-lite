@@ -3,6 +3,7 @@ mod app_log;
 mod app_window;
 mod experimental_input;
 mod imported_scores;
+mod score_recording;
 mod window_state;
 use experimental_input::{
     BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
@@ -133,6 +134,25 @@ fn update_foreground_playback_options(
     experimental_input::update_foreground_playback_options(request)
 }
 
+// Staged internal APIs for Phase 2. Phase 3 will add frontend orchestration.
+#[tauri::command]
+fn start_score_recording(
+    app: tauri::AppHandle,
+    request: score_recording::ScoreRecordingStartRequest,
+) -> Result<(), String> {
+    score_recording::start_score_recording(app, request)
+}
+
+#[tauri::command]
+fn stop_score_recording(session_id: u64) -> Result<(), String> {
+    score_recording::stop_score_recording(session_id)
+}
+
+#[tauri::command]
+fn cancel_score_recording(session_id: u64) -> Result<(), String> {
+    score_recording::cancel_score_recording(session_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -155,6 +175,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             find_sky_window,
+            cancel_score_recording,
             get_sky_window_monitor_state,
             app_data::load_app_data,
             app_log::append_app_log,
@@ -184,10 +205,12 @@ pub fn run() {
             send_foreground_key_group,
             send_key_group_to_window_message,
             start_background_playback,
+            start_score_recording,
             start_prepared_background_playback,
             start_prepared_foreground_playback,
             stop_background_playback,
             stop_foreground_playback,
+            stop_score_recording,
             update_background_playback_options,
             update_foreground_playback_options
         ])

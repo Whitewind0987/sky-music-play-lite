@@ -1,4 +1,4 @@
-use super::window::{scan_sky_windows, SkyWindowIdentity, VerifiedSkyWindow};
+use super::window::{parse_hwnd, scan_sky_windows, SkyWindowIdentity, VerifiedSkyWindow};
 use super::CandidateWindow;
 use serde::Serialize;
 use std::sync::{mpsc, Mutex, OnceLock};
@@ -221,6 +221,33 @@ pub fn get_sky_window_monitor_state() -> Result<SkyWindowMonitorSnapshot, String
         .lock()
         .map(|state| state.snapshot())
         .map_err(|_| "Sky monitor state lock is poisoned.".to_string())
+}
+
+pub(crate) fn validate_monitored_sky_target(target_hwnd: &str) -> Result<usize, String> {
+    let parsed_hwnd = parse_hwnd(target_hwnd)? as usize;
+    let slot = runtime()
+        .lock()
+        .map_err(|_| "Sky monitor lock is poisoned.".to_string())?;
+    let runtime = slot
+        .as_ref()
+        .ok_or_else(|| "Sky window monitor is not running.".to_string())?;
+    if runtime.worker.is_none() {
+        return Err("Sky window monitor is not running.".to_string());
+    }
+    let state = runtime
+        .state
+        .lock()
+        .map_err(|_| "Sky monitor state lock is poisoned.".to_string())?;
+    let current = state
+        .current
+        .as_ref()
+        .ok_or_else(|| "No verified Sky window is currently available.".to_string())?;
+
+    if current.candidate.hwnd != target_hwnd {
+        return Err("Requested target does not match the monitored Sky window.".to_string());
+    }
+
+    Ok(parsed_hwnd)
 }
 
 #[cfg(test)]

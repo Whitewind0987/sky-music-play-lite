@@ -8,6 +8,7 @@ import type {
 } from "../types/experimentalInput";
 import type { LibrarySongId } from "../types/library";
 import type { Song } from "../types/score";
+import type { ScoreRecordingInputEvent } from "../types/scoreRecording";
 import { toCanonicalManagedSong } from "./scoreSerialization";
 
 export type AppRuntimeInfo = {
@@ -142,6 +143,14 @@ export type SkyWindowLifecycleEventPayload = SkyWindowMonitorSnapshot & {
   previousWindow: CandidateWindow | null;
 };
 
+export type ScoreRecordingStartRequest = {
+  sessionId: number;
+  targetHwnd: string;
+  keys: string[];
+};
+
+export type NativeScoreRecordingEventPayload = ScoreRecordingInputEvent;
+
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");
 }
@@ -229,6 +238,30 @@ export function listenSkyWindowLifecycleEvents(
   handler: (event: Event<SkyWindowLifecycleEventPayload>) => void,
 ): Promise<UnlistenFn> {
   return listen<SkyWindowLifecycleEventPayload>("sky-window-lifecycle-event", handler);
+}
+
+// Staged Phase 2 transport wrappers. Phase 3 will own subscription lifecycle.
+export function startScoreRecording(
+  request: ScoreRecordingStartRequest,
+): Promise<void> {
+  return invoke<void>("start_score_recording", { request });
+}
+
+export function stopScoreRecording(sessionId: number): Promise<void> {
+  return invoke<void>("stop_score_recording", { sessionId });
+}
+
+export function cancelScoreRecording(sessionId: number): Promise<void> {
+  return invoke<void>("cancel_score_recording", { sessionId });
+}
+
+export function listenScoreRecordingEvents(
+  handler: (event: Event<NativeScoreRecordingEventPayload>) => void,
+): Promise<UnlistenFn> {
+  return listen<NativeScoreRecordingEventPayload>(
+    "score-recording-event",
+    handler,
+  );
 }
 
 export function sendKeyGroupToWindowMessage({

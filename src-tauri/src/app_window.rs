@@ -1,6 +1,7 @@
 #[tauri::command]
 pub fn force_close_app(app: tauri::AppHandle) -> Result<(), String> {
     run_shutdown_sequence(
+        crate::score_recording::stop_score_recording_for_shutdown,
         crate::experimental_input::stop_sky_window_monitor,
         crate::experimental_input::stop_current_background_playback_for_shutdown,
         || crate::window_state::save_before_exit(&app),
@@ -18,19 +19,24 @@ pub fn force_close_app(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn run_shutdown_sequence<M, S, P, L, E>(
+fn run_shutdown_sequence<R, M, S, P, L, E>(
+    stop_recorder: R,
     stop_monitor: M,
     stop_playback: S,
     persist: P,
     mut log_failure: L,
     exit: E,
 ) where
+    R: FnOnce() -> Result<(), String>,
     M: FnOnce() -> Result<(), String>,
     S: FnOnce(),
     P: FnOnce() -> Result<(), String>,
     L: FnMut(&str, &str),
     E: FnOnce(),
 {
+    if let Err(error) = stop_recorder() {
+        log_failure("score-recording", &error);
+    }
     if let Err(error) = stop_monitor() {
         log_failure("sky-window-monitor", &error);
     }
@@ -51,6 +57,10 @@ mod tests {
         let order = RefCell::new(Vec::new());
         run_shutdown_sequence(
             || {
+                order.borrow_mut().push("recorder");
+                Ok(())
+            },
+            || {
                 order.borrow_mut().push("monitor");
                 Ok(())
             },
@@ -62,13 +72,17 @@ mod tests {
             |_, _| order.borrow_mut().push("log"),
             || order.borrow_mut().push("exit"),
         );
-        assert_eq!(*order.borrow(), vec!["monitor", "stop", "save", "exit"]);
+        assert_eq!(
+            *order.borrow(),
+            vec!["recorder", "monitor", "stop", "save", "exit"]
+        );
     }
 
     #[test]
     fn persistence_failure_is_logged_and_still_exits_once() {
         let order = RefCell::new(Vec::new());
         run_shutdown_sequence(
+            || Ok(()),
             || Ok(()),
             || order.borrow_mut().push("stop"),
             || Err("disk full".to_string()),
@@ -85,6 +99,7 @@ mod tests {
     fn monitor_failure_still_stops_persists_and_exits() {
         let order = RefCell::new(Vec::new());
         run_shutdown_sequence(
+            || Ok(()),
             || Err("join failed".into()),
             || order.borrow_mut().push("stop"),
             || {
@@ -101,5 +116,32 @@ mod tests {
             || order.borrow_mut().push("exit"),
         );
         assert_eq!(*order.borrow(), vec!["monitor-log", "stop", "save", "exit"]);
+    }
+
+    #[test]
+    fn recorder_failure_is_logged_before_later_shutdown_steps_continue() {
+        let order = RefCell::new(Vec::new());
+        run_shutdown_sequence(
+            || Err("recorder join failed".into()),
+            || {
+                order.borrow_mut().push("monitor");
+                Ok(())
+            },
+            || order.borrow_mut().push("stop"),
+            || {
+                order.borrow_mut().push("save");
+                Ok(())
+            },
+            |source, error| {
+                assert_eq!(source, "score-recording");
+                assert_eq!(error, "recorder join failed");
+                order.borrow_mut().push("recorder-log");
+            },
+            || order.borrow_mut().push("exit"),
+        );
+        assert_eq!(
+            *order.borrow(),
+            vec!["recorder-log", "monitor", "stop", "save", "exit"]
+        );
     }
 }
