@@ -65,6 +65,8 @@ export function useScoreRecording({
   const [recordedNoteCount, setRecordedNoteCount] = useState(0);
   const [completedSession, setCompletedSession] =
     useState<ScoreRecordingSession | null>(null);
+  const [liveSession, setLiveSession] =
+    useState<ScoreRecordingSession | null>(null);
   const [completedName, setCompletedName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const lifecycleRef = useRef<ScoreRecordingLifecycle>("idle");
@@ -87,6 +89,12 @@ export function useScoreRecording({
   function updateRecordedNoteCount(count: number) {
     if (mountedRef.current) {
       setRecordedNoteCount(count);
+    }
+  }
+
+  function updateLiveSession(session: ScoreRecordingSession | null) {
+    if (mountedRef.current) {
+      setLiveSession(session);
     }
   }
 
@@ -120,6 +128,7 @@ export function useScoreRecording({
     activeRecordingRef.current = null;
     sessionRef.current = null;
     updateRecordedNoteCount(0);
+    updateLiveSession(null);
   }
 
   function reportFailure(message: string) {
@@ -243,9 +252,14 @@ export function useScoreRecording({
           event.payload,
           active.lookup,
         );
-        sessionRef.current = nextSession;
-        if (nextSession.notes.length !== currentSession.notes.length) {
-          updateRecordedNoteCount(nextSession.notes.length);
+        if (nextSession !== currentSession) {
+          sessionRef.current = nextSession;
+          if (active.nativeStarted) {
+            updateLiveSession(nextSession);
+          }
+          if (nextSession.notes.length !== currentSession.notes.length) {
+            updateRecordedNoteCount(nextSession.notes.length);
+          }
         }
       });
     } catch {
@@ -290,6 +304,7 @@ export function useScoreRecording({
     }
     setCompletedSession(null);
     setCompletedName("");
+    updateLiveSession(sessionRef.current);
 
     try {
       const lifecycleUnlisten = await listenSkyWindowLifecycleEvents((event) => {
@@ -514,6 +529,7 @@ export function useScoreRecording({
     handleStop: stop,
     isSaving,
     lifecycle,
+    liveSession,
     recordedNoteCount,
   };
 }

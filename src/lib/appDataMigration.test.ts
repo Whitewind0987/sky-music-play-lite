@@ -10,6 +10,7 @@ import {
 } from "../types/playbackOptions";
 import { defaultKeyMapping } from "../types/keyMapping";
 import { defaultPlaybackShortcuts } from "../types/playbackShortcuts";
+import { defaultAccentColor } from "./accentColor";
 import { createDefaultV1ToV2UpgradePreferences } from "./v1ToV2UpgradePreferences";
 
 function createSong(name: string): Song {
@@ -28,6 +29,7 @@ function createAppData(): PersistedAppData {
   const two = createSong("Two");
 
   return {
+    accentColor: defaultAccentColor,
     alwaysOnTop: true,
     appDataVersion: 3,
     confirmBeforeExit: true,

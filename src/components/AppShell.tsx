@@ -246,12 +246,12 @@ function SidebarCategoryButton({
 }: SidebarCategoryButtonProps) {
   return (
     <SidebarRippleButton
-      className={`sidebar-category-item${isActive ? " is-active" : ""}`}
+      className={`sidebar-link is-compact${isActive ? " is-active" : ""}`}
       onClick={onClick}
     >
-      <span className="sidebar-category-item-content">
+      <span className="sidebar-link-content">
         <Icon
-          className="sidebar-category-icon"
+          className="sidebar-icon"
           aria-hidden="true"
           focusable="false"
         />

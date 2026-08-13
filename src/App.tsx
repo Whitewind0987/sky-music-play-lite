@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
   AppSidebar,
@@ -21,12 +22,14 @@ import {
   LibraryPanel,
 } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
-import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { ScoreRecordingPage } from "./components/ScoreRecordingPage";
+import { PlaybackScorePreview } from "./components/score-visualization/PlaybackScorePreview";
+import { PlayerScoreVisualizer } from "./components/score-visualization/PlayerScoreVisualizer";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
+import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppFileLogger } from "./hooks/useAppFileLogger";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useAlwaysOnTop } from "./hooks/useAlwaysOnTop";
@@ -39,6 +42,7 @@ import { usePlaybackOrder } from "./hooks/usePlaybackOrder";
 import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePlaybackShortcuts } from "./hooks/usePlaybackShortcuts";
+import { usePlayerScoreVisualization } from "./hooks/usePlayerScoreVisualization";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
 import { useScoreRecording } from "./hooks/useScoreRecording";
@@ -72,6 +76,12 @@ import type { LibrarySongId } from "./types/library";
 import "../font/iconfont.css";
 import "./App.css";
 
+function preventMiddleMouseAutoscroll(event: ReactMouseEvent<HTMLElement>) {
+  if (event.button === 1) {
+    event.preventDefault();
+  }
+}
+
 function App() {
   const stopPreviewRef = useRef<() => void>(() => {});
   const isClosingAfterConfirmRef = useRef(false);
@@ -101,6 +111,7 @@ function App() {
   const updateCheck = useUpdateCheck();
   const text = uiText[language];
   const appFileLogger = useAppFileLogger(language);
+  const accentColor = useAccentColor();
   const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
   const missingLocalSongsRemovedRef = useRef<
     (removedSongs: RemovedLibrarySong[]) => void
@@ -271,9 +282,11 @@ function App() {
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
+    accentColor: accentColor.accentColor,
     appendDetailedLog: appFileLogger.appendDetailedLog,
     appendLog,
     applyAlwaysOnTop: alwaysOnTop.applyPersistedPreference,
+    applyAccentColor: accentColor.applyPersistedAccentColor,
     applyConfirmBeforeExit: handleConfirmBeforeExitChange,
     applyExperimentalInputPreferences:
       experimentalInput.applyExperimentalInputPreferences,
@@ -327,6 +340,12 @@ function App() {
     experimentalInput,
     previewPlayback,
     text: text.bottomPlayer,
+  });
+  const playerScoreVisualization = usePlayerScoreVisualization({
+    currentSongId: scoreLibrary.currentPlaybackSong?.id ?? null,
+    currentSongIndex: scoreLibrary.playbackSongIndex,
+    isInlinePreviewActive: activeSection === "Playback",
+    preloadSong: scoreLibrary.preloadSong,
   });
   missingPlaybackSongRemovalRef.current = (removedPlaybackSongId) => {
     if (
@@ -792,8 +811,10 @@ function App() {
           completedNoteCount={
             scoreRecording.completedSession?.notes.length ?? null
           }
+          completedSession={scoreRecording.completedSession}
           isSaving={scoreRecording.isSaving}
           lifecycle={scoreRecording.lifecycle}
+          liveSession={scoreRecording.liveSession}
           onCancel={() => void scoreRecording.handleCancel()}
           onCompletedNameChange={scoreRecording.handleCompletedNameChange}
           onSave={() => void scoreRecording.handleSave()}
@@ -808,10 +829,15 @@ function App() {
     if (activeSection === "Playback") {
       return (
         <div className="playback-workspace-content">
-          <KeyboardPreview
-            activeKeys={previewPlayback.activeKeys}
-            keyMapping={keyMapping}
-            text={text.keyboard}
+          <PlaybackScorePreview
+            hasLoadFailed={playerScoreVisualization.hasLoadFailed}
+            isLoading={playerScoreVisualization.isLoading}
+            noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+            playbackSpeed={playbackOutput.playbackSpeed}
+            playbackState={playbackOutput.playbackState}
+            progress={playbackOutput.progress}
+            song={playerScoreVisualization.resolvedSong}
+            text={text.playbackScorePreview}
           />
         </div>
       );
@@ -824,6 +850,7 @@ function App() {
     if (activeSection === "Settings") {
       return (
         <SettingsPlaceholder
+          accentColor={accentColor.accentColor}
           confirmBeforeExit={confirmBeforeExit}
           isConfirmBeforeExitSaving={isConfirmBeforeExitSaving}
           experimentalInput={{
@@ -865,6 +892,8 @@ function App() {
           }
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onConfirmBeforeExitChange={handleConfirmBeforeExitSettingChange}
+          onAccentColorChange={accentColor.setAccentColor}
+          onAccentColorReset={accentColor.resetAccentColor}
           onLanguageChange={setLanguage}
           appRuntimeInfo={appFileLogger.runtimeInfo}
           onOpenLogDirectory={appFileLogger.openLogDirectory}
@@ -901,6 +930,8 @@ function App() {
       onDragLeave={handleAppDragLeave}
       onDragOver={handleAppDragOver}
       onDrop={handleAppDrop}
+      onAuxClickCapture={preventMiddleMouseAutoscroll}
+      onMouseDownCapture={preventMiddleMouseAutoscroll}
     >
       <AppSidebar
         activeSection={activeSection}
@@ -1039,16 +1070,36 @@ function App() {
         />
       ) : null}
 
+      <PlayerScoreVisualizer
+        hasLoadFailed={playerScoreVisualization.hasLoadFailed}
+        isLoading={playerScoreVisualization.isLoading}
+        isOpen={playerScoreVisualization.isOpen}
+        noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+        onClose={playerScoreVisualization.close}
+        playbackSpeed={playbackOutput.playbackSpeed}
+        playbackState={playbackOutput.playbackState}
+        progress={playbackOutput.progress}
+        song={playerScoreVisualization.resolvedSong}
+        songTitle={
+          scoreLibrary.currentPlaybackSong === null
+            ? ""
+            : getLibrarySongName(scoreLibrary.currentPlaybackSong)
+        }
+        text={text.playerScoreVisualization}
+      />
       <BottomPlayer
         canPlay={playbackOutput.canPlay}
         canSeek={playbackOutput.canSeek}
+        canOpenVisualization={playerScoreVisualization.canOpen}
         currentSong={scoreLibrary.currentPlaybackSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
+        isVisualizationOpen={playerScoreVisualization.isOpen}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
         onNext={playbackCoordinator.handleNextPlayback}
+        onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
         onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
         onPlay={playbackCoordinator.handleBottomPlayerPlay}

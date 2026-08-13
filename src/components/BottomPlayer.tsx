@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { UiText } from "../i18n/uiText";
@@ -40,13 +41,16 @@ import {
 type BottomPlayerProps = {
   canPlay: boolean;
   canSeek: boolean;
+  canOpenVisualization: boolean;
   currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
+  isVisualizationOpen: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onNext: () => void;
+  onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
   onPlay: () => void;
@@ -203,13 +207,16 @@ function PlayerStepper({
 export function BottomPlayer({
   canPlay,
   canSeek,
+  canOpenVisualization,
   currentSong,
   isCurrentSongLoading,
   isShuffleEnabled,
   isRealInputOutput,
+  isVisualizationOpen,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onNext,
+  onVisualizationOpen,
   onPlayQueueItem,
   onPause,
   onPlay,
@@ -381,6 +388,39 @@ export function BottomPlayer({
     onSeek(clampProgressTime(nextTimeMs, totalProgressMs));
   }
 
+  function handleVisualizationTriggerKeyDown(
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) {
+    if (
+      !canOpenVisualization ||
+      (event.key !== "Enter" && event.key !== " ")
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    onVisualizationOpen();
+  }
+
+  function handlePlayerBodyClick(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!canOpenVisualization || isVisualizationOpen) {
+      return;
+    }
+
+    const target = event.target;
+
+    if (
+      !(target instanceof Element) ||
+      target.closest(
+        '[data-player-control-zone], button, input, [role="slider"]',
+      ) !== null
+    ) {
+      return;
+    }
+
+    onVisualizationOpen();
+  }
+
   useEffect(() => {
     if (!queueOpen) {
       return;
@@ -498,8 +538,19 @@ export function BottomPlayer({
         </span>
       </div>
 
-      <div className="bottom-player-body">
-        <div className="bottom-player-score">
+      <div className="bottom-player-body" onClick={handlePlayerBodyClick}>
+        <div
+          className={`bottom-player-score${
+            canOpenVisualization && !isVisualizationOpen
+              ? " is-visualization-trigger"
+              : ""
+          }`}
+          aria-disabled={!canOpenVisualization || isVisualizationOpen}
+          aria-label={text.expandVisualization}
+          role="button"
+          tabIndex={canOpenVisualization && !isVisualizationOpen ? 0 : -1}
+          onKeyDown={handleVisualizationTriggerKeyDown}
+        >
           <span className="bottom-player-label">{text.currentScore}</span>
           <div className="bottom-player-title-row">
             <strong className="bottom-player-title">
@@ -542,7 +593,11 @@ export function BottomPlayer({
           </div>
         </div>
 
-        <div className="bottom-player-center" aria-label={text.controlsAria}>
+        <div
+          className="bottom-player-center"
+          aria-label={text.controlsAria}
+          data-player-control-zone
+        >
           <button
             className={`player-icon-button player-icon-button-secondary player-icon-button-toggle${
               isShuffleEnabled ? " is-active" : ""
@@ -597,7 +652,7 @@ export function BottomPlayer({
           </button>
         </div>
 
-        <div className="bottom-player-actions">
+        <div className="bottom-player-actions" data-player-control-zone>
           <div className="bottom-player-options" aria-label={text.optionsAria}>
             <div className="player-option">
               <span className="player-option-label">{text.delay}</span>

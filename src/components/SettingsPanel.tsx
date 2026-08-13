@@ -5,6 +5,7 @@ import {
   type LanguageCode,
   type UiText,
 } from "../i18n/uiText";
+import { isValidAccentColor } from "../lib/accentColor";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
@@ -70,6 +71,7 @@ type ExperimentalInputPanelState = {
 };
 
 type SettingsPlaceholderProps = {
+  accentColor: string;
   appRuntimeInfo: AppRuntimeInfo | null;
   confirmBeforeExit: boolean;
   isConfirmBeforeExitSaving: boolean;
@@ -79,6 +81,8 @@ type SettingsPlaceholderProps = {
   listeningSkyKey: SkyKeyName | null;
   listeningShortcutAction: PlaybackShortcutAction | null;
   onShortcutNoticeClear: (action?: PlaybackShortcutAction) => void;
+  onAccentColorChange: (accentColor: string) => void;
+  onAccentColorReset: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onConfirmBeforeExitChange: (confirmBeforeExit: boolean) => void;
   onLanguageChange: (language: LanguageCode) => void;
@@ -98,6 +102,7 @@ type SettingsPlaceholderProps = {
 };
 
 export function SettingsPlaceholder({
+  accentColor,
   appRuntimeInfo,
   confirmBeforeExit,
   isConfirmBeforeExitSaving,
@@ -107,6 +112,8 @@ export function SettingsPlaceholder({
   listeningSkyKey,
   listeningShortcutAction,
   onShortcutNoticeClear,
+  onAccentColorChange,
+  onAccentColorReset,
   onKeyMappingListenStart,
   onConfirmBeforeExitChange,
   onLanguageChange,
@@ -120,6 +127,9 @@ export function SettingsPlaceholder({
   shortcutNotice,
   text,
 }: SettingsPlaceholderProps) {
+  const [accentColorDraft, setAccentColorDraft] = useState(
+    accentColor.toUpperCase(),
+  );
   const [shortcutConflictNotices, setShortcutConflictNotices] =
     useState<PlaybackShortcutNotices>({});
   const shortcutBindingRefs = useRef<
@@ -149,6 +159,10 @@ export function SettingsPlaceholder({
     experimentalInput.candidateWindows.some(
       (window) => window.hwnd === experimentalInput.selectedWindowHwnd,
     );
+
+  useEffect(() => {
+    setAccentColorDraft(accentColor.toUpperCase());
+  }, [accentColor]);
 
   useEffect(() => {
     if (listeningSkyKey !== null) {
@@ -656,6 +670,66 @@ export function SettingsPlaceholder({
           <div className="setting-row">
             <span>{text.theme}</span>
             <span className="fake-segment">{text.systemTheme}</span>
+          </div>
+          <div className="setting-row">
+            <span>{text.accentColor}</span>
+            <div className="accent-color-controls">
+              <input
+                className="accent-color-picker"
+                type="color"
+                aria-label={text.accentColorPicker}
+                value={accentColor}
+                onChange={(event) => onAccentColorChange(event.target.value)}
+              />
+              <input
+                className="accent-color-hex-input"
+                type="text"
+                aria-label={text.accentColorHex}
+                value={accentColorDraft}
+                maxLength={7}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setAccentColorDraft(value);
+                  if (isValidAccentColor(value)) {
+                    onAccentColorChange(value);
+                  }
+                }}
+                onBlur={() => {
+                  if (isValidAccentColor(accentColorDraft)) {
+                    setAccentColorDraft(accentColorDraft.toUpperCase());
+                    return;
+                  }
+                  setAccentColorDraft(accentColor.toUpperCase());
+                }}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) {
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    if (isValidAccentColor(accentColorDraft)) {
+                      onAccentColorChange(accentColorDraft);
+                      setAccentColorDraft(accentColorDraft.toUpperCase());
+                    } else {
+                      setAccentColorDraft(accentColor.toUpperCase());
+                    }
+                    event.currentTarget.blur();
+                  } else if (event.key === "Escape") {
+                    setAccentColorDraft(accentColor.toUpperCase());
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
+              <button
+                className="accent-color-reset"
+                type="button"
+                onClick={onAccentColorReset}
+              >
+                {text.accentColorReset}
+              </button>
+            </div>
           </div>
           <div className="setting-row">
             <span>{text.defaultPage}</span>
