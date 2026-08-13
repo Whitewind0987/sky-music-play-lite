@@ -351,6 +351,36 @@ export const uiText = {
       panelDescription: "",
       previewAria: "静态琴键预览",
     },
+    scoreRecording: {
+      panelTitle: "演奏录制",
+      description: "录制你在光遇中使用当前键位进行的手动演奏。",
+      idle: "准备录制",
+      start: "开始录制",
+      starting: "正在开始...",
+      recording: "录制中",
+      stop: "停止录制",
+      stopping: "正在停止...",
+      cancel: "取消",
+      cancelling: "正在取消...",
+      recordedNotes: "已录制音符：{count}",
+      completed: "录制完成",
+      completedInMemory: "录制结果暂存在内存中，保存功能将在后续阶段提供。",
+      skyNotDetected: "未检测到光遇。请启动光遇后重试。",
+      duplicateMapping: "存在重复键位，请先在设置中调整后再录制。",
+      startFailed: "无法开始录制，请检查光遇窗口和键位设置后重试。",
+      stopFailed: "停止录制失败，请重试；当前录制仍保持活动状态。",
+      cancelFailed: "取消录制失败，请重试；当前录制仍保持活动状态。",
+      lifecycleSetupFailed:
+        "录制已开始，但窗口状态监听设置失败。请停止或取消本次录制。",
+      autoCancelFailed:
+        "光遇窗口已变化，但自动取消失败。请返回软件并再次取消。",
+      noValidNotes: "没有录制到有效音符。",
+      targetChanged: "光遇窗口已关闭或变化，本次录制已自动取消。",
+      startedLog: "演奏录制已开始。",
+      stoppedLog: "演奏录制已停止。",
+      cancelledLog: "演奏录制已取消。",
+      autoCancelledLog: "光遇窗口关闭或变化，演奏录制已自动取消。",
+    },
     bottomPlayer: {
       aria: "底部播放栏",
       currentScore: "当前曲谱",
@@ -1033,6 +1063,43 @@ export const uiText = {
       panelTitle: "Keyboard preview area",
       panelDescription: "",
       previewAria: "Static keyboard preview",
+    },
+    scoreRecording: {
+      panelTitle: "Performance recording",
+      description: "Record your manual playing in Sky with the current key mapping.",
+      idle: "Ready to record",
+      start: "Start recording",
+      starting: "Starting...",
+      recording: "Recording",
+      stop: "Stop recording",
+      stopping: "Stopping...",
+      cancel: "Cancel",
+      cancelling: "Cancelling...",
+      recordedNotes: "Recorded notes: {count}",
+      completed: "Recording complete",
+      completedInMemory:
+        "The recording is temporarily kept in memory. Saving will be added in a later phase.",
+      skyNotDetected: "Sky was not detected. Start Sky and try again.",
+      duplicateMapping:
+        "Duplicate key bindings must be resolved in Settings before recording.",
+      startFailed:
+        "Recording could not start. Check the Sky window and key mapping, then try again.",
+      stopFailed:
+        "Recording could not stop. Try again; the current recording remains active.",
+      cancelFailed:
+        "Recording could not be cancelled. Try again; the current recording remains active.",
+      lifecycleSetupFailed:
+        "Recording started, but window-change monitoring could not be set up. Stop or cancel this recording.",
+      autoCancelFailed:
+        "The Sky window changed, but automatic cancellation failed. Return to the app and cancel again.",
+      noValidNotes: "No valid notes were recorded.",
+      targetChanged:
+        "The Sky window closed or changed, so the recording was cancelled.",
+      startedLog: "Performance recording started.",
+      stoppedLog: "Performance recording stopped.",
+      cancelledLog: "Performance recording cancelled.",
+      autoCancelledLog:
+        "Performance recording was automatically cancelled because the Sky window closed or changed.",
     },
     bottomPlayer: {
       aria: "Bottom player",

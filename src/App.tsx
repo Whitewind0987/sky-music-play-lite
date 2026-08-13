@@ -23,6 +23,7 @@ import {
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
+import { ScoreRecordingPanel } from "./components/ScoreRecordingPanel";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
@@ -40,6 +41,7 @@ import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePlaybackShortcuts } from "./hooks/usePlaybackShortcuts";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
+import { useScoreRecording } from "./hooks/useScoreRecording";
 import { useScoreUpgradeGuard } from "./hooks/useScoreUpgradeGuard";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import { useV1ToV2UpgradePreferences } from "./hooks/useV1ToV2UpgradePreferences";
@@ -146,6 +148,12 @@ function App() {
     keyMapping,
     listeningSkyKey,
   } = useKeyMapping();
+  const scoreRecording = useScoreRecording({
+    appendLog,
+    keyMapping,
+    showNotice: showAppNotice,
+    text: text.scoreRecording,
+  });
   const v1ToV2UpgradePreferences =
     useV1ToV2UpgradePreferences();
   const scoreLibrary = useScoreLibrary({
@@ -758,11 +766,24 @@ function App() {
 
     if (activeSection === "Playback") {
       return (
-        <KeyboardPreview
-          activeKeys={previewPlayback.activeKeys}
-          keyMapping={keyMapping}
-          text={text.keyboard}
-        />
+        <div className="playback-workspace-content">
+          <KeyboardPreview
+            activeKeys={previewPlayback.activeKeys}
+            keyMapping={keyMapping}
+            text={text.keyboard}
+          />
+          <ScoreRecordingPanel
+            completedNoteCount={
+              scoreRecording.completedSession?.notes.length ?? null
+            }
+            lifecycle={scoreRecording.lifecycle}
+            onCancel={() => void scoreRecording.handleCancel()}
+            onStart={() => void scoreRecording.handleStart()}
+            onStop={() => void scoreRecording.handleStop()}
+            recordedNoteCount={scoreRecording.recordedNoteCount}
+            text={text.scoreRecording}
+          />
+        </div>
       );
     }
 
