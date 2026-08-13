@@ -3062,6 +3062,14 @@ button {
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
+.sky-visual-key--circle-diamond .sky-visual-key__diamond {
+  width: 54%;
+}
+
+.sky-visual-key--circle-diamond .sky-visual-key__circle {
+  width: 50%;
+}
+
 .sky-visual-key__label {
   position: relative;
   z-index: 1;
