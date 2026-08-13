@@ -698,7 +698,6 @@ export function SettingsPlaceholder({
                 }}
                 onBlur={() => {
                   if (isValidAccentColor(accentColorDraft)) {
-                    onAccentColorChange(accentColorDraft);
                     setAccentColorDraft(accentColorDraft.toUpperCase());
                     return;
                   }
