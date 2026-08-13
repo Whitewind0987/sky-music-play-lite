@@ -370,6 +370,14 @@ export const uiText = {
       startFailed: "无法开始录制，请检查光遇窗口和键位设置后重试。",
       stopFailed: "停止录制失败，请重试；当前录制仍保持活动状态。",
       cancelFailed: "取消录制失败，请重试；当前录制仍保持活动状态。",
+      stopWarning: "录制已停止，但清理过程出现警告，录制结果可能不完整。",
+      stopWarningNoValidNotes:
+        "录制已停止，但清理过程出现警告，并且没有录制到有效音符。",
+      cancelWarning: "录制已取消，但清理过程出现警告。",
+      autoCancelWarning:
+        "光遇窗口已变化，录制已自动取消，但清理过程出现警告。",
+      startCleanupWarning:
+        "录制未能正常开始，已结束本次录制，但清理过程出现警告。",
       lifecycleSetupFailed:
         "录制已开始，但窗口状态监听设置失败。请停止或取消本次录制。",
       autoCancelFailed:
@@ -1088,6 +1096,16 @@ export const uiText = {
         "Recording could not stop. Try again; the current recording remains active.",
       cancelFailed:
         "Recording could not be cancelled. Try again; the current recording remains active.",
+      stopWarning:
+        "Recording stopped, but cleanup reported a warning. The result may be incomplete.",
+      stopWarningNoValidNotes:
+        "Recording stopped with a cleanup warning, and no valid notes were recorded.",
+      cancelWarning:
+        "Recording was cancelled, but cleanup reported a warning.",
+      autoCancelWarning:
+        "The Sky window changed, so recording was cancelled, but cleanup reported a warning.",
+      startCleanupWarning:
+        "Recording did not start normally and was ended, but cleanup reported a warning.",
       lifecycleSetupFailed:
         "Recording started, but window-change monitoring could not be set up. Stop or cancel this recording.",
       autoCancelFailed:

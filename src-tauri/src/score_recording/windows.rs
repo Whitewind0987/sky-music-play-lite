@@ -1,6 +1,6 @@
 use super::{
-    NativeScoreRecordingEventPayload, ScoreRecordingEventType, ScoreRecordingStartRequest,
-    SCORE_RECORDING_EVENT,
+    NativeScoreRecordingEventPayload, ScoreRecordingEndResponse, ScoreRecordingEventType,
+    ScoreRecordingStartRequest, SCORE_RECORDING_EVENT,
 };
 use std::collections::{HashMap, HashSet};
 use std::ptr::null_mut;
@@ -526,15 +526,15 @@ pub fn start_score_recording(
     Ok(())
 }
 
-pub fn stop_score_recording(session_id: u64) -> Result<(), String> {
+pub fn stop_score_recording(session_id: u64) -> Result<ScoreRecordingEndResponse, String> {
     stop_matching_session(session_id)
 }
 
-pub fn cancel_score_recording(session_id: u64) -> Result<(), String> {
+pub fn cancel_score_recording(session_id: u64) -> Result<ScoreRecordingEndResponse, String> {
     stop_matching_session(session_id)
 }
 
-fn stop_matching_session(session_id: u64) -> Result<(), String> {
+fn stop_matching_session(session_id: u64) -> Result<ScoreRecordingEndResponse, String> {
     let mut slot = runtime_slot()
         .lock()
         .map_err(|_| "Score-recording runtime lock is poisoned.".to_string())?;
@@ -542,11 +542,29 @@ fn stop_matching_session(session_id: u64) -> Result<(), String> {
         .as_mut()
         .ok_or_else(|| "No native score-recording session is active.".to_string())?;
     ensure_session_matches(runtime.session_id, session_id)?;
-    let result = runtime.shutdown();
-    if runtime.is_clean() {
+    let shutdown_result = runtime.shutdown();
+    let is_clean = runtime.is_clean();
+    let result = classify_interactive_shutdown(is_clean, shutdown_result);
+    if is_clean {
         *slot = None;
     }
     result
+}
+
+fn classify_interactive_shutdown(
+    is_clean: bool,
+    shutdown_result: Result<(), String>,
+) -> Result<ScoreRecordingEndResponse, String> {
+    if !is_clean {
+        return Err(match shutdown_result {
+            Ok(()) => "Score-recording shutdown completed without an error, but native resources remain active.".to_string(),
+            Err(error) => error,
+        });
+    }
+
+    Ok(ScoreRecordingEndResponse {
+        warning: shutdown_result.err(),
+    })
 }
 
 fn ensure_session_matches(active_session_id: u64, requested_session_id: u64) -> Result<(), String> {
@@ -570,7 +588,11 @@ pub fn stop_score_recording_for_shutdown() -> Result<(), String> {
     if runtime.is_clean() {
         *slot = None;
     }
-    result
+    preserve_shutdown_only_result(result)
+}
+
+fn preserve_shutdown_only_result(shutdown_result: Result<(), String>) -> Result<(), String> {
+    shutdown_result
 }
 
 fn spawn_emitter_worker(
@@ -874,6 +896,46 @@ mod tests {
     fn score_recording_wrong_session_does_not_match_active_session() {
         assert!(ensure_session_matches(2, 1).is_err());
         assert!(ensure_session_matches(2, 2).is_ok());
+    }
+
+    #[test]
+    fn score_recording_clean_interactive_shutdown_succeeds_without_warning() {
+        assert_eq!(
+            classify_interactive_shutdown(true, Ok(())),
+            Ok(ScoreRecordingEndResponse { warning: None })
+        );
+    }
+
+    #[test]
+    fn score_recording_clean_interactive_shutdown_preserves_error_as_warning() {
+        assert_eq!(
+            classify_interactive_shutdown(true, Err("cleanup warning".into())),
+            Ok(ScoreRecordingEndResponse {
+                warning: Some("cleanup warning".into()),
+            })
+        );
+    }
+
+    #[test]
+    fn score_recording_non_clean_interactive_shutdown_rejects_error() {
+        assert_eq!(
+            classify_interactive_shutdown(false, Err("cleanup failed".into())),
+            Err("cleanup failed".into())
+        );
+    }
+
+    #[test]
+    fn score_recording_non_clean_interactive_shutdown_defensively_rejects_success() {
+        let error = classify_interactive_shutdown(false, Ok(())).unwrap_err();
+        assert!(error.contains("native resources remain active"));
+    }
+
+    #[test]
+    fn score_recording_shutdown_only_result_still_preserves_errors() {
+        assert_eq!(
+            preserve_shutdown_only_result(Err("cleanup warning".into())),
+            Err("cleanup warning".into())
+        );
     }
 
     #[test]

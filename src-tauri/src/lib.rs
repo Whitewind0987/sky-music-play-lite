@@ -144,12 +144,16 @@ fn start_score_recording(
 }
 
 #[tauri::command]
-fn stop_score_recording(session_id: u64) -> Result<(), String> {
+fn stop_score_recording(
+    session_id: u64,
+) -> Result<score_recording::ScoreRecordingEndResponse, String> {
     score_recording::stop_score_recording(session_id)
 }
 
 #[tauri::command]
-fn cancel_score_recording(session_id: u64) -> Result<(), String> {
+fn cancel_score_recording(
+    session_id: u64,
+) -> Result<score_recording::ScoreRecordingEndResponse, String> {
     score_recording::cancel_score_recording(session_id)
 }
 

@@ -149,6 +149,10 @@ export type ScoreRecordingStartRequest = {
   keys: string[];
 };
 
+export type ScoreRecordingEndResponse = {
+  warning: string | null;
+};
+
 export type NativeScoreRecordingEventPayload = ScoreRecordingInputEvent;
 
 export function loadAppData(): Promise<unknown | null> {
@@ -247,12 +251,18 @@ export function startScoreRecording(
   return invoke<void>("start_score_recording", { request });
 }
 
-export function stopScoreRecording(sessionId: number): Promise<void> {
-  return invoke<void>("stop_score_recording", { sessionId });
+export function stopScoreRecording(
+  sessionId: number,
+): Promise<ScoreRecordingEndResponse> {
+  return invoke<ScoreRecordingEndResponse>("stop_score_recording", { sessionId });
 }
 
-export function cancelScoreRecording(sessionId: number): Promise<void> {
-  return invoke<void>("cancel_score_recording", { sessionId });
+export function cancelScoreRecording(
+  sessionId: number,
+): Promise<ScoreRecordingEndResponse> {
+  return invoke<ScoreRecordingEndResponse>("cancel_score_recording", {
+    sessionId,
+  });
 }
 
 export function listenScoreRecordingEvents(

@@ -136,7 +136,7 @@ export function useScoreRecording({
 
     updateLifecycle("cancelling");
     try {
-      await cancelScoreRecording(sessionId);
+      const response = await cancelScoreRecording(sessionId);
       if (!isCurrentRecording(active)) {
         return;
       }
@@ -144,7 +144,12 @@ export function useScoreRecording({
       setCompletedSession(null);
       updateLifecycle("idle");
       appendLog(text.autoCancelledLog);
-      showNotice(text.targetChanged);
+      if (response.warning === null) {
+        showNotice(text.targetChanged);
+      } else {
+        appendLog(text.autoCancelWarning);
+        showNotice(text.autoCancelWarning);
+      }
     } catch {
       if (!isCurrentRecording(active)) {
         return;
@@ -287,11 +292,15 @@ export function useScoreRecording({
       skyLifecycleUnlistenRef.current = lifecycleUnlisten;
     } catch {
       try {
-        await cancelScoreRecording(sessionId);
+        const response = await cancelScoreRecording(sessionId);
         if (isCurrentRecording(active)) {
           clearActiveFrontendSession();
           updateLifecycle("idle");
-          reportFailure(text.startFailed);
+          if (response.warning === null) {
+            reportFailure(text.startFailed);
+          } else {
+            reportFailure(text.startCleanupWarning);
+          }
         }
       } catch {
         if (isCurrentRecording(active)) {
@@ -338,8 +347,10 @@ export function useScoreRecording({
     }
 
     updateLifecycle("stopping");
+    let warning: string | null;
     try {
-      await stopScoreRecording(active.sessionId);
+      const response = await stopScoreRecording(active.sessionId);
+      warning = response.warning;
     } catch {
       if (isCurrentRecording(active)) {
         updateLifecycle("recording");
@@ -362,10 +373,19 @@ export function useScoreRecording({
 
     if (finishedSession === null || finishedSession.notes.length === 0) {
       setCompletedSession(null);
-      showNotice(text.noValidNotes);
+      if (warning === null) {
+        showNotice(text.noValidNotes);
+      } else {
+        appendLog(text.stopWarningNoValidNotes);
+        showNotice(text.stopWarningNoValidNotes);
+      }
       return;
     }
     setCompletedSession(finishedSession);
+    if (warning !== null) {
+      appendLog(text.stopWarning);
+      showNotice(text.stopWarning);
+    }
   }
 
   async function cancel() {
@@ -375,8 +395,10 @@ export function useScoreRecording({
     }
 
     updateLifecycle("cancelling");
+    let warning: string | null;
     try {
-      await cancelScoreRecording(active.sessionId);
+      const response = await cancelScoreRecording(active.sessionId);
+      warning = response.warning;
     } catch {
       if (isCurrentRecording(active)) {
         updateLifecycle("recording");
@@ -392,6 +414,10 @@ export function useScoreRecording({
     setCompletedSession(null);
     updateLifecycle("idle");
     appendLog(text.cancelledLog);
+    if (warning !== null) {
+      appendLog(text.cancelWarning);
+      showNotice(text.cancelWarning);
+    }
   }
 
   useEffect(() => {

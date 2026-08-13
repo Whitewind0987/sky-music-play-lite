@@ -12,6 +12,12 @@ pub struct ScoreRecordingStartRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ScoreRecordingEndResponse {
+    pub warning: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NativeScoreRecordingEventPayload {
     pub session_id: u64,
     #[serde(rename = "type")]
