@@ -489,7 +489,6 @@ export const uiText = {
     },
     playerScoreVisualization: {
       aria: "演奏可视化",
-      eyebrow: "演奏可视化",
       close: "收起演奏可视化",
       loading: "正在加载曲谱…",
       unavailable: "暂时无法显示此曲谱",
@@ -1282,7 +1281,6 @@ export const uiText = {
     },
     playerScoreVisualization: {
       aria: "Performance visualization",
-      eyebrow: "Performance visualization",
       close: "Collapse performance visualization",
       loading: "Loading score…",
       unavailable: "This score cannot be displayed right now",
