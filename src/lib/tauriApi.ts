@@ -156,6 +156,11 @@ export type ScoreRecordingEndResponse = {
 
 export type NativeScoreRecordingEventPayload = ScoreRecordingInputEvent;
 
+export type ExportedScoreFile = {
+  fileName: string;
+  path: string;
+};
+
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");
 }
@@ -225,6 +230,16 @@ export function clearImportedScoreFiles(): Promise<number> {
 
 export function openImportedScoresDirectory(): Promise<void> {
   return invoke<void>("open_imported_scores_directory");
+}
+
+export function exportImportedScoreSong(
+  songId: LibrarySongId,
+): Promise<ExportedScoreFile> {
+  return invoke<ExportedScoreFile>("export_imported_score_song", { songId });
+}
+
+export function openExportedScoresDirectory(): Promise<void> {
+  return invoke<void>("open_exported_scores_directory");
 }
 
 export function listCandidateWindows(): Promise<CandidateWindow[]> {

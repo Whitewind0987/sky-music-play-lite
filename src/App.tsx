@@ -734,6 +734,9 @@ function App() {
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
           onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
           onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
+          onExportLocalSong={(songId) => {
+            void scoreLibrary.handleExportLocalSong(songId);
+          }}
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
@@ -776,6 +779,7 @@ function App() {
             v1ToV2UpgradePreferences.preferences
           }
           isBuiltInSongLoading={scoreLibrary.isBuiltInSongLoading}
+          isLocalSongExporting={scoreLibrary.isLocalSongExporting}
           text={text.library}
         />
       );

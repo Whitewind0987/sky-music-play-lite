@@ -65,6 +65,7 @@ type LibraryPanelProps = {
   ) => void;
   onCreatePlaylistRequest: () => void;
   onDeleteLocalSong: (songIndex: number) => void;
+  onExportLocalSong: (songId: LibrarySongId) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
@@ -101,6 +102,7 @@ type LibraryPanelProps = {
   upgradeBlocked: boolean;
   v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
   isBuiltInSongLoading: (songId: LibrarySongId) => boolean;
+  isLocalSongExporting: (songId: LibrarySongId) => boolean;
   text: UiText["library"];
 };
 
@@ -544,6 +546,7 @@ function LibraryActionMenu({
   onAddToQueue,
   onClose,
   onDeleteLocalSong,
+  onExportLocalSong,
   onOpenCollectDialog,
   onPlaySong,
   onPlaySongNext,
@@ -554,10 +557,12 @@ function LibraryActionMenu({
   selectedCategory,
   selectedPlaylist,
   text,
+  isLocalSongExporting,
 }: Pick<
   LibraryPanelProps,
   | "onAddToQueue"
   | "onDeleteLocalSong"
+  | "onExportLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
   | "onPrepareSong"
@@ -567,6 +572,7 @@ function LibraryActionMenu({
   | "selectedCategory"
   | "selectedPlaylist"
   | "text"
+  | "isLocalSongExporting"
 > & {
   item: LibrarySongListItem;
   onClose: () => void;
@@ -671,6 +677,24 @@ function LibraryActionMenu({
       {item.librarySong.source === "local-import" ? (
         <DropdownMenu.Item
           asChild
+          disabled={isLocalSongExporting(item.librarySong.id)}
+          onSelect={(event) =>
+            runAction(event, () => onExportLocalSong(item.librarySong.id))
+          }
+        >
+          <button
+            disabled={isLocalSongExporting(item.librarySong.id)}
+            type="button"
+          >
+            {isLocalSongExporting(item.librarySong.id)
+              ? text.exportingLocalScore
+              : text.exportLocalScore}
+          </button>
+        </DropdownMenu.Item>
+      ) : null}
+      {item.librarySong.source === "local-import" ? (
+        <DropdownMenu.Item
+          asChild
           onSelect={(event) =>
             runAction(event, () => onDeleteLocalSong(item.songIndex))
           }
@@ -691,6 +715,7 @@ function LibrarySongTable({
   onAddToQueue,
   onCloseActionMenu,
   onDeleteLocalSong,
+  onExportLocalSong,
   onOpenActionMenu,
   onOpenCollectDialog,
   onPlaySong,
@@ -704,6 +729,7 @@ function LibrarySongTable({
   emptyDescription,
   emptyTitle,
   isBuiltInSongLoading,
+  isLocalSongExporting,
   selectedCategory,
   selectedPlaylist,
   selectedSongIndex,
@@ -716,6 +742,7 @@ function LibrarySongTable({
   | "locateScoreRequest"
   | "onAddToQueue"
   | "onDeleteLocalSong"
+  | "onExportLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
   | "onPrepareSong"
@@ -727,6 +754,7 @@ function LibrarySongTable({
   | "selectedPlaylist"
   | "selectedSongIndex"
   | "isBuiltInSongLoading"
+  | "isLocalSongExporting"
   | "text"
 > & {
   emptyDescription: string;
@@ -946,6 +974,7 @@ function LibrarySongTable({
                           onAddToQueue={onAddToQueue}
                           onClose={onCloseActionMenu}
                           onDeleteLocalSong={onDeleteLocalSong}
+                          onExportLocalSong={onExportLocalSong}
                           onOpenCollectDialog={onOpenCollectDialog}
                           onPlaySong={onPlaySong}
                           onPlaySongNext={onPlaySongNext}
@@ -956,6 +985,7 @@ function LibrarySongTable({
                           selectedCategory={selectedCategory}
                           selectedPlaylist={selectedPlaylist}
                           text={text}
+                          isLocalSongExporting={isLocalSongExporting}
                         />
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
@@ -1017,6 +1047,7 @@ export function LibraryPanel({
   onCreatePlaylistWithSong,
   onCreatePlaylistRequest,
   onDeleteLocalSong,
+  onExportLocalSong,
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
@@ -1044,6 +1075,7 @@ export function LibraryPanel({
   upgradeBlocked,
   v1ToV2UpgradePreferences,
   isBuiltInSongLoading,
+  isLocalSongExporting,
   text,
 }: LibraryPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
@@ -1241,6 +1273,7 @@ export function LibraryPanel({
             onAddToQueue={onAddToQueue}
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
+            onExportLocalSong={onExportLocalSong}
             onOpenActionMenu={(songId) => setOpenActionMenuSongId(songId)}
             onOpenCollectDialog={(item) => {
               setOpenActionMenuSongId(null);
@@ -1258,6 +1291,7 @@ export function LibraryPanel({
             selectedPlaylist={selectedPlaylist}
             selectedSongIndex={selectedSongIndex}
             text={text}
+            isLocalSongExporting={isLocalSongExporting}
             openActionMenuSongId={openActionMenuSongId}
           />
         )}

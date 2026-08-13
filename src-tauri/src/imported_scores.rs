@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, File},
-    io::Write,
+    fs::{self, File, OpenOptions},
+    io::{ErrorKind, Write},
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
@@ -11,6 +11,7 @@ use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
 const IMPORTED_SCORES_DIR_NAME: &str = "imported-scores";
+const EXPORTED_SCORES_DIR_NAME: &str = "exported-scores";
 const CANONICAL_IMPORTED_SCORE_FILE_EXTENSION: &str = "txt";
 const CANONICAL_FILE_NAME_SEPARATOR: &str = "__";
 const FALLBACK_SCORE_TITLE_SEGMENT: &str = "untitled-score";
@@ -26,6 +27,13 @@ pub struct ImportedScoreFileMetadata {
     modified_ms: Option<u128>,
     path: String,
     size_bytes: u64,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportedScoreFile {
+    pub file_name: String,
+    pub path: String,
 }
 
 #[derive(Deserialize)]
@@ -232,7 +240,39 @@ pub fn open_imported_scores_directory(app: AppHandle) -> Result<(), String> {
         })
 }
 
+#[tauri::command]
+pub fn export_imported_score_song(song_id: String) -> Result<ExportedScoreFile, String> {
+    let imported_directory = current_exe_imported_scores_directory()?;
+    let exported_directory = current_exe_exported_scores_directory()?;
+
+    export_imported_score_song_at(&imported_directory, &exported_directory, &song_id)
+}
+
+#[tauri::command]
+pub fn open_exported_scores_directory(app: AppHandle) -> Result<(), String> {
+    let directory = current_exe_exported_scores_directory()?;
+
+    ensure_exported_scores_directory_at(&directory)?;
+    app.opener()
+        .open_path(display_path(&directory), None::<String>)
+        .map_err(|error| {
+            format!(
+                "Failed to open exported score directory at {}: {}",
+                directory.display(),
+                error
+            )
+        })
+}
+
 fn current_exe_imported_scores_directory() -> Result<PathBuf, String> {
+    current_exe_score_directory(IMPORTED_SCORES_DIR_NAME)
+}
+
+fn current_exe_exported_scores_directory() -> Result<PathBuf, String> {
+    current_exe_score_directory(EXPORTED_SCORES_DIR_NAME)
+}
+
+fn current_exe_score_directory(directory_name: &str) -> Result<PathBuf, String> {
     let exe_path = std::env::current_exe()
         .map_err(|error| format!("Failed to resolve current executable path: {}", error))?;
     let exe_directory = exe_path.parent().ok_or_else(|| {
@@ -242,7 +282,7 @@ fn current_exe_imported_scores_directory() -> Result<PathBuf, String> {
         )
     })?;
 
-    Ok(exe_directory.join(IMPORTED_SCORES_DIR_NAME))
+    Ok(exe_directory.join(directory_name))
 }
 
 fn ensure_imported_scores_directory_at(directory: &Path) -> Result<(), String> {
@@ -253,6 +293,79 @@ fn ensure_imported_scores_directory_at(directory: &Path) -> Result<(), String> {
             error
         )
     })
+}
+
+fn ensure_exported_scores_directory_at(directory: &Path) -> Result<(), String> {
+    fs::create_dir_all(directory).map_err(|error| {
+        format!(
+            "Failed to create exported score directory at {}: {}",
+            directory.display(),
+            error
+        )
+    })
+}
+
+fn export_imported_score_song_at(
+    imported_directory: &Path,
+    exported_directory: &Path,
+    song_id: &str,
+) -> Result<ExportedScoreFile, String> {
+    let song = read_imported_score_song_at(imported_directory, song_id)?;
+    let content = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&Value::Array(vec![song.clone()])).map_err(|error| {
+            format!("Failed to serialize exported score {}: {}", song_id, error)
+        })?
+    );
+    let title = sanitize_exported_score_title(song_name_from_value(&song));
+
+    ensure_exported_scores_directory_at(exported_directory)?;
+
+    for sequence in 1_u32.. {
+        let file_name = if sequence == 1 {
+            format!("{}.txt", title)
+        } else {
+            format!("{} ({}).txt", title, sequence)
+        };
+        let file_path = exported_directory.join(&file_name);
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file_path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                if path_exists_without_following(&file_path)? {
+                    continue;
+                }
+                return Err(format!(
+                    "Failed to create exported score file at {}: {}",
+                    file_path.display(),
+                    error
+                ));
+            }
+        };
+
+        if let Err(error) = file
+            .write_all(content.as_bytes())
+            .and_then(|_| file.sync_all())
+        {
+            let _ = fs::remove_file(&file_path);
+            return Err(format!(
+                "Failed to write exported score file at {}: {}",
+                file_path.display(),
+                error
+            ));
+        }
+
+        return Ok(ExportedScoreFile {
+            file_name,
+            path: display_path(&file_path),
+        });
+    }
+
+    unreachable!("export collision suffix sequence cannot be exhausted")
 }
 
 fn save_imported_score_song_at(
@@ -1485,6 +1598,36 @@ fn sanitize_score_title_segment(title: &str) -> String {
     }
 }
 
+fn sanitize_exported_score_title(title: &str) -> String {
+    let sanitized = sanitize_score_title_segment(title)
+        .trim_matches([' ', '.'])
+        .to_string();
+    let sanitized = if sanitized.is_empty() {
+        FALLBACK_SCORE_TITLE_SEGMENT.to_string()
+    } else {
+        sanitized
+    };
+    let device_stem = sanitized
+        .split('.')
+        .next()
+        .unwrap_or(&sanitized)
+        .trim()
+        .to_ascii_uppercase();
+    let is_reserved = matches!(device_stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || device_stem.strip_prefix("COM").is_some_and(|suffix| {
+            matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+        })
+        || device_stem.strip_prefix("LPT").is_some_and(|suffix| {
+            matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+        });
+
+    if is_reserved {
+        format!("_{}", sanitized)
+    } else {
+        sanitized
+    }
+}
+
 fn trim_score_title_segment(value: &str) -> String {
     value.trim().trim_end_matches([' ', '.']).to_string()
 }
@@ -1717,6 +1860,164 @@ mod tests {
     fn canonical_filename_uses_fallback_for_empty_or_invalid_names() {
         assert_eq!(sanitize_score_title_segment("////"), "untitled-score");
         assert_eq!(sanitize_score_title_segment("   ...   "), "untitled-score");
+    }
+
+    #[test]
+    fn exported_filename_sanitizes_paths_fallbacks_and_windows_devices() {
+        assert_eq!(
+            sanitize_exported_score_title(r#"../A<B>:C/D\\E?F*"#),
+            "A B C D E F"
+        );
+        assert_eq!(sanitize_exported_score_title("////"), "untitled-score");
+        assert_eq!(sanitize_exported_score_title("CON"), "_CON");
+        assert_eq!(sanitize_exported_score_title("com1.demo"), "_com1.demo");
+        assert_eq!(sanitize_exported_score_title("COM0"), "COM0");
+        assert_eq!(sanitize_exported_score_title("LPT10"), "LPT10");
+    }
+
+    #[test]
+    fn export_round_trips_canonical_v2_without_mutating_managed_source() {
+        let root = unique_test_dir("export_v2_round_trip");
+        let imported_directory = root.path.join("imported");
+        let exported_directory = root.path.join("exported");
+        let song_id = "local-export-v2";
+        let song = serde_json::json!({
+            "name": "夜曲",
+            "bpm": 98,
+            "bitsPerPage": 16,
+            "pitchLevel": 0,
+            "isComposed": false,
+            "formatVersion": 2,
+            "songNotes": [
+                {"time": 0, "key": "1Key0", "duration": 137},
+                {"time": 421, "key": "1Key1", "duration": 2048}
+            ]
+        });
+        let managed_path = save_imported_score_song_at(&imported_directory, song_id, &song)
+            .expect("managed score should be saved");
+        let managed_before = fs::read(&managed_path).expect("managed source should be readable");
+
+        let result =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("score should be exported");
+
+        assert_eq!(result.file_name, "夜曲.txt");
+        assert_eq!(
+            PathBuf::from(&result.path),
+            exported_directory.join("夜曲.txt")
+        );
+        let exported: Value = serde_json::from_str(
+            &fs::read_to_string(&result.path).expect("export should be readable"),
+        )
+        .expect("export should be JSON");
+        let songs = exported.as_array().expect("export should be an array");
+        assert_eq!(songs.len(), 1);
+        assert_eq!(
+            songs[0],
+            read_imported_score_song_at(&imported_directory, song_id).unwrap()
+        );
+        assert_eq!(songs[0]["formatVersion"], 2);
+        assert_eq!(songs[0]["songNotes"][0]["duration"], 137);
+        assert_eq!(songs[0]["songNotes"][1]["duration"], 2048);
+        assert_eq!(fs::read(&managed_path).unwrap(), managed_before);
+    }
+
+    #[test]
+    fn export_keeps_v1_shape_and_importable_one_song_array() {
+        let root = unique_test_dir("export_v1_shape");
+        let imported_directory = root.path.join("imported");
+        let exported_directory = root.path.join("exported");
+        let song_id = "local-export-v1";
+        save_imported_score_song_at(&imported_directory, song_id, &sample_song("Simple Song"))
+            .expect("managed score should be saved");
+
+        let result =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("score should be exported");
+        let exported_song = read_raw_one_song_from_file(Path::new(&result.path))
+            .expect("export should satisfy the one-song import contract");
+
+        assert_eq!(result.file_name, "Simple Song.txt");
+        assert_eq!(exported_song["name"], "Simple Song");
+        assert!(exported_song.get("formatVersion").is_none());
+        assert!(exported_song["songNotes"][0].get("duration").is_none());
+    }
+
+    #[test]
+    fn export_uses_collision_suffixes_without_overwriting_any_existing_object() {
+        let root = unique_test_dir("export_collisions");
+        let imported_directory = root.path.join("imported");
+        let exported_directory = root.path.join("exported");
+        let song_id = "local-export-collision";
+        save_imported_score_song_at(&imported_directory, song_id, &sample_song("Collision"))
+            .expect("managed score should be saved");
+        fs::create_dir_all(&exported_directory).unwrap();
+        fs::write(exported_directory.join("Collision.txt"), "keep me").unwrap();
+        fs::create_dir(exported_directory.join("Collision (2).txt")).unwrap();
+
+        let first =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("first export should skip collisions");
+        let second =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("second export should use the next suffix");
+
+        assert_eq!(first.file_name, "Collision (3).txt");
+        assert_eq!(second.file_name, "Collision (4).txt");
+        assert_eq!(
+            fs::read_to_string(exported_directory.join("Collision.txt")).unwrap(),
+            "keep me"
+        );
+        assert!(exported_directory.join("Collision (2).txt").is_dir());
+    }
+
+    #[test]
+    fn repeated_exports_use_second_and_third_suffixes_without_overwrite() {
+        let root = unique_test_dir("export_repeated_suffixes");
+        let imported_directory = root.path.join("imported");
+        let exported_directory = root.path.join("exported");
+        let song_id = "local-export-repeated";
+        save_imported_score_song_at(&imported_directory, song_id, &sample_song("Repeated"))
+            .expect("managed score should be saved");
+
+        let first =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("first export should succeed");
+        let first_content = fs::read(&first.path).expect("first export should be readable");
+        let second =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("second export should succeed");
+        let third =
+            export_imported_score_song_at(&imported_directory, &exported_directory, song_id)
+                .expect("third export should succeed");
+
+        assert_eq!(first.file_name, "Repeated.txt");
+        assert_eq!(second.file_name, "Repeated (2).txt");
+        assert_eq!(third.file_name, "Repeated (3).txt");
+        assert_eq!(fs::read(&first.path).unwrap(), first_content);
+    }
+
+    #[test]
+    fn export_rejects_missing_or_malformed_managed_sources() {
+        let root = unique_test_dir("export_invalid_sources");
+        let imported_directory = root.path.join("imported");
+        let exported_directory = root.path.join("exported");
+
+        let missing_error = export_imported_score_song_at(
+            &imported_directory,
+            &exported_directory,
+            "local-missing",
+        )
+        .expect_err("missing managed source must fail");
+        assert!(missing_error.contains("No imported score file found"));
+        assert!(!exported_directory.exists());
+
+        write_raw_file(&imported_directory, "Broken__local-broken.txt", "not json");
+        let malformed_error =
+            export_imported_score_song_at(&imported_directory, &exported_directory, "local-broken")
+                .expect_err("malformed managed source must fail");
+        assert!(malformed_error.contains("No valid imported score file found"));
+        assert!(!exported_directory.exists());
     }
 
     #[test]

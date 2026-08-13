@@ -216,6 +216,8 @@ export const uiText = {
       moreActions: "更多操作",
       deleteLocalSong: "删除",
       deleteFromLocalImports: "从本地导入删除",
+      exportLocalScore: "导出曲谱",
+      exportingLocalScore: "正在导出…",
       upgradeToV2: {
         menuAction: "升级为 V2（保留原曲谱）",
         title: "升级为 V2",
@@ -491,6 +493,10 @@ export const uiText = {
       appReady: "应用布局已准备好。",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
       importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
+      localScoreExported: "已导出“{fileName}”，可以直接发送给其他人。",
+      localScoreExportFailed: "导出曲谱“{songName}”失败：{error}",
+      exportedScoreFolderOpenFailed:
+        "曲谱已导出，但无法打开导出目录。文件位置：{path}；错误：{error}",
       importFailed: "导入 {fileName} 失败：{error}",
       noSelectedScore: "请先导入并选择一首曲谱。",
       previewStopped: "预览已停止。",
@@ -962,6 +968,8 @@ export const uiText = {
       moreActions: "More actions",
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
+      exportLocalScore: "Export Score",
+      exportingLocalScore: "Exporting…",
       upgradeToV2: {
         menuAction: "Upgrade to V2 (keep original score)",
         title: "Upgrade to V2",
@@ -1260,6 +1268,11 @@ export const uiText = {
       importedScores: "Imported {count} score(s) from {fileName}.",
       importedScoresFromFiles:
         "Imported {count} score(s) from {fileCount} file(s).",
+      localScoreExported:
+        "Exported “{fileName}”. You can share this file directly.",
+      localScoreExportFailed: "Failed to export “{songName}”: {error}",
+      exportedScoreFolderOpenFailed:
+        "The score was exported, but the export folder could not be opened. File: {path}; error: {error}",
       importFailed: "Failed to import {fileName}: {error}",
       noSelectedScore: "Import and select a score first.",
       previewStopped: "Preview stopped.",
