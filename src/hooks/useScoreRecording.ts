@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
+import { formatText } from "../lib/formatText";
 import {
   createScoreRecordingKeyLookup,
   createScoreRecordingSession,
   finishScoreRecordingSession,
   processScoreRecordingEvent,
+  scoreRecordingSessionToSong,
 } from "../lib/scoreRecording";
 import {
   isScoreRecordingTargetCurrent,
@@ -26,6 +28,7 @@ import type {
   ScoreRecordingKeyLookup,
   ScoreRecordingSession,
 } from "../types/scoreRecording";
+import type { Song } from "../types/score";
 
 export type ScoreRecordingLifecycle =
   | "idle"
@@ -45,6 +48,7 @@ type ActiveRecording = {
 type UseScoreRecordingOptions = {
   appendLog: (message: string) => void;
   keyMapping: KeyMapping;
+  saveRecordedSong: (song: Song) => Promise<unknown>;
   showNotice: (message: string) => void;
   text: UiText["scoreRecording"];
 };
@@ -52,6 +56,7 @@ type UseScoreRecordingOptions = {
 export function useScoreRecording({
   appendLog,
   keyMapping,
+  saveRecordedSong,
   showNotice,
   text,
 }: UseScoreRecordingOptions) {
@@ -60,6 +65,8 @@ export function useScoreRecording({
   const [recordedNoteCount, setRecordedNoteCount] = useState(0);
   const [completedSession, setCompletedSession] =
     useState<ScoreRecordingSession | null>(null);
+  const [completedName, setCompletedName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const lifecycleRef = useRef<ScoreRecordingLifecycle>("idle");
   const mountedRef = useRef(true);
   const nextSessionIdRef = useRef(1);
@@ -68,6 +75,7 @@ export function useScoreRecording({
   const scoreEventUnlistenRef = useRef<(() => void) | null>(null);
   const skyLifecycleUnlistenRef = useRef<(() => void) | null>(null);
   const acceptingEventsRef = useRef(false);
+  const isSavingRef = useRef(false);
 
   function updateLifecycle(nextLifecycle: ScoreRecordingLifecycle) {
     lifecycleRef.current = nextLifecycle;
@@ -79,6 +87,13 @@ export function useScoreRecording({
   function updateRecordedNoteCount(count: number) {
     if (mountedRef.current) {
       setRecordedNoteCount(count);
+    }
+  }
+
+  function updateIsSaving(nextIsSaving: boolean) {
+    isSavingRef.current = nextIsSaving;
+    if (mountedRef.current) {
+      setIsSaving(nextIsSaving);
     }
   }
 
@@ -160,7 +175,7 @@ export function useScoreRecording({
   }
 
   async function start() {
-    if (lifecycleRef.current !== "idle") {
+    if (lifecycleRef.current !== "idle" || isSavingRef.current) {
       return;
     }
 
@@ -274,6 +289,7 @@ export function useScoreRecording({
       return;
     }
     setCompletedSession(null);
+    setCompletedName("");
 
     try {
       const lifecycleUnlisten = await listenSkyWindowLifecycleEvents((event) => {
@@ -373,6 +389,7 @@ export function useScoreRecording({
 
     if (finishedSession === null || finishedSession.notes.length === 0) {
       setCompletedSession(null);
+      setCompletedName("");
       if (warning === null) {
         showNotice(text.noValidNotes);
       } else {
@@ -412,11 +429,61 @@ export function useScoreRecording({
     }
     clearActiveFrontendSession();
     setCompletedSession(null);
+    setCompletedName("");
     updateLifecycle("idle");
     appendLog(text.cancelledLog);
     if (warning !== null) {
       appendLog(text.cancelWarning);
       showNotice(text.cancelWarning);
+    }
+  }
+
+  function changeCompletedName(name: string) {
+    if (!isSavingRef.current) {
+      setCompletedName(name);
+    }
+  }
+
+  async function saveCompletedRecording() {
+    const session = completedSession;
+
+    if (
+      session === null ||
+      lifecycleRef.current !== "idle" ||
+      isSavingRef.current
+    ) {
+      return;
+    }
+
+    const name = completedName.trim();
+    if (name.length === 0) {
+      showNotice(text.emptyName);
+      return;
+    }
+
+    const song = scoreRecordingSessionToSong(session, name);
+    if (song === null) {
+      reportFailure(text.saveInvalidRecording);
+      return;
+    }
+
+    updateIsSaving(true);
+    try {
+      await saveRecordedSong(song);
+      if (!mountedRef.current) {
+        return;
+      }
+      setCompletedSession(null);
+      setCompletedName("");
+      const message = formatText(text.saveSucceeded, { name });
+      appendLog(message);
+      showNotice(message);
+    } catch {
+      if (mountedRef.current) {
+        reportFailure(text.saveFailed);
+      }
+    } finally {
+      updateIsSaving(false);
     }
   }
 
@@ -437,10 +504,13 @@ export function useScoreRecording({
 
   return {
     canCancel: lifecycle === "recording",
-    canStart: lifecycle === "idle",
+    canStart: lifecycle === "idle" && !isSaving,
     canStop: lifecycle === "recording",
+    completedName,
     completedSession,
     handleCancel: cancel,
+    handleCompletedNameChange: changeCompletedName,
+    handleSave: saveCompletedRecording,
     handleStart: start,
     handleStop: stop,
     isBusy:
@@ -448,6 +518,7 @@ export function useScoreRecording({
       lifecycle === "stopping" ||
       lifecycle === "cancelling",
     isRecording: lifecycle === "recording",
+    isSaving,
     lifecycle,
     recordedNoteCount,
   };

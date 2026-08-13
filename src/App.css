@@ -3047,6 +3047,39 @@ button {
   font-size: 13px;
 }
 
+.score-recording-save {
+  display: grid;
+  gap: 8px;
+}
+
+.score-recording-save label {
+  color: #1f2933;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.score-recording-save input {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 0 11px;
+  border: 1px solid #c7d0dc;
+  border-radius: 7px;
+  color: #1f2933;
+  background: #ffffff;
+}
+
+.score-recording-save input:focus {
+  border-color: #d92d20;
+  outline: 2px solid rgba(217, 45, 32, 0.16);
+  outline-offset: 1px;
+}
+
+.score-recording-save input:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .score-recording-actions {
   display: flex;
   flex-wrap: wrap;

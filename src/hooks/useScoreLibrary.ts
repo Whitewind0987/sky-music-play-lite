@@ -51,6 +51,7 @@ import {
   storeUniqueImportedSongs,
   type ParsedImportedSong,
 } from "../lib/scoreLibraryImport";
+import { persistRecordedSong } from "../lib/recordedScoreLibrary";
 import {
   deleteImportedScoreFile,
   importedScoreFileExists,
@@ -482,6 +483,22 @@ export function useScoreLibrary({
         );
       });
     }
+  }
+
+  async function handleSaveRecordedSong(
+    song: Song,
+  ): Promise<LocalLibrarySong> {
+    onBeforeLibraryMutation();
+
+    const librarySong = await persistRecordedSong({
+      saveImportedScoreSong: saveImportedScoreSongFile,
+      song,
+    });
+
+    importedScoreSongLoaderRef.current.seed(librarySong.id, song);
+    applyCreatedScoreToLibrary(librarySong);
+
+    return librarySong;
   }
 
   function handleSelectImportedSong(songIndex: number | null) {
@@ -1342,6 +1359,7 @@ export function useScoreLibrary({
     handleRemoveFromLiked,
     handleRemoveSongFromPlaylist,
     handleRenamePlaylist,
+    handleSaveRecordedSong,
     handleSelectImportedSong,
     handleToggleLikedSong,
     handleUpgradeSongToV2,

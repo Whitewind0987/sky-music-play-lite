@@ -3,9 +3,13 @@ import { formatText } from "../lib/formatText";
 import type { ScoreRecordingLifecycle } from "../hooks/useScoreRecording";
 
 type ScoreRecordingPanelProps = {
+  completedName: string;
   completedNoteCount: number | null;
+  isSaving: boolean;
   lifecycle: ScoreRecordingLifecycle;
   onCancel: () => void;
+  onCompletedNameChange: (name: string) => void;
+  onSave: () => void;
   onStart: () => void;
   onStop: () => void;
   recordedNoteCount: number;
@@ -13,9 +17,13 @@ type ScoreRecordingPanelProps = {
 };
 
 export function ScoreRecordingPanel({
+  completedName,
   completedNoteCount,
+  isSaving,
   lifecycle,
   onCancel,
+  onCompletedNameChange,
+  onSave,
   onStart,
   onStop,
   recordedNoteCount,
@@ -26,17 +34,19 @@ export function ScoreRecordingPanel({
     lifecycle === "stopping" ||
     lifecycle === "cancelling";
   const status =
-    lifecycle === "starting"
-      ? text.starting
-      : lifecycle === "stopping"
-        ? text.stopping
-        : lifecycle === "cancelling"
-          ? text.cancelling
-          : lifecycle === "recording"
-            ? text.recording
-            : completedNoteCount === null
-              ? text.idle
-              : text.completed;
+    isSaving
+      ? text.saving
+      : lifecycle === "starting"
+        ? text.starting
+        : lifecycle === "stopping"
+          ? text.stopping
+          : lifecycle === "cancelling"
+            ? text.cancelling
+            : lifecycle === "recording"
+              ? text.recording
+              : completedNoteCount === null
+                ? text.idle
+                : text.completed;
   const visibleNoteCount = isActive
     ? recordedNoteCount
     : completedNoteCount;
@@ -72,37 +82,69 @@ export function ScoreRecordingPanel({
         )}
       </div>
 
-      <div className="score-recording-actions">
-        {lifecycle === "idle" || lifecycle === "starting" ? (
-          <button
-            className="score-recording-primary"
-            type="button"
-            disabled={lifecycle === "starting"}
-            onClick={onStart}
-          >
-            {lifecycle === "starting" ? text.starting : text.start}
-          </button>
-        ) : (
-          <>
+      {completedNoteCount !== null && lifecycle === "idle" ? (
+        <div className="score-recording-save">
+          <label htmlFor="score-recording-name">{text.scoreNameLabel}</label>
+          <input
+            id="score-recording-name"
+            type="text"
+            value={completedName}
+            placeholder={text.scoreNamePlaceholder}
+            disabled={isSaving}
+            onChange={(event) => onCompletedNameChange(event.target.value)}
+          />
+          <div className="score-recording-actions">
             <button
               className="score-recording-primary"
               type="button"
-              disabled={lifecycle !== "recording"}
-              onClick={onStop}
+              disabled={isSaving}
+              onClick={onSave}
             >
-              {lifecycle === "stopping" ? text.stopping : text.stop}
+              {isSaving ? text.saving : text.saveRecording}
             </button>
             <button
               className="score-recording-secondary"
               type="button"
-              disabled={lifecycle !== "recording"}
-              onClick={onCancel}
+              disabled={isSaving}
+              onClick={onStart}
             >
-              {lifecycle === "cancelling" ? text.cancelling : text.cancel}
+              {text.recordAgain}
             </button>
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      ) : (
+        <div className="score-recording-actions">
+          {lifecycle === "idle" || lifecycle === "starting" ? (
+            <button
+              className="score-recording-primary"
+              type="button"
+              disabled={lifecycle === "starting"}
+              onClick={onStart}
+            >
+              {lifecycle === "starting" ? text.starting : text.start}
+            </button>
+          ) : (
+            <>
+              <button
+                className="score-recording-primary"
+                type="button"
+                disabled={lifecycle !== "recording"}
+                onClick={onStop}
+              >
+                {lifecycle === "stopping" ? text.stopping : text.stop}
+              </button>
+              <button
+                className="score-recording-secondary"
+                type="button"
+                disabled={lifecycle !== "recording"}
+                onClick={onCancel}
+              >
+                {lifecycle === "cancelling" ? text.cancelling : text.cancel}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }

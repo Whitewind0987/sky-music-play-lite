@@ -148,12 +148,6 @@ function App() {
     keyMapping,
     listeningSkyKey,
   } = useKeyMapping();
-  const scoreRecording = useScoreRecording({
-    appendLog,
-    keyMapping,
-    showNotice: showAppNotice,
-    text: text.scoreRecording,
-  });
   const v1ToV2UpgradePreferences =
     useV1ToV2UpgradePreferences();
   const scoreLibrary = useScoreLibrary({
@@ -165,6 +159,13 @@ function App() {
       missingLocalSongsRemovedRef.current(removedSongs),
     showNotice: showAppNotice,
     text,
+  });
+  const scoreRecording = useScoreRecording({
+    appendLog,
+    keyMapping,
+    saveRecordedSong: scoreLibrary.handleSaveRecordedSong,
+    showNotice: showAppNotice,
+    text: text.scoreRecording,
   });
   const playbackOrder = usePlaybackOrder();
   const playbackQueue = usePlaybackQueue({
@@ -773,11 +774,15 @@ function App() {
             text={text.keyboard}
           />
           <ScoreRecordingPanel
+            completedName={scoreRecording.completedName}
             completedNoteCount={
               scoreRecording.completedSession?.notes.length ?? null
             }
+            isSaving={scoreRecording.isSaving}
             lifecycle={scoreRecording.lifecycle}
             onCancel={() => void scoreRecording.handleCancel()}
+            onCompletedNameChange={scoreRecording.handleCompletedNameChange}
+            onSave={() => void scoreRecording.handleSave()}
             onStart={() => void scoreRecording.handleStart()}
             onStop={() => void scoreRecording.handleStop()}
             recordedNoteCount={scoreRecording.recordedNoteCount}
