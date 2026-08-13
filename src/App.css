@@ -297,52 +297,6 @@ button {
   font-weight: 700;
 }
 
-.sidebar-category-item {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 36px;
-  width: 100%;
-  display: block;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 7px;
-  color: #5f6b7a;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sidebar-category-item-content {
-  position: relative;
-  z-index: 2;
-  min-width: 0;
-  min-height: 36px;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.sidebar-category-item:hover,
-.sidebar-category-item:focus-visible {
-  color: #111827;
-  background: rgba(15, 23, 42, 0.035);
-  outline: none;
-}
-
-.sidebar-category-item.is-active {
-  color: #111827;
-  background: #dbeafe;
-  font-weight: 700;
-}
-
-.sidebar-category-icon {
-  width: 17px;
-  height: 17px;
-}
-
 .sidebar-category-label {
   min-width: 0;
   overflow: hidden;
@@ -3034,10 +2988,6 @@ button {
   grid-area: score;
 }
 
-.keyboard-panel {
-  grid-area: keyboard;
-}
-
 .playback-workspace-content {
   grid-area: keyboard;
   min-width: 0;
@@ -3046,30 +2996,31 @@ button {
   align-content: start;
 }
 
-.playback-workspace-content .keyboard-panel {
-  grid-area: auto;
-}
-
 .score-recording-page {
   width: 100%;
   max-width: 1040px;
   display: grid;
-  gap: 18px;
+  gap: 10px;
   margin: 0 auto;
 }
 
-.score-recording-visualizer,
+.score-live-visualizer,
 .player-score-visualizer {
   --score-visual-surface: #f8fafc;
   --score-visual-border: #d8dee6;
   --score-visual-muted: #9aa8b7;
 }
 
-.score-recording-visualizer {
+.score-live-visualizer {
   display: grid;
   grid-template-columns: minmax(220px, 0.38fr) minmax(0, 0.62fr);
-  gap: 18px;
+  gap: 14px;
   align-items: stretch;
+}
+
+.score-recording-visualizer,
+.playback-score-preview {
+  padding: 12px;
 }
 
 .player-score-visualizer {
@@ -3202,14 +3153,14 @@ button {
   text-align: center;
 }
 
-.score-recording-visualizer__column {
+.score-live-visualizer__column {
   min-width: 0;
   display: grid;
-  gap: 10px;
+  gap: 7px;
   align-content: start;
 }
 
-.score-recording-visualizer__column h2 {
+.score-live-visualizer__column h2 {
   margin: 0;
   color: #52616f;
   font-size: 13px;
@@ -3291,7 +3242,7 @@ button {
   color: var(--app-primary-contrast);
 }
 
-.score-recording-visualizer__flow {
+.score-live-visualizer__flow {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
@@ -3306,6 +3257,11 @@ button {
   border-radius: 8px;
   background: var(--score-visual-surface);
   overflow: hidden;
+}
+
+.score-live-visualizer .score-visual-timeline {
+  min-height: 170px;
+  padding: 20px 12px 12px;
 }
 
 .score-visual-timeline__empty {
@@ -3405,7 +3361,7 @@ button {
     min-height: 150px;
   }
 
-  .score-recording-visualizer {
+  .score-live-visualizer {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -3417,12 +3373,17 @@ button {
     min-height: 150px;
     padding: 20px 10px 10px;
   }
+
+  .score-live-visualizer .score-visual-timeline {
+    min-height: 150px;
+    padding: 20px 10px 10px;
+  }
 }
 
 .score-recording-guide {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 8px;
+  padding: 11px 12px;
   border: 1px solid #e2e7ed;
   border-radius: 8px;
   color: #52616f;
@@ -3438,14 +3399,15 @@ button {
 
 .score-recording-guide h2 {
   color: #1f2933;
-  font-size: 16px;
+  font-size: 18px;
+  line-height: 1.2;
 }
 
 .score-recording-guide ol {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  padding-left: 24px;
+  gap: 10px;
+  padding-left: 22px;
 }
 
 .score-recording-guide li {
@@ -3459,13 +3421,14 @@ button {
 
 .score-recording-guide h3 {
   color: #1f2933;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.25;
 }
 
 .score-recording-guide p {
-  margin-top: 5px;
-  font-size: 13px;
-  line-height: 1.55;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 @media (max-width: 760px) {
@@ -3475,7 +3438,8 @@ button {
 }
 
 .score-recording-panel {
-  gap: 12px;
+  gap: 8px;
+  padding: 12px;
 }
 
 .score-recording-copy,
@@ -3501,11 +3465,11 @@ button {
 }
 
 .score-recording-status {
-  min-height: 64px;
+  min-height: 52px;
   display: grid;
   gap: 5px;
   align-content: center;
-  padding: 12px;
+  padding: 8px 10px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #f8fafc;
@@ -3539,7 +3503,7 @@ button {
 
 .score-recording-save {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .score-recording-save label {
@@ -3550,7 +3514,7 @@ button {
 
 .score-recording-save input {
   width: 100%;
-  min-height: 38px;
+  min-height: 34px;
   box-sizing: border-box;
   padding: 0 11px;
   border: 1px solid #c7d0dc;
@@ -3577,7 +3541,7 @@ button {
 }
 
 .score-recording-actions button {
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 14px;
   border-radius: 7px;
   cursor: pointer;
@@ -3808,60 +3772,6 @@ button {
 
 .score-card dd {
   font-weight: 700;
-}
-
-.keyboard-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-auto-rows: minmax(48px, 1fr);
-  gap: clamp(6px, 1.2vw, 10px);
-}
-
-.key-button {
-  min-width: 0;
-  min-height: 44px;
-  border: 1px solid #c7d0dc;
-  border-radius: 8px;
-  color: #52616f;
-  background: #f3f6f9;
-}
-
-.key-button {
-  display: grid;
-  gap: clamp(2px, 0.6vw, 4px);
-  place-items: center;
-  padding: clamp(4px, 1vw, 8px);
-  font-weight: 700;
-}
-
-.sky-key-label {
-  color: #1f2933;
-  font-size: clamp(10px, 1.45vw, 14px);
-  line-height: 1.1;
-}
-
-.keyboard-key-label {
-  min-width: clamp(20px, 3vw, 28px);
-  min-height: clamp(18px, 2.8vw, 24px);
-  display: inline-grid;
-  place-items: center;
-  border-radius: 5px;
-  color: #52616f;
-  background: #ffffff;
-  font-size: clamp(10px, 1.35vw, 13px);
-  line-height: 1;
-}
-
-.key-button.is-active:disabled {
-  border-color: var(--app-primary);
-  color: var(--app-primary-hover);
-  background: rgba(var(--app-primary-rgb), 0.13);
-  box-shadow: inset 0 0 0 2px var(--app-primary);
-}
-
-.key-button.is-active:disabled .keyboard-key-label {
-  color: var(--app-primary-hover);
-  background: #ffffff;
 }
 
 .bottom-player {

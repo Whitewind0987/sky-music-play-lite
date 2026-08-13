@@ -5,29 +5,30 @@ import type { Song } from "../types/score";
 type UsePlayerScoreVisualizationOptions = {
   currentSongId: LibrarySongId | null;
   currentSongIndex: number | null;
+  isInlinePreviewActive: boolean;
   preloadSong: (songIndex: number) => Promise<Song | null>;
 };
 
 export function usePlayerScoreVisualization({
   currentSongId,
   currentSongIndex,
+  isInlinePreviewActive,
   preloadSong,
 }: UsePlayerScoreVisualizationOptions) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoadFailed, setHasLoadFailed] = useState(false);
   const [resolvedSong, setResolvedSong] = useState<Song | null>(null);
+  const [loadTargetSongId, setLoadTargetSongId] =
+    useState<LibrarySongId | null>(null);
   const requestGenerationRef = useRef(0);
   const preloadSongRef = useRef(preloadSong);
   preloadSongRef.current = preloadSong;
   const canOpen = currentSongId !== null && currentSongIndex !== null;
+  const shouldResolveSong = isOpen || isInlinePreviewActive;
 
   const close = useCallback(() => {
-    requestGenerationRef.current += 1;
     setIsOpen(false);
-    setIsLoading(false);
-    setHasLoadFailed(false);
-    setResolvedSong(null);
   }, []);
 
   const open = useCallback(() => {
@@ -43,12 +44,22 @@ export function usePlayerScoreVisualization({
   }, [close, currentSongId, currentSongIndex]);
 
   useEffect(() => {
-    if (!isOpen || currentSongId === null || currentSongIndex === null) {
+    if (
+      !shouldResolveSong ||
+      currentSongId === null ||
+      currentSongIndex === null
+    ) {
+      requestGenerationRef.current += 1;
+      setIsLoading(false);
+      setHasLoadFailed(false);
+      setResolvedSong(null);
+      setLoadTargetSongId(null);
       return;
     }
 
     const requestGeneration = requestGenerationRef.current + 1;
     requestGenerationRef.current = requestGeneration;
+    setLoadTargetSongId(currentSongId);
     setIsLoading(true);
     setHasLoadFailed(false);
     setResolvedSong(null);
@@ -81,7 +92,7 @@ export function usePlayerScoreVisualization({
         requestGenerationRef.current += 1;
       }
     };
-  }, [currentSongId, currentSongIndex, isOpen]);
+  }, [currentSongId, currentSongIndex, shouldResolveSong]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -104,13 +115,19 @@ export function usePlayerScoreVisualization({
     return () => document.removeEventListener("keydown", handleDocumentKeyDown);
   }, [close, isOpen]);
 
+  const isCurrentSongLoad = loadTargetSongId === currentSongId;
+  const hasCurrentSongToResolve =
+    shouldResolveSong && currentSongId !== null && currentSongIndex !== null;
+
   return {
     canOpen,
     close,
-    hasLoadFailed,
-    isLoading,
+    hasLoadFailed: isCurrentSongLoad && hasLoadFailed,
+    isLoading:
+      hasCurrentSongToResolve && (!isCurrentSongLoad || isLoading),
     isOpen,
     open,
-    resolvedSong,
+    resolvedSong:
+      isCurrentSongLoad && shouldResolveSong ? resolvedSong : null,
   };
 }

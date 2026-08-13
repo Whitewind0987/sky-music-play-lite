@@ -41,8 +41,8 @@ export function RecordingScoreVisualizer({
   );
 
   return (
-    <section className="panel score-recording-visualizer">
-      <div className="score-recording-visualizer__column">
+    <section className="panel score-live-visualizer score-recording-visualizer">
+      <div className="score-live-visualizer__column">
         <h2>{text.keyboard}</h2>
         <SkyKeyboardVisualizer
           activeKeys={activeKeys}
@@ -50,7 +50,7 @@ export function RecordingScoreVisualizer({
         />
       </div>
 
-      <div className="score-recording-visualizer__column score-recording-visualizer__flow">
+      <div className="score-live-visualizer__column score-live-visualizer__flow">
         <h2>{text.timeline}</h2>
         <ScoreTimelineVisualizer
           activeKeys={activeKeys}

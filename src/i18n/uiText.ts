@@ -354,10 +354,14 @@ export const uiText = {
           "曲谱“{songName}”里的第 {noteIndex} 个音符 duration 无效。必须是 0 到 60000 之间的正数毫秒。",
       },
     },
-    keyboard: {
-      panelTitle: "琴键预览区",
-      panelDescription: "",
-      previewAria: "静态琴键预览",
+    playbackScorePreview: {
+      keyboard: "实时按键",
+      keyboardAria: "当前实时按键状态",
+      timeline: "曲谱流",
+      timelineAria: "当前播放曲谱流",
+      emptyTimeline: "播放曲谱后，曲谱会在这里实时显示",
+      loadingTimeline: "正在加载曲谱…",
+      unavailableTimeline: "暂时无法显示此曲谱",
     },
     scoreRecording: {
       panelTitle: "录制控制",
@@ -1136,10 +1140,14 @@ export const uiText = {
           'Note {noteIndex} in song "{songName}" has an invalid duration. It must be a positive number of milliseconds no greater than 60000.',
       },
     },
-    keyboard: {
-      panelTitle: "Keyboard preview area",
-      panelDescription: "",
-      previewAria: "Static keyboard preview",
+    playbackScorePreview: {
+      keyboard: "Live keys",
+      keyboardAria: "Current live key state",
+      timeline: "Score stream",
+      timelineAria: "Current playback score stream",
+      emptyTimeline: "Play a score to see it here in real time",
+      loadingTimeline: "Loading score…",
+      unavailableTimeline: "This score cannot be displayed right now",
     },
     scoreRecording: {
       panelTitle: "Recording Controls",

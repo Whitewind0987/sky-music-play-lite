@@ -22,9 +22,9 @@ import {
   LibraryPanel,
 } from "./components/LibraryPanel";
 import { PlaybackLog } from "./components/LogPanel";
-import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { ScoreRecordingPage } from "./components/ScoreRecordingPage";
+import { PlaybackScorePreview } from "./components/score-visualization/PlaybackScorePreview";
 import { PlayerScoreVisualizer } from "./components/score-visualization/PlayerScoreVisualizer";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
@@ -344,6 +344,7 @@ function App() {
   const playerScoreVisualization = usePlayerScoreVisualization({
     currentSongId: scoreLibrary.currentPlaybackSong?.id ?? null,
     currentSongIndex: scoreLibrary.playbackSongIndex,
+    isInlinePreviewActive: activeSection === "Playback",
     preloadSong: scoreLibrary.preloadSong,
   });
   missingPlaybackSongRemovalRef.current = (removedPlaybackSongId) => {
@@ -828,10 +829,15 @@ function App() {
     if (activeSection === "Playback") {
       return (
         <div className="playback-workspace-content">
-          <KeyboardPreview
-            activeKeys={previewPlayback.activeKeys}
-            keyMapping={keyMapping}
-            text={text.keyboard}
+          <PlaybackScorePreview
+            hasLoadFailed={playerScoreVisualization.hasLoadFailed}
+            isLoading={playerScoreVisualization.isLoading}
+            noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+            playbackSpeed={playbackOutput.playbackSpeed}
+            playbackState={playbackOutput.playbackState}
+            progress={playbackOutput.progress}
+            song={playerScoreVisualization.resolvedSong}
+            text={text.playbackScorePreview}
           />
         </div>
       );
