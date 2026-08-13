@@ -4,6 +4,7 @@ import {
   deriveAccentContrastColor,
   deriveAccentHoverColor,
   deriveAccentRgb,
+  isValidAccentColor,
   normalizeAccentColor,
 } from "./accentColor";
 
@@ -29,6 +30,17 @@ describe("accent color", () => {
 
   it("uses the default for a missing value", () => {
     expect(normalizeAccentColor(undefined)).toBe(defaultAccentColor);
+  });
+
+  it.each([
+    ["#8952EE", true],
+    ["#8952ee", true],
+    ["#8952E", false],
+    ["8952EE", false],
+    ["#8952EEEE", false],
+    ["#ZZ52EE", false],
+  ])("validates six-digit HEX color %s", (value, expected) => {
+    expect(isValidAccentColor(value)).toBe(expected);
   });
 
   it("derives the CSS RGB channel list", () => {

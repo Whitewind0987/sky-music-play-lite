@@ -5,6 +5,7 @@ import {
   type LanguageCode,
   type UiText,
 } from "../i18n/uiText";
+import { isValidAccentColor } from "../lib/accentColor";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
@@ -126,6 +127,9 @@ export function SettingsPlaceholder({
   shortcutNotice,
   text,
 }: SettingsPlaceholderProps) {
+  const [accentColorDraft, setAccentColorDraft] = useState(
+    accentColor.toUpperCase(),
+  );
   const [shortcutConflictNotices, setShortcutConflictNotices] =
     useState<PlaybackShortcutNotices>({});
   const shortcutBindingRefs = useRef<
@@ -155,6 +159,10 @@ export function SettingsPlaceholder({
     experimentalInput.candidateWindows.some(
       (window) => window.hwnd === experimentalInput.selectedWindowHwnd,
     );
+
+  useEffect(() => {
+    setAccentColorDraft(accentColor.toUpperCase());
+  }, [accentColor]);
 
   useEffect(() => {
     if (listeningSkyKey !== null) {
@@ -673,9 +681,48 @@ export function SettingsPlaceholder({
                 value={accentColor}
                 onChange={(event) => onAccentColorChange(event.target.value)}
               />
-              <output className="accent-color-value">
-                {accentColor.toUpperCase()}
-              </output>
+              <input
+                className="accent-color-hex-input"
+                type="text"
+                aria-label={text.accentColorHex}
+                value={accentColorDraft}
+                maxLength={7}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setAccentColorDraft(value);
+                  if (isValidAccentColor(value)) {
+                    onAccentColorChange(value);
+                  }
+                }}
+                onBlur={() => {
+                  if (isValidAccentColor(accentColorDraft)) {
+                    onAccentColorChange(accentColorDraft);
+                    setAccentColorDraft(accentColorDraft.toUpperCase());
+                    return;
+                  }
+                  setAccentColorDraft(accentColor.toUpperCase());
+                }}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) {
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    if (isValidAccentColor(accentColorDraft)) {
+                      onAccentColorChange(accentColorDraft);
+                      setAccentColorDraft(accentColorDraft.toUpperCase());
+                    } else {
+                      setAccentColorDraft(accentColor.toUpperCase());
+                    }
+                    event.currentTarget.blur();
+                  } else if (event.key === "Escape") {
+                    setAccentColorDraft(accentColor.toUpperCase());
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
               <button
                 className="accent-color-reset"
                 type="button"

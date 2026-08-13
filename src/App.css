@@ -2543,13 +2543,20 @@ button {
 }
 
 .accent-color-picker:focus-visible,
+.accent-color-hex-input:focus-visible,
 .accent-color-reset:focus-visible {
   outline: 2px solid rgba(var(--app-primary-rgb), 0.5);
   outline-offset: 2px;
 }
 
-.accent-color-value {
-  color: #52616f;
+.accent-color-hex-input {
+  width: 96px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #c7d0dc;
+  border-radius: 6px;
+  color: #1f2933;
+  background: #ffffff;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }

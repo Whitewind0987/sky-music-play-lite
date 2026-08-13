@@ -2,8 +2,12 @@ export const defaultAccentColor = "#2f80ed";
 
 const accentColorPattern = /^#[0-9a-f]{6}$/i;
 
+export function isValidAccentColor(value: unknown): value is string {
+  return typeof value === "string" && accentColorPattern.test(value);
+}
+
 export function normalizeAccentColor(value: unknown): string {
-  return typeof value === "string" && accentColorPattern.test(value)
+  return isValidAccentColor(value)
     ? value.toLowerCase()
     : defaultAccentColor;
 }
