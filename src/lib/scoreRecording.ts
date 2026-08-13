@@ -5,10 +5,15 @@ import {
 } from "../types/keyMapping";
 import type { Song } from "../types/score";
 import type {
+  ActiveScoreRecordingPress,
   ScoreRecordingInputEvent,
   ScoreRecordingKeyLookup,
   ScoreRecordingSession,
 } from "../types/scoreRecording";
+import {
+  isValidExplicitDuration,
+  MAX_EXPLICIT_NOTE_DURATION_MS,
+} from "./scoreTiming";
 
 const asciiLetterPattern = /^[a-z]$/i;
 
@@ -54,7 +59,7 @@ export function createScoreRecordingSession(
 ): ScoreRecordingSession {
   return {
     sessionId,
-    pressedKeys: new Set(),
+    activePresses: new Map(),
     notes: [],
     firstAcceptedNoteTimeMs: null,
     lastAcceptedEventTimeMs: null,
@@ -90,32 +95,38 @@ export function processScoreRecordingEvent(
   }
 
   if (event.type === "keyup") {
-    if (!session.pressedKeys.has(normalizedKey)) {
+    const activePress = session.activePresses.get(normalizedKey);
+    if (activePress === undefined) {
       return session;
     }
 
-    const pressedKeys = new Set(session.pressedKeys);
-    pressedKeys.delete(normalizedKey);
+    const activePresses = new Map(session.activePresses);
+    activePresses.delete(normalizedKey);
 
     return {
       ...session,
-      pressedKeys,
+      activePresses,
+      notes: applyMeasuredDuration(session.notes, activePress, event.timeMs),
       lastAcceptedEventTimeMs: event.timeMs,
     };
   }
 
-  if (session.pressedKeys.has(normalizedKey)) {
+  if (session.activePresses.has(normalizedKey)) {
     return session;
   }
 
   const firstAcceptedNoteTimeMs =
     session.firstAcceptedNoteTimeMs ?? event.timeMs;
-  const pressedKeys = new Set(session.pressedKeys);
-  pressedKeys.add(normalizedKey);
+  const noteIndex = session.notes.length;
+  const activePresses = new Map(session.activePresses);
+  activePresses.set(normalizedKey, {
+    noteIndex,
+    startedAtMs: event.timeMs,
+  });
 
   return {
     ...session,
-    pressedKeys,
+    activePresses,
     notes: [
       ...session.notes,
       {
@@ -130,12 +141,26 @@ export function processScoreRecordingEvent(
 
 export function finishScoreRecordingSession(
   session: ScoreRecordingSession,
+  endedAtMs?: number,
 ): ScoreRecordingSession {
   if (session.finished) {
     return session;
   }
 
-  return { ...session, finished: true };
+  let notes = session.notes;
+
+  if (Number.isFinite(endedAtMs)) {
+    for (const activePress of session.activePresses.values()) {
+      notes = applyMeasuredDuration(notes, activePress, endedAtMs as number);
+    }
+  }
+
+  return {
+    ...session,
+    activePresses: new Map(),
+    notes,
+    finished: true,
+  };
 }
 
 export function scoreRecordingSessionToSong(
@@ -146,16 +171,50 @@ export function scoreRecordingSessionToSong(
     return null;
   }
 
+  const songNotes = session.notes.map((note) =>
+    isValidExplicitDuration(note.duration)
+      ? { time: note.time, key: note.key, duration: note.duration }
+      : { time: note.time, key: note.key },
+  );
+  const hasExplicitDuration = songNotes.some((note) =>
+    isValidExplicitDuration(note.duration),
+  );
+
   return {
-    formatVersion: 1,
+    formatVersion: hasExplicitDuration ? 2 : 1,
     name,
     bpm: 120,
     bitsPerPage: 16,
     pitchLevel: 0,
     isComposed: true,
-    songNotes: session.notes.map((note) => ({
-      time: note.time,
-      key: note.key,
-    })),
+    songNotes,
   };
+}
+
+function applyMeasuredDuration(
+  notes: ScoreRecordingSession["notes"],
+  activePress: ActiveScoreRecordingPress,
+  endedAtMs: number,
+) {
+  const measuredDuration = endedAtMs - activePress.startedAtMs;
+
+  if (!Number.isFinite(measuredDuration) || measuredDuration <= 0) {
+    return notes;
+  }
+
+  const note = notes[activePress.noteIndex];
+  if (note === undefined) {
+    return notes;
+  }
+
+  const duration = Math.min(
+    measuredDuration,
+    MAX_EXPLICIT_NOTE_DURATION_MS,
+  );
+
+  return notes.map((currentNote, index) =>
+    index === activePress.noteIndex
+      ? { ...currentNote, duration }
+      : currentNote,
+  );
 }

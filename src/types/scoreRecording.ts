@@ -15,9 +15,14 @@ export type ScoreRecordingKeyLookup = {
   ambiguousKeys: ReadonlySet<string>;
 };
 
+export type ActiveScoreRecordingPress = {
+  noteIndex: number;
+  startedAtMs: number;
+};
+
 export type ScoreRecordingSession = {
   sessionId: number;
-  pressedKeys: ReadonlySet<string>;
+  activePresses: ReadonlyMap<string, ActiveScoreRecordingPress>;
   notes: readonly Note[];
   firstAcceptedNoteTimeMs: number | null;
   lastAcceptedEventTimeMs: number | null;

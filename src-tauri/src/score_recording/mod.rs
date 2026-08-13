@@ -14,6 +14,7 @@ pub struct ScoreRecordingStartRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ScoreRecordingEndResponse {
     pub warning: Option<String>,
+    pub ended_at_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

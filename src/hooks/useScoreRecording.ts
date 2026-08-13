@@ -364,9 +364,11 @@ export function useScoreRecording({
 
     updateLifecycle("stopping");
     let warning: string | null;
+    let endedAtMs: number;
     try {
       const response = await stopScoreRecording(active.sessionId);
       warning = response.warning;
+      endedAtMs = response.endedAtMs;
     } catch {
       if (isCurrentRecording(active)) {
         updateLifecycle("recording");
@@ -382,7 +384,7 @@ export function useScoreRecording({
     const finishedSession =
       currentSession === null
         ? null
-        : finishScoreRecordingSession(currentSession);
+        : finishScoreRecordingSession(currentSession, endedAtMs);
     clearActiveFrontendSession();
     updateLifecycle("idle");
     appendLog(text.stoppedLog);

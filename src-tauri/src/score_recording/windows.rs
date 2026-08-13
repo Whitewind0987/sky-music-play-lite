@@ -285,11 +285,27 @@ struct HookContext {
 }
 
 impl HookContext {
-    fn stop_accepting(&self) {
-        if let Ok(mut state) = self.decision_state.lock() {
-            state.stop_accepting();
-        }
+    fn stop_accepting_and_capture_end(&self) -> u64 {
+        let mut state = self
+            .decision_state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.stop_accepting();
+        drop(state);
+        session_elapsed_ms(self.started_at)
     }
+
+    fn stop_accepting(&self) {
+        let _ = self.stop_accepting_and_capture_end();
+    }
+}
+
+fn session_elapsed_ms(started_at: Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+fn capture_ended_at_ms(stored: &mut Option<u64>, candidate: u64) -> u64 {
+    *stored.get_or_insert(candidate)
 }
 
 static HOOK_CONTEXT: OnceLock<Mutex<Option<Arc<HookContext>>>> = OnceLock::new();
@@ -322,6 +338,7 @@ unsafe extern "system" fn low_level_keyboard_hook(
                 .and_then(|slot| slot.clone());
 
             if let Some(context) = context {
+                let time_ms = session_elapsed_ms(context.started_at);
                 let input = HookInput {
                     action,
                     injected: native.flags & LLKHF_INJECTED != 0,
@@ -342,7 +359,7 @@ unsafe extern "system" fn low_level_keyboard_hook(
                         session_id: context.session_id,
                         event_type,
                         key,
-                        time_ms: context.started_at.elapsed().as_millis() as u64,
+                        time_ms,
                     });
                 }
             }
@@ -381,13 +398,25 @@ struct Runtime {
     context: Option<Arc<HookContext>>,
     hook_worker: Option<Worker>,
     emitter_worker: Option<Worker>,
+    ended_at_ms: Option<u64>,
 }
 
 impl Runtime {
-    fn shutdown(&mut self) -> Result<(), String> {
-        if let Some(context) = self.context.as_ref() {
-            context.stop_accepting();
+    fn stop_accepting_and_capture_end(&mut self) -> u64 {
+        if let Some(ended_at_ms) = self.ended_at_ms {
+            return ended_at_ms;
         }
+
+        let candidate = self
+            .context
+            .as_ref()
+            .map(|context| context.stop_accepting_and_capture_end())
+            .unwrap_or(0);
+        capture_ended_at_ms(&mut self.ended_at_ms, candidate)
+    }
+
+    fn shutdown(&mut self) -> Result<(), String> {
+        self.stop_accepting_and_capture_end();
 
         let post_error = (self.hook_worker.is_some()
             && unsafe { PostThreadMessageW(self.hook_thread_id, WM_QUIT, 0, 0) } == 0)
@@ -522,6 +551,7 @@ pub fn start_score_recording(
         context: Some(context),
         hook_worker: Some(hook_worker),
         emitter_worker: Some(emitter_worker),
+        ended_at_ms: None,
     });
     Ok(())
 }
@@ -542,9 +572,10 @@ fn stop_matching_session(session_id: u64) -> Result<ScoreRecordingEndResponse, S
         .as_mut()
         .ok_or_else(|| "No native score-recording session is active.".to_string())?;
     ensure_session_matches(runtime.session_id, session_id)?;
+    let ended_at_ms = runtime.stop_accepting_and_capture_end();
     let shutdown_result = runtime.shutdown();
     let is_clean = runtime.is_clean();
-    let result = classify_interactive_shutdown(is_clean, shutdown_result);
+    let result = classify_interactive_shutdown(is_clean, shutdown_result, ended_at_ms);
     if is_clean {
         *slot = None;
     }
@@ -554,6 +585,7 @@ fn stop_matching_session(session_id: u64) -> Result<ScoreRecordingEndResponse, S
 fn classify_interactive_shutdown(
     is_clean: bool,
     shutdown_result: Result<(), String>,
+    ended_at_ms: u64,
 ) -> Result<ScoreRecordingEndResponse, String> {
     if !is_clean {
         return Err(match shutdown_result {
@@ -564,6 +596,7 @@ fn classify_interactive_shutdown(
 
     Ok(ScoreRecordingEndResponse {
         warning: shutdown_result.err(),
+        ended_at_ms,
     })
 }
 
@@ -901,17 +934,21 @@ mod tests {
     #[test]
     fn score_recording_clean_interactive_shutdown_succeeds_without_warning() {
         assert_eq!(
-            classify_interactive_shutdown(true, Ok(())),
-            Ok(ScoreRecordingEndResponse { warning: None })
+            classify_interactive_shutdown(true, Ok(()), 321),
+            Ok(ScoreRecordingEndResponse {
+                warning: None,
+                ended_at_ms: 321,
+            })
         );
     }
 
     #[test]
     fn score_recording_clean_interactive_shutdown_preserves_error_as_warning() {
         assert_eq!(
-            classify_interactive_shutdown(true, Err("cleanup warning".into())),
+            classify_interactive_shutdown(true, Err("cleanup warning".into()), 321),
             Ok(ScoreRecordingEndResponse {
                 warning: Some("cleanup warning".into()),
+                ended_at_ms: 321,
             })
         );
     }
@@ -919,15 +956,31 @@ mod tests {
     #[test]
     fn score_recording_non_clean_interactive_shutdown_rejects_error() {
         assert_eq!(
-            classify_interactive_shutdown(false, Err("cleanup failed".into())),
+            classify_interactive_shutdown(false, Err("cleanup failed".into()), 321),
             Err("cleanup failed".into())
         );
     }
 
     #[test]
     fn score_recording_non_clean_interactive_shutdown_defensively_rejects_success() {
-        let error = classify_interactive_shutdown(false, Ok(())).unwrap_err();
+        let error = classify_interactive_shutdown(false, Ok(()), 321).unwrap_err();
         assert!(error.contains("native resources remain active"));
+    }
+
+    #[test]
+    fn score_recording_end_time_capture_is_stable_across_retries() {
+        let mut stored = None;
+        assert_eq!(capture_ended_at_ms(&mut stored, 400), 400);
+        assert_eq!(capture_ended_at_ms(&mut stored, 2400), 400);
+        assert_eq!(stored, Some(400));
+    }
+
+    #[test]
+    fn score_recording_event_timestamp_uses_session_relative_elapsed_time() {
+        let started_at = Instant::now() - Duration::from_millis(25);
+        let elapsed = session_elapsed_ms(started_at);
+        assert!(elapsed >= 25);
+        assert!(elapsed < 1000);
     }
 
     #[test]
@@ -942,6 +995,7 @@ mod tests {
     fn score_recording_stopped_state_prevents_later_delivery() {
         let bindings = bindings(&["a"]);
         let mut state = HookDecisionState::new();
+        state.stop_accepting();
         state.stop_accepting();
         assert_eq!(
             state.handle(

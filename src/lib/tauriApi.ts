@@ -151,6 +151,7 @@ export type ScoreRecordingStartRequest = {
 
 export type ScoreRecordingEndResponse = {
   warning: string | null;
+  endedAtMs: number;
 };
 
 export type NativeScoreRecordingEventPayload = ScoreRecordingInputEvent;

@@ -12,6 +12,7 @@ import {
   processScoreRecordingEvent,
   scoreRecordingSessionToSong,
 } from "./scoreRecording";
+import { MAX_EXPLICIT_NOTE_DURATION_MS } from "./scoreTiming";
 
 function record(
   events: Array<{
@@ -112,7 +113,7 @@ describe("score recording session", () => {
 
     expect(session.notes).toEqual([{ time: 0, key: "Key2" }]);
     expect(session.firstAcceptedNoteTimeMs).toBe(300);
-    expect(session.pressedKeys).toEqual(new Set(["i"]));
+    expect([...session.activePresses.keys()]).toEqual(["i"]);
   });
 
   it("lets the current mapping make an otherwise unrelated key recordable", () => {
@@ -158,7 +159,7 @@ describe("score recording session", () => {
     ]);
 
     expect(session.notes).toEqual([
-      { time: 0, key: "Key0" },
+      { time: 0, key: "Key0", duration: 3 },
       { time: 10, key: "Key0" },
     ]);
   });
@@ -190,12 +191,12 @@ describe("score recording session", () => {
     );
 
     expect(afterRepeatKeydown).toBe(afterFirstKeydown);
-    expect(afterKeyup.pressedKeys).toEqual(new Set());
+    expect(afterKeyup.activePresses.size).toBe(0);
     expect(afterSecondKeydown.notes).toEqual([
-      { time: 0, key: "Key0" },
+      { time: 0, key: "Key0", duration: 2 },
       { time: 10, key: "Key0" },
     ]);
-    expect(afterSecondKeydown.pressedKeys).toEqual(new Set([" "]));
+    expect([...afterSecondKeydown.activePresses.keys()]).toEqual([" "]);
   });
 
   it("tracks multiple held keys independently", () => {
@@ -206,10 +207,10 @@ describe("score recording session", () => {
     ]);
 
     expect(session.notes).toEqual([
-      { time: 0, key: "Key0" },
+      { time: 0, key: "Key0", duration: 10 },
       { time: 3, key: "Key1" },
     ]);
-    expect(session.pressedKeys).toEqual(new Set(["u"]));
+    expect([...session.activePresses.keys()]).toEqual(["u"]);
   });
 
   it("preserves different keys at the same timestamp", () => {
@@ -254,7 +255,7 @@ describe("score recording session", () => {
 
     expect(afterStaleKeydown).toBe(initial);
     expect(afterStaleKeyup).toBe(initial);
-    expect(afterStaleKeyup.pressedKeys).toEqual(new Set(["y"]));
+    expect([...afterStaleKeyup.activePresses.keys()]).toEqual(["y"]);
   });
 
   it("ignores all events after completion", () => {
@@ -291,8 +292,151 @@ describe("score recording session", () => {
       { time: 0, key: "Key0" },
       { time: 100, key: "Key2" },
     ]);
-    expect(session.pressedKeys).toEqual(new Set(["y", "i"]));
+    expect([...session.activePresses.keys()]).toEqual(["y", "i"]);
     expect(session.lastAcceptedEventTimeMs).toBe(2100);
+  });
+
+  it("records an exact duration without changing note start timing", () => {
+    const session = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      { type: "keyup", key: "y", timeMs: 1450 },
+      { type: "keydown", key: "u", timeMs: 1600 },
+      { type: "keyup", key: "u", timeMs: 1612 },
+    ]);
+
+    expect(session.notes).toEqual([
+      { time: 0, key: "Key0", duration: 450 },
+      { time: 600, key: "Key1", duration: 12 },
+    ]);
+    expect(session.activePresses.size).toBe(0);
+  });
+
+  it("does not let repeated keydown reset the active press start", () => {
+    const session = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      { type: "keydown", key: "Y", timeMs: 1030 },
+      { type: "keydown", key: "y", timeMs: 1060 },
+      { type: "keyup", key: "Y", timeMs: 1300 },
+    ]);
+
+    expect(session.notes).toEqual([
+      { time: 0, key: "Key0", duration: 300 },
+    ]);
+  });
+
+  it("records independent same-key retriggers", () => {
+    const session = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      { type: "keyup", key: "y", timeMs: 1200 },
+      { type: "keydown", key: "y", timeMs: 1300 },
+      { type: "keyup", key: "y", timeMs: 1600 },
+    ]);
+
+    expect(session.notes).toEqual([
+      { time: 0, key: "Key0", duration: 200 },
+      { time: 300, key: "Key0", duration: 300 },
+    ]);
+  });
+
+  it("records independent chord durations without snapping starts", () => {
+    const session = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      { type: "keydown", key: "u", timeMs: 1003 },
+      { type: "keyup", key: "y", timeMs: 1300 },
+      { type: "keyup", key: "u", timeMs: 1700 },
+    ]);
+
+    expect(session.notes).toEqual([
+      { time: 0, key: "Key0", duration: 300 },
+      { time: 3, key: "Key1", duration: 697 },
+    ]);
+  });
+
+  it("records duration for Space and custom mappings", () => {
+    const space = record(
+      [
+        { type: "keydown", key: " ", timeMs: 10 },
+        { type: "keyup", key: " ", timeMs: 60 },
+      ],
+      { ...defaultKeyMapping, Key0: " " },
+    );
+    const custom = record(
+      [
+        { type: "keydown", key: "A", timeMs: 100 },
+        { type: "keyup", key: "a", timeMs: 175 },
+      ],
+      { ...defaultKeyMapping, Key0: "a" },
+    );
+
+    expect(space.notes).toEqual([{ time: 0, key: "Key0", duration: 50 }]);
+    expect(custom.notes).toEqual([{ time: 0, key: "Key0", duration: 75 }]);
+  });
+
+  it("ignores unrelated, stale, and out-of-order keyups without releasing", () => {
+    const lookup = createScoreRecordingKeyLookup(defaultKeyMapping);
+    const active = record([{ type: "keydown", key: "y", timeMs: 1000 }]);
+    const unrelated = processScoreRecordingEvent(
+      active,
+      { sessionId: 1, type: "keyup", key: "u", timeMs: 1100 },
+      lookup,
+    );
+    const stale = processScoreRecordingEvent(
+      unrelated,
+      { sessionId: 2, type: "keyup", key: "y", timeMs: 1200 },
+      lookup,
+    );
+    const old = processScoreRecordingEvent(
+      stale,
+      { sessionId: 1, type: "keyup", key: "y", timeMs: 900 },
+      lookup,
+    );
+
+    expect(unrelated).toBe(active);
+    expect(stale).toBe(active);
+    expect(old).toBe(active);
+    expect(active.activePresses.has("y")).toBe(true);
+    expect(active.notes).toEqual([{ time: 0, key: "Key0" }]);
+  });
+
+  it("omits zero duration and clamps durations above the explicit maximum", () => {
+    const zero = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      { type: "keyup", key: "y", timeMs: 1000 },
+    ]);
+    const clamped = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      {
+        type: "keyup",
+        key: "y",
+        timeMs: 1000 + MAX_EXPLICIT_NOTE_DURATION_MS + 500,
+      },
+    ]);
+
+    expect(zero.notes).toEqual([{ time: 0, key: "Key0" }]);
+    expect(clamped.notes[0]?.duration).toBe(MAX_EXPLICIT_NOTE_DURATION_MS);
+  });
+
+  it("finishes held notes independently at the supplied native end time", () => {
+    const active = record([
+      { type: "keydown", key: "y", timeMs: 1000 },
+      { type: "keydown", key: "u", timeMs: 1200 },
+    ]);
+    const finished = finishScoreRecordingSession(active, 2000);
+
+    expect(finished.notes).toEqual([
+      { time: 0, key: "Key0", duration: 1000 },
+      { time: 200, key: "Key1", duration: 800 },
+    ]);
+    expect(finished.activePresses.size).toBe(0);
+  });
+
+  it("finishes without inventing held-note duration when no end time exists", () => {
+    const finished = finishScoreRecordingSession(
+      record([{ type: "keydown", key: "y", timeMs: 1000 }]),
+    );
+
+    expect(finished.notes).toEqual([{ time: 0, key: "Key0" }]);
+    expect(finished.activePresses.size).toBe(0);
   });
 });
 
@@ -335,5 +479,27 @@ describe("completed recording conversion", () => {
     expect(
       song?.songNotes.every((note: Note) => !("duration" in note)),
     ).toBe(true);
+  });
+
+  it("preserves valid durations and selects V2 automatically", () => {
+    const song = scoreRecordingSessionToSong(
+      finishScoreRecordingSession(
+        record([
+          { type: "keydown", key: "y", timeMs: 1000 },
+          { type: "keydown", key: "u", timeMs: 1005 },
+          { type: "keyup", key: "y", timeMs: 1200 },
+          { type: "keyup", key: "u", timeMs: 1620 },
+          { type: "keydown", key: "i", timeMs: 1700 },
+        ]),
+      ),
+      "Measured",
+    );
+
+    expect(song?.formatVersion).toBe(2);
+    expect(song?.songNotes).toEqual([
+      { time: 0, key: "Key0", duration: 200 },
+      { time: 5, key: "Key1", duration: 615 },
+      { time: 700, key: "Key2" },
+    ]);
   });
 });
