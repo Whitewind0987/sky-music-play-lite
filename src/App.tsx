@@ -24,6 +24,7 @@ import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { ScoreRecordingPage } from "./components/ScoreRecordingPage";
+import { PlayerScoreVisualizer } from "./components/score-visualization/PlayerScoreVisualizer";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
@@ -39,6 +40,7 @@ import { usePlaybackOrder } from "./hooks/usePlaybackOrder";
 import { usePlaybackOutput } from "./hooks/usePlaybackOutput";
 import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePlaybackShortcuts } from "./hooks/usePlaybackShortcuts";
+import { usePlayerScoreVisualization } from "./hooks/usePlayerScoreVisualization";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
 import { useScoreRecording } from "./hooks/useScoreRecording";
@@ -327,6 +329,11 @@ function App() {
     experimentalInput,
     previewPlayback,
     text: text.bottomPlayer,
+  });
+  const playerScoreVisualization = usePlayerScoreVisualization({
+    currentSongId: scoreLibrary.currentPlaybackSong?.id ?? null,
+    currentSongIndex: scoreLibrary.playbackSongIndex,
+    preloadSong: scoreLibrary.preloadSong,
   });
   missingPlaybackSongRemovalRef.current = (removedPlaybackSongId) => {
     if (
@@ -943,10 +950,29 @@ function App() {
           text={text}
         />
 
-        <div
-          className={`app-layout app-layout-${activeSection.toLowerCase()}`}
-        >
-          {renderActiveSection()}
+        <div className="workspace-content-stack">
+          <div
+            className={`app-layout app-layout-${activeSection.toLowerCase()}`}
+          >
+            {renderActiveSection()}
+          </div>
+          <PlayerScoreVisualizer
+            hasLoadFailed={playerScoreVisualization.hasLoadFailed}
+            isLoading={playerScoreVisualization.isLoading}
+            isOpen={playerScoreVisualization.isOpen}
+            noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+            onClose={playerScoreVisualization.close}
+            playbackSpeed={playbackOutput.playbackSpeed}
+            playbackState={playbackOutput.playbackState}
+            progress={playbackOutput.progress}
+            song={playerScoreVisualization.resolvedSong}
+            songTitle={
+              scoreLibrary.currentPlaybackSong === null
+                ? ""
+                : getLibrarySongName(scoreLibrary.currentPlaybackSong)
+            }
+            text={text.playerScoreVisualization}
+          />
         </div>
       </section>
 
@@ -1044,13 +1070,16 @@ function App() {
       <BottomPlayer
         canPlay={playbackOutput.canPlay}
         canSeek={playbackOutput.canSeek}
+        canOpenVisualization={playerScoreVisualization.canOpen}
         currentSong={scoreLibrary.currentPlaybackSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
+        isVisualizationOpen={playerScoreVisualization.isOpen}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
         onNext={playbackCoordinator.handleNextPlayback}
+        onVisualizationToggle={playerScoreVisualization.toggle}
         onPause={playbackOutput.onPause}
         onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
         onPlay={playbackCoordinator.handleBottomPlayerPlay}

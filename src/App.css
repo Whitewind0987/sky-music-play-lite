@@ -879,6 +879,16 @@ button {
   overflow-y: auto;
 }
 
+.workspace-content-stack {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .app-layout-workspace,
 .app-layout-library,
 .app-layout-recording,
@@ -2993,14 +3003,145 @@ button {
   margin: 0 auto;
 }
 
-.score-recording-visualizer {
+.score-recording-visualizer,
+.player-score-visualizer {
   --score-visual-surface: #f8fafc;
   --score-visual-border: #d8dee6;
   --score-visual-muted: #9aa8b7;
+}
+
+.score-recording-visualizer {
   display: grid;
   grid-template-columns: minmax(220px, 0.38fr) minmax(0, 0.62fr);
   gap: 18px;
   align-items: stretch;
+}
+
+.player-score-visualizer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(16px, 2.5vw, 28px);
+  border-top: 1px solid var(--score-visual-border);
+  background: #f7f8fa;
+  box-shadow: 0 -16px 36px rgba(15, 23, 42, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(100%);
+  transition:
+    transform 260ms ease,
+    opacity 220ms ease;
+  overflow: hidden;
+}
+
+.player-score-visualizer.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.player-score-visualizer__header {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: clamp(14px, 2vh, 22px);
+}
+
+.player-score-visualizer__heading {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.player-score-visualizer__heading span,
+.player-score-visualizer__column h3 {
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.player-score-visualizer__heading h2,
+.player-score-visualizer__column h3,
+.player-score-visualizer__state {
+  margin: 0;
+}
+
+.player-score-visualizer__heading h2 {
+  overflow: hidden;
+  color: #111827;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-score-visualizer__close {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d8dee6;
+  border-radius: 999px;
+  color: #334155;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.player-score-visualizer__close:hover {
+  color: var(--app-primary);
+  border-color: rgba(var(--app-primary-rgb), 0.45);
+  background: #f8fbff;
+}
+
+.player-score-visualizer__close:focus-visible {
+  outline: 2px solid rgba(var(--app-primary-rgb), 0.5);
+  outline-offset: 2px;
+}
+
+.player-score-visualizer__body {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 0.62fr);
+  gap: clamp(18px, 3vw, 38px);
+  align-items: center;
+  overflow: auto;
+}
+
+.player-score-visualizer__column {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+
+.player-score-visualizer__column .sky-keyboard-visualizer {
+  width: min(100%, 390px);
+}
+
+.player-score-visualizer__score .score-visual-timeline {
+  min-height: clamp(190px, 38vh, 330px);
+}
+
+.player-score-visualizer__state {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .score-recording-visualizer__column {
@@ -3185,6 +3326,28 @@ button {
 }
 
 @media (max-width: 820px) {
+  .player-score-visualizer {
+    padding: 14px;
+  }
+
+  .player-score-visualizer__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    align-content: start;
+  }
+
+  .player-score-visualizer__column {
+    align-content: start;
+  }
+
+  .player-score-visualizer__column .sky-keyboard-visualizer {
+    width: min(100%, 310px);
+  }
+
+  .player-score-visualizer__score .score-visual-timeline {
+    min-height: 150px;
+  }
+
   .score-recording-visualizer {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3196,6 +3359,12 @@ button {
   .score-visual-timeline {
     min-height: 150px;
     padding: 20px 10px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-score-visualizer {
+    transition-duration: 1ms;
   }
 }
 
@@ -3821,6 +3990,23 @@ button {
   max-width: min(38vw, 380px);
   display: grid;
   gap: 4px;
+}
+
+.bottom-player-score.is-visualization-trigger {
+  padding: 5px 7px;
+  margin: -5px -7px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.bottom-player-score.is-visualization-trigger:hover {
+  background: rgba(var(--app-primary-rgb), 0.07);
+}
+
+.bottom-player-score.is-visualization-trigger:focus-visible {
+  outline: 2px solid rgba(var(--app-primary-rgb), 0.5);
+  outline-offset: 2px;
 }
 
 .bottom-player-label {

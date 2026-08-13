@@ -56,8 +56,9 @@ export function RecordingScoreVisualizer({
           activeKeys={activeKeys}
           ariaLabel={text.timelineAria}
           emptyMessage={text.emptyTimeline}
+          focusGroupIndex={model.groups.length - 1}
           groups={model.groups}
-          isLive={isLive}
+          markCurrentGroup={isLive}
         />
       </div>
     </section>

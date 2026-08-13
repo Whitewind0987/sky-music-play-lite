@@ -1,4 +1,8 @@
-import { paginateScoreVisualGroups } from "../../lib/scoreVisualization";
+import { useMemo } from "react";
+import {
+  getScoreVisualPageIndexForGroup,
+  paginateScoreVisualGroups,
+} from "../../lib/scoreVisualization";
 import type { SkyKeyName } from "../../types/keyMapping";
 import type {
   ScoreVisualGroup as ScoreVisualGroupModel,
@@ -9,20 +13,25 @@ type ScoreTimelineVisualizerProps = {
   activeKeys: readonly SkyKeyName[];
   ariaLabel: string;
   emptyMessage: string;
+  focusGroupIndex: number;
   groups: readonly ScoreVisualGroupModel[];
-  isLive: boolean;
+  markCurrentGroup: boolean;
 };
 
 export function ScoreTimelineVisualizer({
   activeKeys,
   ariaLabel,
   emptyMessage,
+  focusGroupIndex,
   groups,
-  isLive,
+  markCurrentGroup,
 }: ScoreTimelineVisualizerProps) {
-  const focusIndex = groups.length - 1;
-  const pages = paginateScoreVisualGroups(groups);
-  const currentPage = pages[pages.length - 1];
+  const pages = useMemo(() => paginateScoreVisualGroups(groups), [groups]);
+  const focusedPageIndex = getScoreVisualPageIndexForGroup(
+    focusGroupIndex,
+    groups.length,
+  );
+  const currentPage = pages[focusedPageIndex < 0 ? 0 : focusedPageIndex];
 
   return (
     <div
@@ -47,7 +56,9 @@ export function ScoreTimelineVisualizer({
                 <ScoreVisualGroup
                   activeKeys={activeKeys}
                   group={group}
-                  isCurrent={isLive && groupIndex === focusIndex}
+                  isCurrent={
+                    markCurrentGroup && groupIndex === focusGroupIndex
+                  }
                   key={groupIndex}
                 />
               );

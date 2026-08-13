@@ -40,13 +40,16 @@ import {
 type BottomPlayerProps = {
   canPlay: boolean;
   canSeek: boolean;
+  canOpenVisualization: boolean;
   currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
+  isVisualizationOpen: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onNext: () => void;
+  onVisualizationToggle: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
   onPlay: () => void;
@@ -203,13 +206,16 @@ function PlayerStepper({
 export function BottomPlayer({
   canPlay,
   canSeek,
+  canOpenVisualization,
   currentSong,
   isCurrentSongLoading,
   isShuffleEnabled,
   isRealInputOutput,
+  isVisualizationOpen,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onNext,
+  onVisualizationToggle,
   onPlayQueueItem,
   onPause,
   onPlay,
@@ -381,6 +387,20 @@ export function BottomPlayer({
     onSeek(clampProgressTime(nextTimeMs, totalProgressMs));
   }
 
+  function handleVisualizationTriggerKeyDown(
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) {
+    if (
+      !canOpenVisualization ||
+      (event.key !== "Enter" && event.key !== " ")
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    onVisualizationToggle();
+  }
+
   useEffect(() => {
     if (!queueOpen) {
       return;
@@ -499,7 +519,26 @@ export function BottomPlayer({
       </div>
 
       <div className="bottom-player-body">
-        <div className="bottom-player-score">
+        <div
+          className={`bottom-player-score${
+            canOpenVisualization ? " is-visualization-trigger" : ""
+          }`}
+          aria-disabled={!canOpenVisualization}
+          aria-label={
+            isVisualizationOpen
+              ? text.collapseVisualization
+              : text.expandVisualization
+          }
+          aria-pressed={isVisualizationOpen}
+          role="button"
+          tabIndex={canOpenVisualization ? 0 : -1}
+          onClick={() => {
+            if (canOpenVisualization) {
+              onVisualizationToggle();
+            }
+          }}
+          onKeyDown={handleVisualizationTriggerKeyDown}
+        >
           <span className="bottom-player-label">{text.currentScore}</span>
           <div className="bottom-player-title-row">
             <strong className="bottom-player-title">
