@@ -108,6 +108,7 @@ function App() {
   const missingPlaybackSongRemovalRef = useRef<
     (songId: LibrarySongId) => void
   >(() => {});
+  const warmPlaybackPlanRef = useRef<(songIndex: number) => void>(() => {});
 
   useEffect(() => {
     appendDetailedLogRef.current = appFileLogger.appendDetailedLog;
@@ -163,7 +164,18 @@ function App() {
   const scoreRecording = useScoreRecording({
     appendLog,
     keyMapping,
-    saveRecordedSong: scoreLibrary.handleSaveRecordedSong,
+    saveRecordedSong: async (song) => {
+      const librarySong = await scoreLibrary.handleSaveRecordedSong(song);
+      const songIndex = scoreLibrary.librarySongsRef.current.findIndex(
+        (candidate) => candidate.id === librarySong.id,
+      );
+
+      if (songIndex >= 0) {
+        warmPlaybackPlanRef.current(songIndex);
+      }
+
+      return librarySong;
+    },
     showNotice: showAppNotice,
     text: text.scoreRecording,
   });
@@ -216,7 +228,7 @@ function App() {
         librarySongs: scoreLibrary.librarySongs,
       }),
     getSongIdentityForPlayback: (songIndex) =>
-      scoreLibrary.librarySongs[songIndex]?.id ?? null,
+      scoreLibrary.librarySongsRef.current[songIndex]?.id ?? null,
     librarySongsRef: scoreLibrary.librarySongsRef,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
@@ -236,8 +248,12 @@ function App() {
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
   });
-  function warmPlaybackPlan(songIndex: number) {
+  warmPlaybackPlanRef.current = (songIndex) => {
     void experimentalInput.handlePrepareExperimentalSong(songIndex);
+  };
+
+  function warmPlaybackPlan(songIndex: number) {
+    warmPlaybackPlanRef.current(songIndex);
   }
 
   function handleLibrarySongSelection(songIndex: number) {
