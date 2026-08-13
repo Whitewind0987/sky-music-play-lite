@@ -34,3 +34,9 @@ export type ScoreVisualRenderWindow = {
   endIndexExclusive: number;
   groups: readonly ScoreVisualGroup[];
 };
+
+export type ScoreVisualPage = {
+  pageIndex: number;
+  startGroupIndex: number;
+  groups: readonly ScoreVisualGroup[];
+};

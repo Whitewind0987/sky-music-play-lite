@@ -10,6 +10,7 @@ import type {
   ScoreVisualizationOptions,
   ScoreVisualGroup,
   ScoreVisualNote,
+  ScoreVisualPage,
   ScoreVisualRenderWindow,
 } from "../types/scoreVisualization";
 import {
@@ -22,6 +23,44 @@ import {
 export const DEFAULT_VISUAL_CHORD_WINDOW_MS = 30;
 export const DEFAULT_VISUAL_GROUPS_BEFORE = 12;
 export const DEFAULT_VISUAL_GROUPS_AFTER = 24;
+export const SCORE_VISUAL_PAGE_COLUMNS = 5;
+export const SCORE_VISUAL_PAGE_ROWS = 3;
+export const SCORE_VISUAL_GROUPS_PER_PAGE =
+  SCORE_VISUAL_PAGE_COLUMNS * SCORE_VISUAL_PAGE_ROWS;
+
+export type SkyVisualNoteLabel =
+  | "A"
+  | "B"
+  | "C"
+  | "D"
+  | "E"
+  | "F"
+  | "G";
+export type SkyVisualKeyMotif = "circle" | "diamond" | "circle-diamond";
+
+export type SkyVisualKeyDefinition = {
+  skyKey: SkyKeyName;
+  noteLabel: SkyVisualNoteLabel;
+  motif: SkyVisualKeyMotif;
+};
+
+export const skyVisualKeyDefinitions = [
+  { skyKey: "Key0", noteLabel: "C", motif: "circle-diamond" },
+  { skyKey: "Key1", noteLabel: "D", motif: "diamond" },
+  { skyKey: "Key2", noteLabel: "E", motif: "circle" },
+  { skyKey: "Key3", noteLabel: "F", motif: "diamond" },
+  { skyKey: "Key4", noteLabel: "G", motif: "circle" },
+  { skyKey: "Key5", noteLabel: "A", motif: "circle" },
+  { skyKey: "Key6", noteLabel: "B", motif: "diamond" },
+  { skyKey: "Key7", noteLabel: "C", motif: "circle-diamond" },
+  { skyKey: "Key8", noteLabel: "D", motif: "diamond" },
+  { skyKey: "Key9", noteLabel: "E", motif: "circle" },
+  { skyKey: "Key10", noteLabel: "F", motif: "circle" },
+  { skyKey: "Key11", noteLabel: "G", motif: "diamond" },
+  { skyKey: "Key12", noteLabel: "A", motif: "circle" },
+  { skyKey: "Key13", noteLabel: "B", motif: "diamond" },
+  { skyKey: "Key14", noteLabel: "C", motif: "circle-diamond" },
+] as const satisfies readonly SkyVisualKeyDefinition[];
 
 const skyKeyNameSet: ReadonlySet<string> = new Set(skyKeyNames);
 
@@ -241,4 +280,44 @@ export function getScoreVisualRenderWindow(
     endIndexExclusive,
     groups: groups.slice(startIndex, endIndexExclusive),
   };
+}
+
+export function paginateScoreVisualGroups(
+  groups: readonly ScoreVisualGroup[],
+): readonly ScoreVisualPage[] {
+  const pages: ScoreVisualPage[] = [];
+
+  for (
+    let startGroupIndex = 0;
+    startGroupIndex < groups.length;
+    startGroupIndex += SCORE_VISUAL_GROUPS_PER_PAGE
+  ) {
+    pages.push({
+      pageIndex: pages.length,
+      startGroupIndex,
+      groups: groups.slice(
+        startGroupIndex,
+        startGroupIndex + SCORE_VISUAL_GROUPS_PER_PAGE,
+      ),
+    });
+  }
+
+  return pages;
+}
+
+export function getScoreVisualPageIndexForGroup(
+  groupIndex: number,
+  totalGroupCount: number,
+): number {
+  if (
+    !Number.isInteger(groupIndex) ||
+    !Number.isInteger(totalGroupCount) ||
+    groupIndex < 0 ||
+    totalGroupCount <= 0 ||
+    groupIndex >= totalGroupCount
+  ) {
+    return -1;
+  }
+
+  return Math.floor(groupIndex / SCORE_VISUAL_GROUPS_PER_PAGE);
 }

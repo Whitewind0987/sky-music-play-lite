@@ -7,7 +7,13 @@ import {
   findCurrentScoreVisualGroupIndex,
   getActiveScoreRecordingVisualKeys,
   getActiveScoreVisualKeys,
+  getScoreVisualPageIndexForGroup,
   getScoreVisualRenderWindow,
+  paginateScoreVisualGroups,
+  SCORE_VISUAL_GROUPS_PER_PAGE,
+  SCORE_VISUAL_PAGE_COLUMNS,
+  SCORE_VISUAL_PAGE_ROWS,
+  skyVisualKeyDefinitions,
 } from "./scoreVisualization";
 import {
   calculateScoreTiming,
@@ -28,6 +34,17 @@ function buildGroups(times: number[]) {
   return buildScoreVisualization(notesAt(...times), defaultTimingOptions, {
     visualChordWindowMs: 0,
   }).groups;
+}
+
+function buildVisualGroupCount(count: number) {
+  return buildScoreVisualization(
+    Array.from({ length: count }, (_, index) => ({
+      time: index * 100,
+      key: `Key${index % 15}`,
+    })),
+    defaultTimingOptions,
+    { visualChordWindowMs: 0 },
+  ).groups;
 }
 
 function recordingSession(
@@ -491,4 +508,109 @@ describe("getScoreVisualRenderWindow", () => {
   it("uses the exported canonical key set expected by visual output", () => {
     expect(skyKeyNames).toHaveLength(15);
   });
+});
+
+describe("fixed Sky visual keyboard definitions", () => {
+  it("keeps all fifteen keys in canonical order", () => {
+    expect(skyVisualKeyDefinitions).toHaveLength(15);
+    expect(skyVisualKeyDefinitions.map(({ skyKey }) => skyKey)).toEqual(
+      skyKeyNames,
+    );
+  });
+
+  it("uses the exact fixed musical-note labels", () => {
+    expect(skyVisualKeyDefinitions.map(({ noteLabel }) => noteLabel)).toEqual([
+      "C", "D", "E", "F", "G",
+      "A", "B", "C", "D", "E",
+      "F", "G", "A", "B", "C",
+    ]);
+  });
+
+  it("uses the exact fixed motif sequence", () => {
+    expect(skyVisualKeyDefinitions.map(({ motif }) => motif)).toEqual([
+      "circle-diamond", "diamond", "circle", "diamond", "circle",
+      "circle", "diamond", "circle-diamond", "diamond", "circle",
+      "circle", "diamond", "circle", "diamond", "circle-diamond",
+    ]);
+  });
+});
+
+describe("score visual pagination", () => {
+  it("defines a fixed five-by-three page", () => {
+    expect(SCORE_VISUAL_PAGE_COLUMNS).toBe(5);
+    expect(SCORE_VISUAL_PAGE_ROWS).toBe(3);
+    expect(SCORE_VISUAL_GROUPS_PER_PAGE).toBe(15);
+  });
+
+  it.each([
+    [0, []],
+    [1, [1]],
+    [14, [14]],
+    [15, [15]],
+    [16, [15, 1]],
+    [29, [15, 14]],
+    [30, [15, 15]],
+    [31, [15, 15, 1]],
+  ] as const)("paginates %i groups as expected", (count, expectedPageSizes) => {
+    const groups = buildVisualGroupCount(count);
+    const pages = paginateScoreVisualGroups(groups);
+
+    expect(pages.map(({ groups: pageGroups }) => pageGroups.length)).toEqual(
+      expectedPageSizes,
+    );
+    expect(pages.map(({ pageIndex }) => pageIndex)).toEqual(
+      expectedPageSizes.map((_, index) => index),
+    );
+    expect(pages.map(({ startGroupIndex }) => startGroupIndex)).toEqual(
+      expectedPageSizes.map(
+        (_, index) => index * SCORE_VISUAL_GROUPS_PER_PAGE,
+      ),
+    );
+    expect(pages.flatMap(({ groups: pageGroups }) => pageGroups)).toEqual(
+      groups,
+    );
+  });
+
+  it("does not mutate or reorder the source groups", () => {
+    const groups = buildVisualGroupCount(31);
+    const snapshot = [...groups];
+
+    paginateScoreVisualGroups(groups);
+
+    expect(groups).toEqual(snapshot);
+    groups.forEach((group, index) => {
+      expect(group).toBe(snapshot[index]);
+    });
+  });
+
+  it.each([
+    [0, 31, 0],
+    [14, 31, 0],
+    [15, 31, 1],
+    [29, 31, 1],
+    [30, 31, 2],
+  ])(
+    "maps group %i of %i groups to page %i",
+    (groupIndex, totalGroupCount, expectedPageIndex) => {
+      expect(
+        getScoreVisualPageIndexForGroup(groupIndex, totalGroupCount),
+      ).toBe(expectedPageIndex);
+    },
+  );
+
+  it.each([
+    [-1, 31],
+    [31, 31],
+    [0.5, 31],
+    [Number.NaN, 31],
+    [0, 0],
+    [0, Number.POSITIVE_INFINITY],
+  ])(
+    "returns -1 for invalid group %s of %s",
+    (groupIndex, totalGroupCount) => {
+      expect(
+        getScoreVisualPageIndexForGroup(groupIndex, totalGroupCount),
+      ).toBe(-1);
+    },
+  );
 });
