@@ -23,7 +23,7 @@ import {
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
-import { ScoreRecordingPanel } from "./components/ScoreRecordingPanel";
+import { ScoreRecordingPage } from "./components/ScoreRecordingPage";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
@@ -765,6 +765,26 @@ function App() {
       );
     }
 
+    if (activeSection === "Recording") {
+      return (
+        <ScoreRecordingPage
+          completedName={scoreRecording.completedName}
+          completedNoteCount={
+            scoreRecording.completedSession?.notes.length ?? null
+          }
+          isSaving={scoreRecording.isSaving}
+          lifecycle={scoreRecording.lifecycle}
+          onCancel={() => void scoreRecording.handleCancel()}
+          onCompletedNameChange={scoreRecording.handleCompletedNameChange}
+          onSave={() => void scoreRecording.handleSave()}
+          onStart={() => void scoreRecording.handleStart()}
+          onStop={() => void scoreRecording.handleStop()}
+          recordedNoteCount={scoreRecording.recordedNoteCount}
+          text={text.scoreRecording}
+        />
+      );
+    }
+
     if (activeSection === "Playback") {
       return (
         <div className="playback-workspace-content">
@@ -772,21 +792,6 @@ function App() {
             activeKeys={previewPlayback.activeKeys}
             keyMapping={keyMapping}
             text={text.keyboard}
-          />
-          <ScoreRecordingPanel
-            completedName={scoreRecording.completedName}
-            completedNoteCount={
-              scoreRecording.completedSession?.notes.length ?? null
-            }
-            isSaving={scoreRecording.isSaving}
-            lifecycle={scoreRecording.lifecycle}
-            onCancel={() => void scoreRecording.handleCancel()}
-            onCompletedNameChange={scoreRecording.handleCompletedNameChange}
-            onSave={() => void scoreRecording.handleSave()}
-            onStart={() => void scoreRecording.handleStart()}
-            onStop={() => void scoreRecording.handleStop()}
-            recordedNoteCount={scoreRecording.recordedNoteCount}
-            text={text.scoreRecording}
           />
         </div>
       );

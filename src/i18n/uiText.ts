@@ -24,6 +24,7 @@ export const uiText = {
     },
     navigation: {
       Library: "曲库",
+      Recording: "录制",
       Playback: "预览",
       Logs: "日志",
       Settings: "设置",
@@ -39,11 +40,16 @@ export const uiText = {
       mySection: "我的",
       noCreatedPlaylists: "暂无歌单",
       preview: "预览",
+      recording: "录制",
     },
     sections: {
       Library: {
         title: "曲库",
         status: "本次运行的曲谱",
+      },
+      Recording: {
+        title: "演奏录制",
+        status: "录制手动演奏",
       },
       Playback: {
         title: "预览",
@@ -352,8 +358,25 @@ export const uiText = {
       previewAria: "静态琴键预览",
     },
     scoreRecording: {
-      panelTitle: "演奏录制",
-      description: "录制你在光遇中使用当前键位进行的手动演奏。",
+      panelTitle: "录制控制",
+      description: "开始后切换到光遇演奏，返回软件后停止并保存。",
+      guide: {
+        title: "如何录制",
+        steps: [
+          {
+            title: "开始录制",
+            description: "确认光遇正在运行，然后点击开始录制。",
+          },
+          {
+            title: "切到光遇演奏",
+            description: "在光遇前台使用当前键位演奏。",
+          },
+          {
+            title: "停止并保存",
+            description: "回到 Lite 停止录制，输入名称后保存到本地曲谱。",
+          },
+        ],
+      },
       idle: "准备录制",
       start: "开始录制",
       starting: "正在开始...",
@@ -741,6 +764,7 @@ export const uiText = {
     },
     navigation: {
       Library: "Library",
+      Recording: "Recording",
       Playback: "Preview",
       Logs: "Logs",
       Settings: "Settings",
@@ -756,11 +780,16 @@ export const uiText = {
       mySection: "My",
       noCreatedPlaylists: "No playlists yet",
       preview: "Preview",
+      recording: "Recording",
     },
     sections: {
       Library: {
         title: "Library",
         status: "Current session scores",
+      },
+      Recording: {
+        title: "Performance Recording",
+        status: "Record manual performances",
       },
       Playback: {
         title: "Preview",
@@ -1082,8 +1111,28 @@ export const uiText = {
       previewAria: "Static keyboard preview",
     },
     scoreRecording: {
-      panelTitle: "Performance recording",
-      description: "Record your manual playing in Sky with the current key mapping.",
+      panelTitle: "Recording Controls",
+      description:
+        "Start recording, switch to Sky to play, then return here to stop and save.",
+      guide: {
+        title: "How to record",
+        steps: [
+          {
+            title: "Start recording",
+            description: "Make sure Sky is running, then start recording.",
+          },
+          {
+            title: "Play in Sky",
+            description:
+              "Switch to Sky and perform using your current key mapping.",
+          },
+          {
+            title: "Stop and save",
+            description:
+              "Return to Lite, stop recording, name it, and save it to your local library.",
+          },
+        ],
+      },
       idle: "Ready to record",
       start: "Start recording",
       starting: "Starting...",

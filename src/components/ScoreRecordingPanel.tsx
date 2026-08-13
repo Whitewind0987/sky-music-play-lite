@@ -2,7 +2,7 @@ import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import type { ScoreRecordingLifecycle } from "../hooks/useScoreRecording";
 
-type ScoreRecordingPanelProps = {
+export type ScoreRecordingPanelProps = {
   completedName: string;
   completedNoteCount: number | null;
   isSaving: boolean;
