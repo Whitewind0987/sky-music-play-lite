@@ -78,10 +78,6 @@ export function PlayerScoreVisualizer({
       aria-label={text.aria}
     >
       <header className="player-score-visualizer__header">
-        <div className="player-score-visualizer__heading">
-          <span>{text.eyebrow}</span>
-          <h2>{songTitle}</h2>
-        </div>
         <button
           className="player-score-visualizer__close"
           type="button"
@@ -89,8 +85,12 @@ export function PlayerScoreVisualizer({
           tabIndex={isOpen ? 0 : -1}
           onClick={onClose}
         >
-          <ChevronDown aria-hidden="true" size={22} strokeWidth={2} />
+          <ChevronDown aria-hidden="true" size={26} strokeWidth={2} />
         </button>
+        <div className="player-score-visualizer__heading">
+          <span>{text.eyebrow}</span>
+          <h2>{songTitle}</h2>
+        </div>
       </header>
 
       <div className="player-score-visualizer__body">

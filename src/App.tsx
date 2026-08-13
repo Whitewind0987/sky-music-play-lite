@@ -950,31 +950,30 @@ function App() {
           text={text}
         />
 
-        <div className="workspace-content-stack">
-          <div
-            className={`app-layout app-layout-${activeSection.toLowerCase()}`}
-          >
-            {renderActiveSection()}
-          </div>
-          <PlayerScoreVisualizer
-            hasLoadFailed={playerScoreVisualization.hasLoadFailed}
-            isLoading={playerScoreVisualization.isLoading}
-            isOpen={playerScoreVisualization.isOpen}
-            noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
-            onClose={playerScoreVisualization.close}
-            playbackSpeed={playbackOutput.playbackSpeed}
-            playbackState={playbackOutput.playbackState}
-            progress={playbackOutput.progress}
-            song={playerScoreVisualization.resolvedSong}
-            songTitle={
-              scoreLibrary.currentPlaybackSong === null
-                ? ""
-                : getLibrarySongName(scoreLibrary.currentPlaybackSong)
-            }
-            text={text.playerScoreVisualization}
-          />
+        <div
+          className={`app-layout app-layout-${activeSection.toLowerCase()}`}
+        >
+          {renderActiveSection()}
         </div>
       </section>
+
+      <PlayerScoreVisualizer
+        hasLoadFailed={playerScoreVisualization.hasLoadFailed}
+        isLoading={playerScoreVisualization.isLoading}
+        isOpen={playerScoreVisualization.isOpen}
+        noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+        onClose={playerScoreVisualization.close}
+        playbackSpeed={playbackOutput.playbackSpeed}
+        playbackState={playbackOutput.playbackState}
+        progress={playbackOutput.progress}
+        song={playerScoreVisualization.resolvedSong}
+        songTitle={
+          scoreLibrary.currentPlaybackSong === null
+            ? ""
+            : getLibrarySongName(scoreLibrary.currentPlaybackSong)
+        }
+        text={text.playerScoreVisualization}
+      />
 
       <AppNoticeToast
         message={appNotice?.message ?? null}
@@ -1079,7 +1078,7 @@ function App() {
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
         onNext={playbackCoordinator.handleNextPlayback}
-        onVisualizationToggle={playerScoreVisualization.toggle}
+        onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
         onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
         onPlay={playbackCoordinator.handleBottomPlayerPlay}

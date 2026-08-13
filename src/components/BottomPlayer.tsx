@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { UiText } from "../i18n/uiText";
@@ -49,7 +50,7 @@ type BottomPlayerProps = {
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onNext: () => void;
-  onVisualizationToggle: () => void;
+  onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
   onPlay: () => void;
@@ -215,7 +216,7 @@ export function BottomPlayer({
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onNext,
-  onVisualizationToggle,
+  onVisualizationOpen,
   onPlayQueueItem,
   onPause,
   onPlay,
@@ -398,7 +399,26 @@ export function BottomPlayer({
     }
 
     event.preventDefault();
-    onVisualizationToggle();
+    onVisualizationOpen();
+  }
+
+  function handlePlayerBodyClick(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!canOpenVisualization || isVisualizationOpen) {
+      return;
+    }
+
+    const target = event.target;
+
+    if (
+      !(target instanceof Element) ||
+      target.closest(
+        '[data-player-control-zone], button, input, [role="slider"]',
+      ) !== null
+    ) {
+      return;
+    }
+
+    onVisualizationOpen();
   }
 
   useEffect(() => {
@@ -518,25 +538,17 @@ export function BottomPlayer({
         </span>
       </div>
 
-      <div className="bottom-player-body">
+      <div className="bottom-player-body" onClick={handlePlayerBodyClick}>
         <div
           className={`bottom-player-score${
-            canOpenVisualization ? " is-visualization-trigger" : ""
+            canOpenVisualization && !isVisualizationOpen
+              ? " is-visualization-trigger"
+              : ""
           }`}
-          aria-disabled={!canOpenVisualization}
-          aria-label={
-            isVisualizationOpen
-              ? text.collapseVisualization
-              : text.expandVisualization
-          }
-          aria-pressed={isVisualizationOpen}
+          aria-disabled={!canOpenVisualization || isVisualizationOpen}
+          aria-label={text.expandVisualization}
           role="button"
-          tabIndex={canOpenVisualization ? 0 : -1}
-          onClick={() => {
-            if (canOpenVisualization) {
-              onVisualizationToggle();
-            }
-          }}
+          tabIndex={canOpenVisualization && !isVisualizationOpen ? 0 : -1}
           onKeyDown={handleVisualizationTriggerKeyDown}
         >
           <span className="bottom-player-label">{text.currentScore}</span>
@@ -581,7 +593,11 @@ export function BottomPlayer({
           </div>
         </div>
 
-        <div className="bottom-player-center" aria-label={text.controlsAria}>
+        <div
+          className="bottom-player-center"
+          aria-label={text.controlsAria}
+          data-player-control-zone
+        >
           <button
             className={`player-icon-button player-icon-button-secondary player-icon-button-toggle${
               isShuffleEnabled ? " is-active" : ""
@@ -636,7 +652,7 @@ export function BottomPlayer({
           </button>
         </div>
 
-        <div className="bottom-player-actions">
+        <div className="bottom-player-actions" data-player-control-zone>
           <div className="bottom-player-options" aria-label={text.optionsAria}>
             <div className="player-option">
               <span className="player-option-label">{text.delay}</span>

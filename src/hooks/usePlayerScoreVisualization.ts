@@ -36,15 +36,6 @@ export function usePlayerScoreVisualization({
     }
   }, [currentSongId, currentSongIndex]);
 
-  const toggle = useCallback(() => {
-    if (isOpen) {
-      close();
-      return;
-    }
-
-    open();
-  }, [close, isOpen, open]);
-
   useEffect(() => {
     if (currentSongId === null || currentSongIndex === null) {
       close();
@@ -121,6 +112,5 @@ export function usePlayerScoreVisualization({
     isOpen,
     open,
     resolvedSong,
-    toggle,
   };
 }

@@ -78,6 +78,7 @@ button {
 }
 
 .app-shell {
+  position: relative;
   width: 100%;
   height: 100vh;
   display: grid;
@@ -877,16 +878,6 @@ button {
   align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-.workspace-content-stack {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .app-layout-workspace,
@@ -3025,7 +3016,7 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: clamp(16px, 2.5vw, 28px);
+  padding: clamp(22px, 3vw, 38px);
   border-top: 1px solid var(--score-visual-border);
   background: #f7f8fa;
   box-shadow: 0 -16px 36px rgba(15, 23, 42, 0.12);
@@ -3047,17 +3038,19 @@ button {
 .player-score-visualizer__header {
   flex: 0 0 auto;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding-bottom: clamp(14px, 2vh, 22px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(8px, 1.5vh, 16px);
+  padding-bottom: clamp(18px, 2.5vh, 28px);
 }
 
 .player-score-visualizer__heading {
+  width: min(100%, 900px);
   min-width: 0;
   display: grid;
   gap: 4px;
+  justify-self: center;
+  text-align: center;
 }
 
 .player-score-visualizer__heading span,
@@ -3084,23 +3077,21 @@ button {
 }
 
 .player-score-visualizer__close {
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid #d8dee6;
-  border-radius: 999px;
+  border: 0;
+  border-radius: 6px;
   color: #334155;
-  background: #ffffff;
+  background: transparent;
   cursor: pointer;
+  justify-self: start;
 }
 
 .player-score-visualizer__close:hover {
-  color: var(--app-primary);
-  border-color: rgba(var(--app-primary-rgb), 0.45);
-  background: #f8fbff;
+  color: #111827;
 }
 
 .player-score-visualizer__close:focus-visible {
@@ -3109,6 +3100,7 @@ button {
 }
 
 .player-score-visualizer__body {
+  width: min(100%, 1280px);
   min-width: 0;
   min-height: 0;
   flex: 1;
@@ -3116,6 +3108,7 @@ button {
   grid-template-columns: minmax(220px, 0.38fr) minmax(0, 0.62fr);
   gap: clamp(18px, 3vw, 38px);
   align-items: center;
+  align-self: center;
   overflow: auto;
 }
 
@@ -3127,7 +3120,7 @@ button {
 }
 
 .player-score-visualizer__column .sky-keyboard-visualizer {
-  width: min(100%, 390px);
+  width: min(100%, 430px);
 }
 
 .player-score-visualizer__score .score-visual-timeline {
@@ -3816,6 +3809,7 @@ button {
 .bottom-player {
   grid-area: player;
   position: relative;
+  z-index: 20;
   min-width: 0;
   min-height: 0;
   display: block;
@@ -3990,18 +3984,6 @@ button {
   max-width: min(38vw, 380px);
   display: grid;
   gap: 4px;
-}
-
-.bottom-player-score.is-visualization-trigger {
-  padding: 5px 7px;
-  margin: -5px -7px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 120ms ease;
-}
-
-.bottom-player-score.is-visualization-trigger:hover {
-  background: rgba(var(--app-primary-rgb), 0.07);
 }
 
 .bottom-player-score.is-visualization-trigger:focus-visible {
