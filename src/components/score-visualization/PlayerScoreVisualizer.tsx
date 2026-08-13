@@ -73,53 +73,54 @@ export function PlayerScoreVisualizer({
 
   return (
     <section
-      className={`player-score-visualizer${isOpen ? " is-open" : ""}`}
+      className="player-score-visualizer"
       aria-hidden={!isOpen}
       aria-label={text.aria}
     >
-      <header className="player-score-visualizer__header">
-        <button
-          className="player-score-visualizer__close"
-          type="button"
-          aria-label={text.close}
-          tabIndex={isOpen ? 0 : -1}
-          onClick={onClose}
-        >
-          <ChevronDown aria-hidden="true" size={26} strokeWidth={2} />
-        </button>
+      <button
+        className="player-score-visualizer__close"
+        type="button"
+        aria-label={text.close}
+        tabIndex={isOpen ? 0 : -1}
+        onClick={onClose}
+      >
+        <ChevronDown aria-hidden="true" size={26} strokeWidth={2} />
+      </button>
+
+      <div className="player-score-visualizer__content">
         <div className="player-score-visualizer__heading">
           <span>{text.eyebrow}</span>
           <h2>{songTitle}</h2>
         </div>
-      </header>
 
-      <div className="player-score-visualizer__body">
-        {isLoading ? (
-          <p className="player-score-visualizer__state">{text.loading}</p>
-        ) : hasLoadFailed || song === null || model === null ? (
-          <p className="player-score-visualizer__state">{text.unavailable}</p>
-        ) : (
-          <>
-            <div className="player-score-visualizer__column">
-              <h3>{text.keyboard}</h3>
-              <SkyKeyboardVisualizer
-                activeKeys={activeKeys}
-                ariaLabel={text.keyboardAria}
-              />
-            </div>
-            <div className="player-score-visualizer__column player-score-visualizer__score">
-              <h3>{text.score}</h3>
-              <ScoreTimelineVisualizer
-                activeKeys={activeKeys}
-                ariaLabel={text.scoreAria}
-                emptyMessage={text.emptyScore}
-                focusGroupIndex={focusGroupIndex}
-                groups={model.groups}
-                markCurrentGroup={followsProgress && focusGroupIndex >= 0}
-              />
-            </div>
-          </>
-        )}
+        <div className="player-score-visualizer__body">
+          {isLoading ? (
+            <p className="player-score-visualizer__state">{text.loading}</p>
+          ) : hasLoadFailed || song === null || model === null ? (
+            <p className="player-score-visualizer__state">{text.unavailable}</p>
+          ) : (
+            <>
+              <div className="player-score-visualizer__column">
+                <h3>{text.keyboard}</h3>
+                <SkyKeyboardVisualizer
+                  activeKeys={activeKeys}
+                  ariaLabel={text.keyboardAria}
+                />
+              </div>
+              <div className="player-score-visualizer__column player-score-visualizer__score">
+                <h3>{text.score}</h3>
+                <ScoreTimelineVisualizer
+                  activeKeys={activeKeys}
+                  ariaLabel={text.scoreAria}
+                  emptyMessage={text.emptyScore}
+                  focusGroupIndex={focusGroupIndex}
+                  groups={model.groups}
+                  markCurrentGroup={followsProgress && focusGroupIndex >= 0}
+                />
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </section>
   );
