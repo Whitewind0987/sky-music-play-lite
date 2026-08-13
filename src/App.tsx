@@ -24,7 +24,6 @@ import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
 import { ScoreRecordingPage } from "./components/ScoreRecordingPage";
-import { PlayerModeSurface } from "./components/score-visualization/PlayerModeSurface";
 import { PlayerScoreVisualizer } from "./components/score-visualization/PlayerScoreVisualizer";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
@@ -1049,78 +1048,71 @@ function App() {
         />
       ) : null}
 
-      <PlayerModeSurface
+      <PlayerScoreVisualizer
+        hasLoadFailed={playerScoreVisualization.hasLoadFailed}
+        isLoading={playerScoreVisualization.isLoading}
         isOpen={playerScoreVisualization.isOpen}
-        visualization={
-          <PlayerScoreVisualizer
-            hasLoadFailed={playerScoreVisualization.hasLoadFailed}
-            isLoading={playerScoreVisualization.isLoading}
-            isOpen={playerScoreVisualization.isOpen}
-            noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
-            onClose={playerScoreVisualization.close}
-            playbackSpeed={playbackOutput.playbackSpeed}
-            playbackState={playbackOutput.playbackState}
-            progress={playbackOutput.progress}
-            song={playerScoreVisualization.resolvedSong}
-            songTitle={
-              scoreLibrary.currentPlaybackSong === null
-                ? ""
-                : getLibrarySongName(scoreLibrary.currentPlaybackSong)
-            }
-            text={text.playerScoreVisualization}
-          />
+        noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+        onClose={playerScoreVisualization.close}
+        playbackSpeed={playbackOutput.playbackSpeed}
+        playbackState={playbackOutput.playbackState}
+        progress={playbackOutput.progress}
+        song={playerScoreVisualization.resolvedSong}
+        songTitle={
+          scoreLibrary.currentPlaybackSong === null
+            ? ""
+            : getLibrarySongName(scoreLibrary.currentPlaybackSong)
         }
-        bottomPlayer={
-          <BottomPlayer
-            canPlay={playbackOutput.canPlay}
-            canSeek={playbackOutput.canSeek}
-            canOpenVisualization={playerScoreVisualization.canOpen}
-            currentSong={scoreLibrary.currentPlaybackSong}
-            isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
-            isRealInputOutput={playbackOutput.isRealInputOutput}
-            isShuffleEnabled={playbackOutput.isShuffleEnabled}
-            isVisualizationOpen={playerScoreVisualization.isOpen}
-            noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
-            onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
-            onNext={playbackCoordinator.handleNextPlayback}
-            onVisualizationOpen={playerScoreVisualization.open}
-            onPause={playbackOutput.onPause}
-            onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
-            onPlay={playbackCoordinator.handleBottomPlayerPlay}
-            onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
-            onQueueClear={playbackCoordinator.handleQueueClear}
-            onQueueItemRemove={playbackCoordinator.handleQueueItemRemove}
-            onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
-            onQueueClose={() => setQueueOpen(false)}
-            onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
-            onResume={playbackOutput.onResume}
-            onSeek={(timeMs) => {
-              appFileLogger.appendDetailedLog({
-                details: {
-                  ...fileLogContextRef.current,
-                  seekTargetMs: Math.round(timeMs),
-                },
-                message:
-                  playbackOutput.playbackState === "finished"
-                    ? "Progress seek requested after finish"
-                    : "Progress seek requested",
-                source: "playback",
-              });
-              playbackOutput.onSeek(timeMs);
-            }}
-            onShuffleToggle={playbackOutput.onShuffleToggle}
-            onStop={playbackOutput.onStop}
-            outputModeLabel={playbackOutput.outputModeLabel}
-            playbackMode={playbackOutput.playbackMode}
-            playbackState={playbackOutput.playbackState}
-            playbackSpeed={playbackOutput.playbackSpeed}
-            progress={playbackOutput.progress}
-            queueItems={playbackQueue.queueItems}
-            queueOpen={queueOpen}
-            songs={scoreLibrary.librarySongs}
-            text={text.bottomPlayer}
-          />
-        }
+        text={text.playerScoreVisualization}
+      />
+      <BottomPlayer
+        canPlay={playbackOutput.canPlay}
+        canSeek={playbackOutput.canSeek}
+        canOpenVisualization={playerScoreVisualization.canOpen}
+        currentSong={scoreLibrary.currentPlaybackSong}
+        isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
+        isRealInputOutput={playbackOutput.isRealInputOutput}
+        isShuffleEnabled={playbackOutput.isShuffleEnabled}
+        isVisualizationOpen={playerScoreVisualization.isOpen}
+        noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
+        onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
+        onNext={playbackCoordinator.handleNextPlayback}
+        onVisualizationOpen={playerScoreVisualization.open}
+        onPause={playbackOutput.onPause}
+        onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
+        onPlay={playbackCoordinator.handleBottomPlayerPlay}
+        onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}
+        onQueueClear={playbackCoordinator.handleQueueClear}
+        onQueueItemRemove={playbackCoordinator.handleQueueItemRemove}
+        onQueueToggle={() => setQueueOpen((isOpen) => !isOpen)}
+        onQueueClose={() => setQueueOpen(false)}
+        onRepeatModeCycle={playbackOutput.onRepeatModeCycle}
+        onResume={playbackOutput.onResume}
+        onSeek={(timeMs) => {
+          appFileLogger.appendDetailedLog({
+            details: {
+              ...fileLogContextRef.current,
+              seekTargetMs: Math.round(timeMs),
+            },
+            message:
+              playbackOutput.playbackState === "finished"
+                ? "Progress seek requested after finish"
+                : "Progress seek requested",
+            source: "playback",
+          });
+          playbackOutput.onSeek(timeMs);
+        }}
+        onShuffleToggle={playbackOutput.onShuffleToggle}
+        onStop={playbackOutput.onStop}
+        outputModeLabel={playbackOutput.outputModeLabel}
+        playbackMode={playbackOutput.playbackMode}
+        playbackState={playbackOutput.playbackState}
+        playbackSpeed={playbackOutput.playbackSpeed}
+        progress={playbackOutput.progress}
+        queueItems={playbackQueue.queueItems}
+        queueOpen={queueOpen}
+        songs={scoreLibrary.librarySongs}
+        text={text.bottomPlayer}
       />
       {isCreatingPlaylistFromSidebar ? (
         <CreatePlaylistDialog

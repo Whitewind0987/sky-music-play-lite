@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type MouseEvent as ReactMouseEvent } from "react";
 import type { UiText } from "../../i18n/uiText";
 import type { PreviewPlaybackProgress } from "../../lib/playbackScheduler";
 import {
@@ -29,6 +29,12 @@ type PlayerScoreVisualizerProps = {
   songTitle: string;
   text: UiText["playerScoreVisualization"];
 };
+
+function preventMiddleMouseAutoscroll(event: ReactMouseEvent<HTMLElement>) {
+  if (event.button === 1) {
+    event.preventDefault();
+  }
+}
 
 export function PlayerScoreVisualizer({
   hasLoadFailed,
@@ -73,9 +79,11 @@ export function PlayerScoreVisualizer({
 
   return (
     <section
-      className="player-score-visualizer"
+      className={`player-score-visualizer${isOpen ? " is-open" : ""}`}
       aria-hidden={!isOpen}
       aria-label={text.aria}
+      onAuxClick={preventMiddleMouseAutoscroll}
+      onMouseDown={preventMiddleMouseAutoscroll}
     >
       <button
         className="player-score-visualizer__close"
