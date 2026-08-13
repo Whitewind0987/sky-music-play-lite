@@ -881,6 +881,7 @@ button {
 
 .app-layout-workspace,
 .app-layout-library,
+.app-layout-recording,
 .app-layout-settings {
   display: block;
 }
@@ -2970,6 +2971,216 @@ button {
 
 .keyboard-panel {
   grid-area: keyboard;
+}
+
+.playback-workspace-content {
+  grid-area: keyboard;
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.playback-workspace-content .keyboard-panel {
+  grid-area: auto;
+}
+
+.score-recording-page {
+  width: 100%;
+  max-width: 880px;
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.score-recording-guide {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #e2e7ed;
+  border-radius: 8px;
+  color: #52616f;
+  background: #f8fafc;
+}
+
+.score-recording-guide h2,
+.score-recording-guide h3,
+.score-recording-guide p,
+.score-recording-guide ol {
+  margin: 0;
+}
+
+.score-recording-guide h2 {
+  color: #1f2933;
+  font-size: 16px;
+}
+
+.score-recording-guide ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding-left: 24px;
+}
+
+.score-recording-guide li {
+  padding-left: 3px;
+}
+
+.score-recording-guide li::marker {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.score-recording-guide h3 {
+  color: #1f2933;
+  font-size: 14px;
+}
+
+.score-recording-guide p {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .score-recording-guide ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.score-recording-panel {
+  gap: 12px;
+}
+
+.score-recording-copy,
+.score-recording-copy h2,
+.score-recording-copy p,
+.score-recording-status {
+  margin: 0;
+}
+
+.score-recording-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.score-recording-copy h2 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.score-recording-copy p,
+.score-recording-memory-note {
+  color: #52616f;
+}
+
+.score-recording-status {
+  min-height: 64px;
+  display: grid;
+  gap: 5px;
+  align-content: center;
+  padding: 12px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.score-recording-status.is-active {
+  border-color: #f0a3a3;
+  background: #fff7f7;
+}
+
+.score-recording-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.score-recording-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d92d20;
+  box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.12);
+}
+
+.score-recording-memory-note {
+  font-size: 13px;
+}
+
+.score-recording-save {
+  display: grid;
+  gap: 8px;
+}
+
+.score-recording-save label {
+  color: #1f2933;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.score-recording-save input {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 0 11px;
+  border: 1px solid #c7d0dc;
+  border-radius: 7px;
+  color: #1f2933;
+  background: #ffffff;
+}
+
+.score-recording-save input:focus {
+  border-color: #d92d20;
+  outline: 2px solid rgba(217, 45, 32, 0.16);
+  outline-offset: 1px;
+}
+
+.score-recording-save input:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.score-recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.score-recording-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.score-recording-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.score-recording-primary {
+  border: 1px solid #b42318;
+  color: #ffffff;
+  background: #d92d20;
+}
+
+.score-recording-primary:not(:disabled):hover {
+  background: #b42318;
+}
+
+.score-recording-secondary {
+  border: 1px solid #c7d0dc;
+  color: #1f2933;
+  background: #ffffff;
+}
+
+.score-recording-secondary:not(:disabled):hover {
+  background: #f3f6f9;
 }
 
 .log-panel {

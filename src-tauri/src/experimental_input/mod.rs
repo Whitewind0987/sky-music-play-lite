@@ -42,6 +42,10 @@ pub use background_playback::{
 #[cfg(windows)]
 pub use foreground_input::send_foreground_key_group;
 #[cfg(windows)]
+pub(crate) use key_mapping::mapped_key_to_virtual_key;
+#[cfg(windows)]
+pub(crate) use sky_window_monitor::validate_monitored_sky_target;
+#[cfg(windows)]
 pub use sky_window_monitor::{
     get_sky_window_monitor_state, start_sky_window_monitor, stop_sky_window_monitor,
     SkyWindowMonitorSnapshot,

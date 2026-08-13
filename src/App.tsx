@@ -23,6 +23,7 @@ import {
 import { PlaybackLog } from "./components/LogPanel";
 import { KeyboardPreview } from "./components/PlaybackPanel";
 import { RenamePlaylistDialog } from "./components/RenamePlaylistDialog";
+import { ScoreRecordingPage } from "./components/ScoreRecordingPage";
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
@@ -40,6 +41,7 @@ import { usePlaybackQueue } from "./hooks/usePlaybackQueue";
 import { usePlaybackShortcuts } from "./hooks/usePlaybackShortcuts";
 import { usePreviewPlayback } from "./hooks/usePreviewPlayback";
 import { useScoreLibrary } from "./hooks/useScoreLibrary";
+import { useScoreRecording } from "./hooks/useScoreRecording";
 import { useScoreUpgradeGuard } from "./hooks/useScoreUpgradeGuard";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import { useV1ToV2UpgradePreferences } from "./hooks/useV1ToV2UpgradePreferences";
@@ -106,6 +108,7 @@ function App() {
   const missingPlaybackSongRemovalRef = useRef<
     (songId: LibrarySongId) => void
   >(() => {});
+  const warmPlaybackPlanRef = useRef<(songIndex: number) => void>(() => {});
 
   useEffect(() => {
     appendDetailedLogRef.current = appFileLogger.appendDetailedLog;
@@ -158,6 +161,24 @@ function App() {
     showNotice: showAppNotice,
     text,
   });
+  const scoreRecording = useScoreRecording({
+    appendLog,
+    keyMapping,
+    saveRecordedSong: async (song) => {
+      const librarySong = await scoreLibrary.handleSaveRecordedSong(song);
+      const songIndex = scoreLibrary.librarySongsRef.current.findIndex(
+        (candidate) => candidate.id === librarySong.id,
+      );
+
+      if (songIndex >= 0) {
+        warmPlaybackPlanRef.current(songIndex);
+      }
+
+      return librarySong;
+    },
+    showNotice: showAppNotice,
+    text: text.scoreRecording,
+  });
   const playbackOrder = usePlaybackOrder();
   const playbackQueue = usePlaybackQueue({
     appendLog,
@@ -207,7 +228,7 @@ function App() {
         librarySongs: scoreLibrary.librarySongs,
       }),
     getSongIdentityForPlayback: (songIndex) =>
-      scoreLibrary.librarySongs[songIndex]?.id ?? null,
+      scoreLibrary.librarySongsRef.current[songIndex]?.id ?? null,
     librarySongsRef: scoreLibrary.librarySongsRef,
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     keyMapping,
@@ -227,8 +248,12 @@ function App() {
     stopPreviewPlayback: previewPlayback.stopCurrentPreview,
     text,
   });
-  function warmPlaybackPlan(songIndex: number) {
+  warmPlaybackPlanRef.current = (songIndex) => {
     void experimentalInput.handlePrepareExperimentalSong(songIndex);
+  };
+
+  function warmPlaybackPlan(songIndex: number) {
+    warmPlaybackPlanRef.current(songIndex);
   }
 
   function handleLibrarySongSelection(songIndex: number) {
@@ -709,6 +734,9 @@ function App() {
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
           onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
           onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
+          onExportLocalSong={(songId) => {
+            void scoreLibrary.handleExportLocalSong(songId);
+          }}
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
@@ -751,18 +779,41 @@ function App() {
             v1ToV2UpgradePreferences.preferences
           }
           isBuiltInSongLoading={scoreLibrary.isBuiltInSongLoading}
+          isLocalSongExporting={scoreLibrary.isLocalSongExporting}
           text={text.library}
+        />
+      );
+    }
+
+    if (activeSection === "Recording") {
+      return (
+        <ScoreRecordingPage
+          completedName={scoreRecording.completedName}
+          completedNoteCount={
+            scoreRecording.completedSession?.notes.length ?? null
+          }
+          isSaving={scoreRecording.isSaving}
+          lifecycle={scoreRecording.lifecycle}
+          onCancel={() => void scoreRecording.handleCancel()}
+          onCompletedNameChange={scoreRecording.handleCompletedNameChange}
+          onSave={() => void scoreRecording.handleSave()}
+          onStart={() => void scoreRecording.handleStart()}
+          onStop={() => void scoreRecording.handleStop()}
+          recordedNoteCount={scoreRecording.recordedNoteCount}
+          text={text.scoreRecording}
         />
       );
     }
 
     if (activeSection === "Playback") {
       return (
-        <KeyboardPreview
-          activeKeys={previewPlayback.activeKeys}
-          keyMapping={keyMapping}
-          text={text.keyboard}
-        />
+        <div className="playback-workspace-content">
+          <KeyboardPreview
+            activeKeys={previewPlayback.activeKeys}
+            keyMapping={keyMapping}
+            text={text.keyboard}
+          />
+        </div>
       );
     }
 

@@ -1,6 +1,7 @@
 import {
   ChevronDown,
   ChevronRight,
+  CircleDot,
   CircleHelp,
   Eye,
   FolderDown,
@@ -28,7 +29,12 @@ import type { UserPlaylist } from "../types/library";
 
 export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
 
-export type AppSection = "Library" | "Playback" | "Logs" | "Settings";
+export type AppSection =
+  | "Library"
+  | "Recording"
+  | "Playback"
+  | "Logs"
+  | "Settings";
 
 type AppSidebarProps = {
   activeSection: AppSection;
@@ -515,6 +521,14 @@ export function AppSidebar({
           </section>
 
           <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
+            <SidebarNavButton
+              Icon={CircleDot}
+              isActive={activeSection === "Recording"}
+              isCompact
+              label={text.sidebar.recording}
+              section="Recording"
+              onClick={() => onSectionChange("Recording")}
+            />
             <SidebarNavButton
               Icon={Eye}
               isActive={activeSection === "Playback"}

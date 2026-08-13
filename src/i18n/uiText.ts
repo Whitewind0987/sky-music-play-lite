@@ -24,6 +24,7 @@ export const uiText = {
     },
     navigation: {
       Library: "曲库",
+      Recording: "录制",
       Playback: "预览",
       Logs: "日志",
       Settings: "设置",
@@ -39,11 +40,16 @@ export const uiText = {
       mySection: "我的",
       noCreatedPlaylists: "暂无歌单",
       preview: "预览",
+      recording: "录制",
     },
     sections: {
       Library: {
         title: "曲库",
         status: "本次运行的曲谱",
+      },
+      Recording: {
+        title: "演奏录制",
+        status: "录制手动演奏",
       },
       Playback: {
         title: "预览",
@@ -210,6 +216,8 @@ export const uiText = {
       moreActions: "更多操作",
       deleteLocalSong: "删除",
       deleteFromLocalImports: "从本地导入删除",
+      exportLocalScore: "导出曲谱",
+      exportingLocalScore: "正在导出…",
       upgradeToV2: {
         menuAction: "升级为 V2（保留原曲谱）",
         title: "升级为 V2",
@@ -351,6 +359,70 @@ export const uiText = {
       panelDescription: "",
       previewAria: "静态琴键预览",
     },
+    scoreRecording: {
+      panelTitle: "录制控制",
+      description: "开始后切换到光遇演奏，返回软件后停止并保存。",
+      guide: {
+        title: "如何录制",
+        steps: [
+          {
+            title: "开始录制",
+            description: "确认光遇正在运行，然后点击开始录制。",
+          },
+          {
+            title: "切到光遇演奏",
+            description: "在光遇前台使用当前键位演奏。",
+          },
+          {
+            title: "停止并保存",
+            description: "回到 Lite 停止录制，输入名称后保存到本地曲谱。",
+          },
+        ],
+      },
+      idle: "准备录制",
+      start: "开始录制",
+      starting: "正在开始...",
+      recording: "录制中",
+      stop: "停止录制",
+      stopping: "正在停止...",
+      cancel: "取消",
+      cancelling: "正在取消...",
+      recordedNotes: "已录制音符：{count}",
+      completed: "录制完成",
+      completedInMemory: "此录制尚未保存。你可以命名保存，或再次录制。",
+      scoreNameLabel: "曲谱名称",
+      scoreNamePlaceholder: "输入曲谱名称",
+      saveRecording: "保存录制",
+      saving: "正在保存...",
+      recordAgain: "再次录制",
+      emptyName: "请输入曲谱名称后再保存。",
+      saveInvalidRecording: "录制结果无效，无法保存。",
+      saveSucceeded: "已将“{name}”保存到本地曲谱。",
+      saveFailed: "保存录制失败，录制结果仍保留，可重试。",
+      skyNotDetected: "未检测到光遇。请启动光遇后重试。",
+      duplicateMapping: "存在重复键位，请先在设置中调整后再录制。",
+      startFailed: "无法开始录制，请检查光遇窗口和键位设置后重试。",
+      stopFailed: "停止录制失败，请重试；当前录制仍保持活动状态。",
+      cancelFailed: "取消录制失败，请重试；当前录制仍保持活动状态。",
+      stopWarning: "录制已停止，但清理过程出现警告，录制结果可能不完整。",
+      stopWarningNoValidNotes:
+        "录制已停止，但清理过程出现警告，并且没有录制到有效音符。",
+      cancelWarning: "录制已取消，但清理过程出现警告。",
+      autoCancelWarning:
+        "光遇窗口已变化，录制已自动取消，但清理过程出现警告。",
+      startCleanupWarning:
+        "录制未能正常开始，已结束本次录制，但清理过程出现警告。",
+      lifecycleSetupFailed:
+        "录制已开始，但窗口状态监听设置失败。请停止或取消本次录制。",
+      autoCancelFailed:
+        "光遇窗口已变化，但自动取消失败。请返回软件并再次取消。",
+      noValidNotes: "没有录制到有效音符。",
+      targetChanged: "光遇窗口已关闭或变化，本次录制已自动取消。",
+      startedLog: "演奏录制已开始。",
+      stoppedLog: "演奏录制已停止。",
+      cancelledLog: "演奏录制已取消。",
+      autoCancelledLog: "光遇窗口关闭或变化，演奏录制已自动取消。",
+    },
     bottomPlayer: {
       aria: "底部播放栏",
       currentScore: "当前曲谱",
@@ -421,6 +493,10 @@ export const uiText = {
       appReady: "应用布局已准备好。",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
       importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
+      localScoreExported: "已导出“{fileName}”，可以直接发送给其他人。",
+      localScoreExportFailed: "导出曲谱“{songName}”失败：{error}",
+      exportedScoreFolderOpenFailed:
+        "曲谱已导出，但无法打开导出目录。文件位置：{path}；错误：{error}",
       importFailed: "导入 {fileName} 失败：{error}",
       noSelectedScore: "请先导入并选择一首曲谱。",
       previewStopped: "预览已停止。",
@@ -694,6 +770,7 @@ export const uiText = {
     },
     navigation: {
       Library: "Library",
+      Recording: "Recording",
       Playback: "Preview",
       Logs: "Logs",
       Settings: "Settings",
@@ -709,11 +786,16 @@ export const uiText = {
       mySection: "My",
       noCreatedPlaylists: "No playlists yet",
       preview: "Preview",
+      recording: "Recording",
     },
     sections: {
       Library: {
         title: "Library",
         status: "Current session scores",
+      },
+      Recording: {
+        title: "Performance Recording",
+        status: "Record manual performances",
       },
       Playback: {
         title: "Preview",
@@ -886,6 +968,8 @@ export const uiText = {
       moreActions: "More actions",
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
+      exportLocalScore: "Export Score",
+      exportingLocalScore: "Exporting…",
       upgradeToV2: {
         menuAction: "Upgrade to V2 (keep original score)",
         title: "Upgrade to V2",
@@ -1034,6 +1118,83 @@ export const uiText = {
       panelDescription: "",
       previewAria: "Static keyboard preview",
     },
+    scoreRecording: {
+      panelTitle: "Recording Controls",
+      description:
+        "Start recording, switch to Sky to play, then return here to stop and save.",
+      guide: {
+        title: "How to record",
+        steps: [
+          {
+            title: "Start recording",
+            description: "Make sure Sky is running, then start recording.",
+          },
+          {
+            title: "Play in Sky",
+            description:
+              "Switch to Sky and perform using your current key mapping.",
+          },
+          {
+            title: "Stop and save",
+            description:
+              "Return to Lite, stop recording, name it, and save it to your local library.",
+          },
+        ],
+      },
+      idle: "Ready to record",
+      start: "Start recording",
+      starting: "Starting...",
+      recording: "Recording",
+      stop: "Stop recording",
+      stopping: "Stopping...",
+      cancel: "Cancel",
+      cancelling: "Cancelling...",
+      recordedNotes: "Recorded notes: {count}",
+      completed: "Recording complete",
+      completedInMemory:
+        "This recording has not been saved. Name and save it, or record again.",
+      scoreNameLabel: "Score name",
+      scoreNamePlaceholder: "Enter a score name",
+      saveRecording: "Save recording",
+      saving: "Saving...",
+      recordAgain: "Record again",
+      emptyName: "Enter a score name before saving.",
+      saveInvalidRecording: "The recording is invalid and cannot be saved.",
+      saveSucceeded: 'Saved "{name}" to the local library.',
+      saveFailed:
+        "The recording could not be saved. It is still available, so you can try again.",
+      skyNotDetected: "Sky was not detected. Start Sky and try again.",
+      duplicateMapping:
+        "Duplicate key bindings must be resolved in Settings before recording.",
+      startFailed:
+        "Recording could not start. Check the Sky window and key mapping, then try again.",
+      stopFailed:
+        "Recording could not stop. Try again; the current recording remains active.",
+      cancelFailed:
+        "Recording could not be cancelled. Try again; the current recording remains active.",
+      stopWarning:
+        "Recording stopped, but cleanup reported a warning. The result may be incomplete.",
+      stopWarningNoValidNotes:
+        "Recording stopped with a cleanup warning, and no valid notes were recorded.",
+      cancelWarning:
+        "Recording was cancelled, but cleanup reported a warning.",
+      autoCancelWarning:
+        "The Sky window changed, so recording was cancelled, but cleanup reported a warning.",
+      startCleanupWarning:
+        "Recording did not start normally and was ended, but cleanup reported a warning.",
+      lifecycleSetupFailed:
+        "Recording started, but window-change monitoring could not be set up. Stop or cancel this recording.",
+      autoCancelFailed:
+        "The Sky window changed, but automatic cancellation failed. Return to the app and cancel again.",
+      noValidNotes: "No valid notes were recorded.",
+      targetChanged:
+        "The Sky window closed or changed, so the recording was cancelled.",
+      startedLog: "Performance recording started.",
+      stoppedLog: "Performance recording stopped.",
+      cancelledLog: "Performance recording cancelled.",
+      autoCancelledLog:
+        "Performance recording was automatically cancelled because the Sky window closed or changed.",
+    },
     bottomPlayer: {
       aria: "Bottom player",
       currentScore: "Current score",
@@ -1107,6 +1268,11 @@ export const uiText = {
       importedScores: "Imported {count} score(s) from {fileName}.",
       importedScoresFromFiles:
         "Imported {count} score(s) from {fileCount} file(s).",
+      localScoreExported:
+        "Exported “{fileName}”. You can share this file directly.",
+      localScoreExportFailed: "Failed to export “{songName}”: {error}",
+      exportedScoreFolderOpenFailed:
+        "The score was exported, but the export folder could not be opened. File: {path}; error: {error}",
       importFailed: "Failed to import {fileName}: {error}",
       noSelectedScore: "Import and select a score first.",
       previewStopped: "Preview stopped.",

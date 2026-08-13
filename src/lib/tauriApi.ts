@@ -8,6 +8,7 @@ import type {
 } from "../types/experimentalInput";
 import type { LibrarySongId } from "../types/library";
 import type { Song } from "../types/score";
+import type { ScoreRecordingInputEvent } from "../types/scoreRecording";
 import { toCanonicalManagedSong } from "./scoreSerialization";
 
 export type AppRuntimeInfo = {
@@ -142,6 +143,24 @@ export type SkyWindowLifecycleEventPayload = SkyWindowMonitorSnapshot & {
   previousWindow: CandidateWindow | null;
 };
 
+export type ScoreRecordingStartRequest = {
+  sessionId: number;
+  targetHwnd: string;
+  keys: string[];
+};
+
+export type ScoreRecordingEndResponse = {
+  warning: string | null;
+  endedAtMs: number;
+};
+
+export type NativeScoreRecordingEventPayload = ScoreRecordingInputEvent;
+
+export type ExportedScoreFile = {
+  fileName: string;
+  path: string;
+};
+
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");
 }
@@ -213,6 +232,16 @@ export function openImportedScoresDirectory(): Promise<void> {
   return invoke<void>("open_imported_scores_directory");
 }
 
+export function exportImportedScoreSong(
+  songId: LibrarySongId,
+): Promise<ExportedScoreFile> {
+  return invoke<ExportedScoreFile>("export_imported_score_song", { songId });
+}
+
+export function openExportedScoresDirectory(): Promise<void> {
+  return invoke<void>("open_exported_scores_directory");
+}
+
 export function listCandidateWindows(): Promise<CandidateWindow[]> {
   return invoke<CandidateWindow[]>("list_candidate_windows");
 }
@@ -229,6 +258,35 @@ export function listenSkyWindowLifecycleEvents(
   handler: (event: Event<SkyWindowLifecycleEventPayload>) => void,
 ): Promise<UnlistenFn> {
   return listen<SkyWindowLifecycleEventPayload>("sky-window-lifecycle-event", handler);
+}
+
+export function startScoreRecording(
+  request: ScoreRecordingStartRequest,
+): Promise<void> {
+  return invoke<void>("start_score_recording", { request });
+}
+
+export function stopScoreRecording(
+  sessionId: number,
+): Promise<ScoreRecordingEndResponse> {
+  return invoke<ScoreRecordingEndResponse>("stop_score_recording", { sessionId });
+}
+
+export function cancelScoreRecording(
+  sessionId: number,
+): Promise<ScoreRecordingEndResponse> {
+  return invoke<ScoreRecordingEndResponse>("cancel_score_recording", {
+    sessionId,
+  });
+}
+
+export function listenScoreRecordingEvents(
+  handler: (event: Event<NativeScoreRecordingEventPayload>) => void,
+): Promise<UnlistenFn> {
+  return listen<NativeScoreRecordingEventPayload>(
+    "score-recording-event",
+    handler,
+  );
 }
 
 export function sendKeyGroupToWindowMessage({
