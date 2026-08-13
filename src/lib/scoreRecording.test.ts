@@ -65,6 +65,17 @@ describe("score recording key lookup", () => {
     expect(lookup.keyToSkyKey.get("a")).toBe("Key0");
   });
 
+  it("preserves a literal Space key and includes it in the reverse lookup", () => {
+    expect(normalizeRecordingKey(" ")).toBe(" ");
+
+    const lookup = createScoreRecordingKeyLookup({
+      ...defaultKeyMapping,
+      Key0: " ",
+    });
+
+    expect(lookup.keyToSkyKey.get(" ")).toBe("Key0");
+  });
+
   it("ignores empty mappings", () => {
     const lookup = createScoreRecordingKeyLookup({
       ...defaultKeyMapping,
@@ -150,6 +161,41 @@ describe("score recording session", () => {
       { time: 0, key: "Key0" },
       { time: 10, key: "Key0" },
     ]);
+  });
+
+  it("records Space once while held and again after keyup", () => {
+    const lookup = createScoreRecordingKeyLookup({
+      ...defaultKeyMapping,
+      Key0: " ",
+    });
+    const afterFirstKeydown = processScoreRecordingEvent(
+      createScoreRecordingSession(1),
+      { sessionId: 1, type: "keydown", key: " ", timeMs: 1000 },
+      lookup,
+    );
+    const afterRepeatKeydown = processScoreRecordingEvent(
+      afterFirstKeydown,
+      { sessionId: 1, type: "keydown", key: " ", timeMs: 1001 },
+      lookup,
+    );
+    const afterKeyup = processScoreRecordingEvent(
+      afterRepeatKeydown,
+      { sessionId: 1, type: "keyup", key: " ", timeMs: 1002 },
+      lookup,
+    );
+    const afterSecondKeydown = processScoreRecordingEvent(
+      afterKeyup,
+      { sessionId: 1, type: "keydown", key: " ", timeMs: 1010 },
+      lookup,
+    );
+
+    expect(afterRepeatKeydown).toBe(afterFirstKeydown);
+    expect(afterKeyup.pressedKeys).toEqual(new Set());
+    expect(afterSecondKeydown.notes).toEqual([
+      { time: 0, key: "Key0" },
+      { time: 10, key: "Key0" },
+    ]);
+    expect(afterSecondKeydown.pressedKeys).toEqual(new Set([" "]));
   });
 
   it("tracks multiple held keys independently", () => {

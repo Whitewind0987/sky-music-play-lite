@@ -13,6 +13,10 @@ import type {
 const asciiLetterPattern = /^[a-z]$/i;
 
 export function normalizeRecordingKey(key: string): string {
+  if (key === " ") {
+    return key;
+  }
+
   const trimmedKey = key.trim();
 
   return asciiLetterPattern.test(trimmedKey)
