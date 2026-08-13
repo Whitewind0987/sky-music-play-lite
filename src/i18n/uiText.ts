@@ -362,6 +362,13 @@ export const uiText = {
     scoreRecording: {
       panelTitle: "录制控制",
       description: "开始后切换到光遇演奏，返回软件后停止并保存。",
+      visualization: {
+        keyboard: "实时按键",
+        keyboardAria: "十五键演奏状态",
+        timeline: "曲谱流",
+        timelineAria: "实时录制曲谱",
+        emptyTimeline: "开始录制后，曲谱会在这里实时出现",
+      },
       guide: {
         title: "如何录制",
         steps: [
@@ -1122,6 +1129,13 @@ export const uiText = {
       panelTitle: "Recording Controls",
       description:
         "Start recording, switch to Sky to play, then return here to stop and save.",
+      visualization: {
+        keyboard: "Live keys",
+        keyboardAria: "15-key performance state",
+        timeline: "Score flow",
+        timelineAria: "Live recorded score",
+        emptyTimeline: "Your score will appear here as you record",
+      },
       guide: {
         title: "How to record",
         steps: [

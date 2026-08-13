@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { skyKeyNames } from "../types/keyMapping";
 import type { Note } from "../types/score";
+import type { ScoreRecordingSession } from "../types/scoreRecording";
 import {
   buildScoreVisualization,
   findCurrentScoreVisualGroupIndex,
+  getActiveScoreRecordingVisualKeys,
   getActiveScoreVisualKeys,
   getScoreVisualRenderWindow,
 } from "./scoreVisualization";
@@ -26,6 +28,26 @@ function buildGroups(times: number[]) {
   return buildScoreVisualization(notesAt(...times), defaultTimingOptions, {
     visualChordWindowMs: 0,
   }).groups;
+}
+
+function recordingSession(
+  notes: Note[],
+  activeNoteIndexes: number[],
+  finished = false,
+): ScoreRecordingSession {
+  return {
+    sessionId: 1,
+    activePresses: new Map(
+      activeNoteIndexes.map((noteIndex, index) => [
+        `physical-${index}`,
+        { noteIndex, startedAtMs: index },
+      ]),
+    ),
+    notes,
+    firstAcceptedNoteTimeMs: notes.length > 0 ? 0 : null,
+    lastAcceptedEventTimeMs: notes.length > 0 ? 0 : null,
+    finished,
+  };
 }
 
 describe("buildScoreVisualization", () => {
@@ -323,6 +345,69 @@ describe("getActiveScoreVisualKeys", () => {
       expect(getActiveScoreVisualKeys(buildGroups([0]), currentMs)).toEqual([]);
     },
   );
+});
+
+describe("getActiveScoreRecordingVisualKeys", () => {
+  it("returns one active recording key", () => {
+    const session = recordingSession([{ time: 0, key: "Key4" }], [0]);
+
+    expect(getActiveScoreRecordingVisualKeys(session)).toEqual(["Key4"]);
+  });
+
+  it("returns an active chord in canonical order", () => {
+    const session = recordingSession(
+      [
+        { time: 0, key: "Key8" },
+        { time: 1, key: "Key0" },
+        { time: 2, key: "Key4" },
+      ],
+      [0, 1, 2],
+    );
+
+    expect(getActiveScoreRecordingVisualKeys(session)).toEqual([
+      "Key0",
+      "Key4",
+      "Key8",
+    ]);
+  });
+
+  it("de-duplicates active recording notes resolving to one Sky key", () => {
+    const session = recordingSession(
+      [
+        { time: 0, key: "Key4" },
+        { time: 1, key: "2Key4" },
+      ],
+      [0, 1],
+    );
+
+    expect(getActiveScoreRecordingVisualKeys(session)).toEqual(["Key4"]);
+  });
+
+  it("ignores stale and out-of-range active note indexes", () => {
+    const session = recordingSession([{ time: 0, key: "Key1" }], [1, 99]);
+
+    expect(getActiveScoreRecordingVisualKeys(session)).toEqual([]);
+  });
+
+  it("ignores unsupported active note keys", () => {
+    const session = recordingSession([{ time: 0, key: "Key99" }], [0]);
+
+    expect(getActiveScoreRecordingVisualKeys(session)).toEqual([]);
+  });
+
+  it("normalizes prefixed active recording keys", () => {
+    const session = recordingSession([{ time: 0, key: "1Key14" }], [0]);
+
+    expect(getActiveScoreRecordingVisualKeys(session)).toEqual(["Key14"]);
+  });
+
+  it("returns no keys for finished or inactive sessions", () => {
+    const inactive = recordingSession([{ time: 0, key: "Key0" }], []);
+    const finished = recordingSession([{ time: 0, key: "Key0" }], [0], true);
+
+    expect(getActiveScoreRecordingVisualKeys(inactive)).toEqual([]);
+    expect(getActiveScoreRecordingVisualKeys(finished)).toEqual([]);
+  });
 });
 
 describe("findCurrentScoreVisualGroupIndex", () => {

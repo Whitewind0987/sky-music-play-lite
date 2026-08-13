@@ -2987,10 +2987,195 @@ button {
 
 .score-recording-page {
   width: 100%;
-  max-width: 880px;
+  max-width: 1040px;
   display: grid;
   gap: 18px;
   margin: 0 auto;
+}
+
+.score-recording-visualizer {
+  --score-visual-surface: #f8fafc;
+  --score-visual-border: #d8dee6;
+  --score-visual-muted: #9aa8b7;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 0.62fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.score-recording-visualizer__column {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.score-recording-visualizer__column h2 {
+  margin: 0;
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sky-keyboard-visualizer {
+  width: min(100%, 330px);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(6px, 1vw, 10px);
+}
+
+.sky-visual-key {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--score-visual-border);
+  border-radius: 10px;
+  background: var(--score-visual-surface);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.sky-visual-key__motif {
+  width: 38%;
+  aspect-ratio: 1;
+  border: 2px solid var(--score-visual-muted);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.sky-visual-key--circle .sky-visual-key__motif {
+  border-radius: 50%;
+}
+
+.sky-visual-key--diamond .sky-visual-key__motif,
+.sky-visual-key--accent .sky-visual-key__motif {
+  width: 34%;
+  transform: rotate(45deg);
+}
+
+.sky-visual-key__accent {
+  position: absolute;
+  right: 24%;
+  bottom: 24%;
+  width: 10%;
+  aspect-ratio: 1;
+  border: 1px solid var(--score-visual-muted);
+  border-radius: 50%;
+  background: var(--score-visual-surface);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.sky-visual-key.is-active {
+  border-color: var(--app-primary);
+  background: rgba(var(--app-primary-rgb), 0.1);
+  transform: scale(1.025);
+}
+
+.sky-visual-key.is-active .sky-visual-key__motif {
+  border-color: var(--app-primary);
+  background: var(--app-primary);
+}
+
+.sky-visual-key.is-active .sky-visual-key__accent {
+  border-color: var(--app-primary);
+  background: var(--app-primary);
+}
+
+.score-recording-visualizer__flow {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.score-visual-timeline {
+  min-width: 0;
+  min-height: 156px;
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--score-visual-border);
+  border-radius: 8px;
+  background: var(--score-visual-surface);
+  overflow: hidden;
+}
+
+.score-visual-timeline__empty {
+  width: 100%;
+  margin: 0;
+  color: #738191;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.score-visual-timeline__groups {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: clamp(4px, 0.65vw, 8px);
+  overflow: hidden;
+}
+
+.score-visual-group {
+  width: clamp(34px, 4.8vw, 54px);
+  flex: 0 1 54px;
+  aspect-ratio: 5 / 3;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #ffffff;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.score-visual-group.is-current {
+  border-color: rgba(var(--app-primary-rgb), 0.48);
+  background: rgba(var(--app-primary-rgb), 0.08);
+}
+
+.score-visual-group__cell {
+  min-width: 0;
+  aspect-ratio: 1;
+  border: 1px solid #cbd5e1;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.score-visual-group__cell.is-marked {
+  border-color: var(--app-primary);
+  background: rgba(var(--app-primary-rgb), 0.68);
+}
+
+.score-visual-group__cell.is-held {
+  border-color: var(--app-primary-hover);
+  background: var(--app-primary);
+}
+
+@media (max-width: 820px) {
+  .score-recording-visualizer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sky-keyboard-visualizer {
+    width: min(100%, 310px);
+  }
+
+  .score-visual-timeline {
+    min-height: 112px;
+  }
 }
 
 .score-recording-guide {

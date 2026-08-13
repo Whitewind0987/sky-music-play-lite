@@ -792,8 +792,10 @@ function App() {
           completedNoteCount={
             scoreRecording.completedSession?.notes.length ?? null
           }
+          completedSession={scoreRecording.completedSession}
           isSaving={scoreRecording.isSaving}
           lifecycle={scoreRecording.lifecycle}
+          liveSession={scoreRecording.liveSession}
           onCancel={() => void scoreRecording.handleCancel()}
           onCompletedNameChange={scoreRecording.handleCompletedNameChange}
           onSave={() => void scoreRecording.handleSave()}

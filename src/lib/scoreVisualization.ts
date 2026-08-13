@@ -4,6 +4,7 @@ import {
   type SkyKeyName,
 } from "../types/keyMapping";
 import type { Note } from "../types/score";
+import type { ScoreRecordingSession } from "../types/scoreRecording";
 import type {
   ScoreVisualizationModel,
   ScoreVisualizationOptions,
@@ -26,6 +27,12 @@ const skyKeyNameSet: ReadonlySet<string> = new Set(skyKeyNames);
 
 function isSkyKeyName(value: string): value is SkyKeyName {
   return skyKeyNameSet.has(value);
+}
+
+function getVisualSkyKey(sourceKey: string): SkyKeyName | null {
+  const previewKey = getPreviewKeyName(sourceKey);
+
+  return isSkyKeyName(previewKey) ? previewKey : null;
 }
 
 function normalizeVisualChordWindowMs(value: number | undefined) {
@@ -74,8 +81,8 @@ export function buildScoreVisualization(
 
   timing.groups.forEach((timingGroup) => {
     const visualNotes = timingGroup.notes.flatMap((note): ScoreVisualNote[] => {
-      const previewKey = getPreviewKeyName(note.key);
-      if (!isSkyKeyName(previewKey)) {
+      const skyKey = getVisualSkyKey(note.key);
+      if (skyKey === null) {
         return [];
       }
 
@@ -87,7 +94,7 @@ export function buildScoreVisualization(
 
       return [
         {
-          skyKey: previewKey,
+          skyKey,
           sourceKey: note.key,
           sourceTimeMs: timingGroup.sourceTimeMs,
           adjustedStartMs: timingGroup.adjustedStartMs,
@@ -123,6 +130,29 @@ export function buildScoreVisualization(
     totalMs: timing.totalMs,
     finishMs: timing.finishMs,
   };
+}
+
+export function getActiveScoreRecordingVisualKeys(
+  session: ScoreRecordingSession,
+): SkyKeyName[] {
+  if (session.finished || session.activePresses.size === 0) {
+    return [];
+  }
+
+  const activeKeys = new Set<SkyKeyName>();
+  session.activePresses.forEach((activePress) => {
+    const note = session.notes[activePress.noteIndex];
+    if (note === undefined) {
+      return;
+    }
+
+    const skyKey = getVisualSkyKey(note.key);
+    if (skyKey !== null) {
+      activeKeys.add(skyKey);
+    }
+  });
+
+  return skyKeyNames.filter((skyKey) => activeKeys.has(skyKey));
 }
 
 export function getActiveScoreVisualKeys(
