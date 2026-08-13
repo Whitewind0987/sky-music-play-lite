@@ -38,6 +38,7 @@ export type ExperimentalInputPreferences = {
 };
 
 export type PersistedAppData = {
+  accentColor: string;
   alwaysOnTop: boolean;
   appDataVersion: typeof appDataVersion;
   confirmBeforeExit: boolean;

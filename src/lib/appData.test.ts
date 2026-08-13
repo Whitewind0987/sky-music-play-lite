@@ -15,6 +15,7 @@ import {
   buildPersistedAppData,
   sanitizePersistedAppData,
 } from "./appData";
+import { defaultAccentColor } from "./accentColor";
 import { createLocalSongMetadata } from "./libraryCollections";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 import {
@@ -94,6 +95,12 @@ describe("buildPersistedAppData", () => {
   it("writes the current appDataVersion", () => {
     expect(buildMinimalPersistedAppData().appDataVersion).toBe(appDataVersion);
     expect(appDataVersion).toBe(3);
+  });
+
+  it("persists a normalized custom accent color", () => {
+    expect(
+      buildMinimalPersistedAppData({ accentColor: "#12ABEF" }).accentColor,
+    ).toBe("#12abef");
   });
 
   it("defaults always-on-top to false and preserves explicit true", () => {
@@ -271,6 +278,35 @@ describe("buildPersistedAppData", () => {
 });
 
 describe("sanitizePersistedAppData current version", () => {
+  it("defaults old data without an accent color", () => {
+    const oldData: Record<string, unknown> = {
+      ...buildMinimalPersistedAppData(),
+    };
+    delete oldData.accentColor;
+
+    expect(sanitizePersistedAppData(oldData)?.accentColor).toBe(
+      defaultAccentColor,
+    );
+  });
+
+  it("preserves and normalizes a valid custom accent color", () => {
+    expect(
+      sanitizePersistedAppData({
+        ...buildMinimalPersistedAppData(),
+        accentColor: "#FF00AA",
+      })?.accentColor,
+    ).toBe("#ff00aa");
+  });
+
+  it("replaces an invalid persisted accent color with the default", () => {
+    expect(
+      sanitizePersistedAppData({
+        ...buildMinimalPersistedAppData(),
+        accentColor: "var(--whatever)",
+      })?.accentColor,
+    ).toBe(defaultAccentColor);
+  });
+
   it.each([1, 2, 3] as const)(
     "loads old version-%s data without preferences as Connected",
     (version) => {

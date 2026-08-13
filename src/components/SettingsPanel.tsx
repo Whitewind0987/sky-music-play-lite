@@ -70,6 +70,7 @@ type ExperimentalInputPanelState = {
 };
 
 type SettingsPlaceholderProps = {
+  accentColor: string;
   appRuntimeInfo: AppRuntimeInfo | null;
   confirmBeforeExit: boolean;
   isConfirmBeforeExitSaving: boolean;
@@ -79,6 +80,8 @@ type SettingsPlaceholderProps = {
   listeningSkyKey: SkyKeyName | null;
   listeningShortcutAction: PlaybackShortcutAction | null;
   onShortcutNoticeClear: (action?: PlaybackShortcutAction) => void;
+  onAccentColorChange: (accentColor: string) => void;
+  onAccentColorReset: () => void;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onConfirmBeforeExitChange: (confirmBeforeExit: boolean) => void;
   onLanguageChange: (language: LanguageCode) => void;
@@ -98,6 +101,7 @@ type SettingsPlaceholderProps = {
 };
 
 export function SettingsPlaceholder({
+  accentColor,
   appRuntimeInfo,
   confirmBeforeExit,
   isConfirmBeforeExitSaving,
@@ -107,6 +111,8 @@ export function SettingsPlaceholder({
   listeningSkyKey,
   listeningShortcutAction,
   onShortcutNoticeClear,
+  onAccentColorChange,
+  onAccentColorReset,
   onKeyMappingListenStart,
   onConfirmBeforeExitChange,
   onLanguageChange,
@@ -656,6 +662,28 @@ export function SettingsPlaceholder({
           <div className="setting-row">
             <span>{text.theme}</span>
             <span className="fake-segment">{text.systemTheme}</span>
+          </div>
+          <div className="setting-row">
+            <span>{text.accentColor}</span>
+            <div className="accent-color-controls">
+              <input
+                className="accent-color-picker"
+                type="color"
+                aria-label={text.accentColorPicker}
+                value={accentColor}
+                onChange={(event) => onAccentColorChange(event.target.value)}
+              />
+              <output className="accent-color-value">
+                {accentColor.toUpperCase()}
+              </output>
+              <button
+                className="accent-color-reset"
+                type="button"
+                onClick={onAccentColorReset}
+              >
+                {text.accentColorReset}
+              </button>
+            </div>
           </div>
           <div className="setting-row">
             <span>{text.defaultPage}</span>

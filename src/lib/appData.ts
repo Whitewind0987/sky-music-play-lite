@@ -56,6 +56,7 @@ import {
   sanitizeV1ToV2UpgradePreferences,
 } from "./v1ToV2UpgradePreferences";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
+import { defaultAccentColor, normalizeAccentColor } from "./accentColor";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
@@ -115,6 +116,7 @@ export function sanitizePersistedAppData(
   );
 
   return {
+    accentColor: normalizeAccentColor(rawData.accentColor),
     alwaysOnTop:
       typeof rawData.alwaysOnTop === "boolean"
         ? rawData.alwaysOnTop
@@ -161,6 +163,7 @@ export function sanitizePersistedAppData(
 }
 
 export function buildPersistedAppData({
+  accentColor = defaultAccentColor,
   alwaysOnTop = false,
   confirmBeforeExit = defaultConfirmBeforeExit,
   experimentalInputPreferences,
@@ -183,6 +186,7 @@ export function buildPersistedAppData({
   v1ToV2UpgradePreferences =
     createDefaultV1ToV2UpgradePreferences(),
 }: {
+  accentColor?: string;
   alwaysOnTop?: boolean;
   confirmBeforeExit?: boolean;
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
@@ -221,6 +225,7 @@ export function buildPersistedAppData({
   );
 
   return {
+    accentColor: normalizeAccentColor(accentColor),
     alwaysOnTop,
     appDataVersion,
     confirmBeforeExit,

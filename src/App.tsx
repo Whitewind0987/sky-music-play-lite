@@ -29,6 +29,7 @@ import { PlayerScoreVisualizer } from "./components/score-visualization/PlayerSc
 import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
+import { useAccentColor } from "./hooks/useAccentColor";
 import { useAppFileLogger } from "./hooks/useAppFileLogger";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useAlwaysOnTop } from "./hooks/useAlwaysOnTop";
@@ -110,6 +111,7 @@ function App() {
   const updateCheck = useUpdateCheck();
   const text = uiText[language];
   const appFileLogger = useAppFileLogger(language);
+  const accentColor = useAccentColor();
   const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
   const missingLocalSongsRemovedRef = useRef<
     (removedSongs: RemovedLibrarySong[]) => void
@@ -280,9 +282,11 @@ function App() {
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
+    accentColor: accentColor.accentColor,
     appendDetailedLog: appFileLogger.appendDetailedLog,
     appendLog,
     applyAlwaysOnTop: alwaysOnTop.applyPersistedPreference,
+    applyAccentColor: accentColor.applyPersistedAccentColor,
     applyConfirmBeforeExit: handleConfirmBeforeExitChange,
     applyExperimentalInputPreferences:
       experimentalInput.applyExperimentalInputPreferences,
@@ -840,6 +844,7 @@ function App() {
     if (activeSection === "Settings") {
       return (
         <SettingsPlaceholder
+          accentColor={accentColor.accentColor}
           confirmBeforeExit={confirmBeforeExit}
           isConfirmBeforeExitSaving={isConfirmBeforeExitSaving}
           experimentalInput={{
@@ -881,6 +886,8 @@ function App() {
           }
           onKeyMappingListenStart={handleStartKeyMappingListen}
           onConfirmBeforeExitChange={handleConfirmBeforeExitSettingChange}
+          onAccentColorChange={accentColor.setAccentColor}
+          onAccentColorReset={accentColor.resetAccentColor}
           onLanguageChange={setLanguage}
           appRuntimeInfo={appFileLogger.runtimeInfo}
           onOpenLogDirectory={appFileLogger.openLogDirectory}

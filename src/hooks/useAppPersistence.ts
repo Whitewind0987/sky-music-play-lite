@@ -53,10 +53,12 @@ import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 export const normalAppDataSaveDebounceMs = 500;
 
 type UseAppPersistenceOptions = {
+  accentColor: string;
   persistedAlwaysOnTop: boolean;
   appendDetailedLog?: (entry: AppLogEntry) => void;
   appendLog: (entry: string) => void;
   applyAlwaysOnTop: (alwaysOnTop: boolean) => void;
+  applyAccentColor: (accentColor: string) => void;
   applyConfirmBeforeExit: (confirmBeforeExit: boolean) => void;
   applyExperimentalInputPreferences: (
     preferences: PersistedAppData["experimentalInputPreferences"],
@@ -154,10 +156,12 @@ export function buildAppDataForPersistence(
 }
 
 export function useAppPersistence({
+  accentColor,
   persistedAlwaysOnTop,
   appendDetailedLog,
   appendLog,
   applyAlwaysOnTop,
+  applyAccentColor,
   applyConfirmBeforeExit,
   applyExperimentalInputPreferences,
   applyKeyMapping,
@@ -221,6 +225,7 @@ export function useAppPersistence({
     }
 
     return buildAppDataForPersistence({
+      accentColor,
       alwaysOnTop: persistedAlwaysOnTop,
       confirmBeforeExit: nextConfirmBeforeExit,
       experimentalInputPreferences: {
@@ -452,6 +457,7 @@ export function useAppPersistence({
           runtimeAppData,
           applyAlwaysOnTop,
         );
+        applyAccentColor(runtimeAppData.accentColor);
         setLanguage(runtimeAppData.language);
         applyConfirmBeforeExit(runtimeAppData.confirmBeforeExit);
         applyKeyMapping(runtimeAppData.keyMapping);
@@ -529,6 +535,7 @@ export function useAppPersistence({
       }
     };
   }, [
+    accentColor,
     persistedAlwaysOnTop,
     canSaveAppData,
     confirmBeforeExit,
