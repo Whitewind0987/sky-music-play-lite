@@ -1514,6 +1514,33 @@ button {
   font-size: 12px;
 }
 
+.library-pagination-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.library-pagination-page-input {
+  width: 44px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 1px solid #d6dde8;
+  border-radius: 6px;
+  color: #2f3a4a;
+  background: #ffffff;
+  text-align: center;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.library-pagination-page-input:focus {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb), 0.14);
+}
+
 .library-pagination button {
   min-height: 28px;
   padding: 0 10px;
@@ -1530,9 +1557,9 @@ button {
 }
 
 .library-pagination button:not(:disabled):hover {
-  border-color: #b8d4fb;
-  color: #1f5ea8;
-  background: #f4f9ff;
+  border-color: var(--app-primary);
+  color: var(--app-primary-hover);
+  background: rgba(var(--app-primary-rgb), 0.08);
 }
 
 .library-heart-button {
@@ -1715,15 +1742,15 @@ button {
 }
 
 .score-upgrade-style-option.is-selected {
-  border-color: #2563eb;
-  color: #1d4ed8;
-  background: #eff6ff;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+  border-color: var(--app-primary);
+  color: var(--app-primary-hover);
+  background: rgba(var(--app-primary-rgb), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--app-primary-rgb), 0.12);
 }
 
 .score-upgrade-style-option input {
   margin: 0;
-  accent-color: #2563eb;
+  accent-color: var(--app-primary);
 }
 
 .score-upgrade-style-description,
@@ -1783,7 +1810,7 @@ button {
 
 .score-upgrade-checkbox-field input {
   margin: 2px 0 0;
-  accent-color: #2563eb;
+  accent-color: var(--app-primary);
 }
 
 .score-upgrade-checkbox-field small {
@@ -1846,8 +1873,8 @@ button {
 
 .score-upgrade-field > input:focus,
 .score-upgrade-number-input input:focus {
-  border-color: #2563eb;
-  outline: 2px solid rgba(37, 99, 235, 0.18);
+  border-color: var(--app-primary);
+  outline: 2px solid rgba(var(--app-primary-rgb), 0.18);
   outline-offset: 1px;
 }
 
@@ -1912,7 +1939,7 @@ button {
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #2563eb;
+  accent-color: var(--app-primary);
 }
 
 .confirm-dialog-option:has(input:disabled) {
@@ -1949,14 +1976,14 @@ button {
 }
 
 .confirm-dialog-primary {
-  border: 1px solid #1d4ed8;
-  color: #ffffff;
-  background: #2563eb;
+  border: 1px solid var(--app-primary-hover);
+  color: var(--app-primary-contrast);
+  background: var(--app-primary);
 }
 
 .confirm-dialog-primary:hover,
 .confirm-dialog-primary:focus-visible {
-  background: #1d4ed8;
+  background: var(--app-primary-hover);
   outline: none;
 }
 
@@ -2058,14 +2085,14 @@ button {
 }
 
 .update-dialog-primary {
-  border: 1px solid #1d4ed8;
-  color: #ffffff;
-  background: #2563eb;
+  border: 1px solid var(--app-primary-hover);
+  color: var(--app-primary-contrast);
+  background: var(--app-primary);
 }
 
 .update-dialog-primary:hover,
 .update-dialog-primary:focus-visible {
-  background: #1d4ed8;
+  background: var(--app-primary-hover);
   outline: none;
 }
 

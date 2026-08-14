@@ -273,6 +273,15 @@ export function useScoreLibrary({
         startTransition(() => {
           setBuiltInPage((currentPage) => Math.min(currentPage + 1, pageCount));
         }),
+      onPageChange: (nextPage: number) => {
+        if (!Number.isSafeInteger(nextPage)) {
+          return;
+        }
+
+        startTransition(() => {
+          setBuiltInPage(Math.min(Math.max(nextPage, 1), pageCount));
+        });
+      },
       onPreviousPage: () =>
         startTransition(() => {
           setBuiltInPage((currentPage) => Math.max(currentPage - 1, 1));
