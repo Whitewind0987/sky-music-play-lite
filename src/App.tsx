@@ -759,6 +759,7 @@ function App() {
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
+          onPaginationNotice={showAppNotice}
           onPrepareSong={warmPlaybackPlan}
           onPlayAll={playbackCoordinator.handlePlayAllPlaylist}
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}

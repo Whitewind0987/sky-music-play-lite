@@ -23,7 +23,10 @@ import {
   getLibrarySongFormatVersion,
   getLibrarySongName,
 } from "../lib/libraryCollections";
-import { parseLibraryPageInput } from "../lib/libraryPagination";
+import {
+  isLibraryPageInputOutOfRange,
+  parseLibraryPageInput,
+} from "../lib/libraryPagination";
 import type { V1ToV2ConversionOptions } from "../lib/v1ToV2Conversion";
 import {
   getAdjustedPreviewDurationFromMetadata,
@@ -71,6 +74,7 @@ type LibraryPanelProps = {
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
+  onPaginationNotice: (message: string) => void;
   onPrepareSong: (songIndex: number) => void;
   onPlaySong: (item: LibrarySongListItem) => void;
   onPlayAll: () => void;
@@ -110,12 +114,14 @@ type LibraryPanelProps = {
 
 type BuiltInLibraryPaginationProps = {
   hasSearchQuery: boolean;
+  onPaginationNotice: (message: string) => void;
   pagination: NonNullable<LibraryPanelProps["builtInPagination"]>;
   text: UiText["library"];
 };
 
 function BuiltInLibraryPagination({
   hasSearchQuery,
+  onPaginationNotice,
   pagination,
   text,
 }: BuiltInLibraryPaginationProps) {
@@ -133,6 +139,17 @@ function BuiltInLibraryPagination({
     );
 
     if (parsedPage === null) {
+      if (
+        isLibraryPageInputOutOfRange(pageDraft, pagination.pageCount)
+      ) {
+        onPaginationNotice(
+          text.paginationPageOutOfRange.replace(
+            "{pageCount}",
+            String(pagination.pageCount),
+          ),
+        );
+      }
+
       setPageDraft(String(pagination.page));
       return;
     }
@@ -1164,6 +1181,7 @@ export function LibraryPanel({
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
+  onPaginationNotice,
   onPlayAll,
   onPlaySong,
   onPlaySongNext,
@@ -1414,6 +1432,7 @@ export function LibraryPanel({
           hasSearchQuery) ? (
           <BuiltInLibraryPagination
             hasSearchQuery={hasSearchQuery}
+            onPaginationNotice={onPaginationNotice}
             pagination={builtInPagination}
             text={text}
           />

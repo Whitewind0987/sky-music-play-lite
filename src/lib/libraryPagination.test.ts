@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseLibraryPageInput } from "./libraryPagination";
+import {
+  isLibraryPageInputOutOfRange,
+  parseLibraryPageInput,
+} from "./libraryPagination";
 
 describe("parseLibraryPageInput", () => {
   it.each([
@@ -24,4 +27,34 @@ describe("parseLibraryPageInput", () => {
   ])("rejects %j with pageCount %i", (value, pageCount) => {
     expect(parseLibraryPageInput(value, pageCount)).toBeNull();
   });
+});
+
+describe("isLibraryPageInputOutOfRange", () => {
+  it.each([
+    ["0", 111],
+    ["112", 111],
+    [String(Number.MAX_SAFE_INTEGER), 111],
+  ])(
+    "classifies %j as out of range with pageCount %i",
+    (value, pageCount) => {
+      expect(isLibraryPageInputOutOfRange(value, pageCount)).toBe(true);
+    },
+  );
+
+  it.each([
+    ["1", 111],
+    ["56", 111],
+    ["111", 111],
+    ["", 111],
+    ["abc", 111],
+    ["1.5", 111],
+    ["-1", 111],
+    [String(Number.MAX_SAFE_INTEGER + 1), 111],
+    ["1", 0],
+  ])(
+    "does not classify %j as out of range with pageCount %i",
+    (value, pageCount) => {
+      expect(isLibraryPageInputOutOfRange(value, pageCount)).toBe(false);
+    },
+  );
 });

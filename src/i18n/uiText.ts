@@ -317,6 +317,7 @@ export const uiText = {
       paginationPagePrefix: "第",
       paginationPageSuffix: "页",
       paginationJumpAria: "跳转到指定内置曲谱页",
+      paginationPageOutOfRange: "页码超出范围，请输入 1–{pageCount} 页。",
       paginationShowing: "显示 {start}-{end} / {total}",
       paginationSearchResults: "搜索结果：{total} 首",
       playAction: "播放",
@@ -1100,6 +1101,8 @@ export const uiText = {
       paginationPagePrefix: "Page",
       paginationPageSuffix: "",
       paginationJumpAria: "Jump to a built-in score page",
+      paginationPageOutOfRange:
+        "Page is out of range. Enter a page from 1 to {pageCount}.",
       paginationShowing: "Showing {start}-{end} / {total}",
       paginationSearchResults: "Search results: {total}",
       playAction: "Play",

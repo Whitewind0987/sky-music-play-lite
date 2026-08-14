@@ -18,3 +18,24 @@ export function parseLibraryPageInput(
 
   return page;
 }
+
+export function isLibraryPageInputOutOfRange(
+  value: string,
+  pageCount: number,
+): boolean {
+  if (!Number.isSafeInteger(pageCount) || pageCount <= 0) {
+    return false;
+  }
+
+  const normalizedValue = value.trim();
+  if (!/^\d+$/.test(normalizedValue)) {
+    return false;
+  }
+
+  const page = Number(normalizedValue);
+  if (!Number.isSafeInteger(page)) {
+    return false;
+  }
+
+  return page < 1 || page > pageCount;
+}
