@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag and application versions
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargoVersionMatch = Select-String -Path src-tauri/Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+
+          if ($null -eq $cargoVersionMatch) {
+            throw "Could not read the package version from src-tauri/Cargo.toml."
+          }
+
+          $cargoVersion = $cargoVersionMatch.Matches[0].Groups[1].Value
+          $expectedTag = "v$packageVersion"
+
+          if ("${{ github.ref_name }}" -ne $expectedTag) {
+            throw "Tag ${{ github.ref_name }} does not match package version $packageVersion."
+          }
+
+          if ($tauriVersion -ne $packageVersion -or $cargoVersion -ne $packageVersion) {
+            throw "Version mismatch: package.json=$packageVersion, tauri.conf.json=$tauriVersion, Cargo.toml=$cargoVersion."
+          }
+
+      - name: Run frontend tests
+        run: npm run test -- --testTimeout=30000
+
+      - name: Check TypeScript
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Check Rust
+        working-directory: src-tauri
+        run: cargo check
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build and upload normal installer
+        id: release_normal
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "SkyMusicPlay Lite v__VERSION__"
+          releaseBody: "Release assets are being built."
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: false
+          args: --bundles nsis
+          releaseAssetNamePattern: "SkyMusicPlay-Lite_[version]_Windows-x64_Setup[ext]"
+
+      - name: Build and upload offline WebView2 installer
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ steps.release_normal.outputs.releaseId }}
+          releaseDraft: true
+          uploadUpdaterJson: false
+          args: --bundles nsis --config src-tauri/tauri.offline.conf.json
+          releaseAssetNamePattern: "SkyMusicPlay-Lite_[version]_Windows-x64_WebView2-Offline_Setup[ext]"
+
+      - name: Publish completed release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" `
+            --title "SkyMusicPlay Lite ${{ github.ref_name }}" `
+            --notes-file ".github/release-notes.md" `
+            --draft=false

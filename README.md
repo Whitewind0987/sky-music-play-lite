@@ -14,14 +14,16 @@ SkyMusicPlay Lite 是一个面向 Windows 的轻量级 Sky光遇自动弹琴软�
 
 项目使用 **Tauri v2 + React + TypeScript + Rust** 构建，目标是在保持体积轻、界面清晰、功能可控的前提下，提供更适合桌面端使用的曲库管理、预览播放和真实播放体验。
 
-当前版本为 **v0.5.0**。
-v0.5.0 是正式推荐版本。
+当前版本为 **v0.6.0**。
+v0.6.0 是正式推荐版本。
 
 ## 丨下载
 
 请前往 GitHub Releases 下载最新版本：
 
 - [Releases](https://github.com/Whitewind0987/sky-music-play-lite/releases)
+
+正常版安装包体积较小，推荐大多数用户使用；内置 WebView2 版适合离线环境，或正常版无法完成 WebView2 安装的情况。
 
 ## 丨使用手册
 
@@ -118,7 +120,7 @@ SkyMusicPlay Lite 在 Windows 上启动时可能会请求管理员权限。
 
 SkyMusicPlay Lite 支持启动时检查更新。
 
-v0.5.0 是当前正式推荐版本。
+v0.6.0 是当前正式推荐版本。
 
 更新分为：
 
