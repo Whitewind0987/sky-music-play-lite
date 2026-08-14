@@ -9,6 +9,7 @@ import {
   getActiveScoreVisualKeys,
   getScoreVisualPageIndexForGroup,
   getScoreVisualRenderWindow,
+  parseScoreVisualPageInput,
   paginateScoreVisualGroups,
   SCORE_VISUAL_GROUPS_PER_PAGE,
   SCORE_VISUAL_PAGE_COLUMNS,
@@ -613,4 +614,34 @@ describe("score visual pagination", () => {
       ).toBe(-1);
     },
   );
+});
+
+describe("parseScoreVisualPageInput", () => {
+  it.each([
+    ["1", 12, 0],
+    ["7", 12, 6],
+    ["12", 12, 11],
+    [" 7 ", 12, 6],
+    ["01", 12, 0],
+  ] as const)(
+    "parses page input %j of %i pages as index %i",
+    (value, pageCount, expectedPageIndex) => {
+      expect(parseScoreVisualPageInput(value, pageCount)).toBe(
+        expectedPageIndex,
+      );
+    },
+  );
+
+  it.each([
+    ["", 12],
+    ["0", 12],
+    ["-1", 12],
+    ["1.5", 12],
+    ["abc", 12],
+    ["13", 12],
+    ["1", 0],
+    [String(Number.MAX_SAFE_INTEGER + 1), Number.MAX_SAFE_INTEGER],
+  ] as const)("rejects invalid page input %j of %i pages", (value, pageCount) => {
+    expect(parseScoreVisualPageInput(value, pageCount)).toBeNull();
+  });
 });

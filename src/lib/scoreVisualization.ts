@@ -305,6 +305,31 @@ export function paginateScoreVisualGroups(
   return pages;
 }
 
+export function parseScoreVisualPageInput(
+  value: string,
+  pageCount: number,
+): number | null {
+  const trimmedValue = value.trim();
+  if (
+    !Number.isSafeInteger(pageCount) ||
+    pageCount <= 0 ||
+    !/^[0-9]+$/.test(trimmedValue)
+  ) {
+    return null;
+  }
+
+  const pageNumber = Number(trimmedValue);
+  if (
+    !Number.isSafeInteger(pageNumber) ||
+    pageNumber < 1 ||
+    pageNumber > pageCount
+  ) {
+    return null;
+  }
+
+  return pageNumber - 1;
+}
+
 export function getScoreVisualPageIndexForGroup(
   groupIndex: number,
   totalGroupCount: number,

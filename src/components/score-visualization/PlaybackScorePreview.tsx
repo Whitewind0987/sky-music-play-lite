@@ -88,6 +88,7 @@ export function PlaybackScorePreview({
           focusGroupIndex={focusGroupIndex}
           groups={model?.groups ?? []}
           markCurrentGroup={followsProgress && focusGroupIndex >= 0}
+          pageInputAriaLabel={text.pageJumpAria}
         />
       </div>
     </section>

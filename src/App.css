@@ -3275,12 +3275,36 @@ button {
 
 .score-visual-timeline__page-indicator {
   position: absolute;
-  top: 6px;
+  top: 3px;
   right: 9px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: #738191;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+.score-visual-timeline__page-input {
+  width: 34px;
+  height: 19px;
+  box-sizing: border-box;
+  padding: 0 3px;
+  border: 1px solid #cbd3dc;
+  border-radius: 4px;
+  outline: none;
+  background: #fff;
+  color: #556270;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
+  text-align: center;
+}
+
+.score-visual-timeline__page-input:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 2px rgba(var(--app-primary-rgb), 0.18);
 }
 
 .score-visual-page {

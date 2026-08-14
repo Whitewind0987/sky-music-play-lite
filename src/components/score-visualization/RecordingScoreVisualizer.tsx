@@ -59,6 +59,7 @@ export function RecordingScoreVisualizer({
           focusGroupIndex={model.groups.length - 1}
           groups={model.groups}
           markCurrentGroup={isLive}
+          pageInputAriaLabel={text.pageJumpAria}
         />
       </div>
     </section>

@@ -359,6 +359,7 @@ export const uiText = {
       keyboardAria: "当前实时按键状态",
       timeline: "曲谱流",
       timelineAria: "当前播放曲谱流",
+      pageJumpAria: "跳转到指定曲谱页",
       emptyTimeline: "播放曲谱后，曲谱会在这里实时显示",
       loadingTimeline: "正在加载曲谱…",
       unavailableTimeline: "暂时无法显示此曲谱",
@@ -371,6 +372,7 @@ export const uiText = {
         keyboardAria: "十五键演奏状态",
         timeline: "曲谱流",
         timelineAria: "实时录制曲谱",
+        pageJumpAria: "跳转到指定曲谱页",
         emptyTimeline: "开始录制后，曲谱会在这里实时出现",
       },
       guide: {
@@ -500,6 +502,7 @@ export const uiText = {
       keyboardAria: "当前十五键演奏状态",
       score: "曲谱",
       scoreAria: "当前播放曲谱页",
+      pageJumpAria: "跳转到指定曲谱页",
       emptyScore: "此曲谱没有可显示的音符",
     },
     logs: {
@@ -1145,6 +1148,7 @@ export const uiText = {
       keyboardAria: "Current live key state",
       timeline: "Score stream",
       timelineAria: "Current playback score stream",
+      pageJumpAria: "Jump to a score page",
       emptyTimeline: "Play a score to see it here in real time",
       loadingTimeline: "Loading score…",
       unavailableTimeline: "This score cannot be displayed right now",
@@ -1158,6 +1162,7 @@ export const uiText = {
         keyboardAria: "15-key performance state",
         timeline: "Score flow",
         timelineAria: "Live recorded score",
+        pageJumpAria: "Jump to a score page",
         emptyTimeline: "Your score will appear here as you record",
       },
       guide: {
@@ -1300,6 +1305,7 @@ export const uiText = {
       keyboardAria: "Current 15-key performance state",
       score: "Score",
       scoreAria: "Current playback score page",
+      pageJumpAria: "Jump to a score page",
       emptyScore: "This score has no notes that can be displayed",
     },
     logs: {
