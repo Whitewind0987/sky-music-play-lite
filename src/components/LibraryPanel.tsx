@@ -23,6 +23,7 @@ import {
   getLibrarySongFormatVersion,
   getLibrarySongName,
 } from "../lib/libraryCollections";
+import { parseLibraryPageInput } from "../lib/libraryPagination";
 import type { V1ToV2ConversionOptions } from "../lib/v1ToV2Conversion";
 import {
   getAdjustedPreviewDurationFromMetadata,
@@ -41,6 +42,7 @@ type LibraryPanelProps = {
   builtInPagination: {
     end: number;
     onNextPage: () => void;
+    onPageChange: (page: number) => void;
     onPreviousPage: () => void;
     page: number;
     pageCount: number;
@@ -105,6 +107,117 @@ type LibraryPanelProps = {
   isLocalSongExporting: (songId: LibrarySongId) => boolean;
   text: UiText["library"];
 };
+
+type BuiltInLibraryPaginationProps = {
+  hasSearchQuery: boolean;
+  pagination: NonNullable<LibraryPanelProps["builtInPagination"]>;
+  text: UiText["library"];
+};
+
+function BuiltInLibraryPagination({
+  hasSearchQuery,
+  pagination,
+  text,
+}: BuiltInLibraryPaginationProps) {
+  const [pageDraft, setPageDraft] = useState(String(pagination.page));
+  const skipNextBlurRef = useRef(false);
+
+  useEffect(() => {
+    setPageDraft(String(pagination.page));
+  }, [pagination.page]);
+
+  const commitPageDraft = () => {
+    const parsedPage = parseLibraryPageInput(
+      pageDraft,
+      pagination.pageCount,
+    );
+
+    if (parsedPage === null) {
+      setPageDraft(String(pagination.page));
+      return;
+    }
+
+    pagination.onPageChange(parsedPage);
+    setPageDraft(String(parsedPage));
+  };
+
+  return (
+    <div className="library-pagination" aria-label={text.paginationAria}>
+      {hasSearchQuery ? (
+        <span>
+          {text.paginationSearchResults.replace(
+            "{total}",
+            String(pagination.total),
+          )}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        disabled={pagination.page <= 1}
+        onClick={pagination.onPreviousPage}
+      >
+        {text.paginationPrevious}
+      </button>
+      <span className="library-pagination-page">
+        {text.paginationPagePrefix}
+        <input
+          className="library-pagination-page-input"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          spellCheck={false}
+          autoComplete="off"
+          aria-label={text.paginationJumpAria}
+          value={pageDraft}
+          onChange={(event) => setPageDraft(event.target.value)}
+          onBlur={() => {
+            if (skipNextBlurRef.current) {
+              skipNextBlurRef.current = false;
+              return;
+            }
+
+            commitPageDraft();
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) {
+              return;
+            }
+
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitPageDraft();
+              skipNextBlurRef.current = true;
+              event.currentTarget.blur();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setPageDraft(String(pagination.page));
+              skipNextBlurRef.current = true;
+              event.currentTarget.blur();
+            }
+          }}
+        />
+        <span aria-hidden="true">/</span>
+        <span>{pagination.pageCount}</span>
+        {text.paginationPageSuffix ? (
+          <span>{text.paginationPageSuffix}</span>
+        ) : null}
+      </span>
+      <span>
+        {text.paginationShowing
+          .replace("{start}", String(pagination.start))
+          .replace("{end}", String(pagination.end))
+          .replace("{total}", String(pagination.total))}
+      </span>
+      <button
+        type="button"
+        disabled={pagination.page >= pagination.pageCount}
+        onClick={pagination.onNextPage}
+      >
+        {text.paginationNext}
+      </button>
+    </div>
+  );
+}
 
 export function shouldShowUpgradeToV2Action(item: LibrarySongListItem) {
   return getLibrarySongFormatVersion(item.librarySong) === 1;
@@ -1299,41 +1412,11 @@ export function LibraryPanel({
         builtInPagination &&
         (builtInPagination.total > builtInPagination.pageSize ||
           hasSearchQuery) ? (
-          <div className="library-pagination" aria-label={text.paginationAria}>
-            {hasSearchQuery ? (
-              <span>
-                {text.paginationSearchResults.replace(
-                  "{total}",
-                  String(builtInPagination.total),
-                )}
-              </span>
-            ) : null}
-            <button
-              type="button"
-              disabled={builtInPagination.page <= 1}
-              onClick={builtInPagination.onPreviousPage}
-            >
-              {text.paginationPrevious}
-            </button>
-            <span>
-              {text.paginationPage
-                .replace("{page}", String(builtInPagination.page))
-                .replace("{pageCount}", String(builtInPagination.pageCount))}
-            </span>
-            <span>
-              {text.paginationShowing
-                .replace("{start}", String(builtInPagination.start))
-                .replace("{end}", String(builtInPagination.end))
-                .replace("{total}", String(builtInPagination.total))}
-            </span>
-            <button
-              type="button"
-              disabled={builtInPagination.page >= builtInPagination.pageCount}
-              onClick={builtInPagination.onNextPage}
-            >
-              {text.paginationNext}
-            </button>
-          </div>
+          <BuiltInLibraryPagination
+            hasSearchQuery={hasSearchQuery}
+            pagination={builtInPagination}
+            text={text}
+          />
         ) : null}
       </div>
       {showLocateButton && selectedSongIndex !== null && !isQueueOpen ? (
