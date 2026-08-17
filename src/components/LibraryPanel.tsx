@@ -27,6 +27,7 @@ import {
   isLibraryPageInputOutOfRange,
   parseLibraryPageInput,
 } from "../lib/libraryPagination";
+import { calculateCenteredScrollTop } from "../lib/libraryScroll";
 import type { V1ToV2ConversionOptions } from "../lib/v1ToV2Conversion";
 import {
   getAdjustedPreviewDurationFromMetadata,
@@ -915,12 +916,27 @@ function LibrarySongTable({
       }
 
       handledLocateRequestIdRef.current = locateScoreRequest.requestId;
-      targetRow.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-        block: "center",
-      });
+      const scrollContainer = targetRow.closest(".app-layout");
+
+      if (scrollContainer instanceof HTMLElement) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetRect = targetRow.getBoundingClientRect();
+        const scrollTop = calculateCenteredScrollTop({
+          containerClientHeight: scrollContainer.clientHeight,
+          containerScrollHeight: scrollContainer.scrollHeight,
+          currentScrollTop: scrollContainer.scrollTop,
+          targetHeight: targetRect.height,
+          targetTopRelativeToContainer: targetRect.top - containerRect.top,
+        });
+
+        scrollContainer.scrollTo({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+          top: scrollTop,
+        });
+      }
+
       targetRow.classList.remove("is-locate-flash");
       void targetRow.offsetWidth;
       targetRow.classList.add("is-locate-flash");
