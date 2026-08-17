@@ -14,8 +14,8 @@ SkyMusicPlay Lite is a lightweight Windows desktop automatic music-playing tool 
 
 It is built with **Tauri v2 + React + TypeScript + Rust**, aiming to provide a clean, lightweight, and controllable desktop experience for score library management, preview playback, and real playback.
 
-Current version: **v0.6.0**.
-v0.6.0 is the current stable recommended release.
+Current version: **v0.6.1**.
+v0.6.1 is the current stable recommended release.
 
 ## 丨Download
 
