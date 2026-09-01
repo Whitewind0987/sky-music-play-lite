@@ -4,10 +4,11 @@ use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 
-use windows_sys::Win32::Foundation::{HWND, LPARAM};
+use windows_sys::Win32::Foundation::{GetLastError, SetLastError, ERROR_SUCCESS, HWND, LPARAM};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{MapVirtualKeyW, MAPVK_VK_TO_VSC};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    IsWindow, PostMessageW, SendMessageW, WM_KEYDOWN, WM_KEYUP,
+    IsWindow, PostMessageW, SendMessageTimeoutW, SMTO_ABORTIFHUNG, SMTO_BLOCK, SMTO_ERRORONEXIT,
+    WM_KEYDOWN, WM_KEYUP,
 };
 
 const TARGET_MESSAGE_METHOD_POST: &str = "post-message";
@@ -21,6 +22,7 @@ const WM_ACTIVATE: u32 = 0x0006;
 const WA_ACTIVE: usize = 1;
 const TARGET_KEY_HOLD_MIN_MS: u64 = 10;
 const TARGET_KEY_HOLD_MAX_MS: u64 = 200;
+const TARGET_MESSAGE_TIMEOUT_MS: u32 = 1000;
 
 #[derive(Clone)]
 pub(crate) struct WindowMessageKeyInput {
@@ -421,7 +423,12 @@ fn send_target_window_activate(
             Ok(None)
         }
         TARGET_MESSAGE_METHOD_SEND => {
-            let result = unsafe { SendMessageW(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0) };
+            let context = format!(
+                "Failed to send target-window activation message. hwnd: {}; mapped key: {}; stage: {activation_stage}; method: {}; profile: {}",
+                input.hwnd_text, input.key, input.method, input.compatibility_profile
+            );
+            let result =
+                send_message_with_timeout(input.hwnd, WM_ACTIVATE, WA_ACTIVE, 0, &context)?;
             Ok(Some(result))
         }
         _ => Err(format!(
@@ -475,8 +482,22 @@ fn send_target_window_message(
             Ok(None)
         }
         TARGET_MESSAGE_METHOD_SEND => {
-            let result =
-                unsafe { SendMessageW(input.hwnd, message, input.virtual_key as usize, lparam) };
+            let context = format!(
+                "Failed to send target-window key {key_state} message. hwnd: {}; mapped key: {}; virtual key: {}; scan code: {}; method: {}; profile: {}",
+                input.hwnd_text,
+                input.key,
+                input.virtual_key,
+                input.scan_code,
+                input.method,
+                input.compatibility_profile
+            );
+            let result = send_message_with_timeout(
+                input.hwnd,
+                message,
+                input.virtual_key as usize,
+                lparam,
+                &context,
+            )?;
 
             Ok(Some(result))
         }
@@ -485,6 +506,49 @@ fn send_target_window_message(
             input.method, TARGET_MESSAGE_METHOD_POST, TARGET_MESSAGE_METHOD_SEND
         )),
     }
+}
+
+fn send_message_with_timeout(
+    hwnd: HWND,
+    message: u32,
+    wparam: usize,
+    lparam: LPARAM,
+    context: &str,
+) -> Result<isize, String> {
+    let mut message_result = 0usize;
+    let sent = unsafe {
+        SetLastError(ERROR_SUCCESS);
+        SendMessageTimeoutW(
+            hwnd,
+            message,
+            wparam,
+            lparam,
+            SMTO_ABORTIFHUNG | SMTO_BLOCK | SMTO_ERRORONEXIT,
+            TARGET_MESSAGE_TIMEOUT_MS,
+            &mut message_result,
+        )
+    };
+
+    if sent == 0 {
+        let error_code = unsafe { GetLastError() };
+
+        if error_code == ERROR_SUCCESS {
+            return Err(format!(
+                "{context}; message ID: {message}; timeout: {TARGET_MESSAGE_TIMEOUT_MS}ms; SendMessageTimeoutW failed or timed out, but Windows did not set a LastError code"
+            ));
+        }
+
+        let error = std::io::Error::from_raw_os_error(error_code as i32);
+        return Err(format!(
+            "{context}; message ID: {message}; timeout: {TARGET_MESSAGE_TIMEOUT_MS}ms; Windows error code: {error_code}; last OS error: {error}"
+        ));
+    }
+
+    Ok(timeout_message_result_to_isize(message_result))
+}
+
+fn timeout_message_result_to_isize(message_result: usize) -> isize {
+    message_result as isize
 }
 
 fn format_send_message_results(results: &[TargetWindowKeyMessageResult]) -> String {
@@ -512,4 +576,19 @@ fn format_optional_message_result(result: Option<isize>) -> String {
     result
         .map(|value| value.to_string())
         .unwrap_or_else(|| "n/a".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::timeout_message_result_to_isize;
+
+    #[test]
+    fn timeout_message_result_preserves_pointer_width_signed_bit_pattern() {
+        assert_eq!(timeout_message_result_to_isize(0), 0);
+        assert_eq!(
+            timeout_message_result_to_isize(isize::MAX as usize),
+            isize::MAX
+        );
+        assert_eq!(timeout_message_result_to_isize(usize::MAX), -1);
+    }
 }
