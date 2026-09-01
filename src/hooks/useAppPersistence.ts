@@ -8,6 +8,10 @@ import {
 } from "../lib/appData";
 import { formatText } from "../lib/formatText";
 import {
+  migrateLegacyImportedScoreFallbacks,
+  shouldRunTrustedStorageReconciliation,
+} from "../lib/importedScoreLegacyMigration";
+import {
   reconcilePersistedImportedScores,
   retainUnverifiedMigrationFallbackSongs,
 } from "../lib/importedScoreReconciliation";
@@ -286,6 +290,8 @@ export function useAppPersistence({
         }
 
         let runtimeAppData = appData;
+        const persistedStoragePathBeforeStartup =
+          appData.importedScoreStoragePath;
         let canEnableNormalPersistence = true;
         let shouldPersistStartup = rawAppData === null;
         let currentStoragePath: string;
@@ -297,16 +303,41 @@ export function useAppPersistence({
         try {
           currentStoragePath = await resolveImportedScoresDirectory();
           currentImportedScoreStoragePathRef.current = currentStoragePath;
-          importedScoreStoragePathRef.current = appData.importedScoreStoragePath;
+          importedScoreStoragePathRef.current =
+            persistedStoragePathBeforeStartup;
           setIsImportedScoreReconciliationInProgress(true);
+          let didRunLegacyFallbackMigration = false;
 
           try {
-            const initialFileMetadata = await listImportedScoreFiles();
+            const legacyMigration = await migrateLegacyImportedScoreFallbacks({
+              appData: runtimeAppData,
+              currentStoragePath,
+              reconcile: ({ librarySongs, migrationFallbackSongs }) =>
+                reconcilePersistedImportedScores({
+                  appendLog,
+                  librarySongs,
+                  migrationFallbackSongs,
+                  reconcileImportedScoreFiles,
+                  showNotice,
+                  text,
+                }),
+            });
+            runtimeAppData = legacyMigration.appData;
+            didRunLegacyFallbackMigration =
+              legacyMigration.didRunLegacyFallbackMigration;
+
+            if (didRunLegacyFallbackMigration) {
+              importedScoreStoragePathRef.current = currentStoragePath;
+              shouldPersistStartup = true;
+            }
+
+            const fileMetadataForTrust = await listImportedScoreFiles();
             const trust = decideImportedScoreStorageTrust({
               currentStoragePath,
-              fileMetadata: initialFileMetadata,
-              librarySongs: appData.library.librarySongs,
-              persistedStoragePath: appData.importedScoreStoragePath,
+              fileMetadata: fileMetadataForTrust,
+              librarySongs: runtimeAppData.library.librarySongs,
+              persistedStoragePath:
+                runtimeAppData.importedScoreStoragePath,
             });
 
             if (!trust.trusted) {
@@ -315,7 +346,7 @@ export function useAppPersistence({
                 details: {
                   currentStoragePath,
                   persistedStoragePath:
-                    appData.importedScoreStoragePath ?? null,
+                    runtimeAppData.importedScoreStoragePath ?? null,
                   reason: trust.reason,
                 },
                 level: "warn",
@@ -324,24 +355,31 @@ export function useAppPersistence({
               });
             } else {
               const originalFallbackSongs =
-                appData.library.migrationFallbackSongs ?? {};
-              const report = await reconcilePersistedImportedScores({
-                appendLog,
-                librarySongs: appData.library.librarySongs,
-                migrationFallbackSongs: originalFallbackSongs,
-                reconcileImportedScoreFiles,
-                showNotice,
-                text,
-              });
-              const remainingFallbackSongs =
-                retainUnverifiedMigrationFallbackSongs(
-                  originalFallbackSongs,
-                  report,
-                );
+                runtimeAppData.library.migrationFallbackSongs ?? {};
+              let remainingFallbackSongs = originalFallbackSongs;
+
+              if (shouldRunTrustedStorageReconciliation(
+                didRunLegacyFallbackMigration,
+              )) {
+                const report = await reconcilePersistedImportedScores({
+                  appendLog,
+                  librarySongs: runtimeAppData.library.librarySongs,
+                  migrationFallbackSongs: originalFallbackSongs,
+                  reconcileImportedScoreFiles,
+                  showNotice,
+                  text,
+                });
+                remainingFallbackSongs =
+                  retainUnverifiedMigrationFallbackSongs(
+                    originalFallbackSongs,
+                    report,
+                  );
+              }
+
               runtimeAppData = {
-                ...appData,
+                ...runtimeAppData,
                 library: {
-                  ...appData.library,
+                  ...runtimeAppData.library,
                   ...(Object.keys(remainingFallbackSongs).length > 0
                     ? { migrationFallbackSongs: remainingFallbackSongs }
                     : { migrationFallbackSongs: undefined }),
@@ -390,7 +428,7 @@ export function useAppPersistence({
               shouldPersistStartup =
                 shouldPersistStartup ||
                 sourceVersion !== 3 ||
-                appData.importedScoreStoragePath !== currentStoragePath ||
+                persistedStoragePathBeforeStartup !== currentStoragePath ||
                 Object.keys(remainingFallbackSongs).length !==
                   Object.keys(originalFallbackSongs).length ||
                 recovery.recoveredSongIds.length > 0 ||
@@ -405,7 +443,9 @@ export function useAppPersistence({
               }
             }
           } catch (error) {
-            runtimeAppData = appData;
+            if (!didRunLegacyFallbackMigration) {
+              runtimeAppData = appData;
+            }
             appendLog(text.missingLocalScoresScanFailed);
             appendDetailedLog?.({
               details: { error: String(error) },
