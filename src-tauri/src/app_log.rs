@@ -4,10 +4,10 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
-    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
+use tauri_plugin_opener::OpenerExt;
 
 const LOG_DIR_NAME: &str = "logs";
 const LOG_FILE_NAME: &str = "sky-music-play-lite.log";
@@ -113,7 +113,15 @@ fn append_log_entry(app: &AppHandle, entry: AppLogEntry) -> Result<(), String> {
 #[tauri::command]
 pub fn open_log_directory(app: AppHandle) -> Result<(), String> {
     let log_paths = resolve_log_paths(&app)?;
-    open_directory(&log_paths.directory)
+    app.opener()
+        .open_path(log_paths.directory.display().to_string(), None::<String>)
+        .map_err(|error| {
+            format!(
+                "Failed to open log directory at {}: {}",
+                log_paths.directory.display(),
+                error
+            )
+        })
 }
 
 struct LogPaths {
@@ -204,35 +212,4 @@ fn timestamp_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or(0)
-}
-
-fn open_directory(directory: &PathBuf) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        let mut command = Command::new("explorer");
-        command.arg(directory);
-        command
-    };
-
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut command = Command::new("open");
-        command.arg(directory);
-        command
-    };
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = {
-        let mut command = Command::new("xdg-open");
-        command.arg(directory);
-        command
-    };
-
-    command.spawn().map(|_| ()).map_err(|error| {
-        format!(
-            "Failed to open log directory at {}: {}",
-            directory.display(),
-            error
-        )
-    })
 }
