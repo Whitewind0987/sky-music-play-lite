@@ -207,26 +207,21 @@ jobs:
           $notesPath = Join-Path $artifactDirectory "release-notes.md"
           $normalInstaller = Join-Path $artifactDirectory "SkyMusicPlay-Lite_${{ needs.build.outputs.version }}_Windows-x64_Setup.exe"
           $offlineInstaller = Join-Path $artifactDirectory "SkyMusicPlay-Lite_${{ needs.build.outputs.version }}_Windows-x64_WebView2-Offline_Setup.exe"
-          $encodedTag = [Uri]::EscapeDataString($tag)
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept = "application/vnd.github+json"
-            "X-GitHub-Api-Version" = "2022-11-28"
-          }
-          $release = $null
-
-          try {
-            $release = Invoke-RestMethod `
-              -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$encodedTag" `
-              -Headers $headers
-          } catch {
-            $statusCode = [int]$_.Exception.Response.StatusCode
-            if ($statusCode -ne 404) {
-              throw
-            }
+          $releaseListJson = gh release list `
+            --limit 1000 `
+            --json tagName,isDraft
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to list releases while checking for $tag."
           }
 
-          if ($null -eq $release) {
+          $releaseList = @($releaseListJson | ConvertFrom-Json)
+          $matchingReleases = @($releaseList | Where-Object { $_.tagName -eq $tag })
+
+          if ($matchingReleases.Count -gt 1) {
+            throw "Found multiple releases with the exact tag $tag; refusing to guess which release to use."
+          }
+
+          if ($matchingReleases.Count -eq 0) {
             gh release create $tag `
               --draft `
               --verify-tag `
@@ -235,7 +230,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to create draft release for $tag."
             }
-          } elseif (-not $release.draft) {
+          } elseif (-not $matchingReleases[0].isDraft) {
             throw "Release $tag is already published; refusing to replace or republish it."
           }
 
