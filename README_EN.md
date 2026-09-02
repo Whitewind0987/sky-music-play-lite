@@ -2,7 +2,7 @@
 
 # SkyMusicPlay Lite
 
-Lightweight · Windows · Tauri · React · Rust
+[![CI](https://img.shields.io/github/actions/workflow/status/Whitewind0987/sky-music-play-lite/ci.yml?branch=main&style=flat&label=CI)](https://github.com/Whitewind0987/sky-music-play-lite/actions/workflows/ci.yml) [![Latest](https://img.shields.io/github/v/release/Whitewind0987/sky-music-play-lite?style=flat&label=Latest)](https://github.com/Whitewind0987/sky-music-play-lite/releases/latest) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?style=flat&logo=windows)](https://github.com/Whitewind0987/sky-music-play-lite) [![Tauri](https://img.shields.io/badge/Tauri-24C8DB?style=flat&logo=tauri&logoColor=white)](https://tauri.app/) [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/) [![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org/) [![license](https://img.shields.io/badge/license-GPL--3.0--only-blue?style=flat)](./LICENSE) [![Stars](https://img.shields.io/github/stars/Whitewind0987/sky-music-play-lite?style=flat&label=Stars)](https://github.com/Whitewind0987/sky-music-play-lite) [![Downloads](https://img.shields.io/github/downloads/Whitewind0987/sky-music-play-lite/total?style=flat&label=Downloads)](https://github.com/Whitewind0987/sky-music-play-lite/releases)
 
 [简体中文](./README.md) | [English](./README_EN.md)
 
