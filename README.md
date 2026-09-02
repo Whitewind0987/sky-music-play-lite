@@ -210,16 +210,19 @@ npm run tauri build
 
 ## 丨开源协议
 
-本项目使用 **MIT License** 开源。
+SkyMusicPlay Lite 的软件代码采用 **GNU General Public License v3.0 only（GPL-3.0-only）**。
 
-详见 [LICENSE](./LICENSE)。
+Copyright (C) 2026 Whitewind0987 and contributors
+
+完整的当前许可证见 [LICENSE](./LICENSE)；历史许可声明及第三方资源信息见 [NOTICE](./NOTICE)。
+
+`public/builtin-scores/scores/` 下的内置曲谱资源经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可使用，不属于 SkyMusicPlay Lite 的 GPL-3.0-only 软件代码授权范围，相关权利归各自权利人所有。
 
 ## 丨致谢
 
 SkyMusicPlay Lite 受到 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 以及相关 Sky 光遇自动弹琴软件的启发。
 
-内置曲谱资源和曲谱解密逻辑经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可使用。  
-如复用相关资源或逻辑，请保留原始来源和作者署名。
+内置曲谱资源以及曲谱解密兼容逻辑／格式规则的使用经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可。内置曲谱资源不属于 SkyMusicPlay Lite 的 GPL-3.0-only 软件代码授权范围，相关权利归各自权利人所有；当前 `src/lib/sheetDecrypt.ts` 是 SkyMusicPlay Lite 自行实现的 TypeScript 兼容实现，属于本项目的软件代码。
 
 感谢 [@wjhhuizi](https://github.com/wjhhuizi) 提交 [PR #1](https://github.com/Whitewind0987/sky-music-play-lite/pull/1)，为 `scores-v2` 曲谱格式和长音／延音支持提供了核心方案与初始实现。
 

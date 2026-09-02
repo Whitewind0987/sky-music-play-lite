@@ -3,6 +3,7 @@ name = "sky-music-play-lite"
 version = "0.6.1"
 description = "SkyMusicPlay Lite desktop app"
 authors = ["Whitewind0987"]
+license = "GPL-3.0-only"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

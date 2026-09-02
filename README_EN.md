@@ -212,16 +212,19 @@ You are welcome to discuss usage, feature ideas, and music scores in the QQ grou
 
 ## 丨License
 
-This project is open-sourced under the **MIT License**.
+SkyMusicPlay Lite software code is licensed under the **GNU General Public License version 3 only (GPL-3.0-only)**.
 
-See [LICENSE](./LICENSE) for details.
+Copyright (C) 2026 Whitewind0987 and contributors
+
+See [LICENSE](./LICENSE) for the complete current license and [NOTICE](./NOTICE) for historical notices and third-party resource information.
+
+The built-in score resources under `public/builtin-scores/scores/` are used with permission from the original author of [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows). They are outside SkyMusicPlay Lite's GPL-3.0-only software-code grant, and the relevant rights remain with their respective rights holders.
 
 ## 丨Acknowledgements
 
 SkyMusicPlay Lite is inspired by [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) and other related Sky-style auto music playback tools.
 
-The built-in score resources and score decryption logic are used with permission from the original author of [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows).  
-If you reuse related resources or logic, please preserve the original source and author attribution.
+The built-in score resources and the use of the score decryption compatibility logic and format rules are included with permission from the original author of [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows). The built-in score resources are not covered by SkyMusicPlay Lite's GPL-3.0-only software-code license and remain subject to the rights of their respective rights holders. The current `src/lib/sheetDecrypt.ts` source is SkyMusicPlay Lite's own TypeScript compatibility implementation and is part of this project's software code.
 
 Thanks to [@wjhhuizi](https://github.com/wjhhuizi) for submitting [PR #1](https://github.com/Whitewind0987/sky-music-play-lite/pull/1), which provided the core proposal and initial implementation for the `scores-v2` format and long-note support.
 

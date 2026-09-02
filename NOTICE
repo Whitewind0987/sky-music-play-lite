@@ -1,0 +1,60 @@
+SkyMusicPlay Lite
+
+Copyright (C) 2026 Whitewind0987 and contributors
+
+Current Project Software License
+--------------------------------
+
+SkyMusicPlay Lite software code is distributed under the GNU General Public
+License version 3 only (GPL-3.0-only). The complete current license is in
+LICENSE.
+
+Third-Party Built-in Score Resources
+------------------------------------
+
+The built-in score resources under public/builtin-scores/scores/ originate
+from or are based on resources obtained from SkyMusicPlay-for-Windows. Their
+use was permitted by the original author of SkyMusicPlay-for-Windows. These
+resources are not covered by SkyMusicPlay Lite's GPL-3.0-only software-code
+grant, and the relevant rights remain with their respective rights holders.
+
+The use of the score decryption compatibility logic and format rules was also
+permitted by the original author of SkyMusicPlay-for-Windows. The current
+src/lib/sheetDecrypt.ts source is SkyMusicPlay Lite's own TypeScript
+compatibility implementation and is part of the project software code.
+
+Historical MIT Notice
+---------------------
+
+SkyMusicPlay Lite was previously distributed under the MIT License, and some
+contributions entered the project while MIT was the active license. This
+includes the scores-v2 and long-note implementation work contributed by
+@wjhhuizi in PR #1. The complete historical MIT copyright and permission
+notice is retained below for historical licensing and contribution notice
+purposes; it is not the active license declaration for the whole current
+project.
+
+Releases v0.6.1 and earlier remain available under the MIT License terms under
+which they were originally published.
+
+MIT License
+
+Copyright (c) 2026 Whitewind0987
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
