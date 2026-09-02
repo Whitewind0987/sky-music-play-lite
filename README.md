@@ -2,7 +2,20 @@
 
 # SkyMusicPlay Lite
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Whitewind0987/sky-music-play-lite/ci.yml?branch=main&style=flat&label=CI)](https://github.com/Whitewind0987/sky-music-play-lite/actions/workflows/ci.yml) [![Latest](https://img.shields.io/github/v/release/Whitewind0987/sky-music-play-lite?style=flat&label=Latest)](https://github.com/Whitewind0987/sky-music-play-lite/releases/latest) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?style=flat&logo=windows)](https://github.com/Whitewind0987/sky-music-play-lite) [![Tauri](https://img.shields.io/badge/Tauri-24C8DB?style=flat&logo=tauri&logoColor=white)](https://tauri.app/) [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/) [![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org/) [![license](https://img.shields.io/badge/license-GPL--3.0--only-blue?style=flat)](./LICENSE) [![Stars](https://img.shields.io/github/stars/Whitewind0987/sky-music-play-lite?style=flat&label=Stars)](https://github.com/Whitewind0987/sky-music-play-lite) [![Downloads](https://img.shields.io/github/downloads/Whitewind0987/sky-music-play-lite/total?style=flat&label=Downloads)](https://github.com/Whitewind0987/sky-music-play-lite/releases)
+<p>
+  <a href="https://github.com/Whitewind0987/sky-music-play-lite"><img src="https://img.shields.io/badge/Windows-0078D4?style=flat&amp;logo=windows&amp;logoColor=white" alt="Windows"></a>
+  <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-24C8DB?style=flat&amp;logo=tauri&amp;logoColor=white" alt="Tauri"></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-20232A?style=flat&amp;logo=react&amp;logoColor=61DAFB" alt="React"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-000000?style=flat&amp;logo=rust&amp;logoColor=white" alt="Rust"></a>
+</p>
+
+<p>
+  <a href="https://github.com/Whitewind0987/sky-music-play-lite"><img src="https://img.shields.io/github/stars/Whitewind0987/sky-music-play-lite?style=flat&amp;label=Stars" alt="Stars"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue?style=flat" alt="GPL-3.0-only"></a>
+  <a href="https://github.com/Whitewind0987/sky-music-play-lite/releases/latest"><img src="https://img.shields.io/github/v/release/Whitewind0987/sky-music-play-lite?style=flat&amp;label=Latest" alt="Latest"></a>
+  <a href="https://github.com/Whitewind0987/sky-music-play-lite/releases"><img src="https://img.shields.io/github/downloads/Whitewind0987/sky-music-play-lite/total?style=flat&amp;label=Downloads" alt="Downloads"></a>
+  <a href="https://github.com/Whitewind0987/sky-music-play-lite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Whitewind0987/sky-music-play-lite/ci.yml?branch=main&amp;style=flat&amp;label=CI" alt="CI"></a>
+</p>
 
 [简体中文](./README.md) | [English](./README_EN.md)
 
