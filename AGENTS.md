@@ -84,15 +84,20 @@ Do not replace this stack unless the human user explicitly changes the project d
 - Target-window settings expose only `legacy-activate-scan-lparam` and `grouped-legacy`.
 - Persisted `send-message` values migrate to `post-message`; old target-window profiles migrate to `legacy-activate-scan-lparam` unless already `grouped-legacy`.
 - Avoid per-note UI log updates during real playback and avoid large playback architecture rewrites unless explicitly requested.
-- Every stage must run `npm run build` and `cargo check` before completion.
 
 ## Testing Rules
 
+- Do not require the full repository validation suite for every local Codex or agent task. Run the smallest relevant local validation for the files and behavior actually changed.
+- GitHub CI is the authoritative full repository regression gate and runs the complete frontend and Rust validation suite after the human pushes the branch.
+- Documentation-only, README-only, license-only, comment-only, and metadata-only changes normally require only repository and diff validation such as `git diff --check`, `git status --short`, and `git diff --stat`, plus any relevant format- or content-specific check. Do not run application builds or frontend/Rust test suites merely for formality unless the change affects generated or executable behavior.
+- For frontend TypeScript or UI changes, select only the useful relevant checks, such as focused Vitest tests, `npx tsc --noEmit`, or `npm run build`, depending on what changed. Do not require all three for every frontend edit.
+- For Rust changes, select relevant checks such as `cargo check` or targeted `cargo test` commands depending on what changed. Do not require Rust validation for unrelated documentation or frontend-only work.
+- High-risk or behavior-changing work requires stronger targeted local validation before handoff. High-risk areas include playback core, persistence, migrations, score parsing, Windows input, target-window messaging, security-sensitive code, and release/workflow logic.
 - Pure logic tests should use Vitest.
 - Test files should use `.test.ts`.
-- Prefer testing pure functions before changing app orchestration logic.
-- Every feature or fix stage should run `npm run test`, `npm run build`, and `cd src-tauri && cargo check && cd ..`.
-- Recommended maintenance verification is `npm run test -- --testTimeout=30000`, `npx tsc --noEmit`, `npm run build`, and `cd src-tauri && cargo check`.
+- Prefer testing pure functions before changing app orchestration logic, and prefer existing focused tests when pure logic changes.
+- A failing relevant local check must be reported and must not be hidden or ignored merely because CI will run later.
+- Do not suppress validation failures or delete tests merely to make checks pass.
 - Do not add UI or end-to-end tests unless a stage explicitly asks for them.
 - App data migrations, sanitizers, and new persisted fields should have Vitest coverage.
 
