@@ -17,159 +17,105 @@
   <a href="https://github.com/Whitewind0987/sky-music-play-lite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Whitewind0987/sky-music-play-lite/ci.yml?branch=main&amp;style=flat&amp;label=CI" alt="CI"></a>
 </p>
 
-[简体中文](./README.md) | [English](./README_EN.md)
+简体中文 | [English](./README_EN.md)
 
 </div>
 
 ## 丨项目简介
 
-SkyMusicPlay Lite 是一个面向 Windows 的轻量级 Sky光遇自动弹琴软件。
+SkyMusicPlay Lite 是一款面向 Windows 的轻量级《Sky 光·遇》自动弹琴工具。
 
-项目使用 **Tauri v2 + React + TypeScript + Rust** 构建，目标是在保持体积轻、界面清晰、功能可控的前提下，提供更适合桌面端使用的曲库管理、预览播放和真实播放体验。
+项目使用 **Tauri v2 + React + TypeScript + Rust** 构建，提供曲谱管理、预览播放、Windows 真实播放等功能。
 
-当前版本为 **v0.6.1**。
-v0.6.1 是正式推荐版本。
+## 丨快速开始
 
-## 丨下载
+### 下载
 
-请前往 GitHub Releases 下载最新版本：
+请前往 **GitHub Releases** 下载最新稳定版本：
 
-- [Releases](https://github.com/Whitewind0987/sky-music-play-lite/releases)
+- [下载 SkyMusicPlay Lite](https://github.com/Whitewind0987/sky-music-play-lite/releases/latest)
 
-正常版安装包体积较小，推荐大多数用户使用；内置 WebView2 版适合离线环境，或正常版无法完成 WebView2 安装的情况。
+提供两种 Windows 安装包：
 
-## 丨使用手册
+- **正常版（推荐）**：体积较小，适合大多数用户
+- **内置 WebView2 版**：包含 WebView2 离线安装程序，适合离线环境或正常版无法安装 WebView2 的情况
+
+两个版本的软件功能相同，仅 WebView2 的安装方式不同。
+
+### 使用手册
+
+第一次使用或需要了解详细功能时，可以查看：
 
 - [SkyMusicPlay Lite 使用手册](https://www.kdocs.cn/l/ca0kaYgxB59Z)
 
-## 丨功能特性
+## 丨支持项目
 
-- 系统自带曲谱
-- 内置曲谱按需加载
-- 本地曲谱导入
-- 拖拽导入曲谱
-- SkyStudio-style 曲谱解析
-- `scores-v2` 曲谱格式
-- 单音符 `duration` 与长音 / 延音播放
-- V2 曲谱徽标
-- V1 曲谱升级为 V2 曲谱
-- 加密数字曲谱导入
-- 曲库搜索
-- 我喜欢
-- 创建的歌单
-- 播放队列
-- 下一首播放
-- App 内键盘预览
-- 底部播放器
-- 播放 / 暂停 / 继续 / 停止
-- 进度条拖动
-- 倍速调节
-- 音符间隔调节
-- 列表循环 / 单曲循环 / 随机播放
-- 自定义键位映射
-- 本地数据持久化
-- 窗口始终置顶
-- 播放日志
-- App 内更新提醒
-- Windows 安装包覆盖升级时保留原安装目录
-- 光遇窗口自动检测，可识别窗口启动、关闭和重新打开
-- 本地曲谱记录恢复，可从现有曲谱文件恢复缺失的本地曲库记录
-- Windows 真实播放功能
+SkyMusicPlay Lite 会继续保持 **免费和开源**。
 
-## 丨曲库与播放器
+如果这个项目对你有帮助，并且愿意支持项目的持续维护，可以通过爱发电进行自愿赞助。
 
-曲库支持：
+> ❤️ **[在爱发电支持 SkyMusicPlay Lite](https://afdian.com/a/WhiteWind)**
 
-- 系统自带
-- 本地导入
-- 我喜欢
-- 创建的歌单
-- 搜索
-- 分页
-- 加入队列
-- 下一首播放
-- 本地曲谱记录恢复，可从现有曲谱文件恢复缺失的本地曲库记录
+赞助不会影响任何功能的使用，也不会提供付费专属功能或功能优先权。
 
-底部播放器支持：
+感谢每一位使用、Star、反馈和支持 SkyMusicPlay Lite 的人。
 
-- 播放、暂停、继续、停止
-- 下一首
-- 随机播放
-- 循环模式
-- 播放队列
-- 播放速度
-- 按键间隔
-- 播放进度
-- V2 曲谱徽标
-- V2 长音 / 延音播放
-- V2 曲谱支持暂停、进度拖动和倍速调节
+## 丨主要功能
+
+- **曲谱管理**：内置曲谱、本地 JSON / TXT 导入、拖拽导入、搜索、我喜欢、歌单、分页与曲谱导出
+- **曲谱格式**：支持 SkyStudio-style、加密数字曲谱和 `scores-v2`，支持长音 / 延音以及 V1 → V2 转换
+- **播放控制**：播放、暂停、继续、停止、下一首、进度拖动、倍速和音符间隔调节
+- **播放模式**：列表循环、单曲循环、随机播放、播放队列与下一首播放
+- **曲谱可视化**：提供琴键和曲谱时间线可视化
+- **演奏录制**：可记录光遇中的手动演奏，并保存为本地曲谱
+- **自定义设置**：键位映射、播放快捷键、中英文界面、强调色与退出确认
+- **其他功能**：光遇窗口自动检测、窗口始终置顶、运行日志、App 内更新提醒以及本地数据持久化与恢复
 
 ## 丨真实播放
 
-SkyMusicPlay Lite 包含真实播放功能。
+SkyMusicPlay Lite 可以将曲谱转换为 Windows 键盘输入，在游戏中进行真实播放。
 
-真实播放默认开启，并默认使用目标窗口播放。SkyMusicPlay Lite 可以自动检测光遇窗口，并识别窗口的启动、关闭和重新打开；自动检测不能保证在所有环境中都可用，未能正常检测时仍可前往设置手动刷新并选择光遇窗口。
-使用前请自行了解并遵守相关游戏或软件的规则。
+目前支持两种播放方式：
 
-当前真实播放包括：
+- **后台播放**：向选定的目标窗口发送按键，不需要持续保持游戏窗口在前台
+- **前台播放**：向当前前台窗口发送模拟键盘输入
 
-- **后台播放**：尝试向用户选择的目标游戏窗口发送按键。
-- **前台播放**：向当前前台窗口发送模拟键盘输入。
+后台播放支持自动检测光遇窗口，也可以手动刷新并选择目标窗口。
 
-后台播放提供两个方案：
+提供两个后台播放兼容方案：
 
 - **后台播放增强（推荐）**
 - **组合按键兼容**
 
-## 丨管理员权限
+如果自动检测没有正确找到光遇窗口，可以前往设置手动刷新并选择目标窗口。
+
+> 使用真实播放功能前，请自行了解并遵守相关游戏或软件的规则。
+
+### 管理员权限
 
 SkyMusicPlay Lite 在 Windows 上启动时可能会请求管理员权限。
 
-这是为了降低真实播放功能在目标窗口权限不一致时失败的概率。
+这是为了降低应用与目标游戏窗口权限不一致时，真实播放等功能出现失败的概率。
 
-启动软件时，如果 Windows 弹出用户账户控制（UAC）提示，请确认后继续。
+如果 Windows 显示用户账户控制（UAC）提示，请确认后继续。
 
-## 丨更新说明
+## 丨开发
 
-SkyMusicPlay Lite 支持启动时检查更新。
+主要技术栈：
 
-v0.6.0 是当前正式推荐版本。
-
-更新分为：
-
-- **推荐更新**：建议所有用户更新。
-- **Alpha 更新**：测试版本，可以选择忽略当前版本。
-
-如果你更想稳定使用，可以等待推荐更新。  
-如果你愿意体验新功能，可以更新 Alpha 版本。
-
-## 丨项目开发环境
+- Tauri v2
+- React
+- TypeScript
+- Rust
+- Vite
 
 推荐开发环境：
 
-- **操作系统**：Windows 10 / Windows 11
-- **Node.js**：20+
-- **Rust**：stable
-- **Tauri**：v2
-- **包管理器**：npm
-- **编辑器**：Visual Studio Code
-
-需要安装：
-
-- Node.js
-- Rust
-- Tauri 相关系统依赖
-- Microsoft C++ Build Tools / Visual Studio Build Tools
-
-## 丨技术栈
-
-- **Tauri v2**
-- **React**
-- **TypeScript**
-- **Rust**
-- **Vite**
-
-## 丨本地运行
+- Windows 10 / Windows 11
+- Node.js 20+
+- Rust stable
+- npm
+- Visual Studio Code
 
 安装依赖：
 
@@ -183,7 +129,7 @@ npm install
 npm run tauri dev
 ```
 
-运行测试：
+运行前端测试：
 
 ```bash
 npm run test
@@ -195,7 +141,7 @@ npm run test
 npm run build
 ```
 
-检查 Rust 代码：
+检查并测试 Rust：
 
 ```bash
 cd src-tauri
@@ -204,7 +150,7 @@ cargo test
 cd ..
 ```
 
-打包应用：
+构建 Windows 应用：
 
 ```bash
 npm run tauri build
@@ -212,14 +158,18 @@ npm run tauri build
 
 ## 丨问题反馈
 
-如果遇到问题，可以通过 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) 提交反馈。
+如果遇到 Bug、兼容性问题或其他异常，请通过 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) 提交反馈。
+
+提交问题时，建议说明软件版本、问题现象和复现方式。
 
 ## 丨交流与联系
 
 - **QQ 群**：`632482169`
 - **GitHub**：[@Whitewind0987](https://github.com/Whitewind0987)
 
-欢迎交流使用体验、功能建议和曲谱相关内容。问题反馈建议优先通过 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) 提交。
+欢迎交流使用体验、功能建议和曲谱相关内容。
+
+问题反馈建议优先使用 [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues)。
 
 ## 丨开源协议
 
@@ -227,7 +177,7 @@ SkyMusicPlay Lite 的软件代码采用 **GNU General Public License v3.0 only�
 
 Copyright (C) 2026 Whitewind0987 and contributors
 
-完整的当前许可证见 [LICENSE](./LICENSE)；历史许可声明及第三方资源信息见 [NOTICE](./NOTICE)。
+完整的当前许可证见 [LICENSE](./LICENSE)，历史许可声明及第三方资源信息见 [NOTICE](./NOTICE)。
 
 `public/builtin-scores/scores/` 下的内置曲谱资源经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可使用，不属于 SkyMusicPlay Lite 的 GPL-3.0-only 软件代码授权范围，相关权利归各自权利人所有。
 
@@ -235,8 +185,10 @@ Copyright (C) 2026 Whitewind0987 and contributors
 
 SkyMusicPlay Lite 受到 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 以及相关 Sky 光遇自动弹琴软件的启发。
 
-内置曲谱资源以及曲谱解密兼容逻辑／格式规则的使用经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可。内置曲谱资源不属于 SkyMusicPlay Lite 的 GPL-3.0-only 软件代码授权范围，相关权利归各自权利人所有；当前 `src/lib/sheetDecrypt.ts` 是 SkyMusicPlay Lite 自行实现的 TypeScript 兼容实现，属于本项目的软件代码。
+内置曲谱资源以及曲谱解密兼容逻辑 / 格式规则的使用经 [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) 原作者许可。
 
-感谢 [@wjhhuizi](https://github.com/wjhhuizi) 提交 [PR #1](https://github.com/Whitewind0987/sky-music-play-lite/pull/1)，为 `scores-v2` 曲谱格式和长音／延音支持提供了核心方案与初始实现。
+内置曲谱资源不属于 SkyMusicPlay Lite 的 GPL-3.0-only 软件代码授权范围，相关权利归各自权利人所有；当前 `src/lib/sheetDecrypt.ts` 是 SkyMusicPlay Lite 自行实现的 TypeScript 兼容实现，属于本项目的软件代码。
+
+感谢 [@wjhhuizi](https://github.com/wjhhuizi) 提交 [PR #1](https://github.com/Whitewind0987/sky-music-play-lite/pull/1)，为 `scores-v2` 曲谱格式和长音 / 延音支持提供了核心方案与初始实现。
 
 本项目是独立的轻量级实现。

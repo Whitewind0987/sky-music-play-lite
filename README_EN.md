@@ -17,161 +17,107 @@
   <a href="https://github.com/Whitewind0987/sky-music-play-lite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Whitewind0987/sky-music-play-lite/ci.yml?branch=main&amp;style=flat&amp;label=CI" alt="CI"></a>
 </p>
 
-[简体中文](./README.md) | [English](./README_EN.md)
+[简体中文](./README.md) | English
 
 </div>
 
 ## 丨Introduction
 
-SkyMusicPlay Lite is a lightweight Windows desktop automatic music-playing tool for Sky: Children of the Light.
+SkyMusicPlay Lite is a lightweight automatic music-playing tool for **Sky: Children of the Light** on Windows.
 
-It is built with **Tauri v2 + React + TypeScript + Rust**, aiming to provide a clean, lightweight, and controllable desktop experience for score library management, preview playback, and real playback.
+Built with **Tauri v2 + React + TypeScript + Rust**, it provides score management, preview playback, and Windows real playback.
 
-Current version: **v0.6.1**.
-v0.6.1 is the current stable recommended release.
+## 丨Quick Start
 
-## 丨Download
+### Download
 
-Download the latest version from GitHub Releases:
+Download the latest stable version from **GitHub Releases**:
 
-- [Releases](https://github.com/Whitewind0987/sky-music-play-lite/releases)
+- [Download SkyMusicPlay Lite](https://github.com/Whitewind0987/sky-music-play-lite/releases/latest)
 
-The normal installer is smaller and recommended for most users. The bundled WebView2 installer is intended for offline environments or when the normal installer cannot install WebView2.
+Two Windows installers are available:
 
-## 丨User Manual
+- **Normal installer (recommended)**: smaller and suitable for most users
+- **Bundled WebView2 installer**: includes the WebView2 offline installer for offline environments or systems where the normal installer cannot install WebView2
+
+Both installers provide the same application features. They differ only in how WebView2 is installed.
+
+### User Manual
+
+For first-time setup or detailed usage instructions, see:
 
 - [SkyMusicPlay Lite User Manual](https://www.kdocs.cn/l/ca0kaYgxB59Z)
 
 The manual is currently written in Simplified Chinese.
 
+## 丨Support the Project
+
+SkyMusicPlay Lite will remain **free and open source**.
+
+If you find the project useful and would like to support its continued maintenance, you can make a voluntary contribution through Afdian.
+
+> ❤️ **[Support SkyMusicPlay Lite on Afdian](https://afdian.com/a/WhiteWind)**
+
+Sponsorship does not affect access to any features and does not provide paid-exclusive features or development priority.
+
+Thanks to everyone who uses, stars, provides feedback for, or supports SkyMusicPlay Lite.
+
 ## 丨Features
 
-- Built-in scores
-- On-demand built-in score loading
-- Local score import
-- Drag-and-drop score import
-- SkyStudio-style score parsing
-- `scores-v2` score format
-- Per-note `duration` with long-note and sustained-note playback
-- V2 score badge
-- Upgrade V1 scores to V2
-- Encrypted numeric score import
-- Score library search
-- Liked scores
-- User-created playlists
-- Playback queue
-- Play next
-- In-app keyboard preview
-- Bottom player
-- Play / pause / resume / stop
-- Progress seeking
-- Playback speed adjustment
-- Note interval adjustment
-- Repeat all / repeat one / shuffle
-- Custom key mapping
-- Local data persistence
-- Always-on-top window
-- Playback logs
-- In-app update notification
-- Preserve the existing installation directory during Windows installer upgrades
-- Sky window auto-detection, including recognition when Sky is opened, closed, and reopened
-- Local score record recovery, including missing library records from existing managed score files
-- Windows real playback
-
-## 丨Library and Player
-
-The library supports:
-
-- Built-in scores
-- Local imports
-- Liked scores
-- User-created playlists
-- Search
-- Pagination
-- Add to queue
-- Play next
-- Local score record recovery, including missing library records from existing managed score files
-
-The bottom player supports:
-
-- Play, pause, resume, and stop
-- Next track
-- Shuffle
-- Repeat mode
-- Playback queue
-- Playback speed
-- Note interval
-- Playback progress
-- V2 score badge
-- V2 long-note and sustained-note playback
-- Pause, progress seeking, and speed adjustment with V2 scores
+- **Score management**: built-in scores, local JSON / TXT import, drag-and-drop import, search, likes, playlists, pagination, and score export
+- **Score formats**: SkyStudio-style scores, encrypted numeric scores, `scores-v2`, long / sustained notes, and V1 → V2 conversion
+- **Playback controls**: play, pause, resume, stop, next track, seeking, playback speed, and note interval adjustment
+- **Playback modes**: repeat all, repeat one, shuffle, playback queue, and Play Next
+- **Score visualization**: keyboard and score-timeline visualization
+- **Performance recording**: record manual performances in Sky and save them as local scores
+- **Customization**: key mapping, playback shortcuts, Chinese / English UI, accent color, and exit confirmation
+- **Other features**: Sky window auto-detection, always-on-top, runtime logs, in-app update notifications, and local data persistence and recovery
 
 ## 丨Real Playback
 
-SkyMusicPlay Lite includes real playback functionality.
+SkyMusicPlay Lite can convert scores into Windows keyboard input for real playback in the game.
 
-Real playback is enabled by default and uses target-window playback by default. SkyMusicPlay Lite can automatically detect the Sky window and recognize when Sky is opened, closed, and reopened. Automatic detection may not work in every environment, so manual refresh and window selection remain available in Settings as a fallback.
-Before using it, please understand and follow the rules of the related game or software.
+Two playback methods are available:
 
-Current real playback modes:
+- **Background playback**: sends key input to the selected target window without requiring the game window to remain in the foreground
+- **Foreground playback**: sends simulated keyboard input to the current foreground window
 
-- **Background playback**: attempts to send key input to the selected target game window.
-- **Foreground playback**: sends simulated keyboard input to the current foreground window.
+Background playback supports automatic Sky window detection, and the target window can also be refreshed and selected manually.
 
-Background playback provides two compatibility options:
+Two background playback compatibility profiles are available:
 
 - **Enhanced background playback (recommended)**
 - **Chord compatibility**
 
-## 丨Administrator Permission
+If automatic detection does not find the correct Sky window, refresh and select the target window manually in Settings.
 
-SkyMusicPlay Lite may request administrator permission on Windows startup.
+> Before using real playback, please understand and follow the rules of the related game or software.
 
-This helps reduce failures caused by permission differences between the app and the target window when using real playback.
+### Administrator Permission
 
-If Windows shows a User Account Control (UAC) prompt when launching the app, confirm it to continue.
+SkyMusicPlay Lite may request administrator permission when starting on Windows.
 
-## 丨Updates
+This helps reduce failures in features such as real playback when the application and target game window are running with different permission levels.
 
-SkyMusicPlay Lite supports update checks on startup.
+If Windows displays a User Account Control (UAC) prompt, confirm it to continue.
 
-v0.6.0 is the current stable recommended release.
+## 丨Development
 
-There are two update types:
+Main tech stack:
 
-- **Recommended update**: recommended for all users.
-- **Alpha update**: testing release, can be ignored for the current version.
-
-If you prefer a more stable experience, you may wait for recommended updates.  
-If you want to try new features earlier, you may install Alpha updates.
-
-## 丨Development Environment
+- Tauri v2
+- React
+- TypeScript
+- Rust
+- Vite
 
 Recommended development environment:
 
-- **Operating system**: Windows 10 / Windows 11
-- **Node.js**: 20+
-- **Rust**: stable
-- **Tauri**: v2
-- **Package manager**: npm
-- **Editor**: Visual Studio Code
-
-Required dependencies:
-
-- Node.js
-- Rust
-- Tauri system dependencies
-- Microsoft C++ Build Tools / Visual Studio Build Tools
-
-## 丨Tech Stack
-
-- **Tauri v2**
-- **React**
-- **TypeScript**
-- **Rust**
-- **Vite**
-
-## 丨Local Development
+- Windows 10 / Windows 11
+- Node.js 20+
+- Rust stable
+- npm
+- Visual Studio Code
 
 Install dependencies:
 
@@ -179,13 +125,13 @@ Install dependencies:
 npm install
 ```
 
-Start the development app:
+Start the development environment:
 
 ```bash
 npm run tauri dev
 ```
 
-Run tests:
+Run frontend tests:
 
 ```bash
 npm run test
@@ -197,7 +143,7 @@ Build the frontend:
 npm run build
 ```
 
-Check Rust code:
+Check and test Rust:
 
 ```bash
 cd src-tauri
@@ -206,22 +152,26 @@ cargo test
 cd ..
 ```
 
-Build the app package:
+Build the Windows application:
 
 ```bash
 npm run tauri build
 ```
 
-## 丨Feedback
+## 丨Issue Reporting
 
-If you encounter any issues, please submit feedback through [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues).
+If you encounter a bug, compatibility issue, or other unexpected behavior, please submit a report through [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues).
+
+When submitting an issue, please include the application version, a description of the problem, and steps to reproduce it when possible.
 
 ## 丨Community & Contact
 
 - **QQ Group**: `632482169`
 - **GitHub**: [@Whitewind0987](https://github.com/Whitewind0987)
 
-You are welcome to discuss usage, feature ideas, and music scores in the QQ group. For bug reports, please use [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) whenever possible.
+You are welcome to discuss usage, feature ideas, and music scores.
+
+For bug reports and other issues, please use [GitHub Issues](https://github.com/Whitewind0987/sky-music-play-lite/issues) whenever possible.
 
 ## 丨License
 
@@ -235,9 +185,11 @@ The built-in score resources under `public/builtin-scores/scores/` are used with
 
 ## 丨Acknowledgements
 
-SkyMusicPlay Lite is inspired by [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) and other related Sky-style auto music playback tools.
+SkyMusicPlay Lite is inspired by [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows) and other related Sky automatic music-playing tools.
 
-The built-in score resources and the use of the score decryption compatibility logic and format rules are included with permission from the original author of [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows). The built-in score resources are not covered by SkyMusicPlay Lite's GPL-3.0-only software-code license and remain subject to the rights of their respective rights holders. The current `src/lib/sheetDecrypt.ts` source is SkyMusicPlay Lite's own TypeScript compatibility implementation and is part of this project's software code.
+The built-in score resources and the use of the score decryption compatibility logic / format rules are included with permission from the original author of [SkyMusicPlay-for-Windows](https://github.com/windhide/SkyMusicPlay-for-Windows).
+
+The built-in score resources are not covered by SkyMusicPlay Lite's GPL-3.0-only software-code license and remain subject to the rights of their respective rights holders. The current `src/lib/sheetDecrypt.ts` source is SkyMusicPlay Lite's own TypeScript compatibility implementation and is part of this project's software code.
 
 Thanks to [@wjhhuizi](https://github.com/wjhhuizi) for submitting [PR #1](https://github.com/Whitewind0987/sky-music-play-lite/pull/1), which provided the core proposal and initial implementation for the `scores-v2` format and long-note support.
 
