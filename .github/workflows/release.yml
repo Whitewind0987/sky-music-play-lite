@@ -30,6 +30,30 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Identify Rust compiler
+        id: rust-cache
+        shell: pwsh
+        run: |
+          $compiler = rustc --version --verbose
+          if ($LASTEXITCODE -ne 0) { throw "Could not identify the Rust compiler." }
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes(($compiler -join " "))
+          $fingerprint = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+          "compiler=$fingerprint" >> $env:GITHUB_OUTPUT
+
+      # Shared with CI/Release; no commit key or fallback to a different compiler.
+      # GitHub ref scopes prevent tag runs from restoring PR merge-ref caches.
+      - name: Cache Rust dependencies and build outputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+            !src-tauri/target/**/bundle/**
+          key: rust-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache.outputs.compiler }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            rust-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache.outputs.compiler }}-
+
       - name: Install dependencies
         run: npm ci
 
@@ -64,9 +88,6 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
 
-      - name: Frontend build
-        run: npm run build
-
       - name: Cargo check
         working-directory: src-tauri
         run: cargo check
@@ -75,7 +96,11 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-      - name: Build and stage normal NSIS installer
+      # beforeBuildCommand runs the production frontend build exactly once.
+      - name: Build application once
+        run: npm run tauri -- build --no-bundle --ci
+
+      - name: Bundle and stage normal NSIS installer
         shell: pwsh
         run: |
           $nsisDirectory = Join-Path $PWD "src-tauri\target\release\bundle\nsis"
@@ -90,9 +115,9 @@ jobs:
             Remove-Item -LiteralPath $nsisDirectory -Recurse -Force
           }
 
-          npm run tauri -- build --bundles nsis --ci
+          npm run tauri -- bundle --bundles nsis --ci
           if ($LASTEXITCODE -ne 0) {
-            throw "The normal Tauri NSIS build failed with exit code $LASTEXITCODE."
+            throw "The normal Tauri NSIS bundle failed with exit code $LASTEXITCODE."
           }
 
           $installers = @(Get-ChildItem -LiteralPath $nsisDirectory -File -Filter "*.exe")
@@ -109,7 +134,7 @@ jobs:
 
           Remove-Item -LiteralPath $nsisDirectory -Recurse -Force
 
-      - name: Build and stage offline WebView2 NSIS installer
+      - name: Bundle and stage offline WebView2 NSIS installer
         shell: pwsh
         run: |
           $nsisDirectory = Join-Path $PWD "src-tauri\target\release\bundle\nsis"
@@ -119,9 +144,9 @@ jobs:
             Remove-Item -LiteralPath $nsisDirectory -Recurse -Force
           }
 
-          npm run tauri -- build --bundles nsis --config src-tauri/tauri.offline.conf.json --ci
+          npm run tauri -- bundle --bundles nsis --config src-tauri/tauri.offline.conf.json --ci
           if ($LASTEXITCODE -ne 0) {
-            throw "The offline WebView2 Tauri NSIS build failed with exit code $LASTEXITCODE."
+            throw "The offline WebView2 Tauri NSIS bundle failed with exit code $LASTEXITCODE."
           }
 
           $installers = @(Get-ChildItem -LiteralPath $nsisDirectory -File -Filter "*.exe")
@@ -163,6 +188,7 @@ jobs:
           name: release-artifacts
           path: release-artifacts
           if-no-files-found: error
+          compression-level: 0
 
   publish:
     needs: build
