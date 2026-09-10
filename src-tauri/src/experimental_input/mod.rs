@@ -73,8 +73,3 @@ pub use stubs::{
 pub use target_window_message::send_key_group_to_window_message;
 #[cfg(windows)]
 pub use window::{find_sky_window, list_candidate_windows};
-
-#[cfg(windows)]
-pub(crate) fn to_wide_null(value: &str) -> Vec<u16> {
-    value.encode_utf16().chain(std::iter::once(0)).collect()
-}
