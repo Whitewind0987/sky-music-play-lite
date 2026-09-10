@@ -1,4 +1,4 @@
-use super::key_mapping::{legacy_vkscan_to_virtual_key, mapped_key_to_virtual_key};
+use super::key_mapping::{mapped_key_to_virtual_key, resolve_legacy_mapped_key};
 use super::window::parse_hwnd;
 use std::collections::HashMap;
 use std::thread;
@@ -306,44 +306,50 @@ fn build_profile_window_message_key_input(
     target: &WindowMessageTarget,
     key: String,
 ) -> Result<WindowMessageKeyInput, String> {
-    let virtual_key = match target.compatibility_profile.as_str() {
-        TARGET_PROFILE_STANDARD => mapped_key_to_virtual_key(&key).ok_or_else(|| {
-            format!(
-                "Unsupported mapped key for target-window message input. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
-                target.hwnd_text, target.method, target.compatibility_profile
-            )
-        })?,
+    let (virtual_key, scan_code) = match target.compatibility_profile.as_str() {
+        TARGET_PROFILE_STANDARD => {
+            let virtual_key = mapped_key_to_virtual_key(&key).ok_or_else(|| {
+                format!(
+                    "Unsupported mapped key for target-window message input. hwnd: {}; mapped key: {key}; method: {}; profile: {}",
+                    target.hwnd_text, target.method, target.compatibility_profile
+                )
+            })?;
+            // Preserve standard's existing current-layout scan-code behavior.
+            let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
+
+            if scan_code == 0 {
+                let error = std::io::Error::last_os_error();
+                return Err(format!(
+                    "Failed to resolve scan code for target-window message input. hwnd: {}; mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; method: {}; profile: {}; last OS error: {error}",
+                    target.hwnd_text, target.method, target.compatibility_profile
+                ));
+            }
+
+            (virtual_key, scan_code)
+        }
         TARGET_PROFILE_LEGACY_ZERO_LPARAM
         | TARGET_PROFILE_LEGACY_SCAN_LPARAM
         | TARGET_PROFILE_GROUPED_LEGACY
-        | TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM => legacy_vkscan_to_virtual_key(
-            &key,
-            &target.hwnd_text,
-            &target.method,
-            &target.compatibility_profile,
-        )?,
+        | TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM => {
+            let resolved = resolve_legacy_mapped_key(
+                &key,
+                &target.hwnd_text,
+                &target.method,
+                &target.compatibility_profile,
+            )?;
+            let scan_code = if target.compatibility_profile == TARGET_PROFILE_LEGACY_ZERO_LPARAM {
+                0
+            } else {
+                resolved.scan_code
+            };
+            (resolved.virtual_key, scan_code)
+        }
         _ => {
             return Err(format!(
                 "Unsupported target-window compatibility profile: {}.",
                 target.compatibility_profile
             ))
         }
-    };
-    let needs_scan_code = target.compatibility_profile != TARGET_PROFILE_LEGACY_ZERO_LPARAM;
-    let scan_code = if needs_scan_code {
-        let scan_code = unsafe { MapVirtualKeyW(virtual_key as u32, MAPVK_VK_TO_VSC) };
-
-        if scan_code == 0 {
-            let error = std::io::Error::last_os_error();
-            return Err(format!(
-                "Failed to resolve scan code for target-window message input. hwnd: {}; mapped key: {key}; virtual key: {virtual_key}; scan code: {scan_code}; method: {}; profile: {}; last OS error: {error}",
-                target.hwnd_text, target.method, target.compatibility_profile
-            ));
-        }
-
-        scan_code
-    } else {
-        0
     };
 
     Ok(WindowMessageKeyInput {
@@ -580,7 +586,65 @@ fn format_optional_message_result(result: Option<isize>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::timeout_message_result_to_isize;
+    use super::*;
+
+    #[test]
+    fn legacy_profiles_keep_key_identity_and_lparam_contracts_without_windows_calls() {
+        for profile in [
+            TARGET_PROFILE_LEGACY_ZERO_LPARAM,
+            TARGET_PROFILE_LEGACY_SCAN_LPARAM,
+            TARGET_PROFILE_GROUPED_LEGACY,
+            TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM,
+        ] {
+            assert!(is_supported_target_compatibility_profile(profile));
+            let target = WindowMessageTarget {
+                hwnd: std::ptr::null_mut(),
+                hwnd_text: "123".into(),
+                method: TARGET_MESSAGE_METHOD_POST.into(),
+                compatibility_profile: profile.into(),
+            };
+            for (key, vk, scan) in [
+                ("Y", 0x59, 0x15),
+                (";", 0xBA, 0x27),
+                (",", 0xBC, 0x33),
+                (".", 0xBE, 0x34),
+                ("/", 0xBF, 0x35),
+                ("ArrowLeft", 0x25, 0x4B),
+                ("Divide", 0x6F, 0x35),
+            ] {
+                let input = build_profile_window_message_key_input(&target, key.into()).unwrap();
+                assert_eq!(input.virtual_key, vk, "{profile}: {key}");
+                if profile == TARGET_PROFILE_LEGACY_ZERO_LPARAM {
+                    assert_eq!(input.scan_code, 0);
+                    assert_eq!(build_profile_key_down_lparam(&input), 0);
+                    assert_eq!(build_profile_key_up_lparam(&input), 0);
+                } else {
+                    assert_eq!(input.scan_code, scan);
+                    assert_eq!(
+                        build_profile_key_down_lparam(&input),
+                        1 | ((scan as isize) << 16)
+                    );
+                    assert_eq!(
+                        build_profile_key_up_lparam(&input),
+                        (0xC0000001u32 as isize) | ((scan as isize) << 16)
+                    );
+                    // Preserve the existing absence of the extended-key bit.
+                    assert_eq!(build_profile_key_down_lparam(&input) & (1 << 24), 0);
+                }
+            }
+            assert_eq!(
+                is_grouped_target_compatibility_profile(profile),
+                profile == TARGET_PROFILE_GROUPED_LEGACY
+                    || profile == TARGET_PROFILE_LEGACY_ACTIVATE_SCAN_LPARAM
+            );
+        }
+        assert!(is_supported_target_compatibility_profile(
+            TARGET_PROFILE_STANDARD
+        ));
+        assert!(!is_grouped_target_compatibility_profile(
+            TARGET_PROFILE_STANDARD
+        ));
+    }
 
     #[test]
     fn timeout_message_result_preserves_pointer_width_signed_bit_pattern() {
