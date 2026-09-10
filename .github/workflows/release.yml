@@ -203,6 +203,11 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $title = "SkyMusicPlay Lite $tag"
+          $releaseVersion = [System.Management.Automation.SemanticVersion] "${{ needs.build.outputs.version }}"
+          $releaseFlags = @("--prerelease=false")
+          if ($releaseVersion.PreReleaseLabel) {
+            $releaseFlags = @("--prerelease", "--latest=false")
+          }
           $artifactDirectory = Join-Path $PWD "release-artifacts"
           $notesPath = Join-Path $artifactDirectory "release-notes.md"
           $normalInstaller = Join-Path $artifactDirectory "SkyMusicPlay-Lite_${{ needs.build.outputs.version }}_Windows-x64_Setup.exe"
@@ -226,7 +231,8 @@ jobs:
               --draft `
               --verify-tag `
               --title $title `
-              --notes-file $notesPath
+              --notes-file $notesPath `
+              @releaseFlags
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to create draft release for $tag."
             }
@@ -237,7 +243,8 @@ jobs:
           gh release edit $tag `
             --title $title `
             --notes-file $notesPath `
-            --draft=true
+            --draft=true `
+            @releaseFlags
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to update draft release metadata for $tag."
           }
@@ -253,7 +260,8 @@ jobs:
           gh release edit $tag `
             --title $title `
             --notes-file $notesPath `
-            --draft=false
+            --draft=false `
+            @releaseFlags
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to publish completed release $tag."
           }
