@@ -10,6 +10,7 @@ import {
   getScoreVisualPageIndexForGroup,
   getScoreVisualRenderWindow,
   paginateScoreVisualGroups,
+  resolveScoreVisualizationOptions,
   resolveScoreVisualizationTimingOptions,
   SCORE_VISUAL_GROUPS_PER_PAGE,
   SCORE_VISUAL_PAGE_COLUMNS,
@@ -80,6 +81,48 @@ describe("buildScoreVisualization", () => {
       playbackSpeed: 1,
     });
     expect(automatic).toEqual({ noteIntervalDelayMs: 200, playbackSpeed: 2 });
+  });
+
+  it("uses exact source-time groups for Manual visualization", () => {
+    const sourceOptions = resolveScoreVisualizationOptions("source");
+    const distinctGroups = buildScoreVisualization(
+      notesAt(0, 7, 18),
+      defaultTimingOptions,
+      sourceOptions,
+    ).groups;
+    const exactChordGroups = buildScoreVisualization(
+      [
+        { time: 1000, key: "Key0" },
+        { time: 1000, key: "Key1" },
+        { time: 1000, key: "Key2" },
+      ],
+      defaultTimingOptions,
+      sourceOptions,
+    ).groups;
+
+    expect(sourceOptions).toEqual({ visualChordWindowMs: 0 });
+    expect(distinctGroups).toHaveLength(3);
+    expect(exactChordGroups).toHaveLength(1);
+    expect(
+      buildScoreVisualization(
+        notesAt(1000, 1001),
+        defaultTimingOptions,
+        sourceOptions,
+      ).groups,
+    ).toHaveLength(2);
+  });
+
+  it("keeps Automatic visualization on the default chord window", () => {
+    const automaticOptions = resolveScoreVisualizationOptions("automatic");
+
+    expect(automaticOptions).toEqual({});
+    expect(
+      buildScoreVisualization(
+        notesAt(0, 7, 18),
+        defaultTimingOptions,
+        automaticOptions,
+      ).groups,
+    ).toHaveLength(1);
   });
 
   it("groups an exact chord and exposes keys in canonical order", () => {

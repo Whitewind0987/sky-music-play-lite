@@ -38,6 +38,12 @@ export function resolveScoreVisualizationTimingOptions(
     : automaticOptions;
 }
 
+export function resolveScoreVisualizationOptions(
+  timingMode: ScoreVisualizationTimingMode,
+): ScoreVisualizationOptions {
+  return timingMode === "source" ? { visualChordWindowMs: 0 } : {};
+}
+
 export type SkyVisualNoteLabel =
   | "A"
   | "B"

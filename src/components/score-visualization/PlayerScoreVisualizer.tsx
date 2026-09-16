@@ -6,6 +6,7 @@ import {
   buildScoreVisualization,
   findCurrentScoreVisualGroupIndex,
   getActiveScoreVisualKeys,
+  resolveScoreVisualizationOptions,
   resolveScoreVisualizationTimingOptions,
 } from "../../lib/scoreVisualization";
 import type {
@@ -58,6 +59,7 @@ export function PlayerScoreVisualizer({
               noteIntervalDelayMs,
               playbackSpeed,
             }),
+            resolveScoreVisualizationOptions(timingMode),
           ),
     [noteIntervalDelayMs, playbackSpeed, song, timingMode],
   );
