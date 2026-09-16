@@ -96,6 +96,41 @@ pub struct BackgroundPlaybackPreparePlanResponse {
     pub prepared_plan_id: u64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualBackgroundPlaybackPreparedStartRequest {
+    pub prepared_plan_id: u64,
+    pub hwnd: String,
+    pub compatibility_profile: String,
+    pub key_hold_ms: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualForegroundPlaybackPreparedStartRequest {
+    pub prepared_plan_id: u64,
+    pub key_hold_ms: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualPlaybackSessionRequest {
+    pub session_id: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualPlaybackStepResponse {
+    pub session_id: u64,
+    pub group_index: usize,
+    pub group_count: usize,
+    pub source_time_ms: f64,
+    pub total_ms: f64,
+    pub has_next_group: bool,
+    pub did_advance: bool,
+    pub state: String,
+}
+
 fn unsupported() -> String {
     "Experimental playback is only available on Windows.".to_string()
 }
@@ -146,6 +181,30 @@ pub fn start_prepared_foreground_playback(
     _app_handle: tauri::AppHandle,
     _request: ForegroundPlaybackPreparedStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
+    Err(unsupported())
+}
+
+pub fn start_prepared_manual_background_playback(
+    _app_handle: tauri::AppHandle,
+    _request: ManualBackgroundPlaybackPreparedStartRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    Err(unsupported())
+}
+
+pub fn start_prepared_manual_foreground_playback(
+    _app_handle: tauri::AppHandle,
+    _request: ManualForegroundPlaybackPreparedStartRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    Err(unsupported())
+}
+
+pub fn step_manual_playback(
+    _request: ManualPlaybackSessionRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    Err(unsupported())
+}
+
+pub fn stop_manual_playback(_request: ManualPlaybackSessionRequest) -> Result<(), String> {
     Err(unsupported())
 }
 

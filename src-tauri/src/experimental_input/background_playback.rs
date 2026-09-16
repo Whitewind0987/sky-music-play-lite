@@ -1,4 +1,5 @@
 use super::key_lifecycle::KeyLifecycle;
+use super::manual_playback::ManualPlaybackCommand;
 use super::playback_engine::PlaybackOutput;
 #[cfg(test)]
 use super::prepared_playback_plan::build_source_groups;
@@ -180,10 +181,21 @@ struct RealPlaybackManager {
     next_session_id: u64,
 }
 
-struct RealPlaybackSession {
+struct AutomaticPlaybackSession {
     session_id: u64,
     command_tx: Sender<PlaybackCommand>,
     worker: Option<JoinHandle<()>>,
+}
+
+struct ManualPlaybackSession {
+    session_id: u64,
+    command_tx: Sender<ManualPlaybackCommand>,
+    worker: Option<JoinHandle<()>>,
+}
+
+enum RealPlaybackSession {
+    Automatic(AutomaticPlaybackSession),
+    Manual(ManualPlaybackSession),
 }
 
 struct BackgroundPlaybackWorker {
@@ -357,7 +369,7 @@ where
     stop_current_session();
     let previous_session_stopped_at = Instant::now();
 
-    let session_id = next_session_id(output_mode);
+    let session_id = next_real_session_id();
     let (command_tx, command_rx) = mpsc::channel();
     let (start_tx, start_rx) = mpsc::channel();
     let total_ms = timeline.total_ms;
@@ -389,11 +401,11 @@ where
             .shared_manager()
             .lock()
             .expect("real playback manager poisoned");
-        manager.current = Some(RealPlaybackSession {
+        manager.current = Some(RealPlaybackSession::Automatic(AutomaticPlaybackSession {
             session_id,
             command_tx,
             worker: Some(worker_handle),
-        });
+        }));
     }
     let session_registered_at = Instant::now();
 
@@ -465,7 +477,7 @@ pub fn update_background_playback_options(
 }
 
 pub fn stop_background_playback(session_id: u64) -> Result<(), String> {
-    let session = take_session_if_current_from(real_playback_manager(), session_id);
+    let session = take_automatic_session_if_current_from(real_playback_manager(), session_id);
 
     if let Some(session) = session {
         session.stop_and_join();
@@ -513,13 +525,12 @@ fn real_playback_manager() -> &'static Mutex<RealPlaybackManager> {
     })
 }
 
-fn real_playback_lifecycle() -> &'static Mutex<()> {
+pub(crate) fn real_playback_lifecycle() -> &'static Mutex<()> {
     REAL_PLAYBACK_LIFECYCLE.get_or_init(|| Mutex::new(()))
 }
 
-fn next_session_id(output_mode: PlaybackOutputMode) -> u64 {
-    let mut manager = output_mode
-        .shared_manager()
+pub(crate) fn next_real_session_id() -> u64 {
+    let mut manager = real_playback_manager()
         .lock()
         .expect("real playback manager poisoned");
     let session_id = manager.next_session_id;
@@ -527,7 +538,7 @@ fn next_session_id(output_mode: PlaybackOutputMode) -> u64 {
     session_id
 }
 
-fn stop_current_session() {
+pub(crate) fn stop_current_session() {
     // Taking the session drops the manager lock before its worker can be joined.
     let session = take_current_session_from(real_playback_manager());
 
@@ -542,28 +553,95 @@ fn take_current_session_from(manager: &Mutex<RealPlaybackManager>) -> Option<Rea
     take_current_session(&mut manager)
 }
 
-fn take_session_if_current_from(
+fn take_automatic_session_if_current_from(
     manager: &Mutex<RealPlaybackManager>,
     session_id: u64,
 ) -> Option<RealPlaybackSession> {
     let mut manager = manager.lock().expect("real playback manager poisoned");
 
-    take_session_if_current(&mut manager, session_id)
+    take_automatic_session_if_current(&mut manager, session_id)
 }
 
 fn take_current_session(manager: &mut RealPlaybackManager) -> Option<RealPlaybackSession> {
     manager.current.take()
 }
 
-fn take_session_if_current(
+fn take_automatic_session_if_current(
     manager: &mut RealPlaybackManager,
     session_id: u64,
 ) -> Option<RealPlaybackSession> {
-    if matches!(manager.current.as_ref(), Some(current) if current.session_id == session_id) {
+    if matches!(
+        manager.current.as_ref(),
+        Some(RealPlaybackSession::Automatic(current)) if current.session_id == session_id
+    ) {
         return manager.current.take();
     }
 
     None
+}
+
+fn take_manual_session_if_current(
+    manager: &mut RealPlaybackManager,
+    session_id: u64,
+) -> Option<RealPlaybackSession> {
+    if matches!(
+        manager.current.as_ref(),
+        Some(RealPlaybackSession::Manual(current)) if current.session_id == session_id
+    ) {
+        return manager.current.take();
+    }
+
+    None
+}
+
+pub(crate) fn install_manual_session(
+    session_id: u64,
+    command_tx: Sender<ManualPlaybackCommand>,
+    worker: JoinHandle<()>,
+) {
+    let mut manager = real_playback_manager()
+        .lock()
+        .expect("real playback manager poisoned");
+    manager.current = Some(RealPlaybackSession::Manual(ManualPlaybackSession {
+        session_id,
+        command_tx,
+        worker: Some(worker),
+    }));
+}
+
+pub(crate) fn manual_command_sender_for_current_session(
+    session_id: u64,
+) -> Option<Sender<ManualPlaybackCommand>> {
+    let manager = real_playback_manager()
+        .lock()
+        .expect("real playback manager poisoned");
+
+    manual_command_sender_for_current(&manager, session_id)
+}
+
+fn manual_command_sender_for_current(
+    manager: &RealPlaybackManager,
+    session_id: u64,
+) -> Option<Sender<ManualPlaybackCommand>> {
+    match manager.current.as_ref() {
+        Some(RealPlaybackSession::Manual(session)) if session.session_id == session_id => {
+            Some(session.command_tx.clone())
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn stop_manual_real_playback_session(session_id: u64) {
+    let session = {
+        let mut manager = real_playback_manager()
+            .lock()
+            .expect("real playback manager poisoned");
+        take_manual_session_if_current(&mut manager, session_id)
+    };
+
+    if let Some(session) = session {
+        session.stop_and_join();
+    }
 }
 
 fn send_command_to_session(session_id: u64, command: PlaybackCommand) -> Result<(), String> {
@@ -587,15 +665,43 @@ fn command_sender_for_current_session(
     manager: &RealPlaybackManager,
     session_id: u64,
 ) -> Option<Sender<PlaybackCommand>> {
-    manager
-        .current
-        .as_ref()
-        .and_then(|session| (session.session_id == session_id).then(|| session.command_tx.clone()))
+    match manager.current.as_ref() {
+        Some(RealPlaybackSession::Automatic(session)) if session.session_id == session_id => {
+            Some(session.command_tx.clone())
+        }
+        _ => None,
+    }
 }
 
 impl RealPlaybackSession {
+    fn session_id(&self) -> u64 {
+        match self {
+            Self::Automatic(session) => session.session_id,
+            Self::Manual(session) => session.session_id,
+        }
+    }
+
+    fn stop_and_join(self) {
+        match self {
+            Self::Automatic(session) => session.stop_and_join(),
+            Self::Manual(session) => session.stop_and_join(),
+        }
+    }
+}
+
+impl AutomaticPlaybackSession {
     fn stop_and_join(mut self) {
         let _ = self.command_tx.send(PlaybackCommand::Stop);
+
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+impl ManualPlaybackSession {
+    fn stop_and_join(mut self) {
+        let _ = self.command_tx.send(ManualPlaybackCommand::Stop);
 
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -915,13 +1021,16 @@ impl BackgroundPlaybackWorker {
     }
 }
 
-fn clear_current_session(session_id: u64) {
+pub(crate) fn clear_current_session(session_id: u64) {
     let mut manager = real_playback_manager()
         .lock()
         .expect("real playback manager poisoned");
 
     if should_clear_current_session(
-        manager.current.as_ref().map(|current| current.session_id),
+        manager
+            .current
+            .as_ref()
+            .map(RealPlaybackSession::session_id),
         session_id,
     ) {
         manager.current = None;
@@ -1254,11 +1363,11 @@ mod tests {
     fn test_session(session_id: u64) -> RealPlaybackSession {
         let (command_tx, _command_rx) = mpsc::channel();
 
-        RealPlaybackSession {
+        RealPlaybackSession::Automatic(AutomaticPlaybackSession {
             command_tx,
             session_id,
             worker: None,
-        }
+        })
     }
 
     fn test_session_with_receiver(
@@ -1267,11 +1376,26 @@ mod tests {
         let (command_tx, command_rx) = mpsc::channel();
 
         (
-            RealPlaybackSession {
+            RealPlaybackSession::Automatic(AutomaticPlaybackSession {
                 command_tx,
                 session_id,
                 worker: None,
-            },
+            }),
+            command_rx,
+        )
+    }
+
+    fn test_manual_session_with_receiver(
+        session_id: u64,
+    ) -> (RealPlaybackSession, Receiver<ManualPlaybackCommand>) {
+        let (command_tx, command_rx) = mpsc::channel();
+
+        (
+            RealPlaybackSession::Manual(ManualPlaybackSession {
+                command_tx,
+                session_id,
+                worker: None,
+            }),
             command_rx,
         )
     }
@@ -1573,7 +1697,7 @@ mod tests {
         };
         let session = take_current_session(&mut manager);
 
-        assert_eq!(session.map(|session| session.session_id), Some(7));
+        assert_eq!(session.map(|session| session.session_id()), Some(7));
         assert!(manager.current.is_none());
     }
 
@@ -1584,14 +1708,17 @@ mod tests {
             next_session_id: 8,
         };
 
-        assert!(take_session_if_current(&mut manager, 6).is_none());
+        assert!(take_automatic_session_if_current(&mut manager, 6).is_none());
         assert_eq!(
-            manager.current.as_ref().map(|session| session.session_id),
+            manager
+                .current
+                .as_ref()
+                .map(RealPlaybackSession::session_id),
             Some(7)
         );
 
-        let session = take_session_if_current(&mut manager, 7);
-        assert_eq!(session.map(|session| session.session_id), Some(7));
+        let session = take_automatic_session_if_current(&mut manager, 7);
+        assert_eq!(session.map(|session| session.session_id()), Some(7));
         assert!(manager.current.is_none());
     }
 
@@ -1604,7 +1731,7 @@ mod tests {
 
         let old_session = take_current_session_from(&manager);
 
-        assert_eq!(old_session.map(|session| session.session_id), Some(7));
+        assert_eq!(old_session.map(|session| session.session_id()), Some(7));
         assert!(manager.lock().unwrap().current.is_none());
 
         manager.lock().unwrap().current = Some(test_session(8));
@@ -1614,7 +1741,7 @@ mod tests {
                 .unwrap()
                 .current
                 .as_ref()
-                .map(|session| session.session_id),
+                .map(RealPlaybackSession::session_id),
             Some(8)
         );
     }
@@ -1654,6 +1781,97 @@ mod tests {
     }
 
     #[test]
+    fn automatic_and_manual_commands_are_variant_isolated() {
+        let (manual_session, manual_receiver) = test_manual_session_with_receiver(7);
+        let manual_manager = RealPlaybackManager {
+            current: Some(manual_session),
+            next_session_id: 8,
+        };
+
+        assert!(command_sender_for_current_session(&manual_manager, 7).is_none());
+        manual_command_sender_for_current(&manual_manager, 7)
+            .unwrap()
+            .send(ManualPlaybackCommand::Stop)
+            .unwrap();
+        assert!(matches!(
+            manual_receiver.try_recv(),
+            Ok(ManualPlaybackCommand::Stop)
+        ));
+
+        let (automatic_session, automatic_receiver) = test_session_with_receiver(8);
+        let automatic_manager = RealPlaybackManager {
+            current: Some(automatic_session),
+            next_session_id: 9,
+        };
+
+        assert!(manual_command_sender_for_current(&automatic_manager, 8).is_none());
+        command_sender_for_current_session(&automatic_manager, 8)
+            .unwrap()
+            .send(PlaybackCommand::Pause)
+            .unwrap();
+        assert!(matches!(
+            automatic_receiver.try_recv(),
+            Ok(PlaybackCommand::Pause)
+        ));
+    }
+
+    #[test]
+    fn typed_stop_cannot_take_the_other_session_variant() {
+        let (manual_session, _) = test_manual_session_with_receiver(7);
+        let mut manual_manager = RealPlaybackManager {
+            current: Some(manual_session),
+            next_session_id: 8,
+        };
+        assert!(take_automatic_session_if_current(&mut manual_manager, 7).is_none());
+        assert!(manual_manager.current.is_some());
+
+        let mut automatic_manager = RealPlaybackManager {
+            current: Some(test_session(8)),
+            next_session_id: 9,
+        };
+        assert!(take_manual_session_if_current(&mut automatic_manager, 8).is_none());
+        assert!(automatic_manager.current.is_some());
+    }
+
+    #[test]
+    fn automatic_and_manual_replacement_stop_before_installing_new_session() {
+        let (automatic_session, automatic_receiver) = test_session_with_receiver(7);
+        let manager = Mutex::new(RealPlaybackManager {
+            current: Some(automatic_session),
+            next_session_id: 8,
+        });
+
+        let old_automatic = take_current_session_from(&manager).unwrap();
+        assert!(manager.try_lock().is_ok());
+        old_automatic.stop_and_join();
+        assert!(matches!(
+            automatic_receiver.try_recv(),
+            Ok(PlaybackCommand::Stop)
+        ));
+
+        let (manual_session, manual_receiver) = test_manual_session_with_receiver(8);
+        manager.lock().unwrap().current = Some(manual_session);
+        let old_manual = take_current_session_from(&manager).unwrap();
+        assert!(manager.try_lock().is_ok());
+        old_manual.stop_and_join();
+        assert!(matches!(
+            manual_receiver.try_recv(),
+            Ok(ManualPlaybackCommand::Stop)
+        ));
+
+        manager.lock().unwrap().current = Some(test_session(9));
+        assert_eq!(
+            manager
+                .lock()
+                .unwrap()
+                .current
+                .as_ref()
+                .map(RealPlaybackSession::session_id),
+            Some(9)
+        );
+    }
+
+    #[test]
     fn foreground_and_background_modes_use_distinct_events_with_the_shared_lifecycle() {
         assert_eq!(
             PlaybackOutputMode::Background.event_name(),
@@ -1674,7 +1892,10 @@ mod tests {
         });
 
         let previous_session = take_current_session_from(&manager);
-        assert_eq!(previous_session.map(|session| session.session_id), Some(7));
+        assert_eq!(
+            previous_session.map(|session| session.session_id()),
+            Some(7)
+        );
         manager.lock().unwrap().current = Some(test_session(8));
         assert_eq!(
             manager
@@ -1682,7 +1903,7 @@ mod tests {
                 .unwrap()
                 .current
                 .as_ref()
-                .map(|session| session.session_id),
+                .map(RealPlaybackSession::session_id),
             Some(8)
         );
     }

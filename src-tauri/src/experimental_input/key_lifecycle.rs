@@ -66,8 +66,7 @@ impl KeyLifecycle {
         self.next_live_key_up_deadline(now).is_some()
     }
 
-    #[cfg(test)]
-    fn has_live_active_keys(&self) -> bool {
+    pub(crate) fn has_active_keys(&self) -> bool {
         !self.active_generations.is_empty()
     }
 
@@ -252,7 +251,7 @@ mod tests {
         let mut lifecycle = KeyLifecycle::new();
         trigger_at(&mut lifecycle, &[("A".to_string(), 30.0)], now, &events);
 
-        assert!(lifecycle.has_live_active_keys());
+        assert!(lifecycle.has_active_keys());
         assert_eq!(
             lifecycle.next_live_key_up_deadline(now),
             Some(now + Duration::from_millis(30))
@@ -260,7 +259,7 @@ mod tests {
 
         release_at(&mut lifecycle, now + Duration::from_millis(30), &events);
 
-        assert!(!lifecycle.has_live_active_keys());
+        assert!(!lifecycle.has_active_keys());
         assert_eq!(events.into_inner(), ["down:A", "up:A"]);
     }
 
@@ -289,7 +288,7 @@ mod tests {
         release_at(&mut lifecycle, now + Duration::from_millis(1000), &events);
 
         assert_eq!(events.into_inner(), ["down:A,B,C", "up:A", "up:B", "up:C"]);
-        assert!(!lifecycle.has_live_active_keys());
+        assert!(!lifecycle.has_active_keys());
     }
 
     #[test]
@@ -337,7 +336,7 @@ mod tests {
             started_at + Duration::from_millis(1000),
             &events,
         );
-        assert!(lifecycle.has_live_active_keys());
+        assert!(lifecycle.has_active_keys());
         assert_eq!(events.borrow().as_slice(), ["down:A", "up:A", "down:A"]);
 
         release_at(
@@ -372,7 +371,7 @@ mod tests {
         );
 
         assert_eq!(result.unwrap_err(), "key-down failed");
-        assert!(!lifecycle.has_live_active_keys());
+        assert!(!lifecycle.has_active_keys());
         assert!(!lifecycle.has_live_future_key_ups(now));
         assert_eq!(
             events.into_inner(),
@@ -444,7 +443,7 @@ mod tests {
             Ok(())
         });
 
-        assert!(!lifecycle.has_live_active_keys());
+        assert!(!lifecycle.has_active_keys());
         assert!(lifecycle.next_live_key_up_deadline(now).is_none());
         assert_eq!(events.borrow().len(), 2);
         assert!(events.borrow()[1].starts_with("up:"));

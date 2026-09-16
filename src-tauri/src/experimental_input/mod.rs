@@ -18,6 +18,8 @@ mod key_lifecycle;
 #[cfg(windows)]
 mod key_mapping;
 #[cfg(windows)]
+mod manual_playback;
+#[cfg(windows)]
 mod playback_engine;
 #[cfg(windows)]
 mod prepared_playback_plan;
@@ -48,6 +50,13 @@ pub use foreground_input::send_foreground_key_group;
 #[cfg(windows)]
 pub(crate) use key_mapping::mapped_key_to_virtual_key;
 #[cfg(windows)]
+pub use manual_playback::{
+    start_prepared_manual_background_playback, start_prepared_manual_foreground_playback,
+    step_manual_playback, stop_manual_playback, ManualBackgroundPlaybackPreparedStartRequest,
+    ManualForegroundPlaybackPreparedStartRequest, ManualPlaybackSessionRequest,
+    ManualPlaybackStepResponse,
+};
+#[cfg(windows)]
 pub(crate) use sky_window_monitor::validate_monitored_sky_target;
 #[cfg(windows)]
 pub use sky_window_monitor::{
@@ -61,12 +70,15 @@ pub use stubs::{
     seek_background_playback, seek_foreground_playback, send_foreground_key_group,
     send_key_group_to_window_message, start_background_playback,
     start_prepared_background_playback, start_prepared_foreground_playback,
-    stop_background_playback, stop_current_background_playback_for_shutdown,
-    stop_foreground_playback, update_background_playback_options,
+    start_prepared_manual_background_playback, start_prepared_manual_foreground_playback,
+    step_manual_playback, stop_background_playback, stop_current_background_playback_for_shutdown,
+    stop_foreground_playback, stop_manual_playback, update_background_playback_options,
     update_foreground_playback_options, BackgroundPlaybackOptionsRequest,
     BackgroundPlaybackPreparePlanRequest, BackgroundPlaybackPreparePlanResponse,
     BackgroundPlaybackPreparedStartRequest, BackgroundPlaybackStartRequest,
     BackgroundPlaybackStartResponse, ForegroundPlaybackPreparedStartRequest,
+    ManualBackgroundPlaybackPreparedStartRequest, ManualForegroundPlaybackPreparedStartRequest,
+    ManualPlaybackSessionRequest, ManualPlaybackStepResponse,
 };
 #[cfg(not(windows))]
 pub use stubs::{

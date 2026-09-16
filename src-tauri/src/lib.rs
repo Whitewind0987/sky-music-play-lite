@@ -9,7 +9,9 @@ use experimental_input::{
     BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
     BackgroundPlaybackStartRequest, BackgroundPlaybackStartResponse, CandidateWindow,
-    ForegroundPlaybackPreparedStartRequest,
+    ForegroundPlaybackPreparedStartRequest, ManualBackgroundPlaybackPreparedStartRequest,
+    ManualForegroundPlaybackPreparedStartRequest, ManualPlaybackSessionRequest,
+    ManualPlaybackStepResponse,
 };
 
 #[tauri::command]
@@ -78,6 +80,34 @@ fn start_prepared_foreground_playback(
     request: ForegroundPlaybackPreparedStartRequest,
 ) -> Result<BackgroundPlaybackStartResponse, String> {
     experimental_input::start_prepared_foreground_playback(app, request)
+}
+
+#[tauri::command]
+fn start_prepared_manual_background_playback(
+    app: tauri::AppHandle,
+    request: ManualBackgroundPlaybackPreparedStartRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    experimental_input::start_prepared_manual_background_playback(app, request)
+}
+
+#[tauri::command]
+fn start_prepared_manual_foreground_playback(
+    app: tauri::AppHandle,
+    request: ManualForegroundPlaybackPreparedStartRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    experimental_input::start_prepared_manual_foreground_playback(app, request)
+}
+
+#[tauri::command]
+fn step_manual_playback(
+    request: ManualPlaybackSessionRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    experimental_input::step_manual_playback(request)
+}
+
+#[tauri::command]
+fn stop_manual_playback(request: ManualPlaybackSessionRequest) -> Result<(), String> {
+    experimental_input::stop_manual_playback(request)
 }
 
 #[tauri::command]
@@ -213,8 +243,12 @@ pub fn run() {
             start_score_recording,
             start_prepared_background_playback,
             start_prepared_foreground_playback,
+            start_prepared_manual_background_playback,
+            start_prepared_manual_foreground_playback,
+            step_manual_playback,
             stop_background_playback,
             stop_foreground_playback,
+            stop_manual_playback,
             stop_score_recording,
             update_background_playback_options,
             update_foreground_playback_options
