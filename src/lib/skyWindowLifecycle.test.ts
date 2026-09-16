@@ -285,6 +285,7 @@ describe("lifecycle support helpers", () => {
   it("blocks manual candidate selection during active or pending playback", () => {
     expect(isManualTargetSelectionLocked({ activeSessionId: 12, isHandoffPending: false })).toBe(true);
     expect(isManualTargetSelectionLocked({ activeSessionId: null, isHandoffPending: true })).toBe(true);
+    expect(isManualTargetSelectionLocked({ activeSessionId: null, isHandoffPending: false, isManualTargetEngaged: true })).toBe(true);
   });
 
   it("allows target selection while idle", () => {

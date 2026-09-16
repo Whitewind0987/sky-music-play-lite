@@ -110,6 +110,47 @@ export type ForegroundPlaybackPreparedStartRequest = {
   preparedPlanId: number;
 };
 
+export type ManualPlaybackStepState = "active" | "tail";
+
+export type ManualPlaybackStepResponse = {
+  sessionId: number;
+  groupIndex: number;
+  groupCount: number;
+  sourceTimeMs: number;
+  totalMs: number;
+  hasNextGroup: boolean;
+  didAdvance: boolean;
+  state: ManualPlaybackStepState;
+};
+
+export type ManualPlaybackProgress = {
+  currentMs: number;
+  totalMs: number;
+  groupIndex: number;
+  groupCount: number;
+  hasNextGroup: boolean;
+};
+
+export type ManualPlaybackEventPayload = {
+  sessionId: number;
+  type: "finished" | "error";
+  state: "finished" | "error";
+  error?: string;
+  progress?: ManualPlaybackProgress;
+};
+
+export type ManualBackgroundPlaybackPreparedStartRequest = {
+  preparedPlanId: number;
+  hwnd: string;
+  compatibilityProfile: TargetWindowCompatibilityProfile;
+  keyHoldMs: number;
+};
+
+export type ManualForegroundPlaybackPreparedStartRequest = {
+  preparedPlanId: number;
+  keyHoldMs: number;
+};
+
 export type BackgroundPlaybackStartResponse = {
   sessionId: number;
   totalMs: number;
@@ -352,6 +393,38 @@ export function startPreparedForegroundPlayback(
   );
 }
 
+export function startPreparedManualBackgroundPlayback(
+  request: ManualBackgroundPlaybackPreparedStartRequest,
+): Promise<ManualPlaybackStepResponse> {
+  return invoke<ManualPlaybackStepResponse>(
+    "start_prepared_manual_background_playback",
+    { request },
+  );
+}
+
+export function startPreparedManualForegroundPlayback(
+  request: ManualForegroundPlaybackPreparedStartRequest,
+): Promise<ManualPlaybackStepResponse> {
+  return invoke<ManualPlaybackStepResponse>(
+    "start_prepared_manual_foreground_playback",
+    { request },
+  );
+}
+
+export function stepManualPlayback(
+  sessionId: number,
+): Promise<ManualPlaybackStepResponse> {
+  return invoke<ManualPlaybackStepResponse>("step_manual_playback", {
+    request: { sessionId },
+  });
+}
+
+export function stopManualPlayback(sessionId: number): Promise<void> {
+  return invoke<void>("stop_manual_playback", {
+    request: { sessionId },
+  });
+}
+
 export function pauseBackgroundPlayback(sessionId: number): Promise<void> {
   return invoke<void>("pause_background_playback", { sessionId });
 }
@@ -434,6 +507,12 @@ export function listenForegroundPlaybackEvents(
     "foreground-playback-event",
     handler,
   );
+}
+
+export function listenManualPlaybackEvents(
+  handler: (event: Event<ManualPlaybackEventPayload>) => void,
+): Promise<UnlistenFn> {
+  return listen<ManualPlaybackEventPayload>("manual-playback-event", handler);
 }
 
 export function getAppRuntimeInfo(): Promise<AppRuntimeInfo> {

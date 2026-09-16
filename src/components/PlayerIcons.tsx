@@ -7,6 +7,7 @@ import {
   Shuffle,
   SkipForward,
   Square,
+  StepForward,
   type LucideIcon,
 } from "lucide-react";
 
@@ -79,6 +80,17 @@ export function NextIcon(props: PlayerIconProps) {
       className={`player-icon-next${props.className ? ` ${props.className}` : ""}`}
       filled
       strokeWidth={2.2}
+    />
+  );
+}
+
+export function ManualStepIcon(props: PlayerIconProps) {
+  return (
+    <PlayerIconBase
+      {...props}
+      Icon={StepForward}
+      className={`player-icon-manual-step${props.className ? ` ${props.className}` : ""}`}
+      strokeWidth={2}
     />
   );
 }

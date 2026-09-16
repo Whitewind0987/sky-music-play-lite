@@ -12,6 +12,7 @@ import type {
   ScoreVisualNote,
   ScoreVisualPage,
   ScoreVisualRenderWindow,
+  ScoreVisualizationTimingMode,
 } from "../types/scoreVisualization";
 import {
   calculateScoreTiming,
@@ -27,6 +28,15 @@ export const SCORE_VISUAL_PAGE_COLUMNS = 5;
 export const SCORE_VISUAL_PAGE_ROWS = 3;
 export const SCORE_VISUAL_GROUPS_PER_PAGE =
   SCORE_VISUAL_PAGE_COLUMNS * SCORE_VISUAL_PAGE_ROWS;
+
+export function resolveScoreVisualizationTimingOptions(
+  timingMode: ScoreVisualizationTimingMode,
+  automaticOptions: ScoreTimingOptions,
+): ScoreTimingOptions {
+  return timingMode === "source"
+    ? { noteIntervalDelayMs: 0, playbackSpeed: 1 }
+    : automaticOptions;
+}
 
 export type SkyVisualNoteLabel =
   | "A"

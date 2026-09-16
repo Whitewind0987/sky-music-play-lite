@@ -160,11 +160,13 @@ export function resolveUnboundSkyMonitorStatus({
 export function isManualTargetSelectionLocked({
   activeSessionId,
   isHandoffPending,
+  isManualTargetEngaged = false,
 }: {
   activeSessionId: number | null;
   isHandoffPending: boolean;
+  isManualTargetEngaged?: boolean;
 }): boolean {
-  return activeSessionId !== null || isHandoffPending;
+  return activeSessionId !== null || isHandoffPending || isManualTargetEngaged;
 }
 
 export function getInvalidStartFailureDecision({

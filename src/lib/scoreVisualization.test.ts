@@ -10,6 +10,7 @@ import {
   getScoreVisualPageIndexForGroup,
   getScoreVisualRenderWindow,
   paginateScoreVisualGroups,
+  resolveScoreVisualizationTimingOptions,
   SCORE_VISUAL_GROUPS_PER_PAGE,
   SCORE_VISUAL_PAGE_COLUMNS,
   SCORE_VISUAL_PAGE_ROWS,
@@ -68,6 +69,19 @@ function recordingSession(
 }
 
 describe("buildScoreVisualization", () => {
+  it("uses source timing for Manual without changing Automatic options", () => {
+    const automatic = { noteIntervalDelayMs: 200, playbackSpeed: 2 };
+
+    expect(resolveScoreVisualizationTimingOptions("automatic", automatic)).toBe(
+      automatic,
+    );
+    expect(resolveScoreVisualizationTimingOptions("source", automatic)).toEqual({
+      noteIntervalDelayMs: 0,
+      playbackSpeed: 1,
+    });
+    expect(automatic).toEqual({ noteIntervalDelayMs: 200, playbackSpeed: 2 });
+  });
+
   it("groups an exact chord and exposes keys in canonical order", () => {
     const model = buildScoreVisualization(
       [

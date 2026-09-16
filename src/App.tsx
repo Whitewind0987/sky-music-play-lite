@@ -353,6 +353,7 @@ function App() {
         activePlaybackSongIds: [
           previewPlayback.getActivePreviewPlaybackSongId(),
           experimentalInput.getActiveForegroundPlaybackSongId(),
+          experimentalInput.getActiveManualPlaybackSongId(),
           experimentalInput.getActiveTargetWindowPlaybackSongId(),
         ],
         removedPlaybackSongId,
@@ -401,6 +402,9 @@ function App() {
     experimentalInput.foregroundPlaybackState === "playing" ||
     experimentalInput.foregroundPlaybackState === "paused" ||
     experimentalInput.isForegroundStartPending ||
+    experimentalInput.manualPlaybackState === "starting" ||
+    experimentalInput.manualPlaybackState === "active" ||
+    experimentalInput.manualPlaybackState === "tail" ||
     experimentalInput.isExperimentalPlaybackRunning;
   const scoreUpgradeGuard = useScoreUpgradeGuard({
     appendLog,
@@ -831,14 +835,16 @@ function App() {
       return (
         <div className="playback-workspace-content">
           <PlaybackScorePreview
+            followsProgress={playbackOutput.visualizationFollowsProgress}
             hasLoadFailed={playerScoreVisualization.hasLoadFailed}
             isLoading={playerScoreVisualization.isLoading}
             noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
             playbackSpeed={playbackOutput.playbackSpeed}
-            playbackState={playbackOutput.playbackState}
             progress={playbackOutput.progress}
+            showsActiveKeys={playbackOutput.visualizationShowsActiveKeys}
             song={playerScoreVisualization.resolvedSong}
             text={text.playbackScorePreview}
+            timingMode={playbackOutput.visualizationTimingMode}
           />
         </div>
       );
@@ -1072,14 +1078,15 @@ function App() {
       ) : null}
 
       <PlayerScoreVisualizer
+        followsProgress={playbackOutput.visualizationFollowsProgress}
         hasLoadFailed={playerScoreVisualization.hasLoadFailed}
         isLoading={playerScoreVisualization.isLoading}
         isOpen={playerScoreVisualization.isOpen}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onClose={playerScoreVisualization.close}
         playbackSpeed={playbackOutput.playbackSpeed}
-        playbackState={playbackOutput.playbackState}
         progress={playbackOutput.progress}
+        showsActiveKeys={playbackOutput.visualizationShowsActiveKeys}
         song={playerScoreVisualization.resolvedSong}
         songTitle={
           scoreLibrary.currentPlaybackSong === null
@@ -1087,21 +1094,26 @@ function App() {
             : getLibrarySongName(scoreLibrary.currentPlaybackSong)
         }
         text={text.playerScoreVisualization}
+        timingMode={playbackOutput.visualizationTimingMode}
       />
       <BottomPlayer
+        canManualStep={playbackOutput.canManualStep}
         canPlay={playbackOutput.canPlay}
         canSeek={playbackOutput.canSeek}
+        canStop={playbackOutput.canStop}
         canOpenVisualization={playerScoreVisualization.canOpen}
         currentSong={scoreLibrary.currentPlaybackSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
         isVisualizationOpen={playerScoreVisualization.isOpen}
+        manualState={playbackOutput.manualState}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
         onNext={playbackCoordinator.handleNextPlayback}
         onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
+        onManualStep={playbackOutput.onManualStep}
         onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
         onPlay={playbackCoordinator.handleBottomPlayerPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}

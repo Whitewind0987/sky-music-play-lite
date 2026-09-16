@@ -14,6 +14,7 @@ import {
   getLibrarySongNoteCount,
 } from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { LibrarySong } from "../types/library";
@@ -30,6 +31,7 @@ import { QueuePanel } from "./QueuePanel";
 import {
   PauseIcon,
   PlayIcon,
+  ManualStepIcon,
   NextIcon,
   QueueIcon,
   RepeatIcon,
@@ -39,20 +41,24 @@ import {
 } from "./PlayerIcons";
 
 type BottomPlayerProps = {
+  canManualStep: boolean;
   canPlay: boolean;
   canSeek: boolean;
+  canStop: boolean;
   canOpenVisualization: boolean;
   currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
   isVisualizationOpen: boolean;
+  manualState: ManualPlaybackUiState;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onNext: () => void;
   onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
+  onManualStep: () => void;
   onPlay: () => void;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onQueueClear: () => void;
@@ -205,20 +211,24 @@ function PlayerStepper({
 }
 
 export function BottomPlayer({
+  canManualStep,
   canPlay,
   canSeek,
+  canStop,
   canOpenVisualization,
   currentSong,
   isCurrentSongLoading,
   isShuffleEnabled,
   isRealInputOutput,
   isVisualizationOpen,
+  manualState,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onNext,
   onVisualizationOpen,
   onPlayQueueItem,
   onPause,
+  onManualStep,
   onPlay,
   onPlaybackSpeedChange,
   onQueueClear,
@@ -251,7 +261,6 @@ export function BottomPlayer({
   const isV2Song =
     currentSong !== null && getLibrarySongFormatVersion(currentSong) === 2;
   const canResume = playbackState === "paused";
-  const canStop = playbackState === "playing" || playbackState === "paused";
   const primaryAction =
     playbackState === "playing"
       ? {
@@ -584,7 +593,10 @@ export function BottomPlayer({
               {currentSong ? getLibrarySongNoteCount(currentSong) : "--"}
             </span>
             <span className="bottom-player-meta-item">
-              {text.state}: {text.states[playbackState]}
+              {text.state}:{" "}
+              {manualState === "idle"
+                ? text.states[playbackState]
+                : text.manualStates[manualState]}
             </span>
             <span className="bottom-player-meta-item bottom-player-time">
               {formatPlaybackTime(progress.currentMs)} /{" "}
@@ -630,6 +642,19 @@ export function BottomPlayer({
           >
             {primaryAction.icon}
           </button>
+          {isRealInputOutput ? (
+            <button
+              className="player-icon-button player-icon-button-secondary player-icon-button-manual-step"
+              type="button"
+              aria-label={text.manualStep}
+              disabled={!canManualStep || isCurrentSongLoading}
+              title={text.manualStep}
+              onClick={onManualStep}
+            >
+              <ManualStepIcon />
+              <span className="visually-hidden">{text.manualStep}</span>
+            </button>
+          ) : null}
           <button
             className="player-icon-button player-icon-button-secondary"
             type="button"

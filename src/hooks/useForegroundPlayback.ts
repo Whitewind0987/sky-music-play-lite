@@ -75,7 +75,7 @@ type ForegroundPlaybackContext = {
 };
 
 const COUNTDOWN_START_SECONDS = 3;
-const FOREGROUND_KEY_HOLD_MS = 40;
+export const FOREGROUND_KEY_HOLD_MS = 40;
 
 export function useForegroundPlayback({
   appendLog,

@@ -78,7 +78,11 @@ import type {
   PlaybackSpeed,
 } from "../types/playbackOptions";
 import type { Song } from "../types/score";
-import { useForegroundPlayback } from "./useForegroundPlayback";
+import {
+  FOREGROUND_KEY_HOLD_MS,
+  useForegroundPlayback,
+} from "./useForegroundPlayback";
+import { useManualPlayback } from "./useManualPlayback";
 import { usePlaybackPlanPreparation } from "./usePlaybackPlanPreparation";
 
 type SelectedWindowSnapshot = NonNullable<
@@ -247,6 +251,21 @@ export function useExperimentalInput({
       keyMapping,
       resolveSongForPlayback,
     });
+  const manualPlayback = useManualPlayback({
+    appendLog,
+    currentSongId: currentSong?.id ?? null,
+    experimentalInputEnabled,
+    foregroundKeyHoldMs: FOREGROUND_KEY_HOLD_MS,
+    getOrPreparePlaybackPlan,
+    invalidatePlaybackPlan,
+    outputMode:
+      experimentalInputMode === "foreground" ? "foreground" : "target-window",
+    showNotice,
+    targetWindowCompatibilityProfile,
+    targetWindowHwnd: selectedWindowHwnd,
+    targetWindowKeyHoldMs,
+    text,
+  });
 
   const selectedWindow = useMemo(
     () =>
@@ -277,6 +296,7 @@ export function useExperimentalInput({
     isShuffleEnabled,
     noteIntervalDelayMs,
     onBeforeStart: () => {
+      manualPlayback.resetForAutomaticStart();
       stopPreviewPlayback();
       stopExperimentalPlayback({ logStopped: false });
     },
@@ -293,6 +313,49 @@ export function useExperimentalInput({
     consumeQueuedItemAfterCurrent,
     peekNextQueueItemAfterCurrent,
   });
+  const hasConflictingAutomaticPlayback =
+    isStartingExperimentalPlayback ||
+    isBackgroundHandoffPending ||
+    experimentalPlaybackState === "playing" ||
+    experimentalPlaybackState === "paused" ||
+    foregroundPlayback.isForegroundStartPending ||
+    foregroundPlayback.isForegroundPlaybackActive;
+  const canStepManualPlayback =
+    experimentalInputEnabled &&
+    currentSong !== null &&
+    selectedSongIndex !== null &&
+    manualPlayback.state !== "starting" &&
+    manualPlayback.state !== "tail" &&
+    !hasConflictingAutomaticPlayback &&
+    (experimentalInputMode === "foreground" || selectedWindowHwnd !== null);
+
+  async function handleStepManualPlayback() {
+    if (
+      !canStepManualPlayback ||
+      currentSong === null ||
+      selectedSongIndex === null
+    ) {
+      return false;
+    }
+
+    stopPreviewPlayback();
+    setRequestedPlaybackSongIndex(selectedSongIndex);
+    return manualPlayback.handleStep({
+      songId: currentSong.id,
+      songIndex: selectedSongIndex,
+      songName: getLibrarySongName(currentSong),
+    });
+  }
+
+  async function handleStartForegroundPlayback() {
+    manualPlayback.resetForAutomaticStart();
+    return foregroundPlayback.handleStartForegroundPlayback();
+  }
+
+  async function handlePlayForegroundSong(songIndex: number) {
+    manualPlayback.resetForAutomaticStart();
+    return foregroundPlayback.handlePlayForegroundSong(songIndex);
+  }
 
   backgroundPlaybackEventHandlerRef.current = handleBackgroundPlaybackEvent;
   monitorHandlerRef.current = applySkyMonitorSnapshot;
@@ -357,6 +420,9 @@ export function useExperimentalInput({
       selectedWindowSnapshot: selectedWindowSnapshotRef.current,
     });
     clearTargetSelection();
+    if (manualPlayback.isTargetWindowEngaged) {
+      manualPlayback.resetForLifecycleChange();
+    }
     manualDetectedSkyRevisionRef.current = null;
     if (!lifecycleDecision.enterReconnecting) {
       awaitingSkyReconnectRef.current = false;
@@ -387,6 +453,7 @@ export function useExperimentalInput({
     return isManualTargetSelectionLocked({
       activeSessionId: activeBackgroundSessionIdRef.current,
       isHandoffPending: isBackgroundHandoffPendingRef.current,
+      isManualTargetEngaged: manualPlayback.isTargetWindowEngaged,
     });
   }
 
@@ -445,8 +512,16 @@ export function useExperimentalInput({
     const previousRevision = appliedMonitorRevisionRef.current;
     appliedMonitorRevisionRef.current = snapshot.revision;
     updateCandidateWindows(decision.candidateWindows);
-    const hadTargetPlayback = activeBackgroundSessionIdRef.current !== null || isBackgroundHandoffPendingRef.current;
-    if (decision.stopTargetPlayback) stopExperimentalPlayback({ logStopped: false });
+    const hadTargetPlayback =
+      activeBackgroundSessionIdRef.current !== null ||
+      isBackgroundHandoffPendingRef.current ||
+      manualPlayback.isTargetWindowEngaged;
+    if (decision.stopTargetPlayback) {
+      stopExperimentalPlayback({ logStopped: false });
+    }
+    if (decision.stopTargetPlayback && manualPlayback.isTargetWindowEngaged) {
+      manualPlayback.resetForLifecycleChange();
+    }
     if (
       decision.bindWindow !== null &&
       shouldLogReplacementPlaybackStop({
@@ -649,6 +724,7 @@ export function useExperimentalInput({
 
   function handleExperimentalInputEnabledChange(enabled: boolean) {
     if (!enabled) {
+      manualPlayback.resetForLifecycleChange();
       stopExperimentalPlayback({ logStopped: false });
       foregroundPlayback.handleStopForegroundPlayback();
     }
@@ -670,6 +746,7 @@ export function useExperimentalInput({
 
     stopExperimentalPlayback({ logStopped: false });
     foregroundPlayback.handleStopForegroundPlayback();
+    manualPlayback.resetForLifecycleChange();
 
     if (mode === "target-window-message") {
       const normalizedProfile = normalizeTargetWindowCompatibilityProfile(
@@ -951,6 +1028,8 @@ export function useExperimentalInput({
     songIndex: number,
     { initialSeekMs }: { initialSeekMs?: number } = {},
   ) {
+    manualPlayback.resetForAutomaticStart();
+
     if (
       (selectedWindowHwndRef.current === null || isSkySnapshot(selectedWindowSnapshotRef.current)) &&
       !(await ensureTargetWindowAvailableForPlayback())
@@ -1636,6 +1715,7 @@ export function useExperimentalInput({
   return {
     applyExperimentalInputPreferences,
     canAttemptExperimentalPlayback,
+    canStepManualPlayback,
     canStartExperimentalPlayback,
     canStopExperimentalPlayback,
     candidateWindows,
@@ -1649,6 +1729,8 @@ export function useExperimentalInput({
     foregroundPlaybackState: foregroundPlayback.foregroundPlaybackState,
     getActiveForegroundPlaybackSongId:
       foregroundPlayback.getActiveForegroundPlaybackSongId,
+    getActiveManualPlaybackSongId: () =>
+      manualPlayback.isEngaged ? manualPlayback.manualSongId : null,
     getActiveTargetWindowPlaybackSongId,
     handleDetectSkyWindow,
     ensureTargetWindowAvailableForPlayback,
@@ -1658,7 +1740,7 @@ export function useExperimentalInput({
     handlePauseForegroundPlayback:
       foregroundPlayback.handlePauseForegroundPlayback,
     handlePlayExperimentalSong,
-    handlePlayForegroundSong: foregroundPlayback.handlePlayForegroundSong,
+    handlePlayForegroundSong,
     handleRefreshWindows,
     handleResumeExperimentalPlayback,
     handleResumeForegroundPlayback:
@@ -1667,8 +1749,9 @@ export function useExperimentalInput({
     handleSeekForegroundPlayback:
       foregroundPlayback.handleSeekForegroundPlayback,
     handleStartExperimentalPlayback,
-    handleStartForegroundPlayback:
-      foregroundPlayback.handleStartForegroundPlayback,
+    handleStartForegroundPlayback,
+    handleStepManualPlayback,
+    handleStopManualPlayback: manualPlayback.stop,
     handleStopForegroundPlayback:
       foregroundPlayback.handleStopForegroundPlayback,
     handleStopExperimentalPlayback,
@@ -1677,15 +1760,22 @@ export function useExperimentalInput({
       isStartingExperimentalPlayback ||
       isBackgroundHandoffPending ||
       foregroundPlayback.isForegroundStartPending ||
+      manualPlayback.isEngaged ||
       experimentalPlaybackState === "playing" ||
       experimentalPlaybackState === "paused",
     isBackgroundHandoffPending,
     isTargetWindowSelectionLocked:
       activeBackgroundSessionIdRef.current !== null ||
-      isBackgroundHandoffPending,
+      isBackgroundHandoffPending ||
+      manualPlayback.isTargetWindowEngaged,
     isForegroundStartPending: foregroundPlayback.isForegroundStartPending,
     isRefreshingWindows,
     lastError,
+    manualPlaybackOutputMode: manualPlayback.manualOutputMode,
+    manualPlaybackProgress: manualPlayback.progress,
+    manualPlaybackShowsProgress: manualPlayback.showsProgress,
+    manualPlaybackSongId: manualPlayback.manualSongId,
+    manualPlaybackState: manualPlayback.state,
     selectedWindow,
     selectedWindowHwnd,
     selectedWindowSnapshot,
