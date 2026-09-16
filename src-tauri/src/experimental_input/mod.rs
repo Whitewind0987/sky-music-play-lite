@@ -14,9 +14,13 @@ mod background_playback;
 #[cfg(windows)]
 mod foreground_input;
 #[cfg(windows)]
+mod key_lifecycle;
+#[cfg(windows)]
 mod key_mapping;
 #[cfg(windows)]
 mod playback_engine;
+#[cfg(windows)]
+mod prepared_playback_plan;
 #[cfg(windows)]
 mod sky_window_monitor;
 #[cfg(not(windows))]

@@ -1,6 +1,12 @@
+use super::key_lifecycle::KeyLifecycle;
 use super::playback_engine::PlaybackOutput;
+#[cfg(test)]
+use super::prepared_playback_plan::build_source_groups;
+use super::prepared_playback_plan::{
+    build_prepared_plan, get_prepared_plan, insert_prepared_plan, BackgroundPlaybackPlanEvent,
+    PlannedKey, PreparedPlaybackGroup, PreparedPlaybackPlan,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
@@ -10,24 +16,7 @@ use tauri::{AppHandle, Emitter};
 const BACKGROUND_PLAYBACK_EVENT: &str = "background-playback-event";
 const FOREGROUND_PLAYBACK_EVENT: &str = "foreground-playback-event";
 const NOTE_HIGHLIGHT_MS: f64 = 300.0;
-const MAX_EXPLICIT_HOLD_MS: f64 = 60000.0;
 const PROGRESS_EVENT_INTERVAL_MS: f64 = 150.0;
-const MAX_PREPARED_PLAYBACK_PLANS: usize = 32;
-
-#[derive(Debug, Clone, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PlannedKey {
-    pub key: String,
-    #[serde(default)]
-    pub hold_ms: Option<f64>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BackgroundPlaybackPlanEvent {
-    pub time_ms: f64,
-    pub keys: Vec<PlannedKey>,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,7 +109,6 @@ struct PlaybackOptions {
 
 #[derive(Debug, Clone)]
 struct TimelineGroup {
-    source_time_ms: f64,
     adjusted_start_ms: f64,
     keys: Arc<[PlannedKey]>,
 }
@@ -136,13 +124,6 @@ struct PlaybackTimeline {
 struct OptionUpdateRemap {
     next_group_index: usize,
     segment_ratio: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ScheduledKeyUp {
-    deadline_at: Instant,
-    generation: u64,
-    key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -188,48 +169,34 @@ impl PlaybackOutputMode {
         }
     }
 
-    fn shared_manager(self) -> &'static Mutex<BackgroundPlaybackManager> {
+    fn shared_manager(self) -> &'static Mutex<RealPlaybackManager> {
         let _ = self;
-        manager()
+        real_playback_manager()
     }
 }
 
-struct BackgroundPlaybackManager {
-    current: Option<BackgroundPlaybackSession>,
+struct RealPlaybackManager {
+    current: Option<RealPlaybackSession>,
     next_session_id: u64,
 }
 
-struct PreparedPlaybackPlanCache {
-    entries: HashMap<u64, Arc<PreparedPlaybackPlan>>,
-    next_plan_id: u64,
-    order: VecDeque<u64>,
-}
-
-#[derive(Debug)]
-struct PreparedPlaybackPlan {
-    groups: Arc<[TimelineGroup]>,
-    unique_keys: Arc<[String]>,
-}
-
-struct BackgroundPlaybackSession {
+struct RealPlaybackSession {
     session_id: u64,
     command_tx: Sender<PlaybackCommand>,
     worker: Option<JoinHandle<()>>,
 }
 
 struct BackgroundPlaybackWorker {
-    active_generations: HashMap<String, u64>,
     app_handle: AppHandle,
     command_rx: mpsc::Receiver<PlaybackCommand>,
+    key_lifecycle: KeyLifecycle,
     key_hold_ms: f64,
     logged_first_key_down: bool,
-    next_generation: u64,
     next_group_index: usize,
     next_progress_event_ms: f64,
     options: PlaybackOptions,
     position_ms: f64,
     prepared_plan: Arc<PreparedPlaybackPlan>,
-    scheduled_key_ups: Vec<ScheduledKeyUp>,
     session_id: u64,
     start_rx: Receiver<()>,
     started_at: Instant,
@@ -239,9 +206,8 @@ struct BackgroundPlaybackWorker {
     timeline: PlaybackTimeline,
 }
 
-static BACKGROUND_PLAYBACK_MANAGER: OnceLock<Mutex<BackgroundPlaybackManager>> = OnceLock::new();
-static BACKGROUND_PLAYBACK_LIFECYCLE: OnceLock<Mutex<()>> = OnceLock::new();
-static PREPARED_PLAYBACK_PLAN_CACHE: OnceLock<Mutex<PreparedPlaybackPlanCache>> = OnceLock::new();
+static REAL_PLAYBACK_MANAGER: OnceLock<Mutex<RealPlaybackManager>> = OnceLock::new();
+static REAL_PLAYBACK_LIFECYCLE: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn prepare_background_playback_plan(
     request: BackgroundPlaybackPreparePlanRequest,
@@ -384,9 +350,9 @@ where
         request.initial_progress_ms.unwrap_or(0.0),
         timeline.total_ms,
     );
-    let _lifecycle_guard = lifecycle()
+    let _lifecycle_guard = real_playback_lifecycle()
         .lock()
-        .expect("background playback lifecycle poisoned");
+        .expect("real playback lifecycle poisoned");
 
     stop_current_session();
     let previous_session_stopped_at = Instant::now();
@@ -397,18 +363,16 @@ where
     let total_ms = timeline.total_ms;
     let worker_timeline = timeline;
     let worker = BackgroundPlaybackWorker {
-        active_generations: HashMap::new(),
         app_handle,
         command_rx,
+        key_lifecycle: KeyLifecycle::new(),
         key_hold_ms: request.key_hold_ms as f64,
         logged_first_key_down: false,
-        next_generation: 1,
         next_group_index: find_next_group_index(&worker_timeline, initial_progress_ms),
         next_progress_event_ms: initial_progress_ms + PROGRESS_EVENT_INTERVAL_MS,
         options,
         position_ms: initial_progress_ms,
         prepared_plan,
-        scheduled_key_ups: Vec::new(),
         session_id,
         start_rx,
         started_at: Instant::now(),
@@ -424,8 +388,8 @@ where
         let mut manager = output_mode
             .shared_manager()
             .lock()
-            .expect("background playback manager poisoned");
-        manager.current = Some(BackgroundPlaybackSession {
+            .expect("real playback manager poisoned");
+        manager.current = Some(RealPlaybackSession {
             session_id,
             command_tx,
             worker: Some(worker_handle),
@@ -501,7 +465,7 @@ pub fn update_background_playback_options(
 }
 
 pub fn stop_background_playback(session_id: u64) -> Result<(), String> {
-    let session = take_session_if_current_from(manager(), session_id);
+    let session = take_session_if_current_from(real_playback_manager(), session_id);
 
     if let Some(session) = session {
         session.stop_and_join();
@@ -511,9 +475,9 @@ pub fn stop_background_playback(session_id: u64) -> Result<(), String> {
 }
 
 pub fn stop_current_background_playback_for_shutdown() {
-    let _lifecycle_guard = lifecycle()
+    let _lifecycle_guard = real_playback_lifecycle()
         .lock()
-        .expect("background playback lifecycle poisoned");
+        .expect("real playback lifecycle poisoned");
 
     stop_current_session();
 }
@@ -540,95 +504,24 @@ pub fn update_foreground_playback_options(
     update_background_playback_options(request)
 }
 
-fn manager() -> &'static Mutex<BackgroundPlaybackManager> {
-    BACKGROUND_PLAYBACK_MANAGER.get_or_init(|| {
-        Mutex::new(BackgroundPlaybackManager {
+fn real_playback_manager() -> &'static Mutex<RealPlaybackManager> {
+    REAL_PLAYBACK_MANAGER.get_or_init(|| {
+        Mutex::new(RealPlaybackManager {
             current: None,
             next_session_id: 1,
         })
     })
 }
 
-fn lifecycle() -> &'static Mutex<()> {
-    BACKGROUND_PLAYBACK_LIFECYCLE.get_or_init(|| Mutex::new(()))
-}
-
-fn prepared_plan_cache() -> &'static Mutex<PreparedPlaybackPlanCache> {
-    PREPARED_PLAYBACK_PLAN_CACHE.get_or_init(|| {
-        Mutex::new(PreparedPlaybackPlanCache {
-            entries: HashMap::new(),
-            next_plan_id: 1,
-            order: VecDeque::new(),
-        })
-    })
-}
-
-fn insert_prepared_plan(plan: PreparedPlaybackPlan) -> u64 {
-    let mut cache = prepared_plan_cache()
-        .lock()
-        .expect("prepared playback plan cache poisoned");
-    insert_prepared_plan_into_cache(&mut cache, plan, MAX_PREPARED_PLAYBACK_PLANS)
-}
-
-fn get_prepared_plan(plan_id: u64) -> Result<Arc<PreparedPlaybackPlan>, String> {
-    let mut cache = prepared_plan_cache()
-        .lock()
-        .expect("prepared playback plan cache poisoned");
-
-    get_prepared_plan_from_cache(&mut cache, plan_id)
-}
-
-fn insert_prepared_plan_into_cache(
-    cache: &mut PreparedPlaybackPlanCache,
-    plan: PreparedPlaybackPlan,
-    max_entries: usize,
-) -> u64 {
-    let plan_id = cache.next_plan_id;
-
-    cache.next_plan_id = cache.next_plan_id.saturating_add(1).max(1);
-    cache.entries.insert(plan_id, Arc::new(plan));
-    cache.order.push_back(plan_id);
-
-    while cache.entries.len() > max_entries {
-        if let Some(expired_plan_id) = cache.order.pop_front() {
-            cache.entries.remove(&expired_plan_id);
-        } else {
-            break;
-        }
-    }
-
-    plan_id
-}
-
-fn get_prepared_plan_from_cache(
-    cache: &mut PreparedPlaybackPlanCache,
-    plan_id: u64,
-) -> Result<Arc<PreparedPlaybackPlan>, String> {
-    let plan = cache.entries.get(&plan_id).cloned().ok_or_else(|| {
-        format!("Prepared background playback plan is no longer available. id: {plan_id}")
-    })?;
-
-    touch_prepared_plan(cache, plan_id);
-    Ok(plan)
-}
-
-fn touch_prepared_plan(cache: &mut PreparedPlaybackPlanCache, plan_id: u64) {
-    if let Some(position) = cache
-        .order
-        .iter()
-        .position(|current_id| *current_id == plan_id)
-    {
-        cache.order.remove(position);
-    }
-
-    cache.order.push_back(plan_id);
+fn real_playback_lifecycle() -> &'static Mutex<()> {
+    REAL_PLAYBACK_LIFECYCLE.get_or_init(|| Mutex::new(()))
 }
 
 fn next_session_id(output_mode: PlaybackOutputMode) -> u64 {
     let mut manager = output_mode
         .shared_manager()
         .lock()
-        .expect("background playback manager poisoned");
+        .expect("real playback manager poisoned");
     let session_id = manager.next_session_id;
     manager.next_session_id = manager.next_session_id.saturating_add(1).max(1);
     session_id
@@ -636,44 +529,36 @@ fn next_session_id(output_mode: PlaybackOutputMode) -> u64 {
 
 fn stop_current_session() {
     // Taking the session drops the manager lock before its worker can be joined.
-    let session = take_current_session_from(manager());
+    let session = take_current_session_from(real_playback_manager());
 
     if let Some(session) = session {
         session.stop_and_join();
     }
 }
 
-fn take_current_session_from(
-    manager: &Mutex<BackgroundPlaybackManager>,
-) -> Option<BackgroundPlaybackSession> {
-    let mut manager = manager
-        .lock()
-        .expect("background playback manager poisoned");
+fn take_current_session_from(manager: &Mutex<RealPlaybackManager>) -> Option<RealPlaybackSession> {
+    let mut manager = manager.lock().expect("real playback manager poisoned");
 
     take_current_session(&mut manager)
 }
 
 fn take_session_if_current_from(
-    manager: &Mutex<BackgroundPlaybackManager>,
+    manager: &Mutex<RealPlaybackManager>,
     session_id: u64,
-) -> Option<BackgroundPlaybackSession> {
-    let mut manager = manager
-        .lock()
-        .expect("background playback manager poisoned");
+) -> Option<RealPlaybackSession> {
+    let mut manager = manager.lock().expect("real playback manager poisoned");
 
     take_session_if_current(&mut manager, session_id)
 }
 
-fn take_current_session(
-    manager: &mut BackgroundPlaybackManager,
-) -> Option<BackgroundPlaybackSession> {
+fn take_current_session(manager: &mut RealPlaybackManager) -> Option<RealPlaybackSession> {
     manager.current.take()
 }
 
 fn take_session_if_current(
-    manager: &mut BackgroundPlaybackManager,
+    manager: &mut RealPlaybackManager,
     session_id: u64,
-) -> Option<BackgroundPlaybackSession> {
+) -> Option<RealPlaybackSession> {
     if matches!(manager.current.as_ref(), Some(current) if current.session_id == session_id) {
         return manager.current.take();
     }
@@ -683,9 +568,9 @@ fn take_session_if_current(
 
 fn send_command_to_session(session_id: u64, command: PlaybackCommand) -> Result<(), String> {
     let command_tx = {
-        let manager = manager()
+        let manager = real_playback_manager()
             .lock()
-            .expect("background playback manager poisoned");
+            .expect("real playback manager poisoned");
 
         match command_sender_for_current_session(&manager, session_id) {
             Some(command_tx) => command_tx,
@@ -699,7 +584,7 @@ fn send_command_to_session(session_id: u64, command: PlaybackCommand) -> Result<
 }
 
 fn command_sender_for_current_session(
-    manager: &BackgroundPlaybackManager,
+    manager: &RealPlaybackManager,
     session_id: u64,
 ) -> Option<Sender<PlaybackCommand>> {
     manager
@@ -708,7 +593,7 @@ fn command_sender_for_current_session(
         .and_then(|session| (session.session_id == session_id).then(|| session.command_tx.clone()))
 }
 
-impl BackgroundPlaybackSession {
+impl RealPlaybackSession {
     fn stop_and_join(mut self) {
         let _ = self.command_tx.send(PlaybackCommand::Stop);
 
@@ -798,7 +683,6 @@ impl BackgroundPlaybackWorker {
                 if self.state == WorkerPlaybackState::Playing {
                     self.update_position_from_clock();
                     self.release_all_active_keys();
-                    self.scheduled_key_ups.clear();
                     self.state = WorkerPlaybackState::Paused;
                     self.emit_state("paused");
                     self.emit_progress();
@@ -818,7 +702,6 @@ impl BackgroundPlaybackWorker {
             PlaybackCommand::Seek(time_ms) => {
                 self.update_position_from_clock();
                 self.release_all_active_keys();
-                self.scheduled_key_ups.clear();
                 self.position_ms = clamp_progress(time_ms, self.timeline.total_ms);
                 self.next_group_index = find_next_group_index(&self.timeline, self.position_ms);
                 self.next_progress_event_ms = self.position_ms + PROGRESS_EVENT_INTERVAL_MS;
@@ -896,8 +779,7 @@ impl BackgroundPlaybackWorker {
         if should_finish_playback(
             due_position,
             self.timeline.finish_ms,
-            &self.active_generations,
-            &self.scheduled_key_ups,
+            &self.key_lifecycle,
             Instant::now(),
         ) {
             self.finish();
@@ -907,95 +789,46 @@ impl BackgroundPlaybackWorker {
     }
 
     fn play_group(&mut self, group: &TimelineGroup) -> Result<(), String> {
-        let key_names = group
+        let keys_with_holds = group
             .keys
             .iter()
-            .map(|key| key.key.clone())
-            .collect::<Vec<_>>();
-        let keys_to_release = key_names
-            .iter()
-            .filter(|key| self.active_generations.contains_key(*key))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        if !keys_to_release.is_empty() {
-            self.send_key_up_group(&keys_to_release)?;
-            for key in keys_to_release {
-                self.active_generations.remove(&key);
-            }
-        }
-
-        if let Err(error) = self.send_key_down_group(&key_names) {
-            let _ = self.send_key_up_group(&key_names);
-            return Err(error);
-        }
-
-        if !self.logged_first_key_down {
-            self.logged_first_key_down = true;
-            debug_timing(
-                self.output_mode.first_key_down_timing_label(),
-                self.started_at,
-                &[("first key-down dispatch", self.started_at.elapsed())],
-            );
-        }
-
-        for key in group.keys.iter() {
-            let generation = self.next_generation;
-            self.next_generation = self.next_generation.saturating_add(1).max(1);
-            self.active_generations.insert(key.key.clone(), generation);
-            self.scheduled_key_ups.push(ScheduledKeyUp {
-                deadline_at: key_up_deadline_from_actual_send(
-                    Instant::now(),
+            .map(|key| {
+                (
+                    key.key.clone(),
                     effective_hold_ms(key.hold_ms, self.options.playback_speed, self.key_hold_ms),
-                )?,
-                generation,
-                key: key.key.clone(),
-            });
+                )
+            })
+            .collect::<Vec<_>>();
+        let should_log_first_key_down = !self.logged_first_key_down;
+        let output_mode = self.output_mode;
+        let started_at = self.started_at;
+        self.key_lifecycle
+            .trigger_group(&keys_with_holds, &self.output, || {
+                if should_log_first_key_down {
+                    debug_timing(
+                        output_mode.first_key_down_timing_label(),
+                        started_at,
+                        &[("first key-down dispatch", started_at.elapsed())],
+                    );
+                }
+            })?;
+        if should_log_first_key_down {
+            self.logged_first_key_down = true;
         }
 
         Ok(())
     }
 
     fn release_due_key_ups(&mut self, now: Instant) -> Result<(), String> {
-        let mut due_key_ups = Vec::new();
-        let mut pending_key_ups = Vec::new();
-
-        for key_up in self.scheduled_key_ups.drain(..) {
-            if key_up.deadline_at <= now {
-                due_key_ups.push(key_up);
-            } else {
-                pending_key_ups.push(key_up);
-            }
-        }
-
-        self.scheduled_key_ups = pending_key_ups;
-
-        let keys_to_release = keys_due_for_release(&self.active_generations, &due_key_ups);
-
-        if !keys_to_release.is_empty() {
-            self.send_key_up_group(&keys_to_release)?;
-
-            for key in keys_to_release {
-                self.active_generations.remove(&key);
-            }
-        }
-
-        Ok(())
+        self.key_lifecycle.release_due_key_ups(now, &self.output)
     }
 
     fn release_all_active_keys(&mut self) {
-        if self.active_generations.is_empty() {
-            return;
-        }
-
-        let keys = self.active_generations.keys().cloned().collect::<Vec<_>>();
-        let _ = self.send_key_up_group(&keys);
-        self.active_generations.clear();
+        self.key_lifecycle.release_all_active_keys(&self.output);
     }
 
     fn finish(&mut self) {
         self.release_all_active_keys();
-        self.scheduled_key_ups.clear();
         self.position_ms = self.timeline.total_ms;
         self.state = WorkerPlaybackState::Stopped;
         self.emit_progress();
@@ -1005,14 +838,12 @@ impl BackgroundPlaybackWorker {
 
     fn stop_without_event(&mut self) {
         self.release_all_active_keys();
-        self.scheduled_key_ups.clear();
         self.state = WorkerPlaybackState::Stopped;
         clear_current_session(self.session_id);
     }
 
     fn handle_error(&mut self, error: String) {
         self.release_all_active_keys();
-        self.scheduled_key_ups.clear();
         self.state = WorkerPlaybackState::Stopped;
         self.emit_event("error", Some(error), None, None);
         clear_current_session(self.session_id);
@@ -1035,18 +866,9 @@ impl BackgroundPlaybackWorker {
                 .groups
                 .get(self.next_group_index)
                 .map(|group| group.adjusted_start_ms),
-            &self.active_generations,
-            &self.scheduled_key_ups,
+            &self.key_lifecycle,
             Instant::now(),
         )
-    }
-
-    fn send_key_down_group(&self, keys: &[String]) -> Result<(), String> {
-        self.output.send_key_down_group(keys)
-    }
-
-    fn send_key_up_group(&self, keys: &[String]) -> Result<(), String> {
-        self.output.send_key_up_group(keys)
     }
 
     fn emit_state(&self, state: &str) {
@@ -1094,9 +916,9 @@ impl BackgroundPlaybackWorker {
 }
 
 fn clear_current_session(session_id: u64) {
-    let mut manager = manager()
+    let mut manager = real_playback_manager()
         .lock()
-        .expect("background playback manager poisoned");
+        .expect("real playback manager poisoned");
 
     if should_clear_current_session(
         manager.current.as_ref().map(|current| current.session_id),
@@ -1106,7 +928,10 @@ fn clear_current_session(session_id: u64) {
     }
 }
 
-fn validate_start_request(key_hold_ms: u64, groups: &[TimelineGroup]) -> Result<(), String> {
+fn validate_start_request(
+    key_hold_ms: u64,
+    groups: &[PreparedPlaybackGroup],
+) -> Result<(), String> {
     if groups.is_empty() {
         return Err("Background playback plan must contain at least one event.".to_string());
     }
@@ -1138,85 +963,8 @@ fn build_timeline(
     build_timeline_from_groups(&groups, options)
 }
 
-fn build_source_groups(plan: &[BackgroundPlaybackPlanEvent]) -> Result<Vec<TimelineGroup>, String> {
-    let mut grouped_events = plan.to_vec();
-    grouped_events.sort_by(|left, right| left.time_ms.total_cmp(&right.time_ms));
-
-    let mut grouped_keys = Vec::<(f64, Vec<PlannedKey>)>::new();
-
-    for event in grouped_events {
-        if !event.time_ms.is_finite() {
-            return Err("Background playback event time must be finite.".to_string());
-        }
-
-        if event.keys.is_empty() {
-            return Err("Background playback event must contain at least one key.".to_string());
-        }
-
-        for key in &event.keys {
-            if let Some(hold_ms) = key.hold_ms {
-                if !hold_ms.is_finite() || hold_ms <= 0.0 || hold_ms > MAX_EXPLICIT_HOLD_MS {
-                    return Err(
-                        format!(
-                            "Background playback key hold duration must be greater than zero and at most {MAX_EXPLICIT_HOLD_MS}ms."
-                        ),
-                    );
-                }
-            }
-        }
-
-        if let Some((last_time_ms, last_keys)) = grouped_keys.last_mut() {
-            if *last_time_ms == event.time_ms {
-                last_keys.extend(event.keys);
-                continue;
-            }
-        }
-
-        grouped_keys.push((event.time_ms, event.keys));
-    }
-
-    Ok(grouped_keys
-        .into_iter()
-        .map(|(source_time_ms, keys)| TimelineGroup {
-            source_time_ms,
-            adjusted_start_ms: 0.0,
-            keys: Arc::from(dedupe_planned_keys(keys)),
-        })
-        .collect())
-}
-
-fn dedupe_planned_keys(keys: Vec<PlannedKey>) -> Vec<PlannedKey> {
-    let mut deduped = Vec::<PlannedKey>::new();
-
-    for key in keys {
-        if let Some(existing) = deduped.iter_mut().find(|entry| entry.key == key.key) {
-            existing.hold_ms = match (existing.hold_ms, key.hold_ms) {
-                (Some(left), Some(right)) => Some(left.max(right)),
-                (None, Some(right)) => Some(right),
-                (left, None) => left,
-            };
-        } else {
-            deduped.push(key);
-        }
-    }
-
-    deduped
-}
-
-fn build_prepared_plan(
-    plan: &[BackgroundPlaybackPlanEvent],
-) -> Result<PreparedPlaybackPlan, String> {
-    let groups = build_source_groups(plan)?;
-    let unique_keys = unique_timeline_keys(&groups);
-
-    Ok(PreparedPlaybackPlan {
-        groups: Arc::from(groups),
-        unique_keys: Arc::from(unique_keys),
-    })
-}
-
 fn build_timeline_from_groups(
-    groups: &[TimelineGroup],
+    groups: &[PreparedPlaybackGroup],
     options: &PlaybackOptions,
 ) -> Result<PlaybackTimeline, String> {
     normalize_playback_speed(options.playback_speed)?;
@@ -1262,7 +1010,6 @@ fn build_timeline_from_groups(
         adjusted_groups.push(TimelineGroup {
             adjusted_start_ms,
             keys: group.keys.clone(),
-            source_time_ms: group.source_time_ms,
         });
     }
 
@@ -1373,20 +1120,6 @@ fn clamp_playback_position(position_ms: f64, finish_ms: f64) -> f64 {
     position_ms.max(0.0).min(finish_ms.max(0.0))
 }
 
-fn key_up_deadline_from_actual_send(sent_at: Instant, key_hold_ms: f64) -> Result<Instant, String> {
-    if !key_hold_ms.is_finite() || key_hold_ms <= 0.0 {
-        return Err("Effective background playback key hold duration is invalid.".to_string());
-    }
-
-    let duration = Duration::try_from_secs_f64(key_hold_ms / 1000.0).map_err(|_| {
-        "Effective background playback key hold duration is not representable.".to_string()
-    })?;
-
-    sent_at.checked_add(duration).ok_or_else(|| {
-        "Effective background playback key hold deadline is not representable.".to_string()
-    })
-}
-
 fn effective_hold_ms(hold_ms: Option<f64>, playback_speed: f64, key_hold_ms: f64) -> f64 {
     match hold_ms {
         Some(hold) => hold / playback_speed,
@@ -1394,53 +1127,13 @@ fn effective_hold_ms(hold_ms: Option<f64>, playback_speed: f64, key_hold_ms: f64
     }
 }
 
-fn should_apply_key_release(
-    active_generations: &HashMap<String, u64>,
-    key: &str,
-    release_generation: u64,
-) -> bool {
-    active_generations
-        .get(key)
-        .is_some_and(|generation| *generation == release_generation)
-}
-
-fn is_live_scheduled_key_up(
-    active_generations: &HashMap<String, u64>,
-    key_up: &ScheduledKeyUp,
-) -> bool {
-    should_apply_key_release(active_generations, &key_up.key, key_up.generation)
-}
-
-fn next_live_key_up_deadline(
-    active_generations: &HashMap<String, u64>,
-    scheduled_key_ups: &[ScheduledKeyUp],
-    now: Instant,
-) -> Option<Instant> {
-    scheduled_key_ups
-        .iter()
-        .filter(|key_up| {
-            is_live_scheduled_key_up(active_generations, key_up) && key_up.deadline_at > now
-        })
-        .map(|key_up| key_up.deadline_at)
-        .min()
-}
-
-fn has_live_future_key_ups(
-    active_generations: &HashMap<String, u64>,
-    scheduled_key_ups: &[ScheduledKeyUp],
-    now: Instant,
-) -> bool {
-    next_live_key_up_deadline(active_generations, scheduled_key_ups, now).is_some()
-}
-
 fn should_finish_playback(
     position_ms: f64,
     finish_ms: f64,
-    active_generations: &HashMap<String, u64>,
-    scheduled_key_ups: &[ScheduledKeyUp],
+    key_lifecycle: &KeyLifecycle,
     now: Instant,
 ) -> bool {
-    position_ms >= finish_ms && !has_live_future_key_ups(active_generations, scheduled_key_ups, now)
+    position_ms >= finish_ms && !key_lifecycle.has_live_future_key_ups(now)
 }
 
 fn next_playback_deadline_ms(
@@ -1448,12 +1141,10 @@ fn next_playback_deadline_ms(
     finish_ms: f64,
     next_progress_event_ms: f64,
     next_group_start_ms: Option<f64>,
-    active_generations: &HashMap<String, u64>,
-    scheduled_key_ups: &[ScheduledKeyUp],
+    key_lifecycle: &KeyLifecycle,
     now: Instant,
 ) -> Option<f64> {
-    let live_key_up_deadline =
-        next_live_key_up_deadline(active_generations, scheduled_key_ups, now);
+    let live_key_up_deadline = key_lifecycle.next_live_key_up_deadline(now);
     let mut deadlines = Vec::new();
 
     if position_ms < finish_ms {
@@ -1482,39 +1173,11 @@ fn next_playback_deadline_ms(
         .min_by(|left, right| left.total_cmp(right))
 }
 
-fn keys_due_for_release(
-    active_generations: &HashMap<String, u64>,
-    due_key_ups: &[ScheduledKeyUp],
-) -> Vec<String> {
-    due_key_ups
-        .iter()
-        .filter(|key_up| {
-            should_apply_key_release(active_generations, &key_up.key, key_up.generation)
-        })
-        .map(|key_up| key_up.key.clone())
-        .collect()
-}
-
 fn should_clear_current_session(
     current_session_id: Option<u64>,
     finishing_session_id: u64,
 ) -> bool {
     current_session_id.is_some_and(|session_id| session_id == finishing_session_id)
-}
-
-fn unique_timeline_keys(groups: &[TimelineGroup]) -> Vec<String> {
-    let mut seen_keys = HashSet::new();
-    let mut unique = Vec::new();
-
-    for group in groups {
-        for key in group.keys.iter() {
-            if seen_keys.insert(key.key.clone()) {
-                unique.push(key.key.clone());
-            }
-        }
-    }
-
-    unique
 }
 
 fn debug_timing(label: &str, started_at: Instant, phases: &[(&str, Duration)]) {
@@ -1588,10 +1251,10 @@ mod tests {
         ]
     }
 
-    fn test_session(session_id: u64) -> BackgroundPlaybackSession {
+    fn test_session(session_id: u64) -> RealPlaybackSession {
         let (command_tx, _command_rx) = mpsc::channel();
 
-        BackgroundPlaybackSession {
+        RealPlaybackSession {
             command_tx,
             session_id,
             worker: None,
@@ -1600,11 +1263,11 @@ mod tests {
 
     fn test_session_with_receiver(
         session_id: u64,
-    ) -> (BackgroundPlaybackSession, Receiver<PlaybackCommand>) {
+    ) -> (RealPlaybackSession, Receiver<PlaybackCommand>) {
         let (command_tx, command_rx) = mpsc::channel();
 
         (
-            BackgroundPlaybackSession {
+            RealPlaybackSession {
                 command_tx,
                 session_id,
                 worker: None,
@@ -1654,9 +1317,10 @@ mod tests {
 
     #[test]
     fn option_update_can_preserve_logical_position() {
-        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let source_groups = build_source_groups(&plan()).unwrap();
+        let first = build_timeline_from_groups(&source_groups, &options(0.0, 1.0)).unwrap();
         let remap = capture_option_update_remap(&first, 250.0, 1);
-        let second = build_timeline_from_groups(&first.groups, &options(50.0, 2.0)).unwrap();
+        let second = build_timeline_from_groups(&source_groups, &options(50.0, 2.0)).unwrap();
         let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
 
         assert_eq!(second.total_ms, 600.0);
@@ -1666,9 +1330,10 @@ mod tests {
 
     #[test]
     fn speeding_up_mid_gap_does_not_skip_next_group() {
-        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let source_groups = build_source_groups(&plan()).unwrap();
+        let first = build_timeline_from_groups(&source_groups, &options(0.0, 1.0)).unwrap();
         let remap = capture_option_update_remap(&first, 250.0, 1);
-        let second = build_timeline_from_groups(&first.groups, &options(0.0, 2.0)).unwrap();
+        let second = build_timeline_from_groups(&source_groups, &options(0.0, 2.0)).unwrap();
         let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
 
         assert_eq!(next_group_index, 1);
@@ -1678,9 +1343,10 @@ mod tests {
 
     #[test]
     fn slowing_down_mid_gap_does_not_replay_completed_group() {
-        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let source_groups = build_source_groups(&plan()).unwrap();
+        let first = build_timeline_from_groups(&source_groups, &options(0.0, 1.0)).unwrap();
         let remap = capture_option_update_remap(&first, 750.0, 2);
-        let second = build_timeline_from_groups(&first.groups, &options(0.0, 0.5)).unwrap();
+        let second = build_timeline_from_groups(&source_groups, &options(0.0, 0.5)).unwrap();
         let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
 
         assert_eq!(next_group_index, 2);
@@ -1691,9 +1357,10 @@ mod tests {
 
     #[test]
     fn interval_change_mid_gap_preserves_pending_group() {
-        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let source_groups = build_source_groups(&plan()).unwrap();
+        let first = build_timeline_from_groups(&source_groups, &options(0.0, 1.0)).unwrap();
         let remap = capture_option_update_remap(&first, 750.0, 2);
-        let second = build_timeline_from_groups(&first.groups, &options(100.0, 1.0)).unwrap();
+        let second = build_timeline_from_groups(&source_groups, &options(100.0, 1.0)).unwrap();
         let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
 
         assert_eq!(next_group_index, 2);
@@ -1702,59 +1369,16 @@ mod tests {
 
     #[test]
     fn option_update_preserves_tail_segment_ratio() {
-        let first = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+        let source_groups = build_source_groups(&plan()).unwrap();
+        let first = build_timeline_from_groups(&source_groups, &options(0.0, 1.0)).unwrap();
         let remap = capture_option_update_remap(&first, 1150.0, first.groups.len());
-        let second = build_timeline_from_groups(&first.groups, &options(0.0, 2.0)).unwrap();
+        let second = build_timeline_from_groups(&source_groups, &options(0.0, 2.0)).unwrap();
         let (position_ms, next_group_index) = remap_position_after_options_update(&remap, &second);
 
         assert_eq!(next_group_index, second.groups.len());
         assert_eq!(position_ms, 575.0);
         assert!(position_ms > second.total_ms);
         assert!(position_ms < second.finish_ms);
-    }
-
-    #[test]
-    fn build_source_groups_dedupes_same_key_keeping_longest_hold() {
-        let groups = build_source_groups(&[BackgroundPlaybackPlanEvent {
-            time_ms: 0.0,
-            keys: vec![
-                held_key("y", 500.0),
-                planned_key("y"),
-                held_key("y", 1500.0),
-                planned_key("u"),
-            ],
-        }])
-        .unwrap();
-
-        assert_eq!(groups[0].keys.len(), 2);
-        assert_eq!(groups[0].keys[0], held_key("y", 1500.0));
-        assert_eq!(groups[0].keys[1], planned_key("u"));
-    }
-
-    #[test]
-    fn build_source_groups_rejects_invalid_holds() {
-        for hold in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-            let result = build_source_groups(&[BackgroundPlaybackPlanEvent {
-                time_ms: 0.0,
-                keys: vec![held_key("y", hold)],
-            }]);
-
-            assert!(result.is_err(), "hold {hold} should be rejected");
-        }
-    }
-
-    #[test]
-    fn explicit_hold_limit_is_inclusive() {
-        assert!(build_source_groups(&[BackgroundPlaybackPlanEvent {
-            time_ms: 0.0,
-            keys: vec![held_key("y", MAX_EXPLICIT_HOLD_MS)],
-        }])
-        .is_ok());
-        assert!(build_source_groups(&[BackgroundPlaybackPlanEvent {
-            time_ms: 0.0,
-            keys: vec![held_key("y", MAX_EXPLICIT_HOLD_MS + 1.0)],
-        }])
-        .is_err());
     }
 
     #[test]
@@ -1803,13 +1427,6 @@ mod tests {
     }
 
     #[test]
-    fn effective_hold_deadline_conversion_fails_without_panicking() {
-        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::NAN).is_err());
-        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::INFINITY).is_err());
-        assert!(key_up_deadline_from_actual_send(Instant::now(), f64::MAX).is_err());
-    }
-
-    #[test]
     fn timeline_total_includes_scaled_sustain_tail() {
         let timeline = build_timeline(
             &[
@@ -1853,81 +1470,47 @@ mod tests {
     }
 
     #[test]
-    fn stale_release_does_not_match_newer_generation() {
-        let active = HashMap::from([("A".to_string(), 2_u64)]);
-        let stale = ScheduledKeyUp {
-            deadline_at: Instant::now(),
-            generation: 1,
-            key: "A".to_string(),
-        };
-
-        assert!(!should_apply_key_release(
-            &active,
-            &stale.key,
-            stale.generation
-        ));
-        assert!(should_apply_key_release(&active, "A", 2));
-    }
-
-    #[test]
     fn live_future_key_up_prevents_finish_after_timeline_end() {
         let now = Instant::now();
-        let active = HashMap::from([("A".to_string(), 2_u64)]);
-        let scheduled = vec![ScheduledKeyUp {
-            deadline_at: now + Duration::from_millis(1000),
-            generation: 2,
-            key: "A".to_string(),
-        }];
+        let mut key_lifecycle = KeyLifecycle::new();
+        key_lifecycle.seed_scheduled_key_up_for_test("A", 2, 2, now + Duration::from_millis(1000));
 
-        assert!(has_live_future_key_ups(&active, &scheduled, now));
-        assert!(!should_finish_playback(
-            500.0, 500.0, &active, &scheduled, now
-        ));
+        assert!(key_lifecycle.has_live_future_key_ups(now));
+        assert!(!should_finish_playback(500.0, 500.0, &key_lifecycle, now));
     }
 
     #[test]
     fn stale_generation_key_up_does_not_delay_finish() {
         let now = Instant::now();
-        let active = HashMap::from([("A".to_string(), 2_u64)]);
-        let scheduled = vec![ScheduledKeyUp {
-            deadline_at: now + Duration::from_millis(1000),
-            generation: 1,
-            key: "A".to_string(),
-        }];
+        let mut key_lifecycle = KeyLifecycle::new();
+        key_lifecycle.seed_scheduled_key_up_for_test("A", 2, 1, now + Duration::from_millis(1000));
 
-        assert!(!has_live_future_key_ups(&active, &scheduled, now));
-        assert!(should_finish_playback(
-            500.0, 500.0, &active, &scheduled, now
-        ));
+        assert!(!key_lifecycle.has_live_future_key_ups(now));
+        assert!(should_finish_playback(500.0, 500.0, &key_lifecycle, now));
     }
 
     #[test]
     fn playback_finishes_immediately_after_final_live_key_up() {
         let deadline = Instant::now();
-        let active = HashMap::from([("A".to_string(), 2_u64)]);
-        let scheduled = vec![ScheduledKeyUp {
-            deadline_at: deadline,
-            generation: 2,
-            key: "A".to_string(),
-        }];
+        let mut key_lifecycle = KeyLifecycle::new();
+        key_lifecycle.seed_scheduled_key_up_for_test("A", 2, 2, deadline);
 
         assert!(should_finish_playback(
-            500.0, 500.0, &active, &scheduled, deadline,
+            500.0,
+            500.0,
+            &key_lifecycle,
+            deadline
         ));
     }
 
     #[test]
     fn expired_finish_waits_at_live_key_up_without_busy_loop() {
         let now = Instant::now();
-        let active = HashMap::from([("A".to_string(), 2_u64)]);
-        let scheduled = vec![ScheduledKeyUp {
-            deadline_at: now + Duration::from_millis(750),
-            generation: 2,
-            key: "A".to_string(),
-        }];
+        let mut key_lifecycle = KeyLifecycle::new();
+        key_lifecycle.seed_scheduled_key_up_for_test("A", 2, 2, now + Duration::from_millis(750));
 
         assert_eq!(
-            next_playback_deadline_ms(500.0, 500.0, 650.0, None, &active, &scheduled, now,),
+            next_playback_deadline_ms(500.0, 500.0, 650.0, None, &key_lifecycle, now,),
             Some(1250.0),
         );
     }
@@ -1935,12 +1518,9 @@ mod tests {
     #[test]
     fn option_timeline_updates_do_not_reschedule_existing_key_up() {
         let now = Instant::now();
-        let scheduled = vec![ScheduledKeyUp {
-            deadline_at: now + Duration::from_millis(2000),
-            generation: 1,
-            key: "A".to_string(),
-        }];
-        let original = scheduled.clone();
+        let mut key_lifecycle = KeyLifecycle::new();
+        let key_up_deadline = now + Duration::from_millis(2000);
+        key_lifecycle.seed_scheduled_key_up_for_test("A", 1, 1, key_up_deadline);
         let source = build_source_groups(&[BackgroundPlaybackPlanEvent {
             time_ms: 0.0,
             keys: vec![held_key("A", 1000.0)],
@@ -1952,12 +1532,14 @@ mod tests {
 
         assert_eq!(faster.finish_ms, 500.0);
         assert_eq!(slower.finish_ms, 2000.0);
-        assert_eq!(scheduled, original);
+        assert_eq!(
+            key_lifecycle.next_live_key_up_deadline(now),
+            Some(key_up_deadline)
+        );
         assert!(!should_finish_playback(
             faster.finish_ms,
             faster.finish_ms,
-            &HashMap::from([("A".to_string(), 1_u64)]),
-            &scheduled,
+            &key_lifecycle,
             now,
         ));
     }
@@ -1965,56 +1547,15 @@ mod tests {
     #[test]
     fn point_note_finish_is_not_delayed_by_expired_key_up() {
         let now = Instant::now();
-        let active = HashMap::from([("A".to_string(), 1_u64)]);
-        let scheduled = vec![ScheduledKeyUp {
-            deadline_at: now - Duration::from_millis(1),
-            generation: 1,
-            key: "A".to_string(),
-        }];
+        let mut key_lifecycle = KeyLifecycle::new();
+        key_lifecycle.seed_scheduled_key_up_for_test("A", 1, 1, now - Duration::from_millis(1));
 
         assert!(should_finish_playback(
             NOTE_HIGHLIGHT_MS,
             NOTE_HIGHLIGHT_MS,
-            &active,
-            &scheduled,
+            &key_lifecycle,
             now,
         ));
-    }
-
-    #[test]
-    fn due_releases_are_collected_as_one_output_chord() {
-        let active = HashMap::from([("A".to_string(), 1_u64), ("B".to_string(), 2_u64)]);
-        let due = vec![
-            ScheduledKeyUp {
-                deadline_at: Instant::now(),
-                generation: 1,
-                key: "A".to_string(),
-            },
-            ScheduledKeyUp {
-                deadline_at: Instant::now(),
-                generation: 2,
-                key: "B".to_string(),
-            },
-            ScheduledKeyUp {
-                deadline_at: Instant::now(),
-                generation: 1,
-                key: "B".to_string(),
-            },
-        ];
-
-        assert_eq!(keys_due_for_release(&active, &due), ["A", "B"]);
-    }
-
-    #[test]
-    fn late_key_down_still_gets_full_hold_duration() {
-        let planned_at = Instant::now();
-        let actual_sent_at = planned_at + Duration::from_millis(75);
-        let deadline = key_up_deadline_from_actual_send(actual_sent_at, 30.0).unwrap();
-
-        assert_eq!(
-            deadline.duration_since(actual_sent_at),
-            Duration::from_millis(30)
-        );
     }
 
     #[test]
@@ -2026,7 +1567,7 @@ mod tests {
 
     #[test]
     fn shutdown_takes_current_session_from_manager() {
-        let mut manager = BackgroundPlaybackManager {
+        let mut manager = RealPlaybackManager {
             current: Some(test_session(7)),
             next_session_id: 8,
         };
@@ -2038,7 +1579,7 @@ mod tests {
 
     #[test]
     fn targeted_stop_takes_only_matching_current_session() {
-        let mut manager = BackgroundPlaybackManager {
+        let mut manager = RealPlaybackManager {
             current: Some(test_session(7)),
             next_session_id: 8,
         };
@@ -2056,7 +1597,7 @@ mod tests {
 
     #[test]
     fn replacement_takes_the_old_session_before_installing_the_new_one() {
-        let manager = Mutex::new(BackgroundPlaybackManager {
+        let manager = Mutex::new(RealPlaybackManager {
             current: Some(test_session(7)),
             next_session_id: 8,
         });
@@ -2080,7 +1621,7 @@ mod tests {
 
     #[test]
     fn taking_a_session_releases_the_manager_lock_before_joining() {
-        let manager = Mutex::new(BackgroundPlaybackManager {
+        let manager = Mutex::new(RealPlaybackManager {
             current: Some(test_session(7)),
             next_session_id: 8,
         });
@@ -2094,7 +1635,7 @@ mod tests {
     #[test]
     fn stale_session_commands_do_not_reach_the_current_session() {
         let (current_session, current_receiver) = test_session_with_receiver(8);
-        let manager = BackgroundPlaybackManager {
+        let manager = RealPlaybackManager {
             current: Some(current_session),
             next_session_id: 9,
         };
@@ -2127,7 +1668,7 @@ mod tests {
             PlaybackOutputMode::Foreground.shared_manager(),
         ));
 
-        let manager = Mutex::new(BackgroundPlaybackManager {
+        let manager = Mutex::new(RealPlaybackManager {
             current: Some(test_session(7)),
             next_session_id: 8,
         });
@@ -2151,31 +1692,6 @@ mod tests {
         assert_eq!(clamp_progress(f64::NAN, 100.0), 0.0);
         assert_eq!(clamp_progress(-1.0, 100.0), 0.0);
         assert_eq!(clamp_progress(150.0, 100.0), 100.0);
-    }
-
-    #[test]
-    fn prepared_plan_cache_refreshes_lru_access_order() {
-        let mut cache = PreparedPlaybackPlanCache {
-            entries: HashMap::new(),
-            next_plan_id: 1,
-            order: VecDeque::new(),
-        };
-        let first =
-            insert_prepared_plan_into_cache(&mut cache, build_prepared_plan(&plan()).unwrap(), 2);
-        let second =
-            insert_prepared_plan_into_cache(&mut cache, build_prepared_plan(&plan()).unwrap(), 2);
-
-        get_prepared_plan_from_cache(&mut cache, first).unwrap();
-        let third =
-            insert_prepared_plan_into_cache(&mut cache, build_prepared_plan(&plan()).unwrap(), 2);
-
-        assert!(cache.entries.contains_key(&first));
-        assert!(!cache.entries.contains_key(&second));
-        assert!(cache.entries.contains_key(&third));
-        assert_eq!(
-            cache.order.into_iter().collect::<Vec<_>>(),
-            vec![first, third]
-        );
     }
 
     #[test]
