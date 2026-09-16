@@ -2675,6 +2675,13 @@ button {
   font-weight: 700;
 }
 
+.shortcut-binding-actions {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .shortcut-binding-button:hover,
 .shortcut-reset-button:hover,
 .shortcut-binding-button.is-listening {

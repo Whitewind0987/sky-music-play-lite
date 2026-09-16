@@ -370,6 +370,114 @@ describe("sanitizePersistedAppData current version", () => {
     expect(result?.playbackShortcuts).toEqual(defaultPlaybackShortcuts);
   });
 
+  it("loads missing and explicit-null Manual Step shortcuts as unbound", () => {
+    const missing = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: defaultPlaybackShortcuts.next,
+        pauseResume: defaultPlaybackShortcuts.pauseResume,
+        stop: defaultPlaybackShortcuts.stop,
+      },
+    });
+    const explicitNull = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        ...defaultPlaybackShortcuts,
+        manualStep: null,
+      },
+    });
+
+    expect(missing?.playbackShortcuts.manualStep).toBeNull();
+    expect(explicitNull?.playbackShortcuts.manualStep).toBeNull();
+  });
+
+  it("preserves valid global and in-app Manual Step bindings", () => {
+    const global = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        manualStep: {
+          alt: false,
+          code: "KeyM",
+          ctrl: true,
+          shift: false,
+          scope: "global",
+        },
+      },
+    });
+    const inApp = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        manualStep: {
+          alt: true,
+          code: "KeyQ",
+          ctrl: false,
+          shift: true,
+          scope: "in-app",
+        },
+      },
+    });
+
+    expect(global?.playbackShortcuts.manualStep).toEqual({
+      alt: false,
+      code: "KeyM",
+      ctrl: true,
+      shift: false,
+      scope: "global",
+    });
+    expect(inApp?.playbackShortcuts.manualStep).toEqual({
+      alt: true,
+      code: "KeyQ",
+      ctrl: false,
+      shift: true,
+      scope: "in-app",
+    });
+  });
+
+  it.each([
+    ["empty code", { code: "", scope: "global" }],
+    ["modifier-only code", { code: "ControlLeft", scope: "global" }],
+    ["invalid scope", { code: "KeyM", scope: "invalid" }],
+    ["legacy string", "KeyM"],
+  ])("falls back to null for invalid Manual Step data: %s", (_, manualStep) => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: { manualStep },
+    });
+
+    expect(result?.playbackShortcuts.manualStep).toBeNull();
+  });
+
+  it("round-trips null and valid Manual Step bindings", () => {
+    const unbound = buildMinimalPersistedAppData({
+      playbackShortcuts: defaultPlaybackShortcuts,
+    });
+    const configured = buildMinimalPersistedAppData({
+      playbackShortcuts: {
+        ...defaultPlaybackShortcuts,
+        manualStep: {
+          alt: false,
+          code: "F8",
+          ctrl: false,
+          shift: false,
+          scope: "global",
+        },
+      },
+    });
+
+    expect(
+      sanitizePersistedAppData(unbound)?.playbackShortcuts.manualStep,
+    ).toBeNull();
+    expect(
+      sanitizePersistedAppData(configured)?.playbackShortcuts.manualStep,
+    ).toEqual(configured.playbackShortcuts.manualStep);
+    expect(appDataVersion).toBe(3);
+  });
+
   it("sanitizes shortcut binding codes and scopes independently", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
@@ -382,6 +490,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: {
         alt: false,
         code: "KeyN",
@@ -412,6 +521,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: defaultPlaybackShortcuts.next,
       pauseResume: defaultPlaybackShortcuts.pauseResume,
       stop: {
@@ -436,6 +546,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: {
         alt: false,
         code: "ArrowRight",
@@ -472,6 +583,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: {
         alt: false,
         code: "KeyN",
@@ -934,6 +1046,7 @@ describe("sanitizePersistedAppData legacy v1 migration", () => {
       createTestSong("Legacy Song"),
     );
     expect(result?.library.selectedSongIndex).toBe(0);
+    expect(result?.playbackShortcuts.manualStep).toBeNull();
   });
 
   it("ignores invalid imported songs during v1 migration", () => {
@@ -980,6 +1093,7 @@ describe("sanitizePersistedAppData v2 migration", () => {
     expect(result?.library.playlists[0]?.songIds).toEqual(["local-v2"]);
     expect(result?.library.selectedSongIndex).toBe(0);
     expect(result?.language).toBe("en-US");
+    expect(result?.playbackShortcuts.manualStep).toBeNull();
   });
 });
 

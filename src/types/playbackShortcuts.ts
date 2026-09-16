@@ -1,4 +1,8 @@
-export type PlaybackShortcutAction = "pauseResume" | "next" | "stop";
+export type PlaybackShortcutAction =
+  | "pauseResume"
+  | "manualStep"
+  | "next"
+  | "stop";
 
 export type PlaybackShortcutScope = "in-app" | "global";
 
@@ -10,10 +14,12 @@ export type PlaybackShortcutBinding = {
   scope: PlaybackShortcutScope;
 };
 
-export type PlaybackShortcuts = Record<
-  PlaybackShortcutAction,
-  PlaybackShortcutBinding
->;
+export type PlaybackShortcuts = {
+  pauseResume: PlaybackShortcutBinding;
+  manualStep: PlaybackShortcutBinding | null;
+  next: PlaybackShortcutBinding;
+  stop: PlaybackShortcutBinding;
+};
 
 export type PlaybackShortcutNotices = Partial<
   Record<PlaybackShortcutAction, string>
@@ -21,6 +27,7 @@ export type PlaybackShortcutNotices = Partial<
 
 export const playbackShortcutActions: PlaybackShortcutAction[] = [
   "pauseResume",
+  "manualStep",
   "next",
   "stop",
 ];
@@ -33,6 +40,7 @@ export const defaultPlaybackShortcuts: PlaybackShortcuts = {
     shift: false,
     scope: "global",
   },
+  manualStep: null,
   next: {
     alt: false,
     code: "ArrowRight",

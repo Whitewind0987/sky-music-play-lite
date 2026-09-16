@@ -497,6 +497,21 @@ function App() {
 
   useEffect(() => {
     playbackShortcutsController.setPlaybackHotkeyControls({
+      manualStep: () => {
+        runScoreUpgradePlaybackStartGuard({
+          getIsScoreUpgradeInProgress:
+            scoreLibrary.getIsScoreUpgradeInProgress,
+          onBlocked: scoreUpgradeGuard.reportPlaybackStartBlocked,
+          onStart: () => {
+            if (
+              playbackOutput.canManualStep &&
+              !playbackCoordinator.isCurrentSongLoading
+            ) {
+              playbackOutput.onManualStep();
+            }
+          },
+        });
+      },
       next: () => {
         runScoreUpgradePlaybackStartGuard({
           getIsScoreUpgradeInProgress:

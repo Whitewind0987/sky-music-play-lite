@@ -121,6 +121,8 @@ describe("finalizeAppDataMigration", () => {
     expect(result.appData.library.playlists).toEqual(appData.library.playlists);
     expect(result.appData.library.selectedSongIndex).toBe(1);
     expect(result.appData.playbackSettings).toEqual(appData.playbackSettings);
+    expect(result.appData.playbackShortcuts).toEqual(defaultPlaybackShortcuts);
+    expect(result.appData.playbackShortcuts.manualStep).toBeNull();
     expect(result.appData.alwaysOnTop).toBe(true);
     expect(result.appData.v1ToV2UpgradePreferences).toEqual(
       appData.v1ToV2UpgradePreferences,

@@ -4,6 +4,7 @@ import {
   arePlaybackShortcutCombinationsEqual,
   canActivatePendingPlaybackShortcutRecording,
   canCompletePlaybackShortcutRecording,
+  clearManualPlaybackShortcut,
   clearPlaybackShortcutNotice,
   fallbackGlobalPlaybackShortcutToInApp,
   findDuplicatePlaybackShortcutAction,
@@ -12,6 +13,7 @@ import {
   getDesiredGlobalPlaybackShortcutActions,
   getGlobalPlaybackShortcutCallbackDecision,
   getPlaybackShortcutNotice,
+  getPlaybackShortcutRecordingScope,
   getPlaybackShortcutRecordingRequestDecision,
   getPlaybackShortcutRecordingSessionAction,
   getShortcutRecordingDecision,
@@ -47,6 +49,7 @@ describe("playback shortcut defaults", () => {
   it("uses the exact global Ctrl combinations and F9", () => {
     expect(defaultPlaybackShortcuts).toEqual({
       pauseResume: binding("Space", { ctrl: true, scope: "global" }),
+      manualStep: null,
       next: binding("ArrowRight", { ctrl: true, scope: "global" }),
       stop: binding("F9", { scope: "global" }),
     });
@@ -127,6 +130,71 @@ describe("shortcut recording", () => {
 });
 
 describe("shortcut recording outcomes", () => {
+  it("records an initially unbound Manual Step with global scope", () => {
+    const scope = getPlaybackShortcutRecordingScope(
+      defaultPlaybackShortcuts,
+      "manualStep",
+    );
+    const outcome = resolvePlaybackShortcutRecordingOutcome(
+      defaultPlaybackShortcuts,
+      "manualStep",
+      getShortcutRecordingDecision(
+        {
+          altKey: false,
+          code: "KeyM",
+          ctrlKey: true,
+          shiftKey: false,
+        },
+        scope,
+      ),
+    );
+
+    expect(scope).toBe("global");
+    expect(outcome).toEqual({
+      binding: binding("KeyM", { ctrl: true, scope: "global" }),
+      fellBackToInApp: false,
+      type: "apply",
+    });
+    expect(
+      applyPlaybackShortcutRecordingOutcome(
+        defaultPlaybackShortcuts,
+        "manualStep",
+        outcome,
+      ).manualStep,
+    ).toEqual(binding("KeyM", { ctrl: true, scope: "global" }));
+  });
+
+  it("keeps unsafe Manual Step global recordings in app", () => {
+    const outcome = resolvePlaybackShortcutRecordingOutcome(
+      defaultPlaybackShortcuts,
+      "manualStep",
+      {
+        binding: binding("KeyQ", { scope: "global" }),
+        type: "capture",
+      },
+    );
+
+    expect(outcome).toEqual({
+      binding: binding("KeyQ"),
+      fellBackToInApp: true,
+      type: "apply",
+    });
+  });
+
+  it("treats the same configured Manual Step combination as unchanged", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      manualStep: binding("KeyM", { ctrl: true, scope: "global" }),
+    };
+
+    expect(
+      resolvePlaybackShortcutRecordingOutcome(shortcuts, "manualStep", {
+        binding: binding("KeyM", { ctrl: true, scope: "in-app" }),
+        type: "capture",
+      }),
+    ).toEqual({ type: "unchanged" });
+  });
+
   it("completes successfully without changes for the current combination", () => {
     const shortcuts = { ...defaultPlaybackShortcuts };
     const outcome = resolvePlaybackShortcutRecordingOutcome(
@@ -284,6 +352,34 @@ describe("shortcut recording outcomes", () => {
 });
 
 describe("shortcut recording registration suspension", () => {
+  it("excludes an unbound Manual Step from global registration", () => {
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(
+        defaultPlaybackShortcuts,
+        null,
+        new Set(),
+      ),
+    ).toEqual(["pauseResume", "next", "stop"]);
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(
+        defaultPlaybackShortcuts,
+        "manualStep",
+        new Set(["manualStep"]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("includes a configured global Manual Step in serialized registration", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      manualStep: binding("KeyM", { ctrl: true, scope: "global" }),
+    };
+
+    expect(
+      getDesiredGlobalPlaybackShortcutActions(shortcuts, null, new Set()),
+    ).toEqual(["pauseResume", "manualStep", "next", "stop"]);
+  });
+
   it("keeps only the current valid global action as a recording sentinel", () => {
     expect(
       getDesiredGlobalPlaybackShortcutActions(
@@ -540,6 +636,19 @@ describe("global shortcut recording sentinel callbacks", () => {
 });
 
 describe("shortcut notices", () => {
+  it("provides localized Manual Step, unbound, and clear labels", () => {
+    expect(uiText["zh-CN"].settings.keyboardShortcutActions.manualStep).toBe(
+      "逐音演奏",
+    );
+    expect(uiText["zh-CN"].settings.keyboardShortcutNotSet).toBe("未设置");
+    expect(uiText["zh-CN"].settings.keyboardShortcutClear).toBe("清除");
+    expect(uiText["en-US"].settings.keyboardShortcutActions.manualStep).toBe(
+      "Play next note",
+    );
+    expect(uiText["en-US"].settings.keyboardShortcutNotSet).toBe("Not set");
+    expect(uiText["en-US"].settings.keyboardShortcutClear).toBe("Clear");
+  });
+
   it("provides the exact localized unchanged messages", () => {
     expect(uiText["zh-CN"].settings.keyboardShortcutUnchanged).toBe(
       "该快捷键与当前设置相同，未做更改。",
@@ -630,6 +739,29 @@ describe("shortcut formatting", () => {
 });
 
 describe("shortcut equality and duplicates", () => {
+  it("ignores null bindings but detects a configured Manual conflict", () => {
+    expect(arePlaybackShortcutCombinationsEqual(null, null)).toBe(false);
+    expect(
+      findDuplicatePlaybackShortcutAction(
+        defaultPlaybackShortcuts,
+        "next",
+        defaultPlaybackShortcuts.next,
+      ),
+    ).toBeUndefined();
+
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      manualStep: binding("Space", { ctrl: true, scope: "global" }),
+    };
+    expect(
+      findDuplicatePlaybackShortcutAction(
+        shortcuts,
+        "manualStep",
+        shortcuts.manualStep!,
+      ),
+    ).toBe("pauseResume");
+  });
+
   it("compares the complete combination but ignores scope", () => {
     expect(
       arePlaybackShortcutCombinationsEqual(
@@ -676,6 +808,32 @@ describe("in-app shortcut matching", () => {
     expect(matchesPlaybackShortcutEvent(binding("Space", { ctrl: true }), event("Space", { ctrlKey: true }))).toBe(true);
     expect(matchesPlaybackShortcutEvent(binding("Space", { ctrl: true }), event("Space"))).toBe(false);
     expect(matchesPlaybackShortcutEvent(binding("Space"), event("Space"))).toBe(true);
+  });
+
+  it("never matches an unbound Manual Step", () => {
+    expect(matchesPlaybackShortcutEvent(null, event("KeyM"))).toBe(false);
+    expect(
+      findMatchingInAppShortcutAction(
+        defaultPlaybackShortcuts,
+        event("KeyM"),
+        false,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("matches a configured in-app Manual Step", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      manualStep: binding("KeyM", { ctrl: true }),
+    };
+
+    expect(
+      findMatchingInAppShortcutAction(
+        shortcuts,
+        event("KeyM", { ctrlKey: true }),
+        false,
+      ),
+    ).toBe("manualStep");
   });
 
   it("rejects Meta-modified events without triggering an action", () => {
@@ -771,6 +929,7 @@ describe("global shortcut validation and accelerators", () => {
   });
 
   it("unregisters when the key, modifiers, or scope changes", () => {
+    expect(shouldUnregisterGlobalPlaybackShortcut(null, "F8")).toBe(true);
     expect(shouldUnregisterGlobalPlaybackShortcut(binding("F10", { scope: "global" }), "F9")).toBe(true);
     expect(shouldUnregisterGlobalPlaybackShortcut(binding("ArrowRight", { alt: true, scope: "global" }), "CommandOrControl+ArrowRight")).toBe(true);
     expect(shouldUnregisterGlobalPlaybackShortcut(binding("F9"), "F9")).toBe(true);
@@ -787,6 +946,30 @@ describe("global shortcut validation and accelerators", () => {
     expect(register).toHaveBeenCalledWith("CommandOrControl+Space");
     expect(fallbackGlobalPlaybackShortcutToInApp(value)).toEqual(
       binding("Space", { ctrl: true, scope: "in-app" }),
+    );
+  });
+});
+
+describe("Manual Step clearing and reset", () => {
+  it("clears only Manual Step and reset defaults keep it unbound", () => {
+    const shortcuts: PlaybackShortcuts = {
+      ...defaultPlaybackShortcuts,
+      manualStep: binding("F8", { scope: "global" }),
+    };
+
+    expect(clearManualPlaybackShortcut(shortcuts)).toEqual({
+      ...shortcuts,
+      manualStep: null,
+    });
+    expect(defaultPlaybackShortcuts.manualStep).toBeNull();
+    expect(defaultPlaybackShortcuts.pauseResume).toEqual(
+      binding("Space", { ctrl: true, scope: "global" }),
+    );
+    expect(defaultPlaybackShortcuts.next).toEqual(
+      binding("ArrowRight", { ctrl: true, scope: "global" }),
+    );
+    expect(defaultPlaybackShortcuts.stop).toEqual(
+      binding("F9", { scope: "global" }),
     );
   });
 });

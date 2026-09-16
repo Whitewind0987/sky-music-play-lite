@@ -68,13 +68,15 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 function normalizePlaybackShortcuts(bindings: PlaybackShortcuts) {
-  return playbackShortcutActions.reduce<PlaybackShortcuts>(
-    (normalized, action) => ({
-      ...normalized,
-      [action]: normalizeGlobalPlaybackShortcutScope(bindings[action]),
-    }),
-    { ...defaultPlaybackShortcuts },
-  );
+  return {
+    manualStep:
+      bindings.manualStep === null
+        ? null
+        : normalizeGlobalPlaybackShortcutScope(bindings.manualStep),
+    next: normalizeGlobalPlaybackShortcutScope(bindings.next),
+    pauseResume: normalizeGlobalPlaybackShortcutScope(bindings.pauseResume),
+    stop: normalizeGlobalPlaybackShortcutScope(bindings.stop),
+  };
 }
 
 export function usePlaybackShortcuts({
@@ -83,6 +85,7 @@ export function usePlaybackShortcuts({
   text,
 }: UsePlaybackShortcutsOptions) {
   const controlsRef = useRef<PlaybackHotkeyControls>({
+    manualStep: () => {},
     next: () => {},
     pauseResume: () => {},
     stop: () => {},
@@ -158,18 +161,22 @@ export function usePlaybackShortcuts({
   );
   const setPlaybackShortcutCode = useCallback(
     (action: PlaybackShortcutAction, code: string) => {
+      const binding = latestBindingsRef.current[action];
+      if (binding === null) return;
       commitPlaybackShortcuts({
         ...latestBindingsRef.current,
-        [action]: { ...latestBindingsRef.current[action], code },
+        [action]: { ...binding, code },
       });
     },
     [commitPlaybackShortcuts],
   );
   const setPlaybackShortcutScope = useCallback(
     (action: PlaybackShortcutAction, scope: PlaybackShortcutScope) => {
+      const binding = latestBindingsRef.current[action];
+      if (binding === null) return;
       commitPlaybackShortcuts({
         ...latestBindingsRef.current,
-        [action]: { ...latestBindingsRef.current[action], scope },
+        [action]: { ...binding, scope },
       });
     },
     [commitPlaybackShortcuts],
@@ -209,12 +216,13 @@ export function usePlaybackShortcuts({
       binding: PlaybackShortcutBinding,
       message: string,
     ) => {
-      if (latestBindingsRef.current[action].scope !== "global") return;
+      const currentBinding = latestBindingsRef.current[action];
+      if (currentBinding === null || currentBinding.scope !== "global") return;
       setShortcutNotice((current) => ({ ...current, [action]: message }));
       commitPlaybackShortcuts({
         ...latestBindingsRef.current,
         [action]: fallbackGlobalPlaybackShortcutToInApp(
-          latestBindingsRef.current[action],
+          currentBinding,
         ),
       });
       showNoticeRef.current(message);
@@ -282,6 +290,7 @@ export function usePlaybackShortcuts({
         if (isRecording) continue;
 
         const currentBinding = latestBindingsRef.current[action];
+        if (currentBinding === null) continue;
         if (isUnsafeGlobalPlaybackShortcut(currentBinding)) {
           failGlobalBinding(
             action,

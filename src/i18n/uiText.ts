@@ -773,6 +773,7 @@ export const uiText = {
         "全局快捷键支持 F1-F24，或至少带 Ctrl、Alt、Shift 之一的组合键；裸普通键仅在应用内生效。",
       keyboardShortcutActions: {
         pauseResume: "暂停 / 继续",
+        manualStep: "逐音演奏",
         next: "下一首",
         stop: "停止",
       },
@@ -781,6 +782,8 @@ export const uiText = {
         inApp: "仅应用内",
       },
       keyboardShortcutListening: "按下新的快捷键...",
+      keyboardShortcutNotSet: "未设置",
+      keyboardShortcutClear: "清除",
       keyboardShortcutDuplicate: "该快捷键已被其他操作使用。",
       keyboardShortcutUnchanged: "该快捷键与当前设置相同，未做更改。",
       keyboardShortcutUnsafeGlobal:
@@ -1614,6 +1617,7 @@ export const uiText = {
         "Global shortcuts support F1-F24 or combinations using Ctrl, Alt, or Shift. Bare ordinary keys work only in app.",
       keyboardShortcutActions: {
         pauseResume: "Pause / Resume",
+        manualStep: "Play next note",
         next: "Next",
         stop: "Stop",
       },
@@ -1622,6 +1626,8 @@ export const uiText = {
         inApp: "In app",
       },
       keyboardShortcutListening: "Press a new shortcut...",
+      keyboardShortcutNotSet: "Not set",
+      keyboardShortcutClear: "Clear",
       keyboardShortcutDuplicate: "That shortcut is already used by another action.",
       keyboardShortcutUnchanged:
         "This shortcut matches the current setting. No changes were made.",
