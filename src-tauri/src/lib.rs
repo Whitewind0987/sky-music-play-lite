@@ -6,10 +6,13 @@ mod imported_scores;
 mod score_recording;
 mod window_state;
 use experimental_input::{
-    BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
+    AutomaticPlaybackHandoffResponse, BackgroundPlaybackOptionsRequest,
+    BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
     BackgroundPlaybackStartRequest, BackgroundPlaybackStartResponse, CandidateWindow,
-    ForegroundPlaybackPreparedStartRequest,
+    ForegroundPlaybackPreparedStartRequest, ManualBackgroundPlaybackPreparedStartRequest,
+    ManualForegroundPlaybackPreparedStartRequest, ManualPlaybackSessionRequest,
+    ManualPlaybackStepResponse,
 };
 
 #[tauri::command]
@@ -81,8 +84,43 @@ fn start_prepared_foreground_playback(
 }
 
 #[tauri::command]
+fn start_prepared_manual_background_playback(
+    app: tauri::AppHandle,
+    request: ManualBackgroundPlaybackPreparedStartRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    experimental_input::start_prepared_manual_background_playback(app, request)
+}
+
+#[tauri::command]
+fn start_prepared_manual_foreground_playback(
+    app: tauri::AppHandle,
+    request: ManualForegroundPlaybackPreparedStartRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    experimental_input::start_prepared_manual_foreground_playback(app, request)
+}
+
+#[tauri::command]
+fn step_manual_playback(
+    request: ManualPlaybackSessionRequest,
+) -> Result<ManualPlaybackStepResponse, String> {
+    experimental_input::step_manual_playback(request)
+}
+
+#[tauri::command]
+fn stop_manual_playback(request: ManualPlaybackSessionRequest) -> Result<(), String> {
+    experimental_input::stop_manual_playback(request)
+}
+
+#[tauri::command]
 fn pause_background_playback(session_id: u64) -> Result<(), String> {
     experimental_input::pause_background_playback(session_id)
+}
+
+#[tauri::command]
+fn pause_automatic_playback_for_manual_handoff(
+    session_id: u64,
+) -> Result<AutomaticPlaybackHandoffResponse, String> {
+    experimental_input::pause_automatic_playback_for_manual_handoff(session_id)
 }
 
 #[tauri::command]
@@ -200,6 +238,7 @@ pub fn run() {
             imported_scores::save_imported_score_song,
             list_candidate_windows,
             pause_background_playback,
+            pause_automatic_playback_for_manual_handoff,
             pause_foreground_playback,
             prepare_background_playback_plan,
             resume_background_playback,
@@ -213,8 +252,12 @@ pub fn run() {
             start_score_recording,
             start_prepared_background_playback,
             start_prepared_foreground_playback,
+            start_prepared_manual_background_playback,
+            start_prepared_manual_foreground_playback,
+            step_manual_playback,
             stop_background_playback,
             stop_foreground_playback,
+            stop_manual_playback,
             stop_score_recording,
             update_background_playback_options,
             update_foreground_playback_options

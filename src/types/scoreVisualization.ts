@@ -1,5 +1,7 @@
 import type { SkyKeyName } from "./keyMapping";
 
+export type ScoreVisualizationTimingMode = "automatic" | "source";
+
 export type ScoreVisualNote = {
   skyKey: SkyKeyName;
   sourceKey: string;

@@ -1,6 +1,10 @@
 import type { UiText } from "../i18n/uiText";
+import { resolveManualPlaybackOutputPolicy } from "../lib/manualPlaybackState";
+import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
+import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
+import type { ScoreVisualizationTimingMode } from "../types/scoreVisualization";
 import type {
   NoteIntervalDelayMs,
   PlaybackMode,
@@ -23,15 +27,21 @@ type UsePlaybackOutputOptions = {
   text: UiText["bottomPlayer"];
 };
 
-type PlaybackOutput = {
+export type PlaybackOutput = {
+  canManualStep: boolean;
   canPlay: boolean;
   canSeek: boolean;
+  canStop: boolean;
   isRealInputOutput: boolean;
   isShuffleEnabled: boolean;
   mode: PlaybackOutputMode;
+  manualState: ManualPlaybackUiState;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
+  onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
+  onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
+  onManualStep: () => void;
   onPlay: () => void;
   onPlaySong: (songIndex: number) => void | Promise<boolean>;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
@@ -45,7 +55,22 @@ type PlaybackOutput = {
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
   progress: PreviewPlaybackProgress;
+  visualizationFollowsProgress: boolean;
+  visualizationShowsActiveKeys: boolean;
+  visualizationTimingMode: ScoreVisualizationTimingMode;
 };
+
+type AutomaticPlaybackOutput = Omit<
+  PlaybackOutput,
+  | "canManualStep"
+  | "onManualStepHoldBegin"
+  | "onManualStepHoldEnd"
+  | "onManualStep"
+  | "manualState"
+  | "visualizationFollowsProgress"
+  | "visualizationShowsActiveKeys"
+  | "visualizationTimingMode"
+>;
 
 export function usePlaybackOutput({
   experimentalInput,
@@ -63,13 +88,18 @@ export function usePlaybackOutput({
     playbackSpeed: previewPlayback.playbackSpeed,
   };
 
+  let automaticOutput: AutomaticPlaybackOutput;
+
   if (!experimentalInput.experimentalInputEnabled) {
     const canSeek = isSeekablePlaybackState(previewPlayback.playbackState);
 
-    return {
+    automaticOutput = {
       ...sharedControls,
       canPlay: previewPlayback.canPlayPreview,
       canSeek,
+      canStop:
+        previewPlayback.playbackState === "playing" ||
+        previewPlayback.playbackState === "paused",
       isRealInputOutput: false,
       mode: "preview",
       onPause: previewPlayback.handlePausePreview,
@@ -82,17 +112,16 @@ export function usePlaybackOutput({
       playbackState: previewPlayback.playbackState,
       progress: previewPlayback.bottomPlayerProgress,
     };
-  }
-
-  if (experimentalInput.experimentalInputMode === "foreground") {
+  } else if (experimentalInput.experimentalInputMode === "foreground") {
     const canSeek = isSeekablePlaybackState(
       experimentalInput.foregroundBottomPlaybackState,
     );
 
-    return {
+    automaticOutput = {
       ...sharedControls,
       canPlay: experimentalInput.canStartForegroundPlayback,
       canSeek,
+      canStop: experimentalInput.canStopForegroundPlayback,
       isRealInputOutput: true,
       mode: "experimental-foreground",
       onPause: experimentalInput.handlePauseForegroundPlayback,
@@ -105,27 +134,82 @@ export function usePlaybackOutput({
       playbackState: experimentalInput.foregroundBottomPlaybackState,
       progress: experimentalInput.foregroundPlaybackProgress,
     };
+  } else {
+    const canSeek =
+      experimentalInput.selectedWindowHwnd !== null &&
+      isSeekablePlaybackState(experimentalInput.experimentalPlaybackState);
+
+    automaticOutput = {
+      ...sharedControls,
+      canPlay: experimentalInput.canAttemptExperimentalPlayback,
+      canSeek,
+      canStop: experimentalInput.canStopExperimentalPlayback,
+      isRealInputOutput: true,
+      mode: "experimental-target-window",
+      onPause: experimentalInput.handlePauseExperimentalPlayback,
+      onPlay: experimentalInput.handleStartExperimentalPlayback,
+      onPlaySong: experimentalInput.handlePlayExperimentalSong,
+      onResume: experimentalInput.handleResumeExperimentalPlayback,
+      onSeek: experimentalInput.handleSeekExperimentalPlayback,
+      onStop: experimentalInput.handleStopExperimentalPlayback,
+      outputModeLabel: text.outputModes.experimentalTargetWindow,
+      playbackState: experimentalInput.experimentalPlaybackState,
+      progress: experimentalInput.experimentalPlaybackProgress,
+    };
   }
 
-  const canSeek =
-    experimentalInput.selectedWindowHwnd !== null &&
-    isSeekablePlaybackState(experimentalInput.experimentalPlaybackState);
+  const manualPolicy = resolveManualPlaybackOutputPolicy({
+    automaticCanPlay:
+      automaticOutput.canPlay &&
+      !experimentalInput.isPlaybackOwnershipTransitionPending,
+    automaticCanSeek: automaticOutput.canSeek,
+    automaticCanStop:
+      automaticOutput.canStop ||
+      experimentalInput.isPlaybackOwnershipTransitionPending,
+    canStepManual: experimentalInput.canStepManualPlayback,
+    isRealInputOutput: automaticOutput.isRealInputOutput,
+    state: experimentalInput.manualPlaybackState,
+  });
+  const usesManualProgress =
+    manualPolicy.showsManualProgress &&
+    experimentalInput.manualPlaybackShowsProgress;
+  const automaticFollowsProgress = isSeekablePlaybackState(
+    automaticOutput.playbackState,
+  );
+  const automaticShowsActiveKeys =
+    automaticOutput.playbackState === "playing" ||
+    automaticOutput.playbackState === "paused";
 
   return {
-    ...sharedControls,
-    canPlay: experimentalInput.canAttemptExperimentalPlayback,
-    canSeek,
-    isRealInputOutput: true,
-    mode: "experimental-target-window",
-    onPause: experimentalInput.handlePauseExperimentalPlayback,
-    onPlay: experimentalInput.handleStartExperimentalPlayback,
-    onPlaySong: experimentalInput.handlePlayExperimentalSong,
-    onResume: experimentalInput.handleResumeExperimentalPlayback,
-    onSeek: experimentalInput.handleSeekExperimentalPlayback,
-    onStop: experimentalInput.handleStopExperimentalPlayback,
-    outputModeLabel: text.outputModes.experimentalTargetWindow,
-    playbackState: experimentalInput.experimentalPlaybackState,
-    progress: experimentalInput.experimentalPlaybackProgress,
+    ...automaticOutput,
+    canManualStep: manualPolicy.canManualStep,
+    canPlay: manualPolicy.canPlay,
+    canSeek: manualPolicy.canSeek,
+    canStop: manualPolicy.canStop,
+    manualState: experimentalInput.manualPlaybackState,
+    onManualStep: () => {
+      void experimentalInput.handleStepManualPlayback();
+    },
+    onManualStepHoldBegin: (source) => {
+      experimentalInput.beginManualStepHold(source);
+    },
+    onManualStepHoldEnd: (source) => {
+      experimentalInput.endManualStepHold(source);
+    },
+    onStop: automaticOutput.isRealInputOutput
+      ? experimentalInput.handleStopAllRealPlayback
+      : automaticOutput.onStop,
+    progress: usesManualProgress
+      ? experimentalInput.manualPlaybackProgress
+      : automaticOutput.progress,
+    visualizationFollowsProgress:
+      usesManualProgress || automaticFollowsProgress,
+    visualizationShowsActiveKeys:
+      usesManualProgress
+        ? experimentalInput.manualPlaybackState === "active" ||
+          experimentalInput.manualPlaybackState === "tail"
+        : automaticShowsActiveKeys,
+    visualizationTimingMode: usesManualProgress ? "source" : "automatic",
   };
 }
 

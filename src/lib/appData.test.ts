@@ -11,10 +11,7 @@ import {
   playbackSpeedLimits,
 } from "../types/playbackOptions";
 import { defaultPlaybackShortcuts } from "../types/playbackShortcuts";
-import {
-  buildPersistedAppData,
-  sanitizePersistedAppData,
-} from "./appData";
+import { buildPersistedAppData, sanitizePersistedAppData } from "./appData";
 import { defaultAccentColor } from "./accentColor";
 import { createLocalSongMetadata } from "./libraryCollections";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
@@ -115,9 +112,7 @@ describe("buildPersistedAppData", () => {
     (alwaysOnTop) => {
       const built = buildMinimalPersistedAppData({ alwaysOnTop });
 
-      expect(sanitizePersistedAppData(built)?.alwaysOnTop).toBe(
-        alwaysOnTop,
-      );
+      expect(sanitizePersistedAppData(built)?.alwaysOnTop).toBe(alwaysOnTop);
     },
   );
 
@@ -138,9 +133,8 @@ describe("buildPersistedAppData", () => {
 
     expect(result.v1ToV2UpgradePreferences).toEqual(preferences);
     expect(
-      sanitizePersistedAppData(
-        JSON.parse(JSON.stringify(result)),
-      )?.v1ToV2UpgradePreferences,
+      sanitizePersistedAppData(JSON.parse(JSON.stringify(result)))
+        ?.v1ToV2UpgradePreferences,
     ).toEqual(preferences);
   });
 
@@ -196,7 +190,10 @@ describe("buildPersistedAppData", () => {
     expect(result.library.likedSongs).toEqual([
       { likedAt: 10, songId: "local-1" },
     ]);
-    expect(result.library.playlists[0]?.songIds).toEqual(["local-1", "local-2"]);
+    expect(result.library.playlists[0]?.songIds).toEqual([
+      "local-1",
+      "local-2",
+    ]);
     expect(result.library.selectedPlaylistId).toBe("playlist-a");
     expect(result.library.selectedSongIndex).toBe(1);
   });
@@ -271,9 +268,7 @@ describe("buildPersistedAppData", () => {
     expect(result.playbackSettings.noteIntervalDelayMs).toBe(
       noteIntervalDelayLimits.min,
     );
-    expect(result.playbackSettings.playbackSpeed).toBe(
-      playbackSpeedLimits.max,
-    );
+    expect(result.playbackSettings.playbackSpeed).toBe(playbackSpeedLimits.max);
   });
 });
 
@@ -312,10 +307,7 @@ describe("sanitizePersistedAppData current version", () => {
     (version) => {
       const result = sanitizePersistedAppData({
         appDataVersion: version,
-        library:
-          version === 1
-            ? { importedSongs: [] }
-            : { librarySongs: [] },
+        library: version === 1 ? { importedSongs: [] } : { librarySongs: [] },
       });
 
       expect(result?.v1ToV2UpgradePreferences).toEqual(
@@ -370,6 +362,114 @@ describe("sanitizePersistedAppData current version", () => {
     expect(result?.playbackShortcuts).toEqual(defaultPlaybackShortcuts);
   });
 
+  it("loads missing and explicit-null Manual Step shortcuts as unbound", () => {
+    const missing = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        next: defaultPlaybackShortcuts.next,
+        pauseResume: defaultPlaybackShortcuts.pauseResume,
+        stop: defaultPlaybackShortcuts.stop,
+      },
+    });
+    const explicitNull = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        ...defaultPlaybackShortcuts,
+        manualStep: null,
+      },
+    });
+
+    expect(missing?.playbackShortcuts.manualStep).toBeNull();
+    expect(explicitNull?.playbackShortcuts.manualStep).toBeNull();
+  });
+
+  it("preserves valid global and in-app Manual Step bindings", () => {
+    const global = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        manualStep: {
+          alt: false,
+          code: "KeyM",
+          ctrl: true,
+          shift: false,
+          scope: "global",
+        },
+      },
+    });
+    const inApp = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: {
+        manualStep: {
+          alt: true,
+          code: "KeyQ",
+          ctrl: false,
+          shift: true,
+          scope: "in-app",
+        },
+      },
+    });
+
+    expect(global?.playbackShortcuts.manualStep).toEqual({
+      alt: false,
+      code: "KeyM",
+      ctrl: true,
+      shift: false,
+      scope: "global",
+    });
+    expect(inApp?.playbackShortcuts.manualStep).toEqual({
+      alt: true,
+      code: "KeyQ",
+      ctrl: false,
+      shift: true,
+      scope: "in-app",
+    });
+  });
+
+  it.each([
+    ["empty code", { code: "", scope: "global" }],
+    ["modifier-only code", { code: "ControlLeft", scope: "global" }],
+    ["invalid scope", { code: "KeyM", scope: "invalid" }],
+    ["legacy string", "KeyM"],
+  ])("falls back to null for invalid Manual Step data: %s", (_, manualStep) => {
+    const result = sanitizePersistedAppData({
+      appDataVersion,
+      library: {},
+      playbackShortcuts: { manualStep },
+    });
+
+    expect(result?.playbackShortcuts.manualStep).toBeNull();
+  });
+
+  it("round-trips null and valid Manual Step bindings", () => {
+    const unbound = buildMinimalPersistedAppData({
+      playbackShortcuts: defaultPlaybackShortcuts,
+    });
+    const configured = buildMinimalPersistedAppData({
+      playbackShortcuts: {
+        ...defaultPlaybackShortcuts,
+        manualStep: {
+          alt: false,
+          code: "F8",
+          ctrl: false,
+          shift: false,
+          scope: "global",
+        },
+      },
+    });
+
+    expect(
+      sanitizePersistedAppData(unbound)?.playbackShortcuts.manualStep,
+    ).toBeNull();
+    expect(
+      sanitizePersistedAppData(configured)?.playbackShortcuts.manualStep,
+    ).toEqual(configured.playbackShortcuts.manualStep);
+    expect(appDataVersion).toBe(3);
+  });
+
   it("sanitizes shortcut binding codes and scopes independently", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
@@ -382,6 +482,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: {
         alt: false,
         code: "KeyN",
@@ -412,6 +513,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: defaultPlaybackShortcuts.next,
       pauseResume: defaultPlaybackShortcuts.pauseResume,
       stop: {
@@ -436,6 +538,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: {
         alt: false,
         code: "ArrowRight",
@@ -472,6 +575,7 @@ describe("sanitizePersistedAppData current version", () => {
     });
 
     expect(result?.playbackShortcuts).toEqual({
+      manualStep: null,
       next: {
         alt: false,
         code: "KeyN",
@@ -654,9 +758,9 @@ describe("sanitizePersistedAppData sustainTailMs", () => {
   it("drops songs with an invalid sustainTailMs", () => {
     expect(sanitizeWithSustainTail(-1)?.library.librarySongs).toEqual([]);
     expect(sanitizeWithSustainTail("bad")?.library.librarySongs).toEqual([]);
-    expect(
-      sanitizeWithSustainTail(Number.NaN)?.library.librarySongs,
-    ).toEqual([]);
+    expect(sanitizeWithSustainTail(Number.NaN)?.library.librarySongs).toEqual(
+      [],
+    );
   });
 
   it("restores metadata without sustainTailMs unchanged", () => {
@@ -705,18 +809,15 @@ describe("sanitizePersistedAppData contentFingerprint", () => {
     ["true", false],
     [1, false],
     [null, false],
-  ])(
-    "sanitizes always-on-top value %p to %s",
-    (alwaysOnTop, expected) => {
-      expect(
-        sanitizePersistedAppData({
-          alwaysOnTop,
-          appDataVersion,
-          library: {},
-        })?.alwaysOnTop,
-      ).toBe(expected);
-    },
-  );
+  ])("sanitizes always-on-top value %p to %s", (alwaysOnTop, expected) => {
+    expect(
+      sanitizePersistedAppData({
+        alwaysOnTop,
+        appDataVersion,
+        library: {},
+      })?.alwaysOnTop,
+    ).toBe(expected);
+  });
 
   it("does not mutate raw always-on-top app data", () => {
     const rawData = {
@@ -750,9 +851,7 @@ describe("sanitizePersistedAppData contentFingerprint", () => {
     const result = sanitizePersistedAppData({
       appDataVersion,
       library: {
-        librarySongs: [
-          { ...librarySong, metadata: legacyMetadata },
-        ],
+        librarySongs: [{ ...librarySong, metadata: legacyMetadata }],
       },
     });
 
@@ -783,10 +882,9 @@ describe("sanitizePersistedAppData noteGroupMaxHoldMs", () => {
   it("keeps a complete valid aligned hold array", () => {
     const result = sanitizeWithHolds([0, 60000]);
 
-    expect(result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs).toEqual([
-      0,
-      60000,
-    ]);
+    expect(
+      result?.library.librarySongs[0]?.metadata.noteGroupMaxHoldMs,
+    ).toEqual([0, 60000]);
   });
 
   it.each([
@@ -842,9 +940,8 @@ describe("sanitizePersistedAppData migration fallback songs", () => {
       songNotes: [{ time: 0, key: "Key0", duration: 1500 }],
     };
     const result = sanitizeFallbackSong(song);
-    const fallback = result?.library.migrationFallbackSongs?.[
-      "local-fallback-v2"
-    ];
+    const fallback =
+      result?.library.migrationFallbackSongs?.["local-fallback-v2"];
 
     expect(fallback?.formatVersion).toBe(2);
     expect(fallback?.songNotes[0]?.duration).toBe(1500);
@@ -856,9 +953,8 @@ describe("sanitizePersistedAppData migration fallback songs", () => {
       formatVersion: 1,
       songNotes: [{ time: 0, key: "Key0", duration: 1500 }],
     });
-    const fallback = result?.library.migrationFallbackSongs?.[
-      "local-fallback-v2"
-    ];
+    const fallback =
+      result?.library.migrationFallbackSongs?.["local-fallback-v2"];
 
     expect(fallback?.formatVersion).toBe(1);
     expect(fallback?.songNotes[0]?.duration).toBeUndefined();
@@ -870,9 +966,8 @@ describe("sanitizePersistedAppData migration fallback songs", () => {
       formatVersion: 2,
       songNotes: [{ time: 0, key: "Key0", duration: 60000 }],
     });
-    const fallback = result?.library.migrationFallbackSongs?.[
-      "local-fallback-v2"
-    ];
+    const fallback =
+      result?.library.migrationFallbackSongs?.["local-fallback-v2"];
 
     expect(fallback?.formatVersion).toBe(2);
     expect(fallback?.songNotes[0]?.duration).toBe(60000);
@@ -934,6 +1029,7 @@ describe("sanitizePersistedAppData legacy v1 migration", () => {
       createTestSong("Legacy Song"),
     );
     expect(result?.library.selectedSongIndex).toBe(0);
+    expect(result?.playbackShortcuts.manualStep).toBeNull();
   });
 
   it("ignores invalid imported songs during v1 migration", () => {
@@ -980,6 +1076,7 @@ describe("sanitizePersistedAppData v2 migration", () => {
     expect(result?.library.playlists[0]?.songIds).toEqual(["local-v2"]);
     expect(result?.library.selectedSongIndex).toBe(0);
     expect(result?.language).toBe("en-US");
+    expect(result?.playbackShortcuts.manualStep).toBeNull();
   });
 });
 
@@ -998,9 +1095,9 @@ describe("sanitizePersistedAppData v3 recovery", () => {
       },
     });
 
-    expect(
-      result?.library.librarySongs[0]?.metadata.formatVersion,
-    ).toBe(formatVersion);
+    expect(result?.library.librarySongs[0]?.metadata.formatVersion).toBe(
+      formatVersion,
+    );
   });
 
   it("keeps metadata without a format version valid", () => {
@@ -1166,6 +1263,7 @@ describe("sanitizePersistedAppData v3 recovery", () => {
       noteIntervalDelayMs: 123,
       playbackMode: "repeat-all",
       playbackShortcuts: {
+        manualStep: null,
         next: {
           alt: true,
           code: "KeyN",

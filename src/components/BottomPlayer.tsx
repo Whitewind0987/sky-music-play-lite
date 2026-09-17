@@ -14,6 +14,9 @@ import {
   getLibrarySongNoteCount,
 } from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
+import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
+import { createManualStepPointerGesture } from "../lib/manualStepPointerGesture";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { LibrarySong } from "../types/library";
@@ -30,6 +33,7 @@ import { QueuePanel } from "./QueuePanel";
 import {
   PauseIcon,
   PlayIcon,
+  ManualStepIcon,
   NextIcon,
   QueueIcon,
   RepeatIcon,
@@ -39,20 +43,26 @@ import {
 } from "./PlayerIcons";
 
 type BottomPlayerProps = {
+  canManualStep: boolean;
   canPlay: boolean;
   canSeek: boolean;
+  canStop: boolean;
   canOpenVisualization: boolean;
   currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
   isVisualizationOpen: boolean;
+  manualState: ManualPlaybackUiState;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onNext: () => void;
   onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
+  onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
+  onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
+  onManualStep: () => void;
   onPlay: () => void;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onQueueClear: () => void;
@@ -205,20 +215,26 @@ function PlayerStepper({
 }
 
 export function BottomPlayer({
+  canManualStep,
   canPlay,
   canSeek,
+  canStop,
   canOpenVisualization,
   currentSong,
   isCurrentSongLoading,
   isShuffleEnabled,
   isRealInputOutput,
   isVisualizationOpen,
+  manualState,
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onNext,
   onVisualizationOpen,
   onPlayQueueItem,
   onPause,
+  onManualStepHoldBegin,
+  onManualStepHoldEnd,
+  onManualStep,
   onPlay,
   onPlaybackSpeedChange,
   onQueueClear,
@@ -247,11 +263,82 @@ export function BottomPlayer({
   const [dragTimeMs, setDragTimeMs] = useState<number | null>(null);
   const [isProgressDragging, setIsProgressDragging] = useState(false);
   const [isProgressHovering, setIsProgressHovering] = useState(false);
+  const [isManualStepPointerHeld, setIsManualStepPointerHeld] = useState(false);
+  const onManualStepRef = useRef(onManualStep);
+  const onManualStepHoldBeginRef = useRef(onManualStepHoldBegin);
+  const onManualStepHoldEndRef = useRef(onManualStepHoldEnd);
+  onManualStepRef.current = onManualStep;
+  onManualStepHoldBeginRef.current = onManualStepHoldBegin;
+  onManualStepHoldEndRef.current = onManualStepHoldEnd;
+  const manualStepPointerGestureRef = useRef<
+    ReturnType<typeof createManualStepPointerGesture> | null
+  >(null);
+  if (manualStepPointerGestureRef.current === null) {
+    manualStepPointerGestureRef.current = createManualStepPointerGesture({
+      onBegin: (pointerId) =>
+        onManualStepHoldBeginRef.current(`pointer:${pointerId}`),
+      onEnd: (pointerId) =>
+        onManualStepHoldEndRef.current(`pointer:${pointerId}`),
+      onHeldChange: setIsManualStepPointerHeld,
+      onKeyboardStep: () => onManualStepRef.current(),
+    });
+  }
   const canPause = playbackState === "playing";
+  const isManualStepDisabled =
+    (isCurrentSongLoading || !canManualStep) && !isManualStepPointerHeld;
+
+  useEffect(() => {
+    if (
+      manualState === "tail" ||
+      manualState === "finished" ||
+      manualState === "error"
+    ) {
+      manualStepPointerGestureRef.current?.terminate();
+    }
+  }, [manualState]);
+
+  useEffect(() => {
+    if (!isRealInputOutput) {
+      manualStepPointerGestureRef.current?.terminate();
+    }
+  }, [isRealInputOutput]);
+
+  useEffect(
+    () => () => manualStepPointerGestureRef.current?.dispose(),
+    [],
+  );
+
+  function handleManualStepPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (isManualStepDisabled || event.button !== 0) return;
+    if (!manualStepPointerGestureRef.current?.begin(event.pointerId)) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleManualStepPointerEnd(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!manualStepPointerGestureRef.current?.end(event.pointerId)) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleManualStepPointerCancel(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    manualStepPointerGestureRef.current?.cancel(event.pointerId);
+  }
+
+  function handleManualStepLostPointerCapture() {
+    manualStepPointerGestureRef.current?.terminate();
+  }
+
+  function handleManualStepClick(event: ReactMouseEvent<HTMLButtonElement>) {
+    if (!manualStepPointerGestureRef.current?.consumeClick(event.detail !== 0)) {
+      event.preventDefault();
+    }
+  }
   const isV2Song =
     currentSong !== null && getLibrarySongFormatVersion(currentSong) === 2;
   const canResume = playbackState === "paused";
-  const canStop = playbackState === "playing" || playbackState === "paused";
   const primaryAction =
     playbackState === "playing"
       ? {
@@ -584,7 +671,10 @@ export function BottomPlayer({
               {currentSong ? getLibrarySongNoteCount(currentSong) : "--"}
             </span>
             <span className="bottom-player-meta-item">
-              {text.state}: {text.states[playbackState]}
+              {text.state}:{" "}
+              {manualState === "idle"
+                ? text.states[playbackState]
+                : text.manualStates[manualState]}
             </span>
             <span className="bottom-player-meta-item bottom-player-time">
               {formatPlaybackTime(progress.currentMs)} /{" "}
@@ -630,6 +720,23 @@ export function BottomPlayer({
           >
             {primaryAction.icon}
           </button>
+          {isRealInputOutput ? (
+            <button
+              className="player-icon-button player-icon-button-secondary player-icon-button-manual-step"
+              type="button"
+              aria-label={text.manualStep}
+              disabled={isManualStepDisabled}
+              title={text.manualStepTooltip}
+              onClick={handleManualStepClick}
+              onLostPointerCapture={handleManualStepLostPointerCapture}
+              onPointerCancel={handleManualStepPointerCancel}
+              onPointerDown={handleManualStepPointerDown}
+              onPointerUp={handleManualStepPointerEnd}
+            >
+              <ManualStepIcon />
+              <span className="visually-hidden">{text.manualStep}</span>
+            </button>
+          ) : null}
           <button
             className="player-icon-button player-icon-button-secondary"
             type="button"

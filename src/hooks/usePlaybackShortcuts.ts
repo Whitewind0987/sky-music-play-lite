@@ -15,6 +15,7 @@ import {
   formatPlaybackShortcut,
   getDesiredGlobalPlaybackShortcutActions,
   getGlobalPlaybackShortcutCallbackDecision,
+  getInAppManualShortcutEventDecision,
   getPlaybackShortcutRecordingRequestDecision,
   getPlaybackShortcutRecordingSessionAction,
   isUnsafeGlobalPlaybackShortcut,
@@ -31,8 +32,21 @@ import {
   type PlaybackShortcutScope,
   type PlaybackShortcuts,
 } from "../types/playbackShortcuts";
+import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
 
-type PlaybackHotkeyControls = Record<PlaybackShortcutAction, () => void>;
+type ManualShortcutHoldSource = Extract<
+  ManualStepHoldSource,
+  "shortcut:global" | "shortcut:in-app"
+>;
+type PlaybackHotkeyControls = Record<
+  Exclude<PlaybackShortcutAction, "manualStep">,
+  () => void
+> & {
+  manualStep: {
+    begin: (source: ManualShortcutHoldSource) => void;
+    end: (source: ManualShortcutHoldSource) => void;
+  };
+};
 type RegisteredPlaybackShortcut = {
   accelerator: string;
   binding: PlaybackShortcutBinding;
@@ -68,13 +82,15 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 function normalizePlaybackShortcuts(bindings: PlaybackShortcuts) {
-  return playbackShortcutActions.reduce<PlaybackShortcuts>(
-    (normalized, action) => ({
-      ...normalized,
-      [action]: normalizeGlobalPlaybackShortcutScope(bindings[action]),
-    }),
-    { ...defaultPlaybackShortcuts },
-  );
+  return {
+    manualStep:
+      bindings.manualStep === null
+        ? null
+        : normalizeGlobalPlaybackShortcutScope(bindings.manualStep),
+    next: normalizeGlobalPlaybackShortcutScope(bindings.next),
+    pauseResume: normalizeGlobalPlaybackShortcutScope(bindings.pauseResume),
+    stop: normalizeGlobalPlaybackShortcutScope(bindings.stop),
+  };
 }
 
 export function usePlaybackShortcuts({
@@ -83,11 +99,14 @@ export function usePlaybackShortcuts({
   text,
 }: UsePlaybackShortcutsOptions) {
   const controlsRef = useRef<PlaybackHotkeyControls>({
+    manualStep: { begin: () => {}, end: () => {} },
     next: () => {},
     pauseResume: () => {},
     stop: () => {},
   });
   const operationRef = useRef<Promise<void>>(Promise.resolve());
+  const activeInAppManualShortcutCodeRef = useRef<string | null>(null);
+  const isGlobalManualShortcutHeldRef = useRef(false);
   const registeredRef = useRef(
     new Map<PlaybackShortcutAction, RegisteredPlaybackShortcut>(),
   );
@@ -131,10 +150,33 @@ export function usePlaybackShortcuts({
     return next;
   }, []);
 
-  const commitPlaybackShortcuts = useCallback((bindings: PlaybackShortcuts) => {
-    latestBindingsRef.current = bindings;
-    setPlaybackShortcutsState(bindings);
+  const releaseInAppManualShortcutHold = useCallback(() => {
+    if (activeInAppManualShortcutCodeRef.current !== null) {
+      activeInAppManualShortcutCodeRef.current = null;
+      controlsRef.current.manualStep.end("shortcut:in-app");
+    }
   }, []);
+
+  const releaseGlobalManualShortcutHold = useCallback(() => {
+    if (isGlobalManualShortcutHeldRef.current) {
+      isGlobalManualShortcutHeldRef.current = false;
+      controlsRef.current.manualStep.end("shortcut:global");
+    }
+  }, []);
+
+  const releaseManualShortcutHolds = useCallback(() => {
+    releaseInAppManualShortcutHold();
+    releaseGlobalManualShortcutHold();
+  }, [releaseGlobalManualShortcutHold, releaseInAppManualShortcutHold]);
+
+  const commitPlaybackShortcuts = useCallback(
+    (bindings: PlaybackShortcuts) => {
+      releaseManualShortcutHolds();
+      latestBindingsRef.current = bindings;
+      setPlaybackShortcutsState(bindings);
+    },
+    [releaseManualShortcutHolds],
+  );
 
   const setPlaybackHotkeyControls = useCallback(
     (controls: PlaybackHotkeyControls) => {
@@ -158,18 +200,22 @@ export function usePlaybackShortcuts({
   );
   const setPlaybackShortcutCode = useCallback(
     (action: PlaybackShortcutAction, code: string) => {
+      const binding = latestBindingsRef.current[action];
+      if (binding === null) return;
       commitPlaybackShortcuts({
         ...latestBindingsRef.current,
-        [action]: { ...latestBindingsRef.current[action], code },
+        [action]: { ...binding, code },
       });
     },
     [commitPlaybackShortcuts],
   );
   const setPlaybackShortcutScope = useCallback(
     (action: PlaybackShortcutAction, scope: PlaybackShortcutScope) => {
+      const binding = latestBindingsRef.current[action];
+      if (binding === null) return;
       commitPlaybackShortcuts({
         ...latestBindingsRef.current,
-        [action]: { ...latestBindingsRef.current[action], scope },
+        [action]: { ...binding, scope },
       });
     },
     [commitPlaybackShortcuts],
@@ -182,7 +228,13 @@ export function usePlaybackShortcuts({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
-        event.repeat ||
+        event.repeat &&
+        activeInAppManualShortcutCodeRef.current === event.code
+      ) {
+        event.preventDefault();
+        return;
+      }
+      if (
         recordingActionRef.current !== null ||
         pendingRecordingActionRef.current !== null
       ) {
@@ -195,13 +247,48 @@ export function usePlaybackShortcuts({
       );
       if (action) {
         event.preventDefault();
-        controlsRef.current[action]();
+        if (action === "manualStep") {
+          const decision = getInAppManualShortcutEventDecision({
+            activeCode: activeInAppManualShortcutCodeRef.current,
+            code: event.code,
+            eventType: "keydown",
+            isManualBindingMatch: true,
+            repeat: event.repeat,
+          });
+          if (decision === "begin") {
+            activeInAppManualShortcutCodeRef.current = event.code;
+            controlsRef.current.manualStep.begin("shortcut:in-app");
+          }
+          return;
+        }
+        if (!event.repeat) controlsRef.current[action]();
       }
     }
 
+    function onKeyUp(event: KeyboardEvent) {
+      const decision = getInAppManualShortcutEventDecision({
+        activeCode: activeInAppManualShortcutCodeRef.current,
+        code: event.code,
+        eventType: "keyup",
+        isManualBindingMatch: false,
+        repeat: false,
+      });
+      if (decision !== "end") return;
+      event.preventDefault();
+      activeInAppManualShortcutCodeRef.current = null;
+      controlsRef.current.manualStep.end("shortcut:in-app");
+    }
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", releaseInAppManualShortcutHold);
+    return () => {
+      releaseManualShortcutHolds();
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", releaseInAppManualShortcutHold);
+    };
+  }, [releaseInAppManualShortcutHold, releaseManualShortcutHolds]);
 
   const failGlobalBinding = useCallback(
     (
@@ -209,12 +296,13 @@ export function usePlaybackShortcuts({
       binding: PlaybackShortcutBinding,
       message: string,
     ) => {
-      if (latestBindingsRef.current[action].scope !== "global") return;
+      const currentBinding = latestBindingsRef.current[action];
+      if (currentBinding === null || currentBinding.scope !== "global") return;
       setShortcutNotice((current) => ({ ...current, [action]: message }));
       commitPlaybackShortcuts({
         ...latestBindingsRef.current,
         [action]: fallbackGlobalPlaybackShortcutToInApp(
-          latestBindingsRef.current[action],
+          currentBinding,
         ),
       });
       showNoticeRef.current(message);
@@ -282,6 +370,7 @@ export function usePlaybackShortcuts({
         if (isRecording) continue;
 
         const currentBinding = latestBindingsRef.current[action];
+        if (currentBinding === null) continue;
         if (isUnsafeGlobalPlaybackShortcut(currentBinding)) {
           failGlobalBinding(
             action,
@@ -305,7 +394,17 @@ export function usePlaybackShortcuts({
                     recordingSentinelRef.current?.action ?? null,
                   );
                 if (callbackDecision === "execute-playback") {
-                  controlsRef.current[action]();
+                  if (action !== "manualStep") controlsRef.current[action]();
+                } else if (callbackDecision === "begin-manual-hold") {
+                  if (!isGlobalManualShortcutHeldRef.current) {
+                    isGlobalManualShortcutHeldRef.current = true;
+                    controlsRef.current.manualStep.begin("shortcut:global");
+                  }
+                } else if (callbackDecision === "end-manual-hold") {
+                  if (isGlobalManualShortcutHeldRef.current) {
+                    isGlobalManualShortcutHeldRef.current = false;
+                    controlsRef.current.manualStep.end("shortcut:global");
+                  }
                 } else if (callbackDecision === "complete-unchanged") {
                   completeShortcutRecordingAsUnchangedRef.current(
                     action,
@@ -464,6 +563,7 @@ export function usePlaybackShortcuts({
 
   const beginShortcutRecording = useCallback(
     async (action: PlaybackShortcutAction) => {
+      releaseManualShortcutHolds();
       clearShortcutNotice(action);
       const previousAction = getPlaybackShortcutRecordingSessionAction(
         recordingActionRef.current,
@@ -548,6 +648,7 @@ export function usePlaybackShortcuts({
       endShortcutRecording,
       enqueue,
       clearShortcutNotice,
+      releaseManualShortcutHolds,
       synchronizeGlobalShortcuts,
       text.logs.shortcutRecordingSuspendFailed,
       text.settings.keyboardShortcutRecordingFailed,
@@ -556,6 +657,7 @@ export function usePlaybackShortcuts({
 
   useEffect(
     () => () => {
+      releaseManualShortcutHolds();
       recordingRequestIdRef.current += 1;
       recordingActionRef.current = null;
       pendingRecordingActionRef.current = null;
@@ -567,7 +669,7 @@ export function usePlaybackShortcuts({
         registeredRef.current.clear();
       });
     },
-    [enqueue],
+    [enqueue, releaseManualShortcutHolds],
   );
 
   return {

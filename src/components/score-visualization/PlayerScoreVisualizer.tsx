@@ -6,59 +6,63 @@ import {
   buildScoreVisualization,
   findCurrentScoreVisualGroupIndex,
   getActiveScoreVisualKeys,
+  resolveScoreVisualizationOptions,
+  resolveScoreVisualizationTimingOptions,
 } from "../../lib/scoreVisualization";
-import type { PlaybackState } from "../../types/playback";
 import type {
   NoteIntervalDelayMs,
   PlaybackSpeed,
 } from "../../types/playbackOptions";
 import type { Song } from "../../types/score";
+import type { ScoreVisualizationTimingMode } from "../../types/scoreVisualization";
 import { ScoreTimelineVisualizer } from "./ScoreTimelineVisualizer";
 import { SkyKeyboardVisualizer } from "./SkyKeyboardVisualizer";
 
 type PlayerScoreVisualizerProps = {
+  followsProgress: boolean;
   hasLoadFailed: boolean;
   isLoading: boolean;
   isOpen: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onClose: () => void;
   playbackSpeed: PlaybackSpeed;
-  playbackState: PlaybackState;
   progress: PreviewPlaybackProgress;
+  showsActiveKeys: boolean;
   song: Song | null;
   songTitle: string;
   text: UiText["playerScoreVisualization"];
+  timingMode: ScoreVisualizationTimingMode;
 };
 
 export function PlayerScoreVisualizer({
+  followsProgress,
   hasLoadFailed,
   isLoading,
   isOpen,
   noteIntervalDelayMs,
   onClose,
   playbackSpeed,
-  playbackState,
   progress,
+  showsActiveKeys,
   song,
   songTitle,
   text,
+  timingMode,
 }: PlayerScoreVisualizerProps) {
   const model = useMemo(
     () =>
       song === null
         ? null
-        : buildScoreVisualization(song.songNotes, {
-            noteIntervalDelayMs,
-            playbackSpeed,
-          }),
-    [noteIntervalDelayMs, playbackSpeed, song],
+        : buildScoreVisualization(
+            song.songNotes,
+            resolveScoreVisualizationTimingOptions(timingMode, {
+              noteIntervalDelayMs,
+              playbackSpeed,
+            }),
+            resolveScoreVisualizationOptions(timingMode),
+          ),
+    [noteIntervalDelayMs, playbackSpeed, song, timingMode],
   );
-  const followsProgress =
-    playbackState === "playing" ||
-    playbackState === "paused" ||
-    playbackState === "finished";
-  const showsActiveKeys =
-    playbackState === "playing" || playbackState === "paused";
   const focusGroupIndex =
     model !== null && followsProgress
       ? findCurrentScoreVisualGroupIndex(model.groups, progress.currentMs)

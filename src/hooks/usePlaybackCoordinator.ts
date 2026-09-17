@@ -66,7 +66,7 @@ export function usePlaybackCoordinator({
       return true;
     }
 
-    return experimentalInput.ensureTargetWindowAvailableForPlayback();
+    return (await experimentalInput.ensureTargetWindowAvailableForPlayback()) !== null;
   }
 
   async function handlePlayLibraryItem(item: LibrarySongListItem) {
@@ -396,6 +396,14 @@ export function usePlaybackCoordinator({
 
   async function handleBottomPlayerPlay() {
     if (!(await ensureTargetWindowReadyForPlayback())) {
+      return;
+    }
+
+    if (
+      playbackOutput.manualState === "active" ||
+      playbackOutput.manualState === "tail"
+    ) {
+      await playbackOutput.onPlay();
       return;
     }
 

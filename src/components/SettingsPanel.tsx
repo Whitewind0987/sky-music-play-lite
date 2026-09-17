@@ -10,8 +10,10 @@ import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
   applyPlaybackShortcutRecordingOutcome,
+  clearManualPlaybackShortcut,
   clearPlaybackShortcutNotice,
   formatPlaybackShortcut,
+  getPlaybackShortcutRecordingScope,
   getPlaybackShortcutNotice,
   getShortcutRecordingDecision,
   isUnsafeGlobalPlaybackShortcut,
@@ -258,7 +260,7 @@ export function SettingsPlaceholder({
         currentAction,
         getShortcutRecordingDecision(
           event,
-          playbackShortcuts[currentAction].scope,
+          getPlaybackShortcutRecordingScope(playbackShortcuts, currentAction),
         ),
       );
 
@@ -774,6 +776,12 @@ export function SettingsPlaceholder({
         <p className="shortcut-warning">{text.keyboardShortcutWarning}</p>
         <div className="setting-placeholder-list">
           {playbackShortcutActions.map((action) => {
+            const binding = playbackShortcuts[action];
+            const shortcutScope = getPlaybackShortcutRecordingScope(
+              playbackShortcuts,
+              action,
+            );
+            const isUnbound = binding === null;
             const isListening = listeningShortcutAction === action;
             const isPending = pendingShortcutRecordingAction === action;
             const isDisabled =
@@ -792,33 +800,30 @@ export function SettingsPlaceholder({
                     <span>{text.keyboardShortcutActions[action]}</span>
                     <button
                       type="button"
-                      disabled={isListening || isDisabled}
-                      aria-pressed={
-                        playbackShortcuts[action].scope === "global"
-                      }
+                      disabled={isUnbound || isListening || isDisabled}
+                      aria-pressed={shortcutScope === "global"}
                       aria-label={
-                        playbackShortcuts[action].scope === "global"
+                        shortcutScope === "global"
                           ? text.keyboardShortcutScopes.inApp
                           : text.keyboardShortcutScopes.global
                       }
                       title={
-                        playbackShortcuts[action].scope === "global"
+                        shortcutScope === "global"
                           ? text.keyboardShortcutScopes.inApp
                           : text.keyboardShortcutScopes.global
                       }
                       onClick={() => {
+                        if (binding === null) return;
                         onShortcutNoticeClear(action);
                         const isRequestingUnsafeGlobal =
-                          playbackShortcuts[action].scope === "in-app" &&
-                          isUnsafeGlobalPlaybackShortcut(
-                            playbackShortcuts[action],
-                          );
+                          binding.scope === "in-app" &&
+                          isUnsafeGlobalPlaybackShortcut(binding);
                         onPlaybackShortcutsChange({
                           ...playbackShortcuts,
                           [action]: {
-                            ...playbackShortcuts[action],
+                            ...binding,
                             scope:
-                              playbackShortcuts[action].scope === "global" ||
+                              binding.scope === "global" ||
                               isRequestingUnsafeGlobal
                                 ? "in-app"
                                 : "global",
@@ -838,41 +843,63 @@ export function SettingsPlaceholder({
                         });
                       }}
                       className={`shortcut-scope-badge ${
-                        playbackShortcuts[action].scope === "global"
+                        shortcutScope === "global"
                           ? "is-global"
                           : "is-in-app"
                       }`}
                     >
                       {
                         text.keyboardShortcutScopes[
-                          playbackShortcuts[action].scope === "global"
+                          shortcutScope === "global"
                             ? "global"
                             : "inApp"
                         ]
                       }
                     </button>
                   </div>
-                  <button
-                    ref={(element) => {
-                      shortcutBindingRefs.current[action] = element;
-                    }}
-                    className={`shortcut-binding-button${
-                      isListening ? " is-listening" : ""
-                    }`}
-                    type="button"
-                    disabled={isDisabled}
-                    onClick={() => {
-                      onShortcutNoticeClear(action);
-                      setShortcutConflictNotices((current) =>
-                        clearPlaybackShortcutNotice(current, action),
-                      );
-                      void onShortcutRecordingStart(action);
-                    }}
-                  >
-                    {isListening
-                      ? text.keyboardShortcutListening
-                      : formatPlaybackShortcut(playbackShortcuts[action])}
-                  </button>
+                  <div className="shortcut-binding-actions">
+                    <button
+                      ref={(element) => {
+                        shortcutBindingRefs.current[action] = element;
+                      }}
+                      className={`shortcut-binding-button${
+                        isListening ? " is-listening" : ""
+                      }`}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        onShortcutNoticeClear(action);
+                        setShortcutConflictNotices((current) =>
+                          clearPlaybackShortcutNotice(current, action),
+                        );
+                        void onShortcutRecordingStart(action);
+                      }}
+                    >
+                      {isListening
+                        ? text.keyboardShortcutListening
+                        : binding === null
+                          ? text.keyboardShortcutNotSet
+                          : formatPlaybackShortcut(binding)}
+                    </button>
+                    {action === "manualStep" && binding !== null ? (
+                      <button
+                        className="shortcut-reset-button"
+                        type="button"
+                        disabled={isListening || isDisabled}
+                        onClick={() => {
+                          onShortcutNoticeClear(action);
+                          setShortcutConflictNotices((current) =>
+                            clearPlaybackShortcutNotice(current, action),
+                          );
+                          onPlaybackShortcutsChange(
+                            clearManualPlaybackShortcut(playbackShortcuts),
+                          );
+                        }}
+                      >
+                        {text.keyboardShortcutClear}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 {rowShortcutNotice ? (
                   <p className="shortcut-inline-notice" aria-live="polite">

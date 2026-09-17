@@ -15,6 +15,7 @@ import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackP
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import {
   listenForegroundPlaybackEvents,
+  pauseAutomaticPlaybackForManualHandoff,
   pauseForegroundPlayback,
   resumeForegroundPlayback,
   seekForegroundPlayback,
@@ -75,7 +76,7 @@ type ForegroundPlaybackContext = {
 };
 
 const COUNTDOWN_START_SECONDS = 3;
-const FOREGROUND_KEY_HOLD_MS = 40;
+export const FOREGROUND_KEY_HOLD_MS = 40;
 
 export function useForegroundPlayback({
   appendLog,
@@ -322,11 +323,45 @@ export function useForegroundPlayback({
 
   function handleStartForegroundPlayback() {
     if (!canStartForegroundPlayback || selectedSongIndex === null) {
-      return;
+      return Promise.resolve(false);
     }
 
     onBeforeStart();
-    void startForegroundPlaybackForSong(selectedSongIndex, { withCountdown: true });
+    return startForegroundPlaybackForSong(selectedSongIndex, { withCountdown: true });
+  }
+
+  function handleStartForegroundPlaybackFromGroup(
+    songIndex: number,
+    initialGroupIndex: number,
+  ) {
+    if (!experimentalInputEnabled) return Promise.resolve(false);
+    onBeforeStart();
+    return startForegroundPlaybackForSong(songIndex, {
+      initialGroupIndex,
+      withCountdown: false,
+    });
+  }
+
+  async function handoffAutomaticToManual() {
+    if (foregroundPlaybackState === "countdown") {
+      stopForegroundPlayback({ nextState: "stopped", shouldLog: false });
+      return null;
+    }
+    const sessionId = activeForegroundSessionIdRef.current;
+    if (
+      sessionId === null ||
+      (foregroundPlaybackState !== "playing" &&
+        foregroundPlaybackState !== "paused")
+    ) {
+      return null;
+    }
+    const cursor = await pauseAutomaticPlaybackForManualHandoff(sessionId);
+    if (activeForegroundSessionIdRef.current !== sessionId) return null;
+    activeForegroundSessionIdRef.current = null;
+    foregroundPlaybackContextRef.current = null;
+    pendingForegroundEventsRef.current.clear();
+    setForegroundPlaybackState("idle");
+    return cursor;
   }
 
   function handlePlayForegroundSong(songIndex: number): Promise<boolean> {
@@ -342,8 +377,13 @@ export function useForegroundPlayback({
     songIndex: number,
     {
       initialSeekMs,
+      initialGroupIndex,
       withCountdown,
-    }: { initialSeekMs?: number; withCountdown: boolean },
+    }: {
+      initialSeekMs?: number;
+      initialGroupIndex?: number;
+      withCountdown: boolean;
+    },
   ): Promise<boolean> {
     const foregroundSongId = librarySongsRef.current[songIndex]?.id ?? null;
     const requestToken = foregroundRequestTokenRef.current + 1;
@@ -419,6 +459,7 @@ export function useForegroundPlayback({
 
     return startPreparedForegroundPlaybackForSong({
       initialSeekMs,
+      initialGroupIndex,
       preparedPlan,
       requestToken,
       retryCount: 0,
@@ -429,6 +470,7 @@ export function useForegroundPlayback({
 
   async function startPreparedForegroundPlaybackForSong({
     initialSeekMs,
+    initialGroupIndex,
     preparedPlan,
     requestToken,
     retryCount,
@@ -436,6 +478,7 @@ export function useForegroundPlayback({
     songIndex,
   }: {
     initialSeekMs?: number;
+    initialGroupIndex?: number;
     preparedPlan: PreparedPlaybackPlan;
     requestToken: number;
     retryCount: number;
@@ -448,6 +491,7 @@ export function useForegroundPlayback({
     try {
       const response = await startPreparedForegroundPlayback({
         initialProgressMs: initialSeekMs,
+        initialGroupIndex,
         keyHoldMs: FOREGROUND_KEY_HOLD_MS,
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         playbackSpeed: playbackSpeedRef.current,
@@ -501,6 +545,7 @@ export function useForegroundPlayback({
           }
           return startPreparedForegroundPlaybackForSong({
             initialSeekMs,
+            initialGroupIndex,
             preparedPlan: replacement,
             requestToken,
             retryCount: 1,
@@ -728,8 +773,10 @@ export function useForegroundPlayback({
     handleResumeForegroundPlayback,
     handleSeekForegroundPlayback,
     handleStartForegroundPlayback,
+    handleStartForegroundPlaybackFromGroup,
     handleStopForegroundPlayback,
     getActiveForegroundPlaybackSongId,
+    handoffAutomaticToManual,
     isForegroundPlaybackActive,
     isForegroundStartPending,
   };

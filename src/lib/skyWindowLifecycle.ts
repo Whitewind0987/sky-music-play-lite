@@ -160,11 +160,36 @@ export function resolveUnboundSkyMonitorStatus({
 export function isManualTargetSelectionLocked({
   activeSessionId,
   isHandoffPending,
+  isManualTargetEngaged = false,
 }: {
   activeSessionId: number | null;
   isHandoffPending: boolean;
+  isManualTargetEngaged?: boolean;
 }): boolean {
-  return activeSessionId !== null || isHandoffPending;
+  return activeSessionId !== null || isHandoffPending || isManualTargetEngaged;
+}
+
+export function resolveManualTargetWindowHwnd(
+  resolvedHwnd: string | null,
+): string | null {
+  if (resolvedHwnd === null || resolvedHwnd.trim().length === 0) return null;
+  return resolvedHwnd;
+}
+
+export function resolveAvailableTargetWindowForPlayback({
+  candidateWindows,
+  selectedWindowHwnd,
+}: {
+  candidateWindows: CandidateWindow[];
+  selectedWindowHwnd: string | null;
+}): CandidateWindow | null {
+  if (selectedWindowHwnd !== null) {
+    return (
+      candidateWindows.find((window) => window.hwnd === selectedWindowHwnd) ??
+      null
+    );
+  }
+  return candidateWindows.find(isSkyWindow) ?? null;
 }
 
 export function getInvalidStartFailureDecision({

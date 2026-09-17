@@ -36,7 +36,9 @@ export type PlaybackShortcutRecordingRequestDecision =
   | "start";
 
 export type GlobalPlaybackShortcutCallbackDecision =
+  | "begin-manual-hold"
   | "complete-unchanged"
+  | "end-manual-hold"
   | "execute-playback"
   | "suppress";
 
@@ -191,6 +193,11 @@ export function getGlobalPlaybackShortcutCallbackDecision(
   );
   if (sessionAction === null) {
     if (restoringRecordingAction !== null) return "suppress";
+    if (callbackAction === "manualStep") {
+      return eventState === "Pressed"
+        ? "begin-manual-hold"
+        : "end-manual-hold";
+    }
     return eventState === "Pressed" ? "execute-playback" : "suppress";
   }
   if (eventState !== "Pressed") return "suppress";
@@ -240,9 +247,11 @@ export function formatPlaybackShortcut(binding: PlaybackShortcutBinding) {
 }
 
 export function arePlaybackShortcutCombinationsEqual(
-  left: PlaybackShortcutBinding,
-  right: PlaybackShortcutBinding,
+  left: PlaybackShortcutBinding | null,
+  right: PlaybackShortcutBinding | null,
 ) {
+  if (left === null || right === null) return false;
+
   return (
     left.code === right.code &&
     left.ctrl === right.ctrl &&
@@ -257,17 +266,43 @@ export function findDuplicatePlaybackShortcutAction(
   candidate: PlaybackShortcutBinding,
 ) {
   return (Object.keys(shortcuts) as PlaybackShortcutAction[]).find(
-    (action) =>
-      action !== currentAction &&
-      arePlaybackShortcutCombinationsEqual(shortcuts[action], candidate),
+    (action) => {
+      const binding = shortcuts[action];
+      return (
+        action !== currentAction &&
+        binding !== null &&
+        arePlaybackShortcutCombinationsEqual(binding, candidate)
+      );
+    },
   );
 }
 
+export function getInAppManualShortcutEventDecision({
+  activeCode,
+  code,
+  eventType,
+  isManualBindingMatch,
+  repeat,
+}: {
+  activeCode: string | null;
+  code: string;
+  eventType: "keydown" | "keyup";
+  isManualBindingMatch: boolean;
+  repeat: boolean;
+}): "begin" | "end" | "ignore" | "suppress" {
+  if (eventType === "keyup") {
+    return activeCode === code ? "end" : "ignore";
+  }
+  if (!isManualBindingMatch) return "ignore";
+  return repeat || activeCode !== null ? "suppress" : "begin";
+}
+
 export function matchesPlaybackShortcutEvent(
-  binding: PlaybackShortcutBinding,
+  binding: PlaybackShortcutBinding | null,
   event: ShortcutKeyboardState,
 ) {
   return (
+    binding !== null &&
     !event.metaKey &&
     !isModifierShortcutCode(binding.code) &&
     binding.code === event.code &&
@@ -290,11 +325,14 @@ export function findMatchingInAppShortcutAction(
 ) {
   if (isEditableTarget) return undefined;
 
-  return (Object.keys(shortcuts) as PlaybackShortcutAction[]).find(
-    (action) =>
-      shortcuts[action].scope === "in-app" &&
-      matchesPlaybackShortcutEvent(shortcuts[action], event),
-  );
+  return playbackShortcutActions.find((action) => {
+    const binding = shortcuts[action];
+    return (
+      binding !== null &&
+      binding.scope === "in-app" &&
+      matchesPlaybackShortcutEvent(binding, event)
+    );
+  });
 }
 
 export function getDesiredGlobalPlaybackShortcutActions(
@@ -303,15 +341,33 @@ export function getDesiredGlobalPlaybackShortcutActions(
   registeredActions: ReadonlySet<PlaybackShortcutAction>,
 ) {
   if (recordingAction !== null) {
-    return shortcuts[recordingAction].scope === "global" &&
-      isValidGlobalPlaybackShortcut(shortcuts[recordingAction]) &&
+    const binding = shortcuts[recordingAction];
+    return binding !== null &&
+      binding.scope === "global" &&
+      isValidGlobalPlaybackShortcut(binding) &&
       registeredActions.has(recordingAction)
       ? [recordingAction]
       : [];
   }
-  return playbackShortcutActions.filter(
-    (action) => shortcuts[action].scope === "global",
-  );
+  return playbackShortcutActions.filter((action) => {
+    const binding = shortcuts[action];
+    return binding !== null && binding.scope === "global";
+  });
+}
+
+export function getPlaybackShortcutRecordingScope(
+  shortcuts: PlaybackShortcuts,
+  action: PlaybackShortcutAction,
+) {
+  return shortcuts[action]?.scope ?? "global";
+}
+
+export function clearManualPlaybackShortcut(
+  shortcuts: PlaybackShortcuts,
+): PlaybackShortcuts {
+  return shortcuts.manualStep === null
+    ? shortcuts
+    : { ...shortcuts, manualStep: null };
 }
 
 export function isValidGlobalPlaybackShortcut(
@@ -359,10 +415,11 @@ export function normalizeGlobalPlaybackShortcutScope(
 }
 
 export function shouldUnregisterGlobalPlaybackShortcut(
-  binding: PlaybackShortcutBinding,
+  binding: PlaybackShortcutBinding | null,
   registeredAccelerator: string,
 ) {
   return (
+    binding === null ||
     binding.scope !== "global" ||
     toGlobalShortcutAccelerator(binding) !== registeredAccelerator
   );
