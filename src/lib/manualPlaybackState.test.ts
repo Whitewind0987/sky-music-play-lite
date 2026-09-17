@@ -23,6 +23,7 @@ function step(
     hasNextGroup: true,
     sessionId: 7,
     sourceTimeMs: 1_000,
+    nextSourceTimeMs: 2_000,
     state: "active",
     totalMs: 4_000,
     ...overrides,

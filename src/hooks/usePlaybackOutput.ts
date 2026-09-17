@@ -1,6 +1,7 @@
 import type { UiText } from "../i18n/uiText";
 import { resolveManualPlaybackOutputPolicy } from "../lib/manualPlaybackState";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
+import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { PlaybackState } from "../types/playback";
 import type { ScoreVisualizationTimingMode } from "../types/scoreVisualization";
@@ -38,6 +39,8 @@ export type PlaybackOutput = {
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onPause: () => void;
+  onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
+  onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
   onManualStep: () => void;
   onPlay: () => void;
   onPlaySong: (songIndex: number) => void | Promise<boolean>;
@@ -60,6 +63,8 @@ export type PlaybackOutput = {
 type AutomaticPlaybackOutput = Omit<
   PlaybackOutput,
   | "canManualStep"
+  | "onManualStepHoldBegin"
+  | "onManualStepHoldEnd"
   | "onManualStep"
   | "manualState"
   | "visualizationFollowsProgress"
@@ -184,6 +189,12 @@ export function usePlaybackOutput({
     manualState: experimentalInput.manualPlaybackState,
     onManualStep: () => {
       void experimentalInput.handleStepManualPlayback();
+    },
+    onManualStepHoldBegin: (source) => {
+      experimentalInput.beginManualStepHold(source);
+    },
+    onManualStepHoldEnd: (source) => {
+      experimentalInput.endManualStepHold(source);
     },
     onStop: automaticOutput.isRealInputOutput
       ? experimentalInput.handleStopAllRealPlayback

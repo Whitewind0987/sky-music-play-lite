@@ -46,6 +46,7 @@ pub struct ManualPlaybackStepResponse {
     pub group_index: usize,
     pub group_count: usize,
     pub source_time_ms: f64,
+    pub next_source_time_ms: Option<f64>,
     pub total_ms: f64,
     pub has_next_group: bool,
     pub did_advance: bool,
@@ -309,12 +310,18 @@ impl ManualPlaybackCore {
 
         self.last_group_index = Some(group_index);
         self.next_group_index += 1;
+        let next_source_time_ms = self
+            .prepared_plan
+            .groups
+            .get(self.next_group_index)
+            .map(|next_group| next_group.source_time_ms);
 
         Ok(ManualPlaybackStepResponse {
             session_id: self.session_id,
             group_index,
             group_count: self.prepared_plan.groups.len(),
             source_time_ms: group.source_time_ms,
+            next_source_time_ms,
             total_ms: self.total_ms,
             has_next_group: self.next_group_index < self.prepared_plan.groups.len(),
             did_advance: true,
@@ -338,6 +345,7 @@ impl ManualPlaybackCore {
             group_index,
             group_count: self.prepared_plan.groups.len(),
             source_time_ms: group.source_time_ms,
+            next_source_time_ms: None,
             total_ms: self.total_ms,
             has_next_group: false,
             did_advance: false,
@@ -715,6 +723,49 @@ mod tests {
         assert!(!core.key_lifecycle.has_active_keys());
         assert!(!core.should_finish());
         assert_eq!(core.next_group_index, 1);
+    }
+
+    #[test]
+    fn step_response_reports_exact_next_source_group_time() {
+        let plan = prepared_plan(vec![
+            (0.0, vec![planned_key("A")]),
+            (500.0, vec![planned_key("B")]),
+            (1500.0, vec![planned_key("C")]),
+        ]);
+        let (mut core, _) = test_core(plan.clone(), 30.0);
+
+        let first = core.step().unwrap();
+        assert_eq!(
+            (first.source_time_ms, first.next_source_time_ms),
+            (0.0, Some(500.0))
+        );
+        assert!(first.has_next_group);
+
+        let second = core.step().unwrap();
+        assert_eq!(
+            (second.source_time_ms, second.next_source_time_ms),
+            (500.0, Some(1500.0))
+        );
+        assert!(second.has_next_group);
+
+        let third = core.step().unwrap();
+        assert_eq!(
+            (third.source_time_ms, third.next_source_time_ms),
+            (1500.0, None)
+        );
+        assert!(!third.has_next_group);
+        assert_eq!(third.state, "tail");
+
+        let tail = core.step().unwrap();
+        assert_eq!(tail.next_source_time_ms, None);
+        assert!(!tail.did_advance);
+
+        let (mut continued_core, _) = test_core_at(plan, 30.0, 1);
+        let continued = continued_core.step().unwrap();
+        assert_eq!(
+            (continued.source_time_ms, continued.next_source_time_ms),
+            (500.0, Some(1500.0))
+        );
     }
 
     #[test]

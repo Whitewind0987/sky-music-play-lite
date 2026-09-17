@@ -137,6 +137,7 @@ pub struct ManualPlaybackStepResponse {
     pub group_index: usize,
     pub group_count: usize,
     pub source_time_ms: f64,
+    pub next_source_time_ms: Option<f64>,
     pub total_ms: f64,
     pub has_next_group: bool,
     pub did_advance: bool,

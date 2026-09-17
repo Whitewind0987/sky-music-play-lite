@@ -12,6 +12,7 @@ import {
   formatPlaybackShortcut,
   getDesiredGlobalPlaybackShortcutActions,
   getGlobalPlaybackShortcutCallbackDecision,
+  getInAppManualShortcutEventDecision,
   getPlaybackShortcutNotice,
   getPlaybackShortcutRecordingScope,
   getPlaybackShortcutRecordingRequestDecision,
@@ -633,6 +634,65 @@ describe("global shortcut recording sentinel callbacks", () => {
 
     expect(unchangedNotice).toHaveBeenCalledTimes(1);
   });
+  it("maps Manual Pressed and Released to hold lifecycle outside recording", () => {
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "manualStep",
+        "Pressed",
+        null,
+        null,
+        null,
+      ),
+    ).toBe("begin-manual-hold");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "manualStep",
+        "Released",
+        null,
+        null,
+        null,
+      ),
+    ).toBe("end-manual-hold");
+  });
+
+  it("suppresses Manual Pressed and Released during recording restoration", () => {
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "manualStep",
+        "Pressed",
+        "manualStep",
+        null,
+        "manualStep",
+      ),
+    ).toBe("complete-unchanged");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "manualStep",
+        "Released",
+        "manualStep",
+        null,
+        "manualStep",
+      ),
+    ).toBe("suppress");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "manualStep",
+        "Pressed",
+        null,
+        null,
+        "manualStep",
+      ),
+    ).toBe("suppress");
+    expect(
+      getGlobalPlaybackShortcutCallbackDecision(
+        "manualStep",
+        "Released",
+        "pauseResume",
+        null,
+        "pauseResume",
+      ),
+    ).toBe("suppress");
+  });
 });
 
 describe("shortcut notices", () => {
@@ -947,6 +1007,59 @@ describe("global shortcut validation and accelerators", () => {
     expect(fallbackGlobalPlaybackShortcutToInApp(value)).toEqual(
       binding("Space", { ctrl: true, scope: "in-app" }),
     );
+  });
+});
+
+describe("in-app Manual shortcut press lifecycle", () => {
+  it("begins once, ignores OS repeat, ends on matching keyup, and can begin again", () => {
+    expect(
+      getInAppManualShortcutEventDecision({
+        activeCode: null,
+        code: "KeyM",
+        eventType: "keydown",
+        isManualBindingMatch: true,
+        repeat: false,
+      }),
+    ).toBe("begin");
+    expect(
+      getInAppManualShortcutEventDecision({
+        activeCode: "KeyM",
+        code: "KeyM",
+        eventType: "keydown",
+        isManualBindingMatch: true,
+        repeat: true,
+      }),
+    ).toBe("suppress");
+    expect(
+      getInAppManualShortcutEventDecision({
+        activeCode: "KeyM",
+        code: "KeyM",
+        eventType: "keyup",
+        isManualBindingMatch: false,
+        repeat: false,
+      }),
+    ).toBe("end");
+    expect(
+      getInAppManualShortcutEventDecision({
+        activeCode: null,
+        code: "KeyM",
+        eventType: "keydown",
+        isManualBindingMatch: true,
+        repeat: false,
+      }),
+    ).toBe("begin");
+  });
+
+  it("does not let another key release end the active Manual press", () => {
+    expect(
+      getInAppManualShortcutEventDecision({
+        activeCode: "KeyM",
+        code: "KeyN",
+        eventType: "keyup",
+        isManualBindingMatch: false,
+        repeat: false,
+      }),
+    ).toBe("ignore");
   });
 });
 

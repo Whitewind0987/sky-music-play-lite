@@ -36,7 +36,9 @@ export type PlaybackShortcutRecordingRequestDecision =
   | "start";
 
 export type GlobalPlaybackShortcutCallbackDecision =
+  | "begin-manual-hold"
   | "complete-unchanged"
+  | "end-manual-hold"
   | "execute-playback"
   | "suppress";
 
@@ -191,6 +193,11 @@ export function getGlobalPlaybackShortcutCallbackDecision(
   );
   if (sessionAction === null) {
     if (restoringRecordingAction !== null) return "suppress";
+    if (callbackAction === "manualStep") {
+      return eventState === "Pressed"
+        ? "begin-manual-hold"
+        : "end-manual-hold";
+    }
     return eventState === "Pressed" ? "execute-playback" : "suppress";
   }
   if (eventState !== "Pressed") return "suppress";
@@ -268,6 +275,26 @@ export function findDuplicatePlaybackShortcutAction(
       );
     },
   );
+}
+
+export function getInAppManualShortcutEventDecision({
+  activeCode,
+  code,
+  eventType,
+  isManualBindingMatch,
+  repeat,
+}: {
+  activeCode: string | null;
+  code: string;
+  eventType: "keydown" | "keyup";
+  isManualBindingMatch: boolean;
+  repeat: boolean;
+}): "begin" | "end" | "ignore" | "suppress" {
+  if (eventType === "keyup") {
+    return activeCode === code ? "end" : "ignore";
+  }
+  if (!isManualBindingMatch) return "ignore";
+  return repeat || activeCode !== null ? "suppress" : "begin";
 }
 
 export function matchesPlaybackShortcutEvent(

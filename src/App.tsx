@@ -497,20 +497,23 @@ function App() {
 
   useEffect(() => {
     playbackShortcutsController.setPlaybackHotkeyControls({
-      manualStep: () => {
-        runScoreUpgradePlaybackStartGuard({
-          getIsScoreUpgradeInProgress:
-            scoreLibrary.getIsScoreUpgradeInProgress,
-          onBlocked: scoreUpgradeGuard.reportPlaybackStartBlocked,
-          onStart: () => {
-            if (
-              playbackOutput.canManualStep &&
-              !playbackCoordinator.isCurrentSongLoading
-            ) {
-              playbackOutput.onManualStep();
-            }
-          },
-        });
+      manualStep: {
+        begin: (source) => {
+          runScoreUpgradePlaybackStartGuard({
+            getIsScoreUpgradeInProgress:
+              scoreLibrary.getIsScoreUpgradeInProgress,
+            onBlocked: scoreUpgradeGuard.reportPlaybackStartBlocked,
+            onStart: () => {
+              if (
+                playbackOutput.canManualStep &&
+                !playbackCoordinator.isCurrentSongLoading
+              ) {
+                playbackOutput.onManualStepHoldBegin(source);
+              }
+            },
+          });
+        },
+        end: playbackOutput.onManualStepHoldEnd,
       },
       next: () => {
         runScoreUpgradePlaybackStartGuard({
@@ -1129,6 +1132,8 @@ function App() {
         onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
         onManualStep={playbackOutput.onManualStep}
+        onManualStepHoldBegin={playbackOutput.onManualStepHoldBegin}
+        onManualStepHoldEnd={playbackOutput.onManualStepHoldEnd}
         onPlayQueueItem={playbackCoordinator.handlePlayQueueItem}
         onPlay={playbackCoordinator.handleBottomPlayerPlay}
         onPlaybackSpeedChange={playbackOutput.onPlaybackSpeedChange}

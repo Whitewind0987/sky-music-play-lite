@@ -22,6 +22,10 @@ import { resolveActivePlaybackSongIndex } from "../lib/activePlaybackSong";
 import type { PreparedPlaybackPlanCacheKey } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
+import {
+  createManualStepHoldController,
+  type ManualStepHoldSource,
+} from "../lib/manualStepHoldController";
 import { isPreparedPlaybackPlanUnavailableError } from "../lib/preparedPlaybackPlanErrors";
 import { PreparationCancelledError } from "../lib/playbackPreparationScheduler";
 import { decidePlaybackFinish } from "../lib/playbackFlow";
@@ -63,6 +67,7 @@ import {
   stopBackgroundPlayback,
   updateBackgroundPlaybackOptions,
   type BackgroundPlaybackEventPayload,
+  type ManualPlaybackStepResponse,
   type SkyWindowMonitorSnapshot,
 } from "../lib/tauriApi";
 import type {
@@ -186,6 +191,26 @@ export function useExperimentalInput({
   const noteIntervalDelayMsRef = useRef(noteIntervalDelayMs);
   const playbackModeRef = useRef<PlaybackMode>(playbackMode);
   const playbackSpeedRef = useRef(playbackSpeed);
+  const manualStepActionRef = useRef<
+    () => Promise<ManualPlaybackStepResponse | null>
+  >(async () => null);
+  const manualStepHoldControllerRef = useRef<
+    ReturnType<typeof createManualStepHoldController> | null
+  >(null);
+  if (manualStepHoldControllerRef.current === null) {
+    manualStepHoldControllerRef.current = createManualStepHoldController({
+      getPlaybackSpeed: () => playbackSpeedRef.current,
+      onStep: () => manualStepActionRef.current(),
+      scheduler: {
+        clearTimeout: (timerId) => window.clearTimeout(timerId),
+        setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      },
+    });
+  }
+  useEffect(
+    () => () => manualStepHoldControllerRef.current?.cancel(),
+    [],
+  );
   const targetWindowMessageMethodRef =
     useRef<TargetWindowMessageMethod>("post-message");
   const targetWindowCompatibilityProfileRef =
@@ -269,6 +294,8 @@ export function useExperimentalInput({
     invalidatePlaybackPlan,
     isSongAvailable: (songId) =>
       librarySongsRef.current.some((song) => song.id === songId),
+    onLifecycleInvalidated: () =>
+      manualStepHoldControllerRef.current?.cancel(),
     outputMode:
       experimentalInputMode === "foreground" ? "foreground" : "target-window",
     showNotice,
@@ -373,7 +400,7 @@ export function useExperimentalInput({
 
   async function handleStepManualPlayback() {
     if (playbackOwnershipTransitionRef.current || !canStepManualPlayback) {
-      return false;
+      return null;
     }
 
     if (
@@ -391,7 +418,7 @@ export function useExperimentalInput({
     }
 
     return runPlaybackOwnershipTransition(async (transitionToken) => {
-      if (currentSong === null || selectedSongIndex === null) return false;
+      if (currentSong === null || selectedSongIndex === null) return null;
 
       const targetWindowHwnd =
         experimentalInputModeRef.current === "target-window-message"
@@ -399,13 +426,13 @@ export function useExperimentalInput({
               await ensureTargetWindowAvailableForPlayback(),
             )
           : undefined;
-      if (!isCurrentPlaybackOwnershipTransition(transitionToken)) return false;
+      if (!isCurrentPlaybackOwnershipTransition(transitionToken)) return null;
       if (
         experimentalInputModeRef.current === "target-window-message" &&
         targetWindowHwnd === null
       ) {
         logMissingTargetWindow();
-        return false;
+        return null;
       }
 
       let startGroupIndex: number | undefined;
@@ -421,14 +448,14 @@ export function useExperimentalInput({
           if (cursor !== null) {
             await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
           }
-          return false;
+          return null;
         }
         if (cursor === null) {
-          return false;
+          return null;
         }
         if (cursor.nextGroupIndex >= cursor.groupCount) {
           await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
-          return false;
+          return null;
         }
         startGroupIndex = cursor.nextGroupIndex;
         handedOffSessionId = cursor.sessionId;
@@ -444,15 +471,15 @@ export function useExperimentalInput({
           if (cursor !== null) {
             await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
           }
-          return false;
+          return null;
         }
         if (wasRunning) {
           if (cursor === null) {
-            return false;
+            return null;
           }
           if (cursor.nextGroupIndex >= cursor.groupCount) {
             await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
-            return false;
+            return null;
           }
           startGroupIndex = cursor.nextGroupIndex;
           handedOffSessionId = cursor.sessionId;
@@ -461,7 +488,7 @@ export function useExperimentalInput({
 
       stopPreviewPlayback();
       setRequestedPlaybackSongIndex(selectedSongIndex);
-      const started = await manualPlayback.handleStep({
+      const stepResponse = await manualPlayback.handleStep({
         songId: currentSong.id,
         songIndex: selectedSongIndex,
         songName: getLibrarySongName(currentSong),
@@ -470,16 +497,31 @@ export function useExperimentalInput({
       });
       if (!isCurrentPlaybackOwnershipTransition(transitionToken)) {
         manualPlayback.resetForLifecycleChange();
-        return false;
+        return null;
       }
-      if (!started && handedOffSessionId !== null) {
+      if (stepResponse === null && handedOffSessionId !== null) {
         await stopBackgroundPlayback(handedOffSessionId).catch(() => {});
       }
-      return started;
-    }, false);
+      return stepResponse;
+    }, null);
+  }
+
+  manualStepActionRef.current = handleStepManualPlayback;
+
+  function beginManualStepHold(source: ManualStepHoldSource) {
+    return manualStepHoldControllerRef.current?.begin(source) ?? false;
+  }
+
+  function endManualStepHold(source: ManualStepHoldSource) {
+    return manualStepHoldControllerRef.current?.end(source) ?? false;
+  }
+
+  function cancelManualStepHold() {
+    manualStepHoldControllerRef.current?.cancel();
   }
 
   async function handleStartForegroundPlayback() {
+    cancelManualStepHold();
     return runPlaybackOwnershipTransition(async (transitionToken) => {
       if (isManualPlaybackCurrentlyEngaged() && selectedSongIndex !== null) {
         const nextGroupIndex = await manualPlayback.stopForAutomaticHandoff();
@@ -497,6 +539,7 @@ export function useExperimentalInput({
   }
 
   async function handlePlayForegroundSong(songIndex: number) {
+    cancelManualStepHold();
     manualPlayback.resetForAutomaticStart();
     return foregroundPlayback.handlePlayForegroundSong(songIndex);
   }
@@ -892,6 +935,7 @@ export function useExperimentalInput({
 
   function handleExperimentalInputEnabledChange(enabled: boolean) {
     if (!enabled) {
+      cancelManualStepHold();
       cancelPlaybackOwnershipTransition();
       manualPlayback.resetForLifecycleChange();
       stopExperimentalPlayback({ logStopped: false });
@@ -913,6 +957,7 @@ export function useExperimentalInput({
       return;
     }
 
+    cancelManualStepHold();
     cancelPlaybackOwnershipTransition();
 
     stopExperimentalPlayback({ logStopped: false });
@@ -996,6 +1041,7 @@ export function useExperimentalInput({
   }
 
   function handleStopAllRealPlayback() {
+    cancelManualStepHold();
     cancelPlaybackOwnershipTransition();
     if (
       manualPlayback.getState() === "starting" ||
@@ -1199,6 +1245,7 @@ export function useExperimentalInput({
   }
 
   async function handleStartExperimentalPlayback() {
+    cancelManualStepHold();
     if (
       !experimentalInputEnabledRef.current ||
       experimentalInputModeRef.current !== "target-window-message" ||
@@ -1223,6 +1270,7 @@ export function useExperimentalInput({
   }
 
   async function handlePlayExperimentalSong(songIndex: number) {
+    cancelManualStepHold();
     if (
       !experimentalInputEnabledRef.current ||
       experimentalInputModeRef.current !== "target-window-message"
@@ -1967,8 +2015,14 @@ export function useExperimentalInput({
       foregroundPlayback.handleSeekForegroundPlayback,
     handleStartExperimentalPlayback,
     handleStartForegroundPlayback,
+    beginManualStepHold,
+    cancelManualStepHold,
+    endManualStepHold,
     handleStepManualPlayback,
-    handleStopManualPlayback: manualPlayback.stop,
+    handleStopManualPlayback: () => {
+      cancelManualStepHold();
+      manualPlayback.stop();
+    },
     handleStopForegroundPlayback:
       foregroundPlayback.handleStopForegroundPlayback,
     handleStopExperimentalPlayback,

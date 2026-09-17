@@ -119,6 +119,7 @@ export type ManualPlaybackStepResponse = {
   groupIndex: number;
   groupCount: number;
   sourceTimeMs: number;
+  nextSourceTimeMs: number | null;
   totalMs: number;
   hasNextGroup: boolean;
   didAdvance: boolean;

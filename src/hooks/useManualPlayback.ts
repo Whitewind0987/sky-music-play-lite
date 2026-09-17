@@ -46,6 +46,7 @@ type UseManualPlaybackOptions = {
   }) => Promise<PreparedPlaybackPlan>;
   invalidatePlaybackPlan: (cacheKey: PreparedPlaybackPlanCacheKey) => void;
   isSongAvailable: (songId: LibrarySongId) => boolean;
+  onLifecycleInvalidated?: () => void;
   outputMode: ManualPlaybackOutputMode;
   showNotice?: (message: string) => void;
   targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
@@ -70,6 +71,7 @@ export function useManualPlayback({
   getOrPreparePlaybackPlan,
   invalidatePlaybackPlan,
   isSongAvailable,
+  onLifecycleInvalidated,
   outputMode,
   showNotice,
   targetWindowCompatibilityProfile,
@@ -78,6 +80,7 @@ export function useManualPlayback({
   text,
 }: UseManualPlaybackOptions) {
   const activeSessionIdRef = useRef<number | null>(null);
+  const onLifecycleInvalidatedRef = useRef(onLifecycleInvalidated);
   const eventHandlerRef = useRef<(payload: ManualPlaybackEventPayload) => void>(() => {});
   const manualOutputModeRef = useRef<ManualPlaybackOutputMode | null>(null);
   const manualSongIdRef = useRef<LibrarySongId | null>(null);
@@ -94,6 +97,7 @@ export function useManualPlayback({
     emptyManualPlaybackProgress,
   );
   const [state, setState] = useState<ManualPlaybackUiState>("idle");
+  onLifecycleInvalidatedRef.current = onLifecycleInvalidated;
 
   const updateState = useCallback((nextState: ManualPlaybackUiState) => {
     stateRef.current = nextState;
@@ -107,6 +111,7 @@ export function useManualPlayback({
 
   const reset = useCallback(
     ({ shouldLog = false }: { shouldLog?: boolean } = {}) => {
+      onLifecycleInvalidatedRef.current?.();
       requestTokenRef.current += 1;
       const sessionId = activeSessionIdRef.current;
       activeSessionIdRef.current = null;
@@ -138,6 +143,7 @@ export function useManualPlayback({
 
       terminalSessionIdsRef.current.add(payload.sessionId);
       activeSessionIdRef.current = null;
+      onLifecycleInvalidatedRef.current?.();
       if (payload.type === "finished") {
         updateProgress(
           manualProgressFromFinishedEvent(payload.progress, progressRef.current),
@@ -194,6 +200,7 @@ export function useManualPlayback({
       requestTokenRef.current += 1;
       const sessionId = activeSessionIdRef.current;
       activeSessionIdRef.current = null;
+      onLifecycleInvalidatedRef.current?.();
       if (sessionId !== null) {
         void stopManualPlayback(sessionId).catch(() => {});
       }
@@ -261,6 +268,7 @@ export function useManualPlayback({
         terminalSessionIdsRef.current.add(sessionId);
       }
       activeSessionIdRef.current = null;
+      onLifecycleInvalidatedRef.current?.();
       const errorMessage = String(error instanceof Error ? error.message : error);
       const notice = formatText(text.logs.manualPlaybackFailed, { error: errorMessage });
       updateState("error");
@@ -271,8 +279,9 @@ export function useManualPlayback({
   );
 
   const stepActiveSession = useCallback(
-    (sessionId: number) => {
-      return handoffBarrierRef.current.enqueueStep(async () => {
+    async (sessionId: number) => {
+      let stepResponse: ManualPlaybackStepResponse | null = null;
+      const accepted = await handoffBarrierRef.current.enqueueStep(async () => {
         if (activeSessionIdRef.current !== sessionId) {
           return;
         }
@@ -280,6 +289,7 @@ export function useManualPlayback({
           const response = await stepManualPlayback(sessionId);
           if (activeSessionIdRef.current === sessionId) {
             applyStepResponse(response);
+            stepResponse = response;
           }
         } catch (error) {
           if (activeSessionIdRef.current === sessionId) {
@@ -287,6 +297,7 @@ export function useManualPlayback({
           }
         }
       });
+      return accepted ? stepResponse : null;
     },
     [applyStepResponse, failSession],
   );
@@ -340,7 +351,7 @@ export function useManualPlayback({
 
           if (requestTokenRef.current !== token) {
             void stopManualPlayback(response.sessionId).catch(() => {});
-            return false;
+            return null;
           }
 
           activeSessionIdRef.current = response.sessionId;
@@ -355,17 +366,17 @@ export function useManualPlayback({
               songName: request.songName,
             }),
           );
-          return true;
+          return response;
         }
       } catch (error) {
         if (requestTokenRef.current !== token) {
-          return false;
+          return null;
         }
         failSession(error, activeSessionIdRef.current);
-        return false;
+        return null;
       }
 
-      return false;
+      return null;
     },
     [
       appendLog,
@@ -387,14 +398,14 @@ export function useManualPlayback({
   const handleStep = useCallback(
     (request: ManualStepRequest) => {
       if (handoffBarrierRef.current.isHandoffPending()) {
-        return Promise.resolve(false);
+        return Promise.resolve(null);
       }
       const sessionId = activeSessionIdRef.current;
       if (stateRef.current === "active" && sessionId !== null) {
         return stepActiveSession(sessionId);
       }
       if (stateRef.current === "starting" || stateRef.current === "tail") {
-        return Promise.resolve(false);
+        return Promise.resolve(null);
       }
       return startSession(request);
     },
