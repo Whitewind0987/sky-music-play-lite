@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreparedPlaybackPlanCacheKey } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
-import { createManualPlaybackHandoffBarrier } from "../lib/manualPlaybackHandoff";
+import {
+  createManualPlaybackHandoffBarrier,
+  isManualPlaybackHandoffOwnershipCurrent,
+} from "../lib/manualPlaybackHandoff";
 import {
   canApplyManualStepResponse,
   emptyManualPlaybackProgress,
@@ -111,7 +114,7 @@ export function useManualPlayback({
       manualOutputModeRef.current = null;
       pendingEventsRef.current.clear();
       terminalSessionIdsRef.current.clear();
-      handoffBarrierRef.current.reset();
+      handoffBarrierRef.current.invalidate();
       setManualSongId(null);
       setManualOutputMode(null);
       updateProgress(emptyManualPlaybackProgress);
@@ -279,7 +282,9 @@ export function useManualPlayback({
             applyStepResponse(response);
           }
         } catch (error) {
-          failSession(error, sessionId);
+          if (activeSessionIdRef.current === sessionId) {
+            failSession(error, sessionId);
+          }
         }
       });
     },
@@ -397,16 +402,35 @@ export function useManualPlayback({
   );
 
   const stopForAutomaticHandoff = useCallback(async () => {
-    const nextGroupIndex = await handoffBarrierRef.current.beginHandoff(() =>
-      stateRef.current === "active" &&
-      progressRef.current.hasNextGroup &&
-      progressRef.current.groupIndex !== null
-        ? progressRef.current.groupIndex + 1
-        : null,
-    );
+    const operation = handoffBarrierRef.current.beginHandoff();
+    if (operation === null) return null;
+
+    const expectedSessionId = activeSessionIdRef.current;
+    const expectedRequestToken = requestTokenRef.current;
 
     try {
-      const sessionId = activeSessionIdRef.current;
+      const isCurrentOperation =
+        await handoffBarrierRef.current.waitForPendingSteps(operation);
+      if (
+        !isCurrentOperation ||
+        expectedSessionId === null ||
+        !isManualPlaybackHandoffOwnershipCurrent({
+          currentRequestToken: requestTokenRef.current,
+          currentSessionId: activeSessionIdRef.current,
+          expectedRequestToken,
+          expectedSessionId,
+        })
+      ) {
+        return null;
+      }
+
+      const nextGroupIndex =
+        stateRef.current === "active" &&
+        progressRef.current.hasNextGroup &&
+        progressRef.current.groupIndex !== null
+          ? progressRef.current.groupIndex + 1
+          : null;
+
       requestTokenRef.current += 1;
       activeSessionIdRef.current = null;
       manualSongIdRef.current = null;
@@ -417,13 +441,18 @@ export function useManualPlayback({
       setManualOutputMode(null);
       updateState("idle");
 
-      if (sessionId !== null) {
-        await stopManualPlayback(sessionId);
+      await stopManualPlayback(expectedSessionId);
+
+      if (
+        !handoffBarrierRef.current.isCurrent(operation.token) ||
+        requestTokenRef.current !== expectedRequestToken + 1
+      ) {
+        return null;
       }
 
       return nextGroupIndex;
     } finally {
-      handoffBarrierRef.current.finishHandoff();
+      handoffBarrierRef.current.finishHandoff(operation.token);
     }
   }, [updateState]);
 
