@@ -464,7 +464,7 @@ export function useExperimentalInput({
         songIndex: selectedSongIndex,
         songName: getLibrarySongName(currentSong),
         startGroupIndex,
-        targetWindowHwnd,
+        targetWindowHwnd: targetWindowHwnd ?? undefined,
       });
       if (!isCurrentPlaybackOwnershipTransition(transitionToken)) {
         manualPlayback.resetForLifecycleChange();
