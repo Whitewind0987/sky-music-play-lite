@@ -372,7 +372,9 @@ export function useExperimentalInput({
   }
 
   async function handleStepManualPlayback() {
-    if (!canStepManualPlayback) return false;
+    if (playbackOwnershipTransitionRef.current || !canStepManualPlayback) {
+      return false;
+    }
 
     if (
       manualPlayback.getState() === "active" &&

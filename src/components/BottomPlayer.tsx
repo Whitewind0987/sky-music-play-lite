@@ -15,6 +15,7 @@ import {
 } from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
+import { createManualStepHoldGesture } from "../lib/manualStepHoldGesture";
 import type { PlaybackState } from "../types/playback";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { LibrarySong } from "../types/library";
@@ -261,53 +262,59 @@ export function BottomPlayer({
   const [isProgressDragging, setIsProgressDragging] = useState(false);
   const [isProgressHovering, setIsProgressHovering] = useState(false);
   const [isManualStepPointerHeld, setIsManualStepPointerHeld] = useState(false);
-  const manualStepHoldTimerRef = useRef<number | null>(null);
-  const manualStepRepeatTimerRef = useRef<number | null>(null);
-  const manualStepPointerIdRef = useRef<number | null>(null);
-  const suppressManualStepClickRef = useRef(false);
+  const onManualStepRef = useRef(onManualStep);
+  onManualStepRef.current = onManualStep;
+  const manualStepGestureRef = useRef<
+    ReturnType<typeof createManualStepHoldGesture> | null
+  >(null);
+  if (manualStepGestureRef.current === null) {
+    manualStepGestureRef.current = createManualStepHoldGesture({
+      holdDelayMs: MANUAL_STEP_HOLD_DELAY_MS,
+      onHeldChange: setIsManualStepPointerHeld,
+      onStep: () => onManualStepRef.current(),
+      repeatIntervalMs: MANUAL_STEP_REPEAT_INTERVAL_MS,
+      scheduler: {
+        clearInterval: (timerId) => window.clearInterval(timerId),
+        clearTimeout: (timerId) => window.clearTimeout(timerId),
+        setInterval: (callback, delayMs) =>
+          window.setInterval(callback, delayMs),
+        setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      },
+    });
+  }
   const canPause = playbackState === "playing";
   const isManualStepDisabled =
     isCurrentSongLoading || (!canManualStep && !isManualStepPointerHeld);
 
-  function stopManualStepRepeat() {
-    if (manualStepHoldTimerRef.current !== null) {
-      window.clearTimeout(manualStepHoldTimerRef.current);
-      manualStepHoldTimerRef.current = null;
+  useEffect(() => {
+    if (
+      manualState === "tail" ||
+      manualState === "finished" ||
+      manualState === "error"
+    ) {
+      manualStepGestureRef.current?.terminateAtScoreBoundary();
     }
-    if (manualStepRepeatTimerRef.current !== null) {
-      window.clearInterval(manualStepRepeatTimerRef.current);
-      manualStepRepeatTimerRef.current = null;
-    }
-    manualStepPointerIdRef.current = null;
-  }
+  }, [manualState]);
 
   useEffect(() => {
-    if (isManualStepDisabled) {
-      stopManualStepRepeat();
-      suppressManualStepClickRef.current = false;
+    if (isCurrentSongLoading || !isRealInputOutput) {
+      manualStepGestureRef.current?.invalidate();
     }
-    return stopManualStepRepeat;
-  }, [isManualStepDisabled]);
+  }, [isCurrentSongLoading, isRealInputOutput]);
+
+  useEffect(
+    () => () => manualStepGestureRef.current?.dispose(),
+    [],
+  );
 
   function handleManualStepPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
     if (isManualStepDisabled || event.button !== 0) return;
-    manualStepPointerIdRef.current = event.pointerId;
-    setIsManualStepPointerHeld(true);
-    suppressManualStepClickRef.current = true;
+    if (!manualStepGestureRef.current?.begin(event.pointerId)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    onManualStep();
-    manualStepHoldTimerRef.current = window.setTimeout(() => {
-      manualStepHoldTimerRef.current = null;
-      manualStepRepeatTimerRef.current = window.setInterval(() => {
-        onManualStep();
-      }, MANUAL_STEP_REPEAT_INTERVAL_MS);
-    }, MANUAL_STEP_HOLD_DELAY_MS);
   }
 
   function handleManualStepPointerEnd(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (manualStepPointerIdRef.current !== event.pointerId) return;
-    stopManualStepRepeat();
-    setIsManualStepPointerHeld(false);
+    if (!manualStepGestureRef.current?.end(event.pointerId)) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -316,22 +323,17 @@ export function BottomPlayer({
   function handleManualStepPointerCancel(
     event: ReactPointerEvent<HTMLButtonElement>,
   ) {
-    handleManualStepPointerEnd(event);
-    suppressManualStepClickRef.current = false;
+    manualStepGestureRef.current?.cancel(event.pointerId);
   }
 
   function handleManualStepLostPointerCapture() {
-    stopManualStepRepeat();
-    setIsManualStepPointerHeld(false);
+    manualStepGestureRef.current?.losePointerCapture();
   }
 
   function handleManualStepClick(event: ReactMouseEvent<HTMLButtonElement>) {
-    if (suppressManualStepClickRef.current) {
-      suppressManualStepClickRef.current = false;
+    if (!manualStepGestureRef.current?.consumeClick(event.detail !== 0)) {
       event.preventDefault();
-      return;
     }
-    onManualStep();
   }
   const isV2Song =
     currentSong !== null && getLibrarySongFormatVersion(currentSong) === 2;

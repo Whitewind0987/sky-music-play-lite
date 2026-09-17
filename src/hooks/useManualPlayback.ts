@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import type { PreparedPlaybackPlanCacheKey } from "../lib/backgroundPlaybackPlanCache";
 import { formatText } from "../lib/formatText";
+import { createManualPlaybackHandoffBarrier } from "../lib/manualPlaybackHandoff";
 import {
   canApplyManualStepResponse,
   emptyManualPlaybackProgress,
@@ -80,7 +81,7 @@ export function useManualPlayback({
   const pendingEventsRef = useRef(new Map<number, ManualPlaybackEventPayload[]>());
   const requestTokenRef = useRef(0);
   const stateRef = useRef<ManualPlaybackUiState>("idle");
-  const stepQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const handoffBarrierRef = useRef(createManualPlaybackHandoffBarrier());
   const terminalSessionIdsRef = useRef(new Set<number>());
   const progressRef = useRef<ManualPlaybackUiProgress>(emptyManualPlaybackProgress);
   const [manualOutputMode, setManualOutputMode] =
@@ -110,7 +111,7 @@ export function useManualPlayback({
       manualOutputModeRef.current = null;
       pendingEventsRef.current.clear();
       terminalSessionIdsRef.current.clear();
-      stepQueueRef.current = Promise.resolve();
+      handoffBarrierRef.current.reset();
       setManualSongId(null);
       setManualOutputMode(null);
       updateProgress(emptyManualPlaybackProgress);
@@ -268,7 +269,7 @@ export function useManualPlayback({
 
   const stepActiveSession = useCallback(
     (sessionId: number) => {
-      const task = stepQueueRef.current.then(async () => {
+      return handoffBarrierRef.current.enqueueStep(async () => {
         if (activeSessionIdRef.current !== sessionId) {
           return;
         }
@@ -281,8 +282,6 @@ export function useManualPlayback({
           failSession(error, sessionId);
         }
       });
-      stepQueueRef.current = task.catch(() => {});
-      return task.then(() => true);
     },
     [applyStepResponse, failSession],
   );
@@ -382,6 +381,9 @@ export function useManualPlayback({
 
   const handleStep = useCallback(
     (request: ManualStepRequest) => {
+      if (handoffBarrierRef.current.isHandoffPending()) {
+        return Promise.resolve(false);
+      }
       const sessionId = activeSessionIdRef.current;
       if (stateRef.current === "active" && sessionId !== null) {
         return stepActiveSession(sessionId);
@@ -395,30 +397,34 @@ export function useManualPlayback({
   );
 
   const stopForAutomaticHandoff = useCallback(async () => {
-    const sessionId = activeSessionIdRef.current;
-    const nextGroupIndex =
+    const nextGroupIndex = await handoffBarrierRef.current.beginHandoff(() =>
       stateRef.current === "active" &&
       progressRef.current.hasNextGroup &&
       progressRef.current.groupIndex !== null
         ? progressRef.current.groupIndex + 1
-        : null;
+        : null,
+    );
 
-    requestTokenRef.current += 1;
-    activeSessionIdRef.current = null;
-    manualSongIdRef.current = null;
-    manualOutputModeRef.current = null;
-    pendingEventsRef.current.clear();
-    terminalSessionIdsRef.current.clear();
-    stepQueueRef.current = Promise.resolve();
-    setManualSongId(null);
-    setManualOutputMode(null);
-    updateState("idle");
+    try {
+      const sessionId = activeSessionIdRef.current;
+      requestTokenRef.current += 1;
+      activeSessionIdRef.current = null;
+      manualSongIdRef.current = null;
+      manualOutputModeRef.current = null;
+      pendingEventsRef.current.clear();
+      terminalSessionIdsRef.current.clear();
+      setManualSongId(null);
+      setManualOutputMode(null);
+      updateState("idle");
 
-    if (sessionId !== null) {
-      await stopManualPlayback(sessionId);
+      if (sessionId !== null) {
+        await stopManualPlayback(sessionId);
+      }
+
+      return nextGroupIndex;
+    } finally {
+      handoffBarrierRef.current.finishHandoff();
     }
-
-    return nextGroupIndex;
   }, [updateState]);
 
   return {
