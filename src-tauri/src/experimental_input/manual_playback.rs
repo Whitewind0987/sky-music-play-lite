@@ -22,6 +22,7 @@ pub struct ManualBackgroundPlaybackPreparedStartRequest {
     pub hwnd: String,
     pub compatibility_profile: String,
     pub key_hold_ms: u64,
+    pub start_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -29,6 +30,7 @@ pub struct ManualBackgroundPlaybackPreparedStartRequest {
 pub struct ManualForegroundPlaybackPreparedStartRequest {
     pub prepared_plan_id: u64,
     pub key_hold_ms: u64,
+    pub start_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -110,6 +112,7 @@ pub fn start_prepared_manual_background_playback(
         app_handle,
         prepared_plan,
         request.key_hold_ms,
+        request.start_group_index.unwrap_or(0),
         move |keys| PlaybackOutput::prepare_target_window(&hwnd, keys, &compatibility_profile),
     )
 }
@@ -124,6 +127,7 @@ pub fn start_prepared_manual_foreground_playback(
         app_handle,
         prepared_plan,
         request.key_hold_ms,
+        request.start_group_index.unwrap_or(0),
         PlaybackOutput::prepare_foreground,
     )
 }
@@ -146,12 +150,13 @@ fn start_manual_playback_from_prepared<PrepareOutput>(
     app_handle: AppHandle,
     prepared_plan: Arc<PreparedPlaybackPlan>,
     key_hold_ms: u64,
+    start_group_index: usize,
     prepare_output: PrepareOutput,
 ) -> Result<ManualPlaybackStepResponse, String>
 where
     PrepareOutput: FnOnce(&[String]) -> Result<PlaybackOutput, String>,
 {
-    validate_manual_start(key_hold_ms, &prepared_plan)?;
+    validate_manual_start(key_hold_ms, start_group_index, &prepared_plan)?;
     let total_ms = manual_source_total_ms(&prepared_plan)?;
     let output = prepare_output(&prepared_plan.unique_keys)?;
 
@@ -170,6 +175,7 @@ where
             session_id,
             prepared_plan,
             key_hold_ms as f64,
+            start_group_index,
             total_ms,
             output,
         ),
@@ -208,6 +214,7 @@ fn send_step_command(
 
 fn validate_manual_start(
     key_hold_ms: u64,
+    start_group_index: usize,
     prepared_plan: &PreparedPlaybackPlan,
 ) -> Result<(), String> {
     if prepared_plan.groups.is_empty() {
@@ -216,6 +223,13 @@ fn validate_manual_start(
 
     if key_hold_ms == 0 {
         return Err("Manual playback key hold duration must be greater than zero.".to_string());
+    }
+
+    if start_group_index >= prepared_plan.groups.len() {
+        return Err(format!(
+            "Manual playback start group index is out of range. index: {start_group_index}, group count: {}",
+            prepared_plan.groups.len()
+        ));
     }
 
     Ok(())
@@ -254,6 +268,7 @@ impl ManualPlaybackCore {
         session_id: u64,
         prepared_plan: Arc<PreparedPlaybackPlan>,
         key_hold_ms: f64,
+        start_group_index: usize,
         total_ms: f64,
         output: PlaybackOutput,
     ) -> Self {
@@ -261,7 +276,7 @@ impl ManualPlaybackCore {
             key_hold_ms,
             key_lifecycle: KeyLifecycle::new(),
             last_group_index: None,
-            next_group_index: 0,
+            next_group_index: start_group_index,
             output,
             prepared_plan,
             session_id,
@@ -514,12 +529,21 @@ mod tests {
         plan: Arc<PreparedPlaybackPlan>,
         key_hold_ms: f64,
     ) -> (ManualPlaybackCore, Arc<Mutex<TestPlaybackOutputState>>) {
+        test_core_at(plan, key_hold_ms, 0)
+    }
+
+    fn test_core_at(
+        plan: Arc<PreparedPlaybackPlan>,
+        key_hold_ms: f64,
+        start_group_index: usize,
+    ) -> (ManualPlaybackCore, Arc<Mutex<TestPlaybackOutputState>>) {
         let total_ms = manual_source_total_ms(&plan).unwrap();
         let output_state = Arc::new(Mutex::new(TestPlaybackOutputState::default()));
         let core = ManualPlaybackCore::new(
             7,
             plan,
             key_hold_ms,
+            start_group_index,
             total_ms,
             PlaybackOutput::Test(output_state.clone()),
         );
@@ -557,6 +581,24 @@ mod tests {
                 vec!["B".to_string()]
             ]
         );
+    }
+
+    #[test]
+    fn manual_group_cursor_starts_at_requested_exact_group() {
+        let plan = prepared_plan(vec![
+            (0.0, vec![planned_key("A")]),
+            (500.0, vec![planned_key("B")]),
+            (1000.0, vec![planned_key("C")]),
+        ]);
+
+        for expected in 0..3 {
+            let (mut core, output_state) = test_core_at(plan.clone(), 30.0, expected);
+            let response = core.step().unwrap();
+            assert_eq!(response.session_id, 7);
+            assert_eq!(response.group_index, expected);
+            assert_eq!(output_state.lock().unwrap().key_down_groups.len(), 1);
+        }
+        assert!(validate_manual_start(30, 3, &plan).is_err());
     }
 
     #[test]
@@ -681,6 +723,7 @@ mod tests {
         let plan = prepared_plan(vec![
             (0.0, vec![planned_key("A")]),
             (500.0, vec![planned_key("B")]),
+            (1000.0, vec![planned_key("C")]),
         ]);
         let (core, output_state) = test_core(plan, 1.0);
         let (command_tx, command_rx) = mpsc::channel();
@@ -694,16 +737,23 @@ mod tests {
         let handle = thread::spawn(move || worker.run());
         start_tx.send(()).unwrap();
 
-        assert_eq!(send_step_command(&command_tx).unwrap().group_index, 0);
-        thread::sleep(Duration::from_millis(10));
-        assert_eq!(send_step_command(&command_tx).unwrap().group_index, 1);
+        let first = send_step_command(&command_tx).unwrap();
         assert_eq!(
-            output_state.lock().unwrap().key_up_groups,
-            [vec!["A".to_string()]]
+            (first.session_id, first.group_index, first.group_count),
+            (7, 0, 3)
         );
-
-        command_tx.send(ManualPlaybackCommand::Stop).unwrap();
+        assert!(first.has_next_group);
+        thread::sleep(Duration::from_millis(10));
+        let second = send_step_command(&command_tx).unwrap();
+        assert_eq!((second.session_id, second.group_index), (7, 1));
+        assert!(second.has_next_group);
+        thread::sleep(Duration::from_millis(10));
+        let third = send_step_command(&command_tx).unwrap();
+        assert_eq!((third.session_id, third.group_index), (7, 2));
+        assert!(!third.has_next_group);
+        assert_eq!(third.state, "tail");
         handle.join().unwrap();
+        assert_eq!(output_state.lock().unwrap().key_up_groups.len(), 3);
     }
 
     #[test]

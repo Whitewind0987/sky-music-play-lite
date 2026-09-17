@@ -63,6 +63,7 @@ pub struct BackgroundPlaybackPreparedStartRequest {
     pub note_interval_delay_ms: f64,
     pub playback_speed: f64,
     pub initial_progress_ms: Option<f64>,
+    pub initial_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -73,6 +74,7 @@ pub struct ForegroundPlaybackPreparedStartRequest {
     pub note_interval_delay_ms: f64,
     pub playback_speed: f64,
     pub initial_progress_ms: Option<f64>,
+    pub initial_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -103,6 +105,7 @@ pub struct ManualBackgroundPlaybackPreparedStartRequest {
     pub hwnd: String,
     pub compatibility_profile: String,
     pub key_hold_ms: u64,
+    pub start_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -110,6 +113,15 @@ pub struct ManualBackgroundPlaybackPreparedStartRequest {
 pub struct ManualForegroundPlaybackPreparedStartRequest {
     pub prepared_plan_id: u64,
     pub key_hold_ms: u64,
+    pub start_group_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomaticPlaybackHandoffResponse {
+    pub session_id: u64,
+    pub next_group_index: usize,
+    pub group_count: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -209,6 +221,12 @@ pub fn stop_manual_playback(_request: ManualPlaybackSessionRequest) -> Result<()
 }
 
 pub fn pause_background_playback(_session_id: u64) -> Result<(), String> {
+    Err(unsupported())
+}
+
+pub fn pause_automatic_playback_for_manual_handoff(
+    _session_id: u64,
+) -> Result<AutomaticPlaybackHandoffResponse, String> {
     Err(unsupported())
 }
 

@@ -96,6 +96,7 @@ export type BackgroundPlaybackPreparedStartRequest = {
   compatibilityProfile: TargetWindowCompatibilityProfile;
   hwnd: string;
   initialProgressMs?: number;
+  initialGroupIndex?: number;
   keyHoldMs: number;
   noteIntervalDelayMs: number;
   playbackSpeed: number;
@@ -104,6 +105,7 @@ export type BackgroundPlaybackPreparedStartRequest = {
 
 export type ForegroundPlaybackPreparedStartRequest = {
   initialProgressMs?: number;
+  initialGroupIndex?: number;
   keyHoldMs: number;
   noteIntervalDelayMs: number;
   playbackSpeed: number;
@@ -144,11 +146,19 @@ export type ManualBackgroundPlaybackPreparedStartRequest = {
   hwnd: string;
   compatibilityProfile: TargetWindowCompatibilityProfile;
   keyHoldMs: number;
+  startGroupIndex?: number;
 };
 
 export type ManualForegroundPlaybackPreparedStartRequest = {
   preparedPlanId: number;
   keyHoldMs: number;
+  startGroupIndex?: number;
+};
+
+export type AutomaticPlaybackHandoffResponse = {
+  sessionId: number;
+  nextGroupIndex: number;
+  groupCount: number;
 };
 
 export type BackgroundPlaybackStartResponse = {
@@ -506,6 +516,15 @@ export function listenForegroundPlaybackEvents(
   return listen<BackgroundPlaybackEventPayload>(
     "foreground-playback-event",
     handler,
+  );
+}
+
+export function pauseAutomaticPlaybackForManualHandoff(
+  sessionId: number,
+): Promise<AutomaticPlaybackHandoffResponse> {
+  return invoke<AutomaticPlaybackHandoffResponse>(
+    "pause_automatic_playback_for_manual_handoff",
+    { sessionId },
   );
 }
 

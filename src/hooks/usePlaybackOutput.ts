@@ -154,9 +154,13 @@ export function usePlaybackOutput({
   }
 
   const manualPolicy = resolveManualPlaybackOutputPolicy({
-    automaticCanPlay: automaticOutput.canPlay,
+    automaticCanPlay:
+      automaticOutput.canPlay &&
+      !experimentalInput.isPlaybackOwnershipTransitionPending,
     automaticCanSeek: automaticOutput.canSeek,
-    automaticCanStop: automaticOutput.canStop,
+    automaticCanStop:
+      automaticOutput.canStop ||
+      experimentalInput.isPlaybackOwnershipTransitionPending,
     canStepManual: experimentalInput.canStepManualPlayback,
     isRealInputOutput: automaticOutput.isRealInputOutput,
     state: experimentalInput.manualPlaybackState,
@@ -181,8 +185,8 @@ export function usePlaybackOutput({
     onManualStep: () => {
       void experimentalInput.handleStepManualPlayback();
     },
-    onStop: manualPolicy.isEngaged
-      ? experimentalInput.handleStopManualPlayback
+    onStop: automaticOutput.isRealInputOutput
+      ? experimentalInput.handleStopAllRealPlayback
       : automaticOutput.onStop,
     progress: usesManualProgress
       ? experimentalInput.manualPlaybackProgress

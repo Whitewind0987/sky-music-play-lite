@@ -7,6 +7,8 @@ import {
   isManualTargetSelectionLocked,
   isSkySnapshot,
   reconcileSkyWindow,
+  resolveAvailableTargetWindowForPlayback,
+  resolveManualTargetWindowHwnd,
   resolveUnboundSkyMonitorStatus,
   shouldLogLifecycleTransition,
   shouldApplyRestoredTargetSnapshot,
@@ -290,6 +292,46 @@ describe("lifecycle support helpers", () => {
 
   it("allows target selection while idle", () => {
     expect(isManualTargetSelectionLocked({ activeSessionId: null, isHandoffPending: false })).toBe(false);
+  });
+
+  it("unlocks after stopped, finished, failed, or foreground-owned sessions", () => {
+    const unlockedLifecycleResults = ["stopped", "finished", "failed", "foreground"].map(
+      () =>
+        isManualTargetSelectionLocked({
+          activeSessionId: null,
+          isHandoffPending: false,
+          isManualTargetEngaged: false,
+        }),
+    );
+    expect(unlockedLifecycleResults).toEqual([false, false, false, false]);
+  });
+
+  it("uses an explicitly resolved target and rejects missing or empty HWND values", () => {
+    expect(resolveManualTargetWindowHwnd("detected-sky")).toBe("detected-sky");
+    expect(resolveManualTargetWindowHwnd("manual-target")).toBe("manual-target");
+    expect(resolveManualTargetWindowHwnd(null)).toBeNull();
+    expect(resolveManualTargetWindowHwnd("  ")).toBeNull();
+  });
+
+  it("resolves either a manual selection or an auto-detected Sky target for playback", () => {
+    expect(
+      resolveAvailableTargetWindowForPlayback({
+        candidateWindows: [sky("detected"), other],
+        selectedWindowHwnd: null,
+      })?.hwnd,
+    ).toBe("detected");
+    expect(
+      resolveAvailableTargetWindowForPlayback({
+        candidateWindows: [sky("detected"), other],
+        selectedWindowHwnd: other.hwnd,
+      })?.hwnd,
+    ).toBe(other.hwnd);
+    expect(
+      resolveAvailableTargetWindowForPlayback({
+        candidateWindows: [other],
+        selectedWindowHwnd: null,
+      }),
+    ).toBeNull();
   });
 
   it("discards an awaited detection result if playback starts before it resolves", () => {

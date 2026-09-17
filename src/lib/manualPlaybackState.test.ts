@@ -101,11 +101,33 @@ describe("manual playback state helpers", () => {
 
   it("resets ownership on song identity change", () => {
     expect(
-      shouldResetManualForSongChange({ currentSongId: "b", manualSongId: "a" }),
+      shouldResetManualForSongChange({
+        currentSongId: "b",
+        isManualSongAvailable: true,
+        manualSongId: "a",
+      }),
     ).toBe(true);
     expect(
-      shouldResetManualForSongChange({ currentSongId: "a", manualSongId: "a" }),
+      shouldResetManualForSongChange({
+        currentSongId: "a",
+        isManualSongAvailable: true,
+        manualSongId: "a",
+      }),
     ).toBe(false);
+    expect(
+      shouldResetManualForSongChange({
+        currentSongId: null,
+        isManualSongAvailable: true,
+        manualSongId: "a",
+      }),
+    ).toBe(false);
+    expect(
+      shouldResetManualForSongChange({
+        currentSongId: null,
+        isManualSongAvailable: false,
+        manualSongId: "a",
+      }),
+    ).toBe(true);
   });
 
   it("distinguishes engagement from retained finished progress", () => {
@@ -133,7 +155,7 @@ describe("manual playback state helpers", () => {
     });
     expect(active).toMatchObject({
       canManualStep: true,
-      canPlay: false,
+      canPlay: true,
       canSeek: false,
       canStop: true,
       showsManualProgress: true,
@@ -147,7 +169,21 @@ describe("manual playback state helpers", () => {
       isRealInputOutput: true,
       state: "tail",
     });
-    expect(tail).toMatchObject({ canManualStep: false, canStop: true });
+    expect(tail).toMatchObject({
+      canManualStep: false,
+      canPlay: true,
+      canStop: true,
+    });
+
+    const starting = resolveManualPlaybackOutputPolicy({
+      automaticCanPlay: true,
+      automaticCanSeek: true,
+      automaticCanStop: false,
+      canStepManual: false,
+      isRealInputOutput: true,
+      state: "starting",
+    });
+    expect(starting).toMatchObject({ canManualStep: false, canPlay: false });
 
     const finished = resolveManualPlaybackOutputPolicy({
       automaticCanPlay: true,
@@ -176,4 +212,20 @@ describe("manual playback state helpers", () => {
       }).canManualStep,
     ).toBe(false);
   });
+
+  it.each(["playing", "paused"])(
+    "keeps Manual Step available while Automatic is %s for handoff",
+    () => {
+      expect(
+        resolveManualPlaybackOutputPolicy({
+          automaticCanPlay: false,
+          automaticCanSeek: true,
+          automaticCanStop: true,
+          canStepManual: true,
+          isRealInputOutput: true,
+          state: "idle",
+        }).canManualStep,
+      ).toBe(true);
+    },
+  );
 });

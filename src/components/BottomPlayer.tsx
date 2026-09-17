@@ -40,6 +40,9 @@ import {
   StopIcon,
 } from "./PlayerIcons";
 
+export const MANUAL_STEP_HOLD_DELAY_MS = 350;
+export const MANUAL_STEP_REPEAT_INTERVAL_MS = 120;
+
 type BottomPlayerProps = {
   canManualStep: boolean;
   canPlay: boolean;
@@ -257,7 +260,79 @@ export function BottomPlayer({
   const [dragTimeMs, setDragTimeMs] = useState<number | null>(null);
   const [isProgressDragging, setIsProgressDragging] = useState(false);
   const [isProgressHovering, setIsProgressHovering] = useState(false);
+  const [isManualStepPointerHeld, setIsManualStepPointerHeld] = useState(false);
+  const manualStepHoldTimerRef = useRef<number | null>(null);
+  const manualStepRepeatTimerRef = useRef<number | null>(null);
+  const manualStepPointerIdRef = useRef<number | null>(null);
+  const suppressManualStepClickRef = useRef(false);
   const canPause = playbackState === "playing";
+  const isManualStepDisabled =
+    isCurrentSongLoading || (!canManualStep && !isManualStepPointerHeld);
+
+  function stopManualStepRepeat() {
+    if (manualStepHoldTimerRef.current !== null) {
+      window.clearTimeout(manualStepHoldTimerRef.current);
+      manualStepHoldTimerRef.current = null;
+    }
+    if (manualStepRepeatTimerRef.current !== null) {
+      window.clearInterval(manualStepRepeatTimerRef.current);
+      manualStepRepeatTimerRef.current = null;
+    }
+    manualStepPointerIdRef.current = null;
+  }
+
+  useEffect(() => {
+    if (isManualStepDisabled) {
+      stopManualStepRepeat();
+      suppressManualStepClickRef.current = false;
+    }
+    return stopManualStepRepeat;
+  }, [isManualStepDisabled]);
+
+  function handleManualStepPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (isManualStepDisabled || event.button !== 0) return;
+    manualStepPointerIdRef.current = event.pointerId;
+    setIsManualStepPointerHeld(true);
+    suppressManualStepClickRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    onManualStep();
+    manualStepHoldTimerRef.current = window.setTimeout(() => {
+      manualStepHoldTimerRef.current = null;
+      manualStepRepeatTimerRef.current = window.setInterval(() => {
+        onManualStep();
+      }, MANUAL_STEP_REPEAT_INTERVAL_MS);
+    }, MANUAL_STEP_HOLD_DELAY_MS);
+  }
+
+  function handleManualStepPointerEnd(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (manualStepPointerIdRef.current !== event.pointerId) return;
+    stopManualStepRepeat();
+    setIsManualStepPointerHeld(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleManualStepPointerCancel(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    handleManualStepPointerEnd(event);
+    suppressManualStepClickRef.current = false;
+  }
+
+  function handleManualStepLostPointerCapture() {
+    stopManualStepRepeat();
+    setIsManualStepPointerHeld(false);
+  }
+
+  function handleManualStepClick(event: ReactMouseEvent<HTMLButtonElement>) {
+    if (suppressManualStepClickRef.current) {
+      suppressManualStepClickRef.current = false;
+      event.preventDefault();
+      return;
+    }
+    onManualStep();
+  }
   const isV2Song =
     currentSong !== null && getLibrarySongFormatVersion(currentSong) === 2;
   const canResume = playbackState === "paused";
@@ -647,9 +722,13 @@ export function BottomPlayer({
               className="player-icon-button player-icon-button-secondary player-icon-button-manual-step"
               type="button"
               aria-label={text.manualStep}
-              disabled={!canManualStep || isCurrentSongLoading}
-              title={text.manualStep}
-              onClick={onManualStep}
+              disabled={isManualStepDisabled}
+              title={text.manualStepTooltip}
+              onClick={handleManualStepClick}
+              onLostPointerCapture={handleManualStepLostPointerCapture}
+              onPointerCancel={handleManualStepPointerCancel}
+              onPointerDown={handleManualStepPointerDown}
+              onPointerUp={handleManualStepPointerEnd}
             >
               <ManualStepIcon />
               <span className="visually-hidden">{text.manualStep}</span>

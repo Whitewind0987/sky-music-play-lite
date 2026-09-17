@@ -41,6 +41,7 @@ type UseManualPlaybackOptions = {
     songIndex: number;
   }) => Promise<PreparedPlaybackPlan>;
   invalidatePlaybackPlan: (cacheKey: PreparedPlaybackPlanCacheKey) => void;
+  isSongAvailable: (songId: LibrarySongId) => boolean;
   outputMode: ManualPlaybackOutputMode;
   showNotice?: (message: string) => void;
   targetWindowCompatibilityProfile: TargetWindowCompatibilityProfile;
@@ -53,6 +54,8 @@ type ManualStepRequest = {
   songId: LibrarySongId;
   songIndex: number;
   songName: string;
+  startGroupIndex?: number;
+  targetWindowHwnd?: string;
 };
 
 export function useManualPlayback({
@@ -62,6 +65,7 @@ export function useManualPlayback({
   foregroundKeyHoldMs,
   getOrPreparePlaybackPlan,
   invalidatePlaybackPlan,
+  isSongAvailable,
   outputMode,
   showNotice,
   targetWindowCompatibilityProfile,
@@ -197,11 +201,15 @@ export function useManualPlayback({
       shouldResetManualForSongChange({
         currentSongId,
         manualSongId: manualSongIdRef.current,
+        isManualSongAvailable:
+          manualSongIdRef.current === null
+            ? false
+            : isSongAvailable(manualSongIdRef.current),
       })
     ) {
       reset();
     }
-  }, [currentSongId, reset]);
+  }, [currentSongId, isSongAvailable, reset]);
 
   useEffect(() => {
     if (!experimentalInputEnabled && isManualPlaybackEngaged(stateRef.current)) {
@@ -305,13 +313,19 @@ export function useManualPlayback({
                 ? await startPreparedManualForegroundPlayback({
                     keyHoldMs: foregroundKeyHoldMs,
                     preparedPlanId: prepared.preparedPlanId,
+                    startGroupIndex: request.startGroupIndex,
                   })
-                : await startPreparedManualBackgroundPlayback({
-                    compatibilityProfile: targetWindowCompatibilityProfile,
-                    hwnd: targetWindowHwnd ?? "",
-                    keyHoldMs: targetWindowKeyHoldMs,
-                    preparedPlanId: prepared.preparedPlanId,
-                  });
+                : request.targetWindowHwnd
+                  ? await startPreparedManualBackgroundPlayback({
+                      compatibilityProfile: targetWindowCompatibilityProfile,
+                      hwnd: request.targetWindowHwnd,
+                      keyHoldMs: targetWindowKeyHoldMs,
+                      preparedPlanId: prepared.preparedPlanId,
+                      startGroupIndex: request.startGroupIndex,
+                    })
+                  : await Promise.reject(
+                      new Error("Manual target window is not available."),
+                    );
           } catch (error) {
             if (shouldRetryManualPreparedPlanStart(attempt, error)) {
               invalidatePlaybackPlan(prepared.cacheKey);
@@ -359,7 +373,6 @@ export function useManualPlayback({
       invalidatePlaybackPlan,
       outputMode,
       targetWindowCompatibilityProfile,
-      targetWindowHwnd,
       targetWindowKeyHoldMs,
       text.logs.manualPlaybackStarted,
       updateProgress,
@@ -381,9 +394,41 @@ export function useManualPlayback({
     [startSession, stepActiveSession],
   );
 
+  const stopForAutomaticHandoff = useCallback(async () => {
+    const sessionId = activeSessionIdRef.current;
+    const nextGroupIndex =
+      stateRef.current === "active" &&
+      progressRef.current.hasNextGroup &&
+      progressRef.current.groupIndex !== null
+        ? progressRef.current.groupIndex + 1
+        : null;
+
+    requestTokenRef.current += 1;
+    activeSessionIdRef.current = null;
+    manualSongIdRef.current = null;
+    manualOutputModeRef.current = null;
+    pendingEventsRef.current.clear();
+    terminalSessionIdsRef.current.clear();
+    stepQueueRef.current = Promise.resolve();
+    setManualSongId(null);
+    setManualOutputMode(null);
+    updateState("idle");
+
+    if (sessionId !== null) {
+      await stopManualPlayback(sessionId);
+    }
+
+    return nextGroupIndex;
+  }, [updateState]);
+
   return {
     activeSessionId: activeSessionIdRef.current,
     handleStep,
+    getActiveSessionId: () => activeSessionIdRef.current,
+    getIsTargetWindowEngaged: () =>
+      isManualPlaybackEngaged(stateRef.current) &&
+      manualOutputModeRef.current === "target-window",
+    getState: () => stateRef.current,
     isEngaged: isManualPlaybackEngaged(state),
     isTargetWindowEngaged:
       isManualPlaybackEngaged(state) && manualOutputMode === "target-window",
@@ -399,5 +444,6 @@ export function useManualPlayback({
     }),
     state,
     stop: () => reset({ shouldLog: true }),
+    stopForAutomaticHandoff,
   };
 }

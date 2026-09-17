@@ -6,7 +6,8 @@ mod imported_scores;
 mod score_recording;
 mod window_state;
 use experimental_input::{
-    BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
+    AutomaticPlaybackHandoffResponse, BackgroundPlaybackOptionsRequest,
+    BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
     BackgroundPlaybackStartRequest, BackgroundPlaybackStartResponse, CandidateWindow,
     ForegroundPlaybackPreparedStartRequest, ManualBackgroundPlaybackPreparedStartRequest,
@@ -113,6 +114,13 @@ fn stop_manual_playback(request: ManualPlaybackSessionRequest) -> Result<(), Str
 #[tauri::command]
 fn pause_background_playback(session_id: u64) -> Result<(), String> {
     experimental_input::pause_background_playback(session_id)
+}
+
+#[tauri::command]
+fn pause_automatic_playback_for_manual_handoff(
+    session_id: u64,
+) -> Result<AutomaticPlaybackHandoffResponse, String> {
+    experimental_input::pause_automatic_playback_for_manual_handoff(session_id)
 }
 
 #[tauri::command]
@@ -230,6 +238,7 @@ pub fn run() {
             imported_scores::save_imported_score_song,
             list_candidate_windows,
             pause_background_playback,
+            pause_automatic_playback_for_manual_handoff,
             pause_foreground_playback,
             prepare_background_playback_plan,
             resume_background_playback,

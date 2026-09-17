@@ -1,5 +1,6 @@
 import {
   ListMusic,
+  MousePointerClick,
   Pause,
   Play,
   Repeat,
@@ -7,7 +8,6 @@ import {
   Shuffle,
   SkipForward,
   Square,
-  StepForward,
   type LucideIcon,
 } from "lucide-react";
 
@@ -88,7 +88,7 @@ export function ManualStepIcon(props: PlayerIconProps) {
   return (
     <PlayerIconBase
       {...props}
-      Icon={StepForward}
+      Icon={MousePointerClick}
       className={`player-icon-manual-step${props.className ? ` ${props.className}` : ""}`}
       strokeWidth={2}
     />

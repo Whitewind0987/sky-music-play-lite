@@ -34,6 +34,8 @@ import {
   isSkySnapshot,
   isSkyWindow,
   reconcileSkyWindow,
+  resolveAvailableTargetWindowForPlayback,
+  resolveManualTargetWindowHwnd,
   resolveUnboundSkyMonitorStatus,
   shouldLogLifecycleTransition,
   shouldApplyRestoredTargetSnapshot,
@@ -53,6 +55,7 @@ import {
   listenBackgroundPlaybackEvents,
   listenSkyWindowLifecycleEvents,
   listCandidateWindows,
+  pauseAutomaticPlaybackForManualHandoff,
   pauseBackgroundPlayback,
   resumeBackgroundPlayback,
   seekBackgroundPlayback,
@@ -173,6 +176,8 @@ export function useExperimentalInput({
   const activeBackgroundSessionIdRef = useRef<number | null>(null);
   const backgroundHandoffTokenRef = useRef(0);
   const isBackgroundHandoffPendingRef = useRef(false);
+  const playbackOwnershipTransitionRef = useRef(false);
+  const playbackOwnershipTransitionTokenRef = useRef(0);
   const backgroundPlaybackEventHandlerRef = useRef<
     (payload: BackgroundPlaybackEventPayload) => void
   >(() => {});
@@ -235,6 +240,10 @@ export function useExperimentalInput({
     isBackgroundHandoffPending,
     setIsBackgroundHandoffPending,
   ] = useState(false);
+  const [
+    isPlaybackOwnershipTransitionPending,
+    setIsPlaybackOwnershipTransitionPending,
+  ] = useState(false);
   const [experimentalPlaybackState, setExperimentalPlaybackState] =
     useState<PlaybackState>("idle");
   const [experimentalPlaybackProgress, setExperimentalPlaybackProgress] =
@@ -258,6 +267,8 @@ export function useExperimentalInput({
     foregroundKeyHoldMs: FOREGROUND_KEY_HOLD_MS,
     getOrPreparePlaybackPlan,
     invalidatePlaybackPlan,
+    isSongAvailable: (songId) =>
+      librarySongsRef.current.some((song) => song.id === songId),
     outputMode:
       experimentalInputMode === "foreground" ? "foreground" : "target-window",
     showNotice,
@@ -313,43 +324,174 @@ export function useExperimentalInput({
     consumeQueuedItemAfterCurrent,
     peekNextQueueItemAfterCurrent,
   });
-  const hasConflictingAutomaticPlayback =
+  const hasUnsafePlaybackTransition =
     isStartingExperimentalPlayback ||
     isBackgroundHandoffPending ||
-    experimentalPlaybackState === "playing" ||
-    experimentalPlaybackState === "paused" ||
     foregroundPlayback.isForegroundStartPending ||
-    foregroundPlayback.isForegroundPlaybackActive;
+    isPlaybackOwnershipTransitionPending;
   const canStepManualPlayback =
     experimentalInputEnabled &&
     currentSong !== null &&
     selectedSongIndex !== null &&
     manualPlayback.state !== "starting" &&
     manualPlayback.state !== "tail" &&
-    !hasConflictingAutomaticPlayback &&
-    (experimentalInputMode === "foreground" || selectedWindowHwnd !== null);
+    !hasUnsafePlaybackTransition;
+
+  async function runPlaybackOwnershipTransition<T>(
+    task: (token: number) => Promise<T>,
+    busyResult: T,
+  ): Promise<T> {
+    if (playbackOwnershipTransitionRef.current) return busyResult;
+    const token = playbackOwnershipTransitionTokenRef.current + 1;
+    playbackOwnershipTransitionTokenRef.current = token;
+    playbackOwnershipTransitionRef.current = true;
+    setIsPlaybackOwnershipTransitionPending(true);
+    try {
+      return await task(token);
+    } finally {
+      if (playbackOwnershipTransitionTokenRef.current === token) {
+        playbackOwnershipTransitionRef.current = false;
+        setIsPlaybackOwnershipTransitionPending(false);
+      }
+    }
+  }
+
+  function isCurrentPlaybackOwnershipTransition(token: number) {
+    return playbackOwnershipTransitionTokenRef.current === token;
+  }
+
+  function cancelPlaybackOwnershipTransition() {
+    playbackOwnershipTransitionTokenRef.current += 1;
+    playbackOwnershipTransitionRef.current = false;
+    setIsPlaybackOwnershipTransitionPending(false);
+  }
+
+  function isManualPlaybackCurrentlyEngaged() {
+    const state = manualPlayback.getState();
+    return state === "starting" || state === "active" || state === "tail";
+  }
 
   async function handleStepManualPlayback() {
+    if (!canStepManualPlayback) return false;
+
     if (
-      !canStepManualPlayback ||
-      currentSong === null ||
-      selectedSongIndex === null
+      manualPlayback.getState() === "active" &&
+      currentSong !== null &&
+      selectedSongIndex !== null
     ) {
-      return false;
+      setRequestedPlaybackSongIndex(selectedSongIndex);
+      return manualPlayback.handleStep({
+        songId: currentSong.id,
+        songIndex: selectedSongIndex,
+        songName: getLibrarySongName(currentSong),
+        targetWindowHwnd: selectedWindowHwndRef.current ?? undefined,
+      });
     }
 
-    stopPreviewPlayback();
-    setRequestedPlaybackSongIndex(selectedSongIndex);
-    return manualPlayback.handleStep({
-      songId: currentSong.id,
-      songIndex: selectedSongIndex,
-      songName: getLibrarySongName(currentSong),
-    });
+    return runPlaybackOwnershipTransition(async (transitionToken) => {
+      if (currentSong === null || selectedSongIndex === null) return false;
+
+      const targetWindowHwnd =
+        experimentalInputModeRef.current === "target-window-message"
+          ? resolveManualTargetWindowHwnd(
+              await ensureTargetWindowAvailableForPlayback(),
+            )
+          : undefined;
+      if (!isCurrentPlaybackOwnershipTransition(transitionToken)) return false;
+      if (
+        experimentalInputModeRef.current === "target-window-message" &&
+        targetWindowHwnd === null
+      ) {
+        logMissingTargetWindow();
+        return false;
+      }
+
+      let startGroupIndex: number | undefined;
+      let handedOffSessionId: number | null = null;
+      if (
+        experimentalInputModeRef.current === "target-window-message" &&
+        activeBackgroundSessionIdRef.current !== null &&
+        (experimentalPlaybackState === "playing" ||
+          experimentalPlaybackState === "paused")
+      ) {
+        const cursor = await handoffTargetAutomaticToManual();
+        if (!isCurrentPlaybackOwnershipTransition(transitionToken)) {
+          if (cursor !== null) {
+            await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
+          }
+          return false;
+        }
+        if (cursor === null) {
+          return false;
+        }
+        if (cursor.nextGroupIndex >= cursor.groupCount) {
+          await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
+          return false;
+        }
+        startGroupIndex = cursor.nextGroupIndex;
+        handedOffSessionId = cursor.sessionId;
+      } else if (
+        experimentalInputModeRef.current === "foreground" &&
+        foregroundPlayback.isForegroundPlaybackActive
+      ) {
+        const wasRunning =
+          foregroundPlayback.foregroundPlaybackState === "playing" ||
+          foregroundPlayback.foregroundPlaybackState === "paused";
+        const cursor = await foregroundPlayback.handoffAutomaticToManual();
+        if (!isCurrentPlaybackOwnershipTransition(transitionToken)) {
+          if (cursor !== null) {
+            await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
+          }
+          return false;
+        }
+        if (wasRunning) {
+          if (cursor === null) {
+            return false;
+          }
+          if (cursor.nextGroupIndex >= cursor.groupCount) {
+            await stopBackgroundPlayback(cursor.sessionId).catch(() => {});
+            return false;
+          }
+          startGroupIndex = cursor.nextGroupIndex;
+          handedOffSessionId = cursor.sessionId;
+        }
+      }
+
+      stopPreviewPlayback();
+      setRequestedPlaybackSongIndex(selectedSongIndex);
+      const started = await manualPlayback.handleStep({
+        songId: currentSong.id,
+        songIndex: selectedSongIndex,
+        songName: getLibrarySongName(currentSong),
+        startGroupIndex,
+        targetWindowHwnd,
+      });
+      if (!isCurrentPlaybackOwnershipTransition(transitionToken)) {
+        manualPlayback.resetForLifecycleChange();
+        return false;
+      }
+      if (!started && handedOffSessionId !== null) {
+        await stopBackgroundPlayback(handedOffSessionId).catch(() => {});
+      }
+      return started;
+    }, false);
   }
 
   async function handleStartForegroundPlayback() {
-    manualPlayback.resetForAutomaticStart();
-    return foregroundPlayback.handleStartForegroundPlayback();
+    return runPlaybackOwnershipTransition(async (transitionToken) => {
+      if (isManualPlaybackCurrentlyEngaged() && selectedSongIndex !== null) {
+        const nextGroupIndex = await manualPlayback.stopForAutomaticHandoff();
+        if (!isCurrentPlaybackOwnershipTransition(transitionToken)) return false;
+        if (nextGroupIndex !== null) {
+          return foregroundPlayback.handleStartForegroundPlaybackFromGroup(
+            selectedSongIndex,
+            nextGroupIndex,
+          );
+        }
+      }
+      manualPlayback.resetForAutomaticStart();
+      return foregroundPlayback.handleStartForegroundPlayback();
+    }, false);
   }
 
   async function handlePlayForegroundSong(songIndex: number) {
@@ -420,7 +562,8 @@ export function useExperimentalInput({
       selectedWindowSnapshot: selectedWindowSnapshotRef.current,
     });
     clearTargetSelection();
-    if (manualPlayback.isTargetWindowEngaged) {
+    cancelPlaybackOwnershipTransition();
+    if (manualPlayback.getIsTargetWindowEngaged()) {
       manualPlayback.resetForLifecycleChange();
     }
     manualDetectedSkyRevisionRef.current = null;
@@ -452,8 +595,11 @@ export function useExperimentalInput({
   function isTargetSelectionLocked() {
     return isManualTargetSelectionLocked({
       activeSessionId: activeBackgroundSessionIdRef.current,
-      isHandoffPending: isBackgroundHandoffPendingRef.current,
-      isManualTargetEngaged: manualPlayback.isTargetWindowEngaged,
+      isHandoffPending:
+        isBackgroundHandoffPendingRef.current ||
+        (experimentalInputModeRef.current === "target-window-message" &&
+          playbackOwnershipTransitionRef.current),
+      isManualTargetEngaged: manualPlayback.getIsTargetWindowEngaged(),
     });
   }
 
@@ -515,11 +661,17 @@ export function useExperimentalInput({
     const hadTargetPlayback =
       activeBackgroundSessionIdRef.current !== null ||
       isBackgroundHandoffPendingRef.current ||
-      manualPlayback.isTargetWindowEngaged;
+      (experimentalInputModeRef.current === "target-window-message" &&
+        playbackOwnershipTransitionRef.current) ||
+      manualPlayback.getIsTargetWindowEngaged();
     if (decision.stopTargetPlayback) {
+      cancelPlaybackOwnershipTransition();
       stopExperimentalPlayback({ logStopped: false });
     }
-    if (decision.stopTargetPlayback && manualPlayback.isTargetWindowEngaged) {
+    if (
+      decision.stopTargetPlayback &&
+      manualPlayback.getIsTargetWindowEngaged()
+    ) {
       manualPlayback.resetForLifecycleChange();
     }
     if (
@@ -682,33 +834,47 @@ export function useExperimentalInput({
       !experimentalInputEnabledRef.current ||
       experimentalInputModeRef.current !== "target-window-message"
     ) {
-      return true;
+      return null;
     }
 
     if (selectedWindowHwndRef.current === null || isSkySnapshot(selectedWindowSnapshotRef.current)) {
       applySkyMonitorSnapshot(monitorSnapshotRef.current);
-      if (selectedWindowHwndRef.current !== null) return true;
+      if (selectedWindowHwndRef.current !== null) {
+        return selectedWindowHwndRef.current;
+      }
     }
 
     setLastError(null);
 
     try {
       const windows = await listCandidateWindows();
-      updateCandidateWindows(upsertMonitoredSky(windows, monitorSnapshotRef.current.window));
-
-      const refreshedSelectedWindow = windows.find(
-        (window) => window.hwnd === selectedWindowHwndRef.current,
+      const availableWindows = upsertMonitoredSky(
+        windows,
+        monitorSnapshotRef.current.window,
       );
+      updateCandidateWindows(availableWindows);
+
+      const refreshedSelectedWindow = resolveAvailableTargetWindowForPlayback({
+        candidateWindows: availableWindows,
+        selectedWindowHwnd: selectedWindowHwndRef.current,
+      });
 
       if (refreshedSelectedWindow) {
-        updateTargetSnapshot(candidateWindowToSnapshot(refreshedSelectedWindow));
-        return true;
+        if (selectedWindowHwndRef.current === null) {
+          updateTargetSelection(
+            refreshedSelectedWindow.hwnd,
+            candidateWindowToSnapshot(refreshedSelectedWindow),
+          );
+        } else {
+          updateTargetSnapshot(candidateWindowToSnapshot(refreshedSelectedWindow));
+        }
+        return refreshedSelectedWindow.hwnd;
       }
 
       appendLog(text.logs.experimentalSavedTargetWindowUnavailable);
       showNotice?.(text.logs.experimentalSavedTargetWindowUnavailableShort);
       clearTargetSelection();
-      return false;
+      return null;
     } catch (error) {
       const errorMessage = String(error instanceof Error ? error.message : error);
       const message = formatText(text.logs.experimentalWindowListFailed, {
@@ -718,12 +884,13 @@ export function useExperimentalInput({
       setLastError(errorMessage);
       appendLog(message);
       showNotice?.(message);
-      return false;
+      return null;
     }
   }
 
   function handleExperimentalInputEnabledChange(enabled: boolean) {
     if (!enabled) {
+      cancelPlaybackOwnershipTransition();
       manualPlayback.resetForLifecycleChange();
       stopExperimentalPlayback({ logStopped: false });
       foregroundPlayback.handleStopForegroundPlayback();
@@ -743,6 +910,8 @@ export function useExperimentalInput({
     if (mode === experimentalInputMode) {
       return;
     }
+
+    cancelPlaybackOwnershipTransition();
 
     stopExperimentalPlayback({ logStopped: false });
     foregroundPlayback.handleStopForegroundPlayback();
@@ -802,12 +971,42 @@ export function useExperimentalInput({
     }
   }
 
+  async function handoffTargetAutomaticToManual() {
+    const sessionId = activeBackgroundSessionIdRef.current;
+    if (sessionId === null) return null;
+    const cursor = await pauseAutomaticPlaybackForManualHandoff(sessionId);
+    if (activeBackgroundSessionIdRef.current !== sessionId) return null;
+
+    activeBackgroundSessionIdRef.current = null;
+    experimentalPlaybackControllerRef.current = null;
+    backgroundPlaybackContextRef.current = null;
+    pendingBackgroundEventsRef.current.clear();
+    setExperimentalPlaybackState("idle");
+    return cursor;
+  }
+
   function handleStopExperimentalPlayback() {
     if (!canStopExperimentalPlayback) {
       return;
     }
 
     stopExperimentalPlayback({ logStopped: true });
+  }
+
+  function handleStopAllRealPlayback() {
+    cancelPlaybackOwnershipTransition();
+    if (
+      manualPlayback.getState() === "starting" ||
+      manualPlayback.getState() === "active" ||
+      manualPlayback.getState() === "tail"
+    ) {
+      manualPlayback.stop();
+    } else {
+      manualPlayback.resetForLifecycleChange();
+    }
+    stopExperimentalPlayback({ logStopped: false });
+    foregroundPlayback.handleStopForegroundPlayback();
+    stopPreviewPlayback();
   }
 
   function handleTargetWindowCompatibilityProfileChange(
@@ -1003,14 +1202,22 @@ export function useExperimentalInput({
       experimentalInputModeRef.current !== "target-window-message" ||
       currentSong === null ||
       isStartingExperimentalPlayback ||
-      experimentalPlaybackState === "playing" ||
-      experimentalPlaybackState === "paused" ||
       selectedSongIndex === null
     ) {
       return false;
     }
 
-    return startExperimentalPlaybackWithPreflight(selectedSongIndex);
+    return runPlaybackOwnershipTransition(async (transitionToken) => {
+      if (isManualPlaybackCurrentlyEngaged()) {
+        const nextGroupIndex = await manualPlayback.stopForAutomaticHandoff();
+        if (!isCurrentPlaybackOwnershipTransition(transitionToken)) return false;
+        return startExperimentalPlaybackWithPreflight(selectedSongIndex, {
+          initialGroupIndex: nextGroupIndex ?? undefined,
+        });
+      }
+      manualPlayback.resetForAutomaticStart();
+      return startExperimentalPlaybackWithPreflight(selectedSongIndex);
+    }, false);
   }
 
   async function handlePlayExperimentalSong(songIndex: number) {
@@ -1021,15 +1228,17 @@ export function useExperimentalInput({
       return false;
     }
 
+    manualPlayback.resetForAutomaticStart();
     return startExperimentalPlaybackWithPreflight(songIndex);
   }
 
   async function startExperimentalPlaybackWithPreflight(
     songIndex: number,
-    { initialSeekMs }: { initialSeekMs?: number } = {},
+    {
+      initialGroupIndex,
+      initialSeekMs,
+    }: { initialGroupIndex?: number; initialSeekMs?: number } = {},
   ) {
-    manualPlayback.resetForAutomaticStart();
-
     if (
       (selectedWindowHwndRef.current === null || isSkySnapshot(selectedWindowSnapshotRef.current)) &&
       !(await ensureTargetWindowAvailableForPlayback())
@@ -1081,6 +1290,7 @@ export function useExperimentalInput({
 
     return startExperimentalPlaybackForSong(songIndex, song, {
       handoffToken,
+      initialGroupIndex,
       initialSeekMs,
       requestedPlaybackSongId,
       rollbackPlaybackSongId,
@@ -1194,6 +1404,7 @@ export function useExperimentalInput({
     resolvedSong: Song,
     options: {
       handoffToken: number;
+      initialGroupIndex?: number;
       initialSeekMs?: number;
       requestedPlaybackSongId: LibrarySongId | null;
       rollbackPlaybackSongId: LibrarySongId | null;
@@ -1242,6 +1453,7 @@ export function useExperimentalInput({
       }
       return startPreparedExperimentalPlaybackForSong(songIndex, song, {
         handoffToken: options.handoffToken,
+        initialGroupIndex: options.initialGroupIndex,
         initialSeekMs: options.initialSeekMs,
         preparedPlanId: preparedPlan.preparedPlanId,
         cacheKey: preparedPlan.cacheKey,
@@ -1272,6 +1484,7 @@ export function useExperimentalInput({
     song: Song,
     options: {
       handoffToken: number;
+      initialGroupIndex?: number;
       initialSeekMs?: number;
       preparedPlanId: number;
       cacheKey: PreparedPlaybackPlanCacheKey;
@@ -1335,6 +1548,7 @@ export function useExperimentalInput({
       const response = await startPreparedBackgroundPlayback({
         compatibilityProfile,
         hwnd: targetWindowHwnd,
+        initialGroupIndex: options.initialGroupIndex,
         initialProgressMs: options.initialSeekMs,
         keyHoldMs: targetWindowKeyHoldMsRef.current,
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
@@ -1404,6 +1618,7 @@ export function useExperimentalInput({
         options.timing.mark("prepared plan evicted; retrying once");
         return startExperimentalPlaybackForSong(songIndex, song, {
           handoffToken: options.handoffToken,
+          initialGroupIndex: options.initialGroupIndex,
           initialSeekMs: options.initialSeekMs,
           preparedPlanRetryCount: 1,
           requestedPlaybackSongId: options.requestedPlaybackSongId,
@@ -1755,19 +1970,24 @@ export function useExperimentalInput({
     handleStopForegroundPlayback:
       foregroundPlayback.handleStopForegroundPlayback,
     handleStopExperimentalPlayback,
+    handleStopAllRealPlayback,
     isDetectingSkyWindow,
     isExperimentalPlaybackRunning:
       isStartingExperimentalPlayback ||
       isBackgroundHandoffPending ||
+      isPlaybackOwnershipTransitionPending ||
       foregroundPlayback.isForegroundStartPending ||
       manualPlayback.isEngaged ||
       experimentalPlaybackState === "playing" ||
       experimentalPlaybackState === "paused",
     isBackgroundHandoffPending,
+    isPlaybackOwnershipTransitionPending,
     isTargetWindowSelectionLocked:
       activeBackgroundSessionIdRef.current !== null ||
       isBackgroundHandoffPending ||
-      manualPlayback.isTargetWindowEngaged,
+      (experimentalInputMode === "target-window-message" &&
+        isPlaybackOwnershipTransitionPending) ||
+      manualPlayback.getIsTargetWindowEngaged(),
     isForegroundStartPending: foregroundPlayback.isForegroundStartPending,
     isRefreshingWindows,
     lastError,

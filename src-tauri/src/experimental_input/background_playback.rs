@@ -47,6 +47,7 @@ pub struct BackgroundPlaybackPreparedStartRequest {
     pub note_interval_delay_ms: f64,
     pub playback_speed: f64,
     pub initial_progress_ms: Option<f64>,
+    pub initial_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -57,6 +58,7 @@ pub struct ForegroundPlaybackPreparedStartRequest {
     pub note_interval_delay_ms: f64,
     pub playback_speed: f64,
     pub initial_progress_ms: Option<f64>,
+    pub initial_group_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -72,6 +74,14 @@ pub struct BackgroundPlaybackOptionsRequest {
 pub struct BackgroundPlaybackStartResponse {
     pub session_id: u64,
     pub total_ms: f64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomaticPlaybackHandoffResponse {
+    pub session_id: u64,
+    pub next_group_index: usize,
+    pub group_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,6 +146,9 @@ enum WorkerPlaybackState {
 
 enum PlaybackCommand {
     Pause,
+    PauseForManualHandoff {
+        reply: Sender<Result<AutomaticPlaybackHandoffResponse, String>>,
+    },
     Resume,
     Seek(f64),
     Stop,
@@ -199,7 +212,7 @@ enum RealPlaybackSession {
 }
 
 struct BackgroundPlaybackWorker {
-    app_handle: AppHandle,
+    app_handle: Option<AppHandle>,
     command_rx: mpsc::Receiver<PlaybackCommand>,
     key_lifecycle: KeyLifecycle,
     key_hold_ms: f64,
@@ -250,6 +263,7 @@ pub fn start_background_playback(
             compatibility_profile: request.compatibility_profile,
             hwnd: request.hwnd,
             initial_progress_ms: request.initial_progress_ms,
+            initial_group_index: None,
             key_hold_ms: request.key_hold_ms,
             note_interval_delay_ms: request.note_interval_delay_ms,
             playback_speed: request.playback_speed,
@@ -292,6 +306,7 @@ fn start_background_playback_from_groups(
         app_handle,
         PlaybackStartOptions {
             initial_progress_ms: request.initial_progress_ms,
+            initial_group_index: request.initial_group_index,
             key_hold_ms: request.key_hold_ms,
             note_interval_delay_ms: request.note_interval_delay_ms,
             playback_speed: request.playback_speed,
@@ -316,6 +331,7 @@ pub fn start_prepared_foreground_playback(
         app_handle,
         PlaybackStartOptions {
             initial_progress_ms: request.initial_progress_ms,
+            initial_group_index: request.initial_group_index,
             key_hold_ms: request.key_hold_ms,
             note_interval_delay_ms: request.note_interval_delay_ms,
             playback_speed: request.playback_speed,
@@ -331,6 +347,7 @@ pub fn start_prepared_foreground_playback(
 #[derive(Debug, Clone)]
 struct PlaybackStartOptions {
     initial_progress_ms: Option<f64>,
+    initial_group_index: Option<usize>,
     key_hold_ms: u64,
     note_interval_delay_ms: f64,
     playback_speed: f64,
@@ -358,10 +375,11 @@ where
     let timeline = build_timeline_from_groups(&prepared_plan.groups, &options)?;
     let timeline_completed_at = Instant::now();
 
-    let initial_progress_ms = clamp_progress(
-        request.initial_progress_ms.unwrap_or(0.0),
-        timeline.total_ms,
-    );
+    let (initial_progress_ms, initial_group_index) = resolve_initial_playback_cursor(
+        &timeline,
+        request.initial_progress_ms,
+        request.initial_group_index,
+    )?;
     let _lifecycle_guard = real_playback_lifecycle()
         .lock()
         .expect("real playback lifecycle poisoned");
@@ -375,12 +393,12 @@ where
     let total_ms = timeline.total_ms;
     let worker_timeline = timeline;
     let worker = BackgroundPlaybackWorker {
-        app_handle,
+        app_handle: Some(app_handle),
         command_rx,
         key_lifecycle: KeyLifecycle::new(),
         key_hold_ms: request.key_hold_ms as f64,
         logged_first_key_down: false,
-        next_group_index: find_next_group_index(&worker_timeline, initial_progress_ms),
+        next_group_index: initial_group_index,
         next_progress_event_ms: initial_progress_ms + PROGRESS_EVENT_INTERVAL_MS,
         options,
         position_ms: initial_progress_ms,
@@ -455,6 +473,25 @@ where
 
 pub fn pause_background_playback(session_id: u64) -> Result<(), String> {
     send_command_to_session(session_id, PlaybackCommand::Pause)
+}
+
+pub fn pause_automatic_playback_for_manual_handoff(
+    session_id: u64,
+) -> Result<AutomaticPlaybackHandoffResponse, String> {
+    let command_tx = {
+        let manager = real_playback_manager()
+            .lock()
+            .expect("real playback manager poisoned");
+        command_sender_for_current_session(&manager, session_id)
+            .ok_or_else(|| "Automatic playback session is no longer available.".to_string())?
+    };
+    let (reply_tx, reply_rx) = mpsc::channel();
+    command_tx
+        .send(PlaybackCommand::PauseForManualHandoff { reply: reply_tx })
+        .map_err(|_| "Automatic playback worker is no longer available.".to_string())?;
+    reply_rx
+        .recv()
+        .map_err(|_| "Automatic playback worker did not return a handoff cursor.".to_string())?
 }
 
 pub fn resume_background_playback(session_id: u64) -> Result<(), String> {
@@ -795,6 +832,32 @@ impl BackgroundPlaybackWorker {
                 }
                 true
             }
+            PlaybackCommand::PauseForManualHandoff { reply } => {
+                if self.state == WorkerPlaybackState::Playing {
+                    self.update_position_from_clock();
+                    if let Err(error) = self.process_due_events() {
+                        let _ = reply.send(Err(error.clone()));
+                        self.handle_error(error);
+                        return false;
+                    }
+                    if self.state == WorkerPlaybackState::Stopped {
+                        let _ = reply.send(Err(
+                            "Automatic playback finished before handoff completed.".to_string(),
+                        ));
+                        return false;
+                    }
+                    self.release_all_active_keys();
+                    self.state = WorkerPlaybackState::Paused;
+                    self.emit_state("paused");
+                    self.emit_progress();
+                }
+                let _ = reply.send(Ok(automatic_handoff_response(
+                    self.session_id,
+                    self.next_group_index,
+                    self.timeline.groups.len(),
+                )));
+                true
+            }
             PlaybackCommand::Resume => {
                 if self.state == WorkerPlaybackState::Paused {
                     self.next_group_index = find_next_group_index(&self.timeline, self.position_ms);
@@ -1008,16 +1071,18 @@ impl BackgroundPlaybackWorker {
         progress: Option<BackgroundPlaybackProgress>,
         state: Option<String>,
     ) {
-        let _ = self.app_handle.emit(
-            self.output_mode.event_name(),
-            BackgroundPlaybackEvent {
-                session_id: self.session_id,
-                event_type: event_type.to_string(),
-                error,
-                progress,
-                state,
-            },
-        );
+        if let Some(app_handle) = &self.app_handle {
+            let _ = app_handle.emit(
+                self.output_mode.event_name(),
+                BackgroundPlaybackEvent {
+                    session_id: self.session_id,
+                    event_type: event_type.to_string(),
+                    error,
+                    progress,
+                    state,
+                },
+            );
+        }
     }
 }
 
@@ -1158,6 +1223,51 @@ fn find_next_group_index(timeline: &PlaybackTimeline, progress_ms: f64) -> usize
             }
         })
         .unwrap_or(timeline.groups.len())
+}
+
+fn resolve_initial_playback_cursor(
+    timeline: &PlaybackTimeline,
+    initial_progress_ms: Option<f64>,
+    initial_group_index: Option<usize>,
+) -> Result<(f64, usize), String> {
+    if initial_progress_ms.is_some() && initial_group_index.is_some() {
+        return Err(
+            "Automatic playback start cannot use both time and group cursors.".to_string(),
+        );
+    }
+
+    if let Some(group_index) = initial_group_index {
+        if group_index >= timeline.groups.len() {
+            return Err(format!(
+                "Automatic playback start group index is out of range. index: {group_index}, group count: {}",
+                timeline.groups.len()
+            ));
+        }
+        let position_ms = if group_index == 0 {
+            0.0
+        } else {
+            timeline.groups[group_index - 1].adjusted_start_ms
+        };
+        return Ok((position_ms, group_index));
+    }
+
+    let position_ms = clamp_progress(initial_progress_ms.unwrap_or(0.0), timeline.total_ms);
+    Ok((
+        position_ms,
+        find_next_group_index(timeline, position_ms),
+    ))
+}
+
+fn automatic_handoff_response(
+    session_id: u64,
+    next_group_index: usize,
+    group_count: usize,
+) -> AutomaticPlaybackHandoffResponse {
+    AutomaticPlaybackHandoffResponse {
+        session_id,
+        next_group_index: next_group_index.min(group_count),
+        group_count,
+    }
 }
 
 fn capture_option_update_remap(
@@ -1312,6 +1422,7 @@ fn debug_timing(label: &str, started_at: Instant, phases: &[(&str, Duration)]) {
 
 #[cfg(test)]
 mod tests {
+    use super::super::playback_engine::TestPlaybackOutputState;
     use super::*;
 
     fn options(note_interval_delay_ms: f64, playback_speed: f64) -> PlaybackOptions {
@@ -1437,6 +1548,105 @@ mod tests {
         assert_eq!(find_next_group_index(&timeline, 500.0), 2);
         assert_eq!(find_next_group_index(&timeline, 750.0), 2);
         assert_eq!(find_next_group_index(&timeline, 1000.0), 3);
+    }
+
+    #[test]
+    fn group_cursor_preserves_the_adjusted_gap_without_replaying_previous_groups() {
+        let timeline = build_timeline(&plan(), &options(50.0, 2.0)).unwrap();
+
+        assert_eq!(
+            resolve_initial_playback_cursor(&timeline, None, Some(0)).unwrap(),
+            (0.0, 0)
+        );
+        assert_eq!(
+            resolve_initial_playback_cursor(&timeline, None, Some(1)).unwrap(),
+            (0.0, 1)
+        );
+        assert_eq!(
+            resolve_initial_playback_cursor(&timeline, None, Some(2)).unwrap(),
+            (300.0, 2)
+        );
+        assert_eq!(timeline.groups[2].adjusted_start_ms, 600.0);
+    }
+
+    #[test]
+    fn group_cursor_rejects_ambiguous_and_out_of_range_starts() {
+        let timeline = build_timeline(&plan(), &options(0.0, 1.0)).unwrap();
+
+        assert!(
+            resolve_initial_playback_cursor(&timeline, Some(500.0), Some(1)).is_err()
+        );
+        assert!(resolve_initial_playback_cursor(&timeline, None, Some(3)).is_err());
+        assert_eq!(
+            resolve_initial_playback_cursor(&timeline, Some(500.0), None).unwrap(),
+            (500.0, 2)
+        );
+    }
+
+    #[test]
+    fn automatic_handoff_cursor_is_group_based_and_bounded() {
+        assert_eq!(
+            automatic_handoff_response(9, 2, 3),
+            AutomaticPlaybackHandoffResponse {
+                session_id: 9,
+                next_group_index: 2,
+                group_count: 3,
+            }
+        );
+        assert_eq!(automatic_handoff_response(9, 8, 3).next_group_index, 3);
+    }
+
+    #[test]
+    fn playing_and_paused_handoffs_keep_the_same_next_group_and_release_keys() {
+        let prepared_plan = Arc::new(build_prepared_plan(&plan()).unwrap());
+        let playback_options = options(0.0, 1.0);
+        let timeline =
+            build_timeline_from_groups(&prepared_plan.groups, &playback_options).unwrap();
+        let output_state = Arc::new(Mutex::new(TestPlaybackOutputState::default()));
+        let output = PlaybackOutput::Test(output_state.clone());
+        let mut key_lifecycle = KeyLifecycle::new();
+        key_lifecycle
+            .trigger_group(&[("Key0".to_string(), 1_000.0)], &output, || {})
+            .unwrap();
+        let (_command_tx, command_rx) = mpsc::channel();
+        let (_start_tx, start_rx) = mpsc::channel();
+        let mut worker = BackgroundPlaybackWorker {
+            app_handle: None,
+            command_rx,
+            key_lifecycle,
+            key_hold_ms: 30.0,
+            logged_first_key_down: true,
+            next_group_index: 1,
+            next_progress_event_ms: 400.0,
+            options: playback_options,
+            position_ms: 250.0,
+            prepared_plan,
+            session_id: 9,
+            start_rx,
+            started_at: Instant::now(),
+            state: WorkerPlaybackState::Playing,
+            output_mode: PlaybackOutputMode::Background,
+            output,
+            timeline,
+        };
+
+        let (playing_reply_tx, playing_reply_rx) = mpsc::channel();
+        assert!(worker.handle_command(PlaybackCommand::PauseForManualHandoff {
+            reply: playing_reply_tx,
+        }));
+        let playing_cursor = playing_reply_rx.recv().unwrap().unwrap();
+        assert_eq!(playing_cursor.next_group_index, 1);
+        assert_eq!(worker.state, WorkerPlaybackState::Paused);
+        assert!(!worker.key_lifecycle.has_active_keys());
+        assert_eq!(output_state.lock().unwrap().key_up_groups.len(), 1);
+
+        let (paused_reply_tx, paused_reply_rx) = mpsc::channel();
+        assert!(worker.handle_command(PlaybackCommand::PauseForManualHandoff {
+            reply: paused_reply_tx,
+        }));
+        let paused_cursor = paused_reply_rx.recv().unwrap().unwrap();
+        assert_eq!(paused_cursor, playing_cursor);
+        assert_eq!(worker.next_group_index, 1);
     }
 
     #[test]

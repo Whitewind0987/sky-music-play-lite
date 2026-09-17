@@ -98,7 +98,7 @@ export function resolveManualPlaybackOutputPolicy({
 
   return {
     canManualStep: isRealInputOutput && canStepManual,
-    canPlay: automaticCanPlay && !isEngaged,
+    canPlay: automaticCanPlay && state !== "starting",
     canSeek: automaticCanSeek && !isEngaged,
     canStop: automaticCanStop || isEngaged,
     isEngaged,
@@ -109,12 +109,16 @@ export function resolveManualPlaybackOutputPolicy({
 
 export function shouldResetManualForSongChange({
   currentSongId,
+  isManualSongAvailable,
   manualSongId,
 }: {
   currentSongId: LibrarySongId | null;
+  isManualSongAvailable: boolean;
   manualSongId: LibrarySongId | null;
 }) {
-  return manualSongId !== null && manualSongId !== currentSongId;
+  if (manualSongId === null) return false;
+  if (currentSongId === null) return !isManualSongAvailable;
+  return manualSongId !== currentSongId;
 }
 
 export function getManualEventRoute({

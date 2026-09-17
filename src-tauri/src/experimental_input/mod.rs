@@ -34,13 +34,15 @@ mod window;
 
 #[cfg(windows)]
 pub use background_playback::{
-    pause_background_playback, pause_foreground_playback, prepare_background_playback_plan,
+    pause_automatic_playback_for_manual_handoff, pause_background_playback,
+    pause_foreground_playback, prepare_background_playback_plan,
     resume_background_playback, resume_foreground_playback, seek_background_playback,
     seek_foreground_playback, start_background_playback, start_prepared_background_playback,
     start_prepared_foreground_playback, stop_background_playback,
     stop_current_background_playback_for_shutdown, stop_foreground_playback,
     update_background_playback_options, update_foreground_playback_options,
-    BackgroundPlaybackOptionsRequest, BackgroundPlaybackPreparePlanRequest,
+    AutomaticPlaybackHandoffResponse, BackgroundPlaybackOptionsRequest,
+    BackgroundPlaybackPreparePlanRequest,
     BackgroundPlaybackPreparePlanResponse, BackgroundPlaybackPreparedStartRequest,
     BackgroundPlaybackStartRequest, BackgroundPlaybackStartResponse,
     ForegroundPlaybackPreparedStartRequest,
@@ -65,7 +67,8 @@ pub use sky_window_monitor::{
 };
 #[cfg(not(windows))]
 pub use stubs::{
-    find_sky_window, list_candidate_windows, pause_background_playback, pause_foreground_playback,
+    find_sky_window, list_candidate_windows, pause_automatic_playback_for_manual_handoff,
+    pause_background_playback, pause_foreground_playback,
     prepare_background_playback_plan, resume_background_playback, resume_foreground_playback,
     seek_background_playback, seek_foreground_playback, send_foreground_key_group,
     send_key_group_to_window_message, start_background_playback,
@@ -73,7 +76,8 @@ pub use stubs::{
     start_prepared_manual_background_playback, start_prepared_manual_foreground_playback,
     step_manual_playback, stop_background_playback, stop_current_background_playback_for_shutdown,
     stop_foreground_playback, stop_manual_playback, update_background_playback_options,
-    update_foreground_playback_options, BackgroundPlaybackOptionsRequest,
+    update_foreground_playback_options, AutomaticPlaybackHandoffResponse,
+    BackgroundPlaybackOptionsRequest,
     BackgroundPlaybackPreparePlanRequest, BackgroundPlaybackPreparePlanResponse,
     BackgroundPlaybackPreparedStartRequest, BackgroundPlaybackStartRequest,
     BackgroundPlaybackStartResponse, ForegroundPlaybackPreparedStartRequest,
