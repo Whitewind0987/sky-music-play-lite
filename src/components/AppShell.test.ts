@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { uiText, type LanguageCode } from "../i18n/uiText";
 import {
   getAlwaysOnTopActionText,
+  getWorkspaceHeaderTitle,
   WorkspaceHeader,
+  type AppSection,
+  type LibraryCategoryId,
 } from "./AppShell";
 
 function renderHeader({
@@ -114,5 +117,53 @@ describe("WorkspaceHeader actions", () => {
     expect(
       getAlwaysOnTopActionText(true, uiText["en-US"].actions),
     ).toBe("Disable always on top");
+  });
+});
+
+describe("workspace contextual title", () => {
+  it.each(["zh-CN", "en-US"] as const)("uses stable category titles (%s)", (language) => {
+    const text = uiText[language];
+    const expected: Array<[LibraryCategoryId, string]> = [
+      ["built-in", text.library.categoryBuiltIn],
+      ["local-imports", text.library.categoryLocalImports],
+      ["liked", text.library.categoryLiked],
+      ["playlists", text.sidebar.createdPlaylists],
+    ];
+    for (const [libraryCategory, title] of expected) {
+      expect(getWorkspaceHeaderTitle({
+        activeSection: "Library",
+        libraryCategory,
+        selectedPlaylist: null,
+        text,
+      })).toBe(title);
+    }
+  });
+
+  it("uses the selected user playlist name only in the playlist category", () => {
+    const selectedPlaylist = {
+      id: "playlist",
+      name: "夜间练习 / Evening practice",
+      songIds: [],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const context = {
+      activeSection: "Library" as const,
+      selectedPlaylist,
+      text: uiText["zh-CN"],
+    };
+    expect(getWorkspaceHeaderTitle({ ...context, libraryCategory: "playlists" }))
+      .toBe(selectedPlaylist.name);
+    expect(getWorkspaceHeaderTitle({ ...context, libraryCategory: "built-in" }))
+      .toBe(context.text.library.categoryBuiltIn);
+  });
+
+  it.each(["Recording", "Playback", "Logs", "Settings"] as AppSection[])("keeps %s unchanged", (activeSection) => {
+    const text = uiText["zh-CN"];
+    expect(getWorkspaceHeaderTitle({
+      activeSection,
+      libraryCategory: "local-imports",
+      text,
+    })).toBe(text.sections[activeSection].title);
   });
 });

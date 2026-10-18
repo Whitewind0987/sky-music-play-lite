@@ -132,6 +132,7 @@ export const uiText = {
       aria: "曲库页面",
       importEyebrow: "本地曲谱",
       importTitle: "导入曲谱",
+      importDisabledDescription: "播放中不能导入曲谱，请先停止播放。",
       importDescription:
         "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件。",
       importLabel: "导入 .json / .txt",
@@ -309,7 +310,13 @@ export const uiText = {
         "确定要删除《{songName}》吗？这会从本地导入、我喜欢和所有歌单中移除。",
       deletePlaylistConfirm:
         "确定要删除歌单《{playlistName}》吗？曲谱本身不会被删除。",
-      selected: "当前",
+      selected: "已选",
+      playbackIndicators: {
+        playing: "播放中",
+        paused: "已暂停",
+        manual: "逐音演奏中",
+        releasing: "等待琴键释放",
+      },
       loadingScore: "加载中...",
       paginationAria: "内置曲谱分页",
       paginationPrevious: "上一页",
@@ -928,6 +935,7 @@ export const uiText = {
       aria: "Library page",
       importEyebrow: "Local scores",
       importTitle: "Import scores",
+      importDisabledDescription: "Stop playback before importing scores.",
       importDescription:
         "Import one or more SkyStudio-style JSON / TXT score files.",
       importLabel: "Import .json / .txt",
@@ -1110,6 +1118,12 @@ export const uiText = {
       deletePlaylistConfirm:
         "Delete playlist “{playlistName}”? The scores themselves will not be deleted.",
       selected: "Selected",
+      playbackIndicators: {
+        playing: "Playing",
+        paused: "Paused",
+        manual: "Manual playback",
+        releasing: "Waiting for keys to release",
+      },
       loadingScore: "Loading...",
       paginationAria: "Built-in score pagination",
       paginationPrevious: "Previous",

@@ -558,6 +558,8 @@ export function AppSidebar({
 
 type WorkspaceHeaderProps = {
   activeSection: AppSection;
+  libraryCategory?: LibraryCategoryId;
+  selectedPlaylist?: UserPlaylist | null;
   isAlwaysOnTop: boolean;
   isAlwaysOnTopReady: boolean;
   isAlwaysOnTopUpdating: boolean;
@@ -577,8 +579,31 @@ export function getAlwaysOnTopActionText(
     : text.enableAlwaysOnTop;
 }
 
+export function getWorkspaceHeaderTitle({
+  activeSection,
+  libraryCategory,
+  selectedPlaylist,
+  text,
+}: Pick<
+  WorkspaceHeaderProps,
+  "activeSection" | "libraryCategory" | "selectedPlaylist" | "text"
+>) {
+  if (activeSection !== "Library" || libraryCategory === undefined) {
+    return text.sections[activeSection].title;
+  }
+
+  return {
+    "built-in": text.library.categoryBuiltIn,
+    "local-imports": text.library.categoryLocalImports,
+    liked: text.library.categoryLiked,
+    playlists: selectedPlaylist?.name ?? text.sidebar.createdPlaylists,
+  }[libraryCategory];
+}
+
 export function WorkspaceHeader({
   activeSection,
+  libraryCategory,
+  selectedPlaylist,
   isAlwaysOnTop,
   isAlwaysOnTopReady,
   isAlwaysOnTopUpdating,
@@ -588,15 +613,24 @@ export function WorkspaceHeader({
   onUserManualClick,
   text,
 }: WorkspaceHeaderProps) {
-  const header = text.sections[activeSection];
+  const title = getWorkspaceHeaderTitle({
+    activeSection,
+    libraryCategory,
+    selectedPlaylist,
+    text,
+  });
   const alwaysOnTopActionText = getAlwaysOnTopActionText(
     isAlwaysOnTop,
     text.actions,
   );
 
   return (
-    <header className="workspace-header">
-      <h2>{header.title}</h2>
+    <header
+      className={`workspace-header${
+        activeSection === "Library" ? " workspace-header-library" : ""
+      }`}
+    >
+      <h2 title={activeSection === "Library" ? title : undefined}>{title}</h2>
       <div className="header-actions" aria-label={text.app.placeholderActionsAria}>
         <button
           className={`icon-action always-on-top-action${
