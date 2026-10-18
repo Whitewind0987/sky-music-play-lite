@@ -104,6 +104,12 @@ describe("createV2LocalLibraryCopy", () => {
     });
 
     expect(result.status).toBe("created");
+    if (result.status === "created") {
+      expect(result.librarySong.libraryGroup).toBe("converted");
+      expect(getCreatedV2LibraryCopyState([], result.librarySong)).toMatchObject({
+        selectedCategory: "converted", selectedSongId: "local-copy", locateSongId: "local-copy",
+      });
+    }
     expect(save).toHaveBeenCalledWith(
       "local-copy",
       expect.objectContaining({ formatVersion: 2 }),
@@ -697,7 +703,7 @@ describe("createV2LocalLibraryCopy", () => {
     expect(sourceSong).toEqual(snapshot);
   });
 
-  it("selects and locates the appended local copy without replacing the source", () => {
+  it("keeps unclassified local and recorded copies in Local Imports without replacing the source", () => {
     const source = createLocalSong("local-source", createV1Song());
     const copy = createLocalSong(
       "local-copy",

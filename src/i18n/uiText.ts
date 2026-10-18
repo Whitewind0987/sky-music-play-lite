@@ -37,10 +37,12 @@ export const uiText = {
       expandCreatedPlaylists: "展开创建的歌单",
       liked: "我喜欢",
       localImports: "本地导入",
+      converted: "已转换",
       mySection: "我的",
       noCreatedPlaylists: "暂无歌单",
       preview: "预览",
       recording: "录制",
+      toolsSection: "工具",
     },
     sections: {
       Library: {
@@ -137,14 +139,39 @@ export const uiText = {
         "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件。",
       importLabel: "导入 .json / .txt",
       searchPlaceholder: "搜索曲谱",
+      headerSearchOpen: "搜索曲谱",
+      headerSearchClose: "收起搜索",
+      sorting: {
+        label: "排序",
+        editOrder: "编辑排序",
+        done: "完成",
+        modes: {
+          custom: "自定义排序", "name-asc": "名称 A–Z", "name-desc": "名称 Z–A",
+          "added-desc": "最近添加", "added-asc": "最早添加",
+          "duration-asc": "时长最短", "duration-desc": "时长最长",
+        },
+        noAddedTime: "此分类没有可用的添加时间，不支持按添加时间排序。",
+        likedTime: "添加时间按收藏时间计算。",
+        searchDisabled: "搜索期间不能调整顺序，请清空搜索后重试。",
+        customHint: "拖动行内手柄调整顺序，也可使用行菜单中的上移、下移。",
+        pageHint: "内置曲谱仅支持在当前页内手动调整顺序。",
+        handle: "拖动调整顺序；键盘操作请使用行菜单",
+        moveUp: "上移", moveDown: "下移",
+        moved: "已将 {name} 移至第 {position} 项",
+      },
       locateCurrentScore: "定位当前曲谱",
       locateCurrentScoreUnavailable: "当前没有选中的曲谱",
       categoriesTitle: "分类",
       categoryBuiltIn: "系统自带",
       categoryLocalImports: "本地导入",
+      categoryConverted: "已转换",
       categoryPlaylists: "收藏歌单",
       categoryLiked: "我喜欢",
       categoryEmptyStates: {
+        converted: {
+          title: "暂无已转换曲谱",
+          description: "使用 V1 转 V2 功能生成的曲谱将显示在这里。",
+        },
         "built-in": {
           title: "还没有内置曲谱",
           description: "内置曲谱资源尚未添加。",
@@ -217,6 +244,8 @@ export const uiText = {
       moreActions: "更多操作",
       deleteLocalSong: "删除",
       deleteFromLocalImports: "从本地导入删除",
+      moveToConverted: "移至已转换",
+      moveToLocalImports: "移至本地导入",
       exportLocalScore: "导出曲谱",
       exportingLocalScore: "正在导出…",
       upgradeToV2: {
@@ -307,7 +336,7 @@ export const uiText = {
       removeFromLiked: "从我喜欢移除",
       removeFromPlaylist: "从歌单移除",
       deleteLocalSongConfirm:
-        "确定要删除《{songName}》吗？这会从本地导入、我喜欢和所有歌单中移除。",
+        "确定要删除《{songName}》吗？这会从本地曲库、我喜欢和所有歌单中移除。",
       deletePlaylistConfirm:
         "确定要删除歌单《{playlistName}》吗？曲谱本身不会被删除。",
       selected: "已选",
@@ -697,6 +726,12 @@ export const uiText = {
       theme: "主题",
       systemTheme: "跟随系统",
       accentColor: "强调色",
+      uiScale: "界面大小",
+      uiScaleOptions: {
+        "1": "100% 标准",
+        "1.1": "110% 舒适",
+        "1.2": "120% 大",
+      },
       accentColorHex: "HEX 强调色",
       accentColorPicker: "选择强调色",
       accentColorReset: "恢复默认",
@@ -836,10 +871,12 @@ export const uiText = {
       expandCreatedPlaylists: "Expand created playlists",
       liked: "Liked",
       localImports: "Local Imports",
+      converted: "Converted",
       mySection: "My",
       noCreatedPlaylists: "No playlists yet",
       preview: "Preview",
       recording: "Recording",
+      toolsSection: "Tools",
     },
     sections: {
       Library: {
@@ -940,11 +977,32 @@ export const uiText = {
         "Import one or more SkyStudio-style JSON / TXT score files.",
       importLabel: "Import .json / .txt",
       searchPlaceholder: "Search scores",
+      headerSearchOpen: "Search scores",
+      headerSearchClose: "Close search",
+      sorting: {
+        label: "Sort",
+        editOrder: "Edit Order",
+        done: "Done",
+        modes: {
+          custom: "Custom Order", "name-asc": "Name A–Z", "name-desc": "Name Z–A",
+          "added-desc": "Newest Added", "added-asc": "Oldest Added",
+          "duration-asc": "Shortest Duration", "duration-desc": "Longest Duration",
+        },
+        noAddedTime: "Addition timestamps are unavailable for this category.",
+        likedTime: "Addition time means the time a song was liked.",
+        searchDisabled: "Clear the search to reorder songs.",
+        customHint: "Drag a row handle to reorder, or use Move up / Move down in the row menu.",
+        pageHint: "Built-in songs can only be moved within the current page.",
+        handle: "Drag to reorder; keyboard users can use the row menu",
+        moveUp: "Move up", moveDown: "Move down",
+        moved: "Moved {name} to position {position}",
+      },
       locateCurrentScore: "Locate current score",
       locateCurrentScoreUnavailable: "No score is currently selected",
       categoriesTitle: "Categories",
       categoryBuiltIn: "Built-in",
       categoryLocalImports: "Local Imports",
+      categoryConverted: "Converted",
       categoryPlaylists: "Playlists",
       categoryLiked: "Liked",
       categoryEmptyStates: {
@@ -955,6 +1013,10 @@ export const uiText = {
         "local-imports": {
           title: "Local Imports",
           description: "Use the import button to add local scores.",
+        },
+        converted: {
+          title: "No converted scores yet",
+          description: "Scores generated with V1 to V2 conversion will appear here.",
         },
         playlists: {
           title: "Playlists",
@@ -1022,6 +1084,8 @@ export const uiText = {
       moreActions: "More actions",
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
+      moveToConverted: "Move to Converted",
+      moveToLocalImports: "Move to Local Imports",
       exportLocalScore: "Export Score",
       exportingLocalScore: "Exporting…",
       upgradeToV2: {
@@ -1114,7 +1178,7 @@ export const uiText = {
       removeFromLiked: "Remove from Liked",
       removeFromPlaylist: "Remove from Playlist",
       deleteLocalSongConfirm:
-        "Delete “{songName}”? This will remove it from Local Imports, Liked, and all playlists.",
+        "Delete “{songName}”? This will remove it from the local library, Liked, and all playlists.",
       deletePlaylistConfirm:
         "Delete playlist “{playlistName}”? The scores themselves will not be deleted.",
       selected: "Selected",
@@ -1543,6 +1607,12 @@ export const uiText = {
       theme: "Theme",
       systemTheme: "System",
       accentColor: "Accent color",
+      uiScale: "UI Size",
+      uiScaleOptions: {
+        "1": "100% Standard",
+        "1.1": "110% Comfortable",
+        "1.2": "120% Large",
+      },
       accentColorHex: "HEX accent color",
       accentColorPicker: "Choose accent color",
       accentColorReset: "Reset",

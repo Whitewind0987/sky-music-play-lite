@@ -2,6 +2,7 @@ import type { Song } from "./score";
 
 export type LibrarySongId = string;
 export type LibrarySongSource = "built-in" | "local-import";
+export type LocalLibraryGroup = "imported" | "converted";
 
 export type LocalSongMetadata = {
   bitsPerPage: number;
@@ -36,6 +37,7 @@ export type BuiltInLibrarySong = {
 export type LocalLibrarySong = {
   id: LibrarySongId;
   importedAt: number;
+  libraryGroup?: LocalLibraryGroup;
   metadata: LocalSongMetadata;
   source: "local-import";
 };

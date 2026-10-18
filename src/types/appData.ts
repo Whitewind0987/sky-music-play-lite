@@ -1,4 +1,6 @@
 import type { LibraryCategoryId } from "../components/AppShell";
+import type { UiScale } from "../lib/uiScale";
+import type { LibrarySortingPreferences } from "./librarySorting";
 import type { LanguageCode } from "../i18n/uiText";
 import type {
   ExperimentalInputMode,
@@ -47,6 +49,7 @@ export type PersistedAppData = {
   keyMapping: KeyMapping;
   language: LanguageCode;
   library: {
+    sorting?: LibrarySortingPreferences;
     librarySongs: LocalLibrarySong[];
     likedSongs: LikedSongEntry[];
     migrationFallbackSongs?: MigrationFallbackSongs;
@@ -62,5 +65,6 @@ export type PersistedAppData = {
     playbackMode: PlaybackMode;
     playbackSpeed: PlaybackSpeed;
   };
+  uiScale?: UiScale;
   v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
 };

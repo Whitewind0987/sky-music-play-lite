@@ -15,6 +15,7 @@ import {
   canScheduleNormalAppDataPersistence,
   finishFailedAppDataLoad,
   normalAppDataSaveDebounceMs,
+  getLibraryOrderSaveDelay,
 } from "./useAppPersistence";
 
 const preferences = {
@@ -47,6 +48,27 @@ function createAppData(alwaysOnTop = false) {
     v1ToV2UpgradePreferences: preferences,
   });
 }
+
+describe("library order persistence scheduling", () => {
+  it("immediately schedules new sorting or manual order changes", () => {
+    expect(getLibraryOrderSaveDelay(1, 0)).toBe(0);
+    expect(getLibraryOrderSaveDelay(2, 1)).toBe(0);
+    expect(getLibraryOrderSaveDelay(2, 2)).toBe(normalAppDataSaveDebounceMs);
+  });
+
+  it("passes sorting state through the existing app-data builder", () => {
+    const saved = buildAppDataForPersistence({
+      isShuffleEnabled: false, keyMapping: defaultKeyMapping, language: "zh-CN",
+      librarySongs: [], likedSongs: [], playlists: [],
+      selectedLibraryCategory: "built-in", selectedPlaylistId: null, selectedSongIndex: null,
+      playbackMode: defaultPlaybackMode, playbackSpeed: defaultPlaybackSpeed,
+      noteIntervalDelayMs: defaultNoteIntervalDelayMs, playbackShortcuts: defaultPlaybackShortcuts,
+      validCollectionSongIds: ["builtin:a"],
+      librarySorting: { "built-in": { mode: "custom", customOrder: ["builtin:a"] } },
+    });
+    expect(saved.library.sorting?.["built-in"].customOrder).toEqual(["builtin:a"]);
+  });
+});
 
 describe("V1 to V2 preference persistence wiring", () => {
   it("applies the loaded preference to runtime state", () => {

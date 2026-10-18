@@ -56,11 +56,15 @@ import {
 } from "./v1ToV2UpgradePreferences";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 import { defaultAccentColor, normalizeAccentColor } from "./accentColor";
+import { defaultUiScale, normalizeUiScale, type UiScale } from "./uiScale";
+import { sanitizeLibrarySorting } from "./librarySorting";
+import type { LibrarySortingPreferences } from "../types/librarySorting";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
   "built-in",
   "local-imports",
+  "converted",
   "playlists",
   "liked",
 ];
@@ -136,6 +140,7 @@ export function sanitizePersistedAppData(
     keyMapping: sanitizeKeyMapping(rawData.keyMapping),
     language: sanitizeEnum(rawData.language, languageCodes, "zh-CN"),
     library: {
+      sorting: sanitizeLibrarySorting(rawLibrary.sorting, playlists),
       librarySongs,
       likedSongs,
       ...(Object.keys(migrationFallbackSongs).length > 0
@@ -155,6 +160,7 @@ export function sanitizePersistedAppData(
     },
     playbackShortcuts: sanitizePlaybackShortcuts(rawData.playbackShortcuts),
     playbackSettings: sanitizePlaybackSettings(rawData.playbackSettings),
+    uiScale: normalizeUiScale(rawData.uiScale),
     v1ToV2UpgradePreferences: sanitizeV1ToV2UpgradePreferences(
       rawData.v1ToV2UpgradePreferences,
     ),
@@ -167,6 +173,7 @@ export function buildPersistedAppData({
   confirmBeforeExit = defaultConfirmBeforeExit,
   experimentalInputPreferences,
   librarySongs,
+  librarySorting = {},
   likedSongs,
   isShuffleEnabled,
   importedScoreStoragePath,
@@ -182,6 +189,7 @@ export function buildPersistedAppData({
   selectedLibraryCategory,
   selectedPlaylistId,
   selectedSongIndex,
+  uiScale = defaultUiScale,
   v1ToV2UpgradePreferences =
     createDefaultV1ToV2UpgradePreferences(),
 }: {
@@ -190,6 +198,7 @@ export function buildPersistedAppData({
   confirmBeforeExit?: boolean;
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
   librarySongs: LocalLibrarySong[];
+  librarySorting?: LibrarySortingPreferences;
   likedSongs: LikedSongEntry[];
   isShuffleEnabled: boolean;
   importedScoreStoragePath?: string;
@@ -205,6 +214,7 @@ export function buildPersistedAppData({
   selectedLibraryCategory: LibraryCategoryId;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  uiScale?: UiScale;
   v1ToV2UpgradePreferences?: V1ToV2UpgradePreferences;
 }): PersistedAppData {
   const sanitizedLibrary = sanitizeV3Library(
@@ -238,6 +248,7 @@ export function buildPersistedAppData({
     keyMapping: sanitizeKeyMapping(keyMapping),
     language,
     library: {
+      sorting: sanitizeLibrarySorting(librarySorting, sanitizedPlaylists, validCollectionSongIdSet),
       librarySongs: sanitizedLibrarySongs,
       likedSongs: sanitizeLikedSongs(likedSongs, validCollectionSongIdSet),
       ...(Object.keys(sanitizedLibrary.migrationFallbackSongs).length > 0
@@ -264,6 +275,7 @@ export function buildPersistedAppData({
       playbackMode,
       playbackSpeed: normalizePlaybackSpeed(playbackSpeed),
     },
+    uiScale: normalizeUiScale(uiScale),
     v1ToV2UpgradePreferences: sanitizeV1ToV2UpgradePreferences(
       v1ToV2UpgradePreferences,
     ),
@@ -621,6 +633,7 @@ function sanitizeV3Library(
         Array<{
           id: string;
           importedAt: number;
+          libraryGroup?: LocalLibrarySong["libraryGroup"];
           rawMetadata: unknown;
         }>
       >((nextCandidates, rawLibrarySong) => {
@@ -637,6 +650,8 @@ function sanitizeV3Library(
         nextCandidates.push({
           id: rawLibrarySong.id,
           importedAt: sanitizeImportedAt(rawLibrarySong.importedAt),
+          ...(rawLibrarySong.libraryGroup === "converted" || rawLibrarySong.libraryGroup === "imported"
+            ? { libraryGroup: rawLibrarySong.libraryGroup } : {}),
           rawMetadata: rawLibrarySong.metadata,
         });
 
@@ -670,6 +685,7 @@ function sanitizeV3Library(
       nextSongs.push({
         id: candidate.id,
         importedAt: candidate.importedAt,
+        ...(candidate.libraryGroup === undefined ? {} : { libraryGroup: candidate.libraryGroup }),
         metadata,
         source: "local-import",
       });

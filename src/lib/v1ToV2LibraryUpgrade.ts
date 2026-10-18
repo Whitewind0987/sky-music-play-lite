@@ -62,7 +62,8 @@ export function getCreatedV2LibraryCopyState(
     localLibrarySongs: [...currentLocalSongs, createdLibrarySong],
     locateSongId: createdLibrarySong.id,
     searchQuery: "",
-    selectedCategory: "local-imports" as const,
+    selectedCategory: createdLibrarySong.libraryGroup === "converted"
+      ? "converted" as const : "local-imports" as const,
     selectedSongId: createdLibrarySong.id,
   };
 }
@@ -175,7 +176,10 @@ export async function createV2LocalLibraryCopy({
     }
   }
 
-  const librarySong = createLibrarySong(convertedSong);
+  const librarySong: LocalLibrarySong = {
+    ...createLibrarySong(convertedSong),
+    libraryGroup: "converted",
+  };
 
   if (isMutationBlocked?.()) {
     return { reason: "blocked", status: "failed" };

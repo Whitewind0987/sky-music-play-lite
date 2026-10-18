@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PersistedAppData } from "../types/appData";
 import type {
   CandidateWindow,
@@ -212,6 +214,25 @@ export type ExportedScoreFile = {
   fileName: string;
   path: string;
 };
+
+export function setWebviewZoom(scaleFactor: number): Promise<void> {
+  return getCurrentWebview().setZoom(scaleFactor);
+}
+
+export async function readNativeWindowSize(): Promise<{
+  width: number;
+  height: number;
+}> {
+  const appWindow = getCurrentWindow();
+  const [physicalSize, scaleFactor] = await Promise.all([
+    appWindow.innerSize(),
+    appWindow.scaleFactor(),
+  ]);
+
+  // OS DPI scaling only: unlike innerWidth/innerHeight, this size is independent
+  // of WebView zoom, including while a previous zoom request is still in flight.
+  return physicalSize.toLogical(scaleFactor);
+}
 
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");

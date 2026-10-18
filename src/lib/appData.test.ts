@@ -13,7 +13,10 @@ import {
 import { defaultPlaybackShortcuts } from "../types/playbackShortcuts";
 import { buildPersistedAppData, sanitizePersistedAppData } from "./appData";
 import { defaultAccentColor } from "./accentColor";
+import { defaultUiScale } from "./uiScale";
 import { createLocalSongMetadata } from "./libraryCollections";
+import { sortLibraryItems } from "./librarySorting";
+import { getLibrarySongCategory, moveLocalLibrarySong } from "./libraryGroups";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 import {
   createDefaultV1ToV2UpgradePreferences,
@@ -87,6 +90,52 @@ function buildMinimalPersistedAppData(
     ...overrides,
   });
 }
+
+describe("local library group persistence", () => {
+  it.each([undefined, "imported", "converted"] as const)("round-trips group %s, selection, likes, playlists, and sorting", libraryGroup => {
+    const song = { ...createLocalLibrarySong(), ...(libraryGroup ? { libraryGroup } : {}) };
+    const likedSongs = [{ songId: song.id, likedAt: 1 }];
+    const playlists = [createPlaylist("p", [song.id])];
+    const sorting = {
+      "local-imports": { mode: "name-asc" as const, customOrder: [] },
+      converted: { mode: "added-desc" as const, customOrder: libraryGroup === "converted" ? [song.id] : [] },
+    };
+    const saved = buildMinimalPersistedAppData({
+      librarySongs: [song], likedSongs, playlists, librarySorting: sorting,
+      selectedLibraryCategory: "converted", selectedSongIndex: 0,
+    });
+    const loaded = sanitizePersistedAppData(JSON.parse(JSON.stringify(saved)))!;
+    expect(loaded.appDataVersion).toBe(3);
+    expect(loaded.library.librarySongs).toEqual([song]);
+    expect(loaded.library.likedSongs).toEqual(likedSongs);
+    expect(loaded.library.playlists).toEqual(playlists);
+    expect(loaded.library.sorting).toEqual(sorting);
+    expect(loaded.library.selectedLibraryCategory).toBe("converted");
+    expect(loaded.library.selectedSongIndex).toBe(0);
+    expect(getLibrarySongCategory(loaded.library.librarySongs[0]))
+      .toBe(libraryGroup === "converted" ? "converted" : "local-imports");
+  });
+
+  it.each([null, "v2", "unknown", 2, {}])("defaults malformed group %j to Local Imports without discarding the song", libraryGroup => {
+    const saved = buildMinimalPersistedAppData({ librarySongs: [createLocalLibrarySong()] });
+    const raw = JSON.parse(JSON.stringify(saved));
+    raw.library.librarySongs[0].libraryGroup = libraryGroup;
+    const loaded = sanitizePersistedAppData(raw)!;
+    expect(loaded.library.librarySongs).toEqual(saved.library.librarySongs);
+  });
+
+  it("restores manual moves in both directions without rewriting metadata or score fallbacks", () => {
+    const song = { ...createLocalLibrarySong(), metadata: createLocalSongMetadata({ ...createTestSong(), formatVersion: 2 }) };
+    let songs = [song];
+    for (const group of ["converted", "imported"] as const) {
+      const moved = moveLocalLibrarySong(songs, song.id, group);
+      const saved = buildMinimalPersistedAppData({ librarySongs: moved });
+      expect(sanitizePersistedAppData(JSON.parse(JSON.stringify(saved)))!.library.librarySongs)
+        .toEqual([{ ...song, libraryGroup: group }]);
+      songs = moved;
+    }
+  });
+});
 
 describe("buildPersistedAppData", () => {
   it("writes the current appDataVersion", () => {
@@ -269,6 +318,112 @@ describe("buildPersistedAppData", () => {
       noteIntervalDelayLimits.min,
     );
     expect(result.playbackSettings.playbackSpeed).toBe(playbackSpeedLimits.max);
+  });
+});
+
+describe("UI size persistence", () => {
+  it("defaults new app data to 110%", () => {
+    expect(buildMinimalPersistedAppData().uiScale).toBe(defaultUiScale);
+    expect(defaultUiScale).toBe(1.1);
+  });
+
+  it.each([1, 1.1, 1.2] as const)(
+    "saves and restores %s across a JSON round trip",
+    (uiScale) => {
+      const saved = JSON.parse(
+        JSON.stringify(buildMinimalPersistedAppData({ uiScale })),
+      );
+
+      expect(saved.uiScale).toBe(uiScale);
+      expect(sanitizePersistedAppData(saved)?.uiScale).toBe(uiScale);
+    },
+  );
+
+  it("defaults old data without a UI size", () => {
+    const oldData: Record<string, unknown> = {
+      ...buildMinimalPersistedAppData(),
+    };
+    delete oldData.uiScale;
+
+    expect(sanitizePersistedAppData(oldData)?.uiScale).toBe(defaultUiScale);
+  });
+
+  it.each([1.15, 2, "1.2", null, -1])(
+    "replaces the invalid stored UI size %s with the default",
+    (uiScale) => {
+      expect(
+        sanitizePersistedAppData({
+          ...buildMinimalPersistedAppData(),
+          uiScale,
+        })?.uiScale,
+      ).toBe(defaultUiScale);
+    },
+  );
+
+  it("does not change unrelated settings", () => {
+    const sanitized = sanitizePersistedAppData({
+      ...buildMinimalPersistedAppData({
+        accentColor: "#12abef",
+        alwaysOnTop: true,
+      }),
+      uiScale: "bad",
+    });
+
+    expect(sanitized?.accentColor).toBe("#12abef");
+    expect(sanitized?.alwaysOnTop).toBe(true);
+  });
+});
+
+describe("library sorting persistence", () => {
+  it.each([1, 2, 3])("loads old version %s without sorting preferences", version => {
+    const old = buildMinimalPersistedAppData();
+    delete old.library.sorting;
+    const restored = sanitizePersistedAppData({ ...old, appDataVersion: version });
+    expect(restored?.library.sorting).toEqual({});
+    expect(restored?.appDataVersion).toBe(appDataVersion);
+  });
+
+  it("round-trips per-category and per-playlist preferences with one playlist manual order source", () => {
+    const songs = [createLocalLibrarySong("local-a"), createLocalLibrarySong("local-b")];
+    const saved = buildMinimalPersistedAppData({
+      accentColor: "#12abef", uiScale: 1.2,
+      librarySongs: songs,
+      likedSongs: [{ songId: "local-a", likedAt: 10 }],
+      playlists: [createPlaylist("one", ["local-b", "local-a"]), createPlaylist("two", ["local-a", "local-b"])],
+      validCollectionSongIds: ["local-a", "local-b", "builtin:x"],
+      librarySorting: {
+        "local-imports": { mode: "name-desc", customOrder: ["local-b", "local-a"] },
+        "built-in": { mode: "custom", customOrder: ["builtin:x"] },
+        liked: { mode: "added-desc", customOrder: ["local-a"] },
+        "playlist:one": { mode: "duration-desc", customOrder: ["local-a", "local-b"] },
+        "playlist:two": { mode: "custom", customOrder: [] },
+      },
+    });
+    const restored = sanitizePersistedAppData(JSON.parse(JSON.stringify(saved)))!;
+    expect(restored.library.sorting).toEqual(saved.library.sorting);
+    expect(restored.library.sorting?.["playlist:one"].customOrder).toEqual([]);
+    expect(restored.library.playlists.map(playlist => playlist.songIds)).toEqual([["local-b", "local-a"], ["local-a", "local-b"]]);
+    expect(restored.library.librarySongs).toEqual(saved.library.librarySongs);
+    expect(restored.library.likedSongs).toEqual(saved.library.likedSongs);
+    expect(restored.uiScale).toBe(1.2);
+    expect(restored.accentColor).toBe("#12abef");
+    const items = restored.library.librarySongs.map((librarySong, songIndex) => ({ librarySong, songIndex, isLiked: false }));
+    expect(sortLibraryItems(items, "custom", restored.library.sorting?.["local-imports"].customOrder)
+      .map(item => item.librarySong.id)).toEqual(["local-b", "local-a"]);
+  });
+
+  it("removes deleted IDs and playlist preferences when saving, retaining new songs in base order", () => {
+    const saved = buildMinimalPersistedAppData({
+      librarySongs: [createLocalLibrarySong("local-a"), createLocalLibrarySong("local-new")],
+      librarySorting: {
+        "local-imports": { mode: "custom", customOrder: ["deleted", "local-a", "local-a"] },
+        "playlist:deleted": { mode: "name-asc", customOrder: [] },
+      },
+    });
+    expect(saved.library.sorting).toEqual({ "local-imports": { mode: "custom", customOrder: ["local-a"] } });
+    const items = saved.library.librarySongs.map((librarySong, songIndex) => ({ librarySong, songIndex, isLiked: false }));
+    expect(sortLibraryItems(items, "custom", saved.library.sorting?.["local-imports"].customOrder)
+      .map(item => item.librarySong.id)).toEqual(["local-a", "local-new"]);
   });
 });
 
