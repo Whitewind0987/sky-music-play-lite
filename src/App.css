@@ -4702,6 +4702,10 @@ button {
     flex-direction: column;
   }
 
+  .library-search {
+    flex: 0 1 auto;
+  }
+
   .library-content-header p {
     max-width: none;
     text-align: left;
@@ -4713,12 +4717,13 @@ button {
 
   .library-table-header,
   .library-song-row {
-    grid-template-columns: 44px minmax(0, 2fr) minmax(0, 1fr) 62px;
+    grid-template-columns: 34px minmax(0, 2fr) minmax(0, 1fr) 32px 44px;
+    column-gap: 4px;
+    padding-inline: 6px;
   }
 
-  .library-table-header span:nth-child(4),
-  .library-song-row > span:nth-child(4) {
-    display: none;
+  .library-table-header {
+    border: 1px solid transparent;
   }
 
   .settings-grid {
