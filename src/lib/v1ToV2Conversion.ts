@@ -206,6 +206,9 @@ function buildV1ToV2DurationPlan(
 ): V1ToV2DurationPlan {
   const groups = buildV1ToV2NoteGroups(sourceSong);
   const profile = createV1ToV2ScoreProfile(groups);
+  const gaps = groups
+    .slice(1)
+    .map((group, index) => group.time - groups[index].time);
   const timesByNormalizedKey =
     collectSortedUniqueTimesByNormalizedKey(sourceSong);
   const durationsByNoteIndex = new Map<number, number>();
@@ -221,8 +224,8 @@ function buildV1ToV2DurationPlan(
             options.maxDurationMs,
           )
         : getEligibleNonFinalBaseDuration(
-            group.time,
-            nextGroup.time,
+            gaps[groupIndex],
+            getContextTypicalGap(gaps, groupIndex, profile.typicalGapMs),
             options,
           );
 
@@ -265,7 +268,11 @@ function buildV1ToV2DurationPlan(
       durationsByNoteIndex.set(
         noteIndex,
         Math.min(
-          Math.round(retriggerSafeDurationMs),
+          // Round non-final holds down so fractional timestamps cannot erode
+          // either the release lead or same-key retrigger safety margin.
+          nextGroup === undefined
+            ? Math.round(retriggerSafeDurationMs)
+            : Math.floor(retriggerSafeDurationMs),
           options.maxDurationMs,
         ),
       );
@@ -286,27 +293,71 @@ function buildV1ToV2DurationPlan(
 }
 
 function getEligibleNonFinalBaseDuration(
-  currentTime: number,
-  nextTime: number,
+  gapMs: number,
+  typicalGapMs: number | null,
   options: V1ToV2ConversionOptions,
 ) {
-  const gapMs = nextTime - currentTime;
-
-  if (
-    gapMs < options.minimumSustainGapMs ||
-    gapMs > options.restGapThresholdMs
-  ) {
+  if (gapMs < options.minimumSustainGapMs) {
     return null;
   }
 
+  // Allow up to one extra typical interval, limited by half the user's rest
+  // reference. Normal/longer rhythmic intervals fit; outliers stop before
+  // the probable rest. With too little context, cap at the rest reference.
+  const sustainGapLimitMs =
+    typicalGapMs === null
+      ? options.restGapThresholdMs
+      : Math.max(
+          options.minimumSustainGapMs,
+          typicalGapMs +
+            Math.min(typicalGapMs, options.restGapThresholdMs / 2),
+        );
   const baseDurationMs = Math.min(
-    gapMs - options.releaseLeadMs,
+    Math.min(gapMs, sustainGapLimitMs) - options.releaseLeadMs,
     options.maxDurationMs,
   );
 
   return baseDurationMs < MIN_V2_NOTE_DURATION_MS
     ? null
     : baseDurationMs;
+}
+
+function getContextTypicalGap(
+  gaps: readonly number[],
+  gapIndex: number,
+  globalTypicalGapMs: number | null,
+): number | null {
+  if (
+    gaps.length < 3 ||
+    globalTypicalGapMs === null ||
+    !Number.isFinite(globalTypicalGapMs)
+  ) {
+    return null;
+  }
+
+  // Inspect at most three intervals on each side, excluding the interval
+  // being judged so an isolated rest cannot inflate its own timing context.
+  const startIndex = Math.max(0, gapIndex - 3);
+  const nearbyGaps = gaps
+    .slice(startIndex, gapIndex + 4)
+    .filter(
+      (gap, index) =>
+        index + startIndex !== gapIndex && Number.isFinite(gap) && gap > 0,
+    )
+    .sort((left, right) => left - right);
+  const localTypicalGapMs = getMedian(nearbyGaps);
+
+  if (nearbyGaps.length < 3 || localTypicalGapMs === null) {
+    return globalTypicalGapMs;
+  }
+
+  // Give local timing 3/4 of the weight. Bound the global contribution to
+  // avoid a dominant fast/slow section overriding another passage's tempo.
+  const boundedGlobalGapMs = Math.min(
+    Math.max(globalTypicalGapMs, localTypicalGapMs / 2),
+    localTypicalGapMs * 2,
+  );
+  return localTypicalGapMs * 0.75 + boundedGlobalGapMs * 0.25;
 }
 
 function buildV1ToV2NoteGroups(sourceSong: Song): V1ToV2NoteGroup[] {
