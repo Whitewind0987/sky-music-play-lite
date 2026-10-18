@@ -307,6 +307,8 @@ function App() {
     keyMapping,
     language,
     librarySongs: scoreLibrary.localLibrarySongs,
+    librarySorting: scoreLibrary.librarySortingPreferences,
+    libraryOrderRevision: scoreLibrary.libraryOrderRevision,
     likedSongs: scoreLibrary.likedSongs,
     migrationFallbackSongs: scoreLibrary.migrationFallbackSongs,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
@@ -790,6 +792,7 @@ function App() {
           isQueueOpen={queueOpen}
           hasSearchQuery={scoreLibrary.hasSearchQuery}
           items={scoreLibrary.pagedVisibleLibraryItems}
+          sorting={scoreLibrary.sortingControls}
           locateScoreRequest={scoreLibrary.locateScoreRequest}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={handleAddSongToQueue}

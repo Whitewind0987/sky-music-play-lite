@@ -54,8 +54,13 @@ import type {
 } from "../types/library";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 import { normalizeUiScale, type UiScale } from "../lib/uiScale";
+import type { LibrarySortingPreferences } from "../types/librarySorting";
 
 export const normalAppDataSaveDebounceMs = 500;
+
+export function getLibraryOrderSaveDelay(revision: number, savedRevision: number) {
+  return revision !== savedRevision ? 0 : normalAppDataSaveDebounceMs;
+}
 
 type UseAppPersistenceOptions = {
   accentColor: string;
@@ -86,6 +91,8 @@ type UseAppPersistenceOptions = {
   keyMapping: KeyMapping;
   language: LanguageCode;
   librarySongs: LocalLibrarySong[];
+  librarySorting?: LibrarySortingPreferences;
+  libraryOrderRevision?: number;
   likedSongs: LikedSongEntry[];
   migrationFallbackSongs: MigrationFallbackSongs;
   noteIntervalDelayMs: NoteIntervalDelayMs;
@@ -185,6 +192,8 @@ export function useAppPersistence({
   keyMapping,
   language,
   librarySongs,
+  librarySorting,
+  libraryOrderRevision = 0,
   likedSongs,
   migrationFallbackSongs,
   noteIntervalDelayMs,
@@ -208,6 +217,7 @@ export function useAppPersistence({
   v1ToV2UpgradePreferences,
 }: UseAppPersistenceOptions) {
   const saveTimerRef = useRef<number | null>(null);
+  const savedLibraryOrderRevisionRef = useRef(libraryOrderRevision);
   const explicitlySavedAppDataSnapshotRef = useRef<string | null>(null);
   const currentImportedScoreStoragePathRef = useRef<string | null>(null);
   const importedScoreStoragePathRef = useRef<string | undefined>(undefined);
@@ -251,6 +261,7 @@ export function useAppPersistence({
       keyMapping,
       language,
       librarySongs,
+      librarySorting,
       likedSongs,
       migrationFallbackSongs,
       noteIntervalDelayMs,
@@ -559,6 +570,7 @@ export function useAppPersistence({
     }
 
     saveTimerRef.current = window.setTimeout(() => {
+      savedLibraryOrderRevisionRef.current = libraryOrderRevision;
       const appData = buildCurrentPersistedAppData();
       const appDataSnapshot = JSON.stringify(appData);
 
@@ -574,7 +586,7 @@ export function useAppPersistence({
           }),
         );
       });
-    }, normalAppDataSaveDebounceMs);
+    }, getLibraryOrderSaveDelay(libraryOrderRevision, savedLibraryOrderRevisionRef.current));
 
     return () => {
       if (saveTimerRef.current !== null) {
@@ -594,6 +606,8 @@ export function useAppPersistence({
     keyMapping,
     language,
     librarySongs,
+    librarySorting,
+    libraryOrderRevision,
     likedSongs,
     migrationFallbackSongs,
     noteIntervalDelayMs,

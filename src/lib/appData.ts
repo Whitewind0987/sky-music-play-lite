@@ -57,6 +57,8 @@ import {
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 import { defaultAccentColor, normalizeAccentColor } from "./accentColor";
 import { defaultUiScale, normalizeUiScale, type UiScale } from "./uiScale";
+import { sanitizeLibrarySorting } from "./librarySorting";
+import type { LibrarySortingPreferences } from "../types/librarySorting";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
@@ -137,6 +139,7 @@ export function sanitizePersistedAppData(
     keyMapping: sanitizeKeyMapping(rawData.keyMapping),
     language: sanitizeEnum(rawData.language, languageCodes, "zh-CN"),
     library: {
+      sorting: sanitizeLibrarySorting(rawLibrary.sorting, playlists),
       librarySongs,
       likedSongs,
       ...(Object.keys(migrationFallbackSongs).length > 0
@@ -169,6 +172,7 @@ export function buildPersistedAppData({
   confirmBeforeExit = defaultConfirmBeforeExit,
   experimentalInputPreferences,
   librarySongs,
+  librarySorting = {},
   likedSongs,
   isShuffleEnabled,
   importedScoreStoragePath,
@@ -193,6 +197,7 @@ export function buildPersistedAppData({
   confirmBeforeExit?: boolean;
   experimentalInputPreferences?: PersistedAppData["experimentalInputPreferences"];
   librarySongs: LocalLibrarySong[];
+  librarySorting?: LibrarySortingPreferences;
   likedSongs: LikedSongEntry[];
   isShuffleEnabled: boolean;
   importedScoreStoragePath?: string;
@@ -242,6 +247,7 @@ export function buildPersistedAppData({
     keyMapping: sanitizeKeyMapping(keyMapping),
     language,
     library: {
+      sorting: sanitizeLibrarySorting(librarySorting, sanitizedPlaylists, validCollectionSongIdSet),
       librarySongs: sanitizedLibrarySongs,
       likedSongs: sanitizeLikedSongs(likedSongs, validCollectionSongIdSet),
       ...(Object.keys(sanitizedLibrary.migrationFallbackSongs).length > 0

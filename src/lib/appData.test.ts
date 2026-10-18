@@ -15,6 +15,7 @@ import { buildPersistedAppData, sanitizePersistedAppData } from "./appData";
 import { defaultAccentColor } from "./accentColor";
 import { defaultUiScale } from "./uiScale";
 import { createLocalSongMetadata } from "./libraryCollections";
+import { sortLibraryItems } from "./librarySorting";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 import {
   createDefaultV1ToV2UpgradePreferences,
@@ -323,6 +324,59 @@ describe("UI size persistence", () => {
 
     expect(sanitized?.accentColor).toBe("#12abef");
     expect(sanitized?.alwaysOnTop).toBe(true);
+  });
+});
+
+describe("library sorting persistence", () => {
+  it.each([1, 2, 3])("loads old version %s without sorting preferences", version => {
+    const old = buildMinimalPersistedAppData();
+    delete old.library.sorting;
+    const restored = sanitizePersistedAppData({ ...old, appDataVersion: version });
+    expect(restored?.library.sorting).toEqual({});
+    expect(restored?.appDataVersion).toBe(appDataVersion);
+  });
+
+  it("round-trips per-category and per-playlist preferences with one playlist manual order source", () => {
+    const songs = [createLocalLibrarySong("local-a"), createLocalLibrarySong("local-b")];
+    const saved = buildMinimalPersistedAppData({
+      accentColor: "#12abef", uiScale: 1.2,
+      librarySongs: songs,
+      likedSongs: [{ songId: "local-a", likedAt: 10 }],
+      playlists: [createPlaylist("one", ["local-b", "local-a"]), createPlaylist("two", ["local-a", "local-b"])],
+      validCollectionSongIds: ["local-a", "local-b", "builtin:x"],
+      librarySorting: {
+        "local-imports": { mode: "name-desc", customOrder: ["local-b", "local-a"] },
+        "built-in": { mode: "custom", customOrder: ["builtin:x"] },
+        liked: { mode: "added-desc", customOrder: ["local-a"] },
+        "playlist:one": { mode: "duration-desc", customOrder: ["local-a", "local-b"] },
+        "playlist:two": { mode: "custom", customOrder: [] },
+      },
+    });
+    const restored = sanitizePersistedAppData(JSON.parse(JSON.stringify(saved)))!;
+    expect(restored.library.sorting).toEqual(saved.library.sorting);
+    expect(restored.library.sorting?.["playlist:one"].customOrder).toEqual([]);
+    expect(restored.library.playlists.map(playlist => playlist.songIds)).toEqual([["local-b", "local-a"], ["local-a", "local-b"]]);
+    expect(restored.library.librarySongs).toEqual(saved.library.librarySongs);
+    expect(restored.library.likedSongs).toEqual(saved.library.likedSongs);
+    expect(restored.uiScale).toBe(1.2);
+    expect(restored.accentColor).toBe("#12abef");
+    const items = restored.library.librarySongs.map((librarySong, songIndex) => ({ librarySong, songIndex, isLiked: false }));
+    expect(sortLibraryItems(items, "custom", restored.library.sorting?.["local-imports"].customOrder)
+      .map(item => item.librarySong.id)).toEqual(["local-b", "local-a"]);
+  });
+
+  it("removes deleted IDs and playlist preferences when saving, retaining new songs in base order", () => {
+    const saved = buildMinimalPersistedAppData({
+      librarySongs: [createLocalLibrarySong("local-a"), createLocalLibrarySong("local-new")],
+      librarySorting: {
+        "local-imports": { mode: "custom", customOrder: ["deleted", "local-a", "local-a"] },
+        "playlist:deleted": { mode: "name-asc", customOrder: [] },
+      },
+    });
+    expect(saved.library.sorting).toEqual({ "local-imports": { mode: "custom", customOrder: ["local-a"] } });
+    const items = saved.library.librarySongs.map((librarySong, songIndex) => ({ librarySong, songIndex, isLiked: false }));
+    expect(sortLibraryItems(items, "custom", saved.library.sorting?.["local-imports"].customOrder)
+      .map(item => item.librarySong.id)).toEqual(["local-a", "local-new"]);
   });
 });
 

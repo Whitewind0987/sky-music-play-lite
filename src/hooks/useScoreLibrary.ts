@@ -7,6 +7,10 @@ import {
   useState,
 } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
+import { useLibrarySorting } from "./useLibrarySorting";
+import { getLibraryPageItems, getLibrarySongPage } from "../lib/libraryPagination";
+import { supportsAdditionSort } from "../lib/librarySorting";
+import type { LibrarySortingControls } from "../types/librarySorting";
 import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
 import { loadBuiltInLibrarySongs } from "../lib/builtinScores";
@@ -252,9 +256,27 @@ export function useScoreLibrary({
 
     return [];
   }, [allLibraryItems, selectedLibraryCategory, selectedPlaylist]);
+  const librarySorting = useLibrarySorting({
+    allItems: allLibraryItems,
+    categoryItems: categoryLibraryItems,
+    category: selectedLibraryCategory,
+    playlistId: selectedPlaylist?.id ?? null,
+    playlists,
+    setPlaylists,
+    likedSongs,
+    searchQuery,
+    deferredQuery: deferredSearchQuery,
+    catalogReady: hasLoadedBuiltInSongs,
+  });
+  // Playback captures the existing category/search sequence. Display sorting
+  // must not silently change repeat/shuffle context when a sort mode changes.
   const visibleLibraryItems = useMemo(
     () => filterSongsByQuery(categoryLibraryItems, deferredSearchQuery),
     [categoryLibraryItems, deferredSearchQuery],
+  );
+  const sortedVisibleLibraryItems = useMemo(
+    () => filterSongsByQuery(librarySorting.sortedItems, deferredSearchQuery),
+    [librarySorting.sortedItems, deferredSearchQuery],
   );
   const builtInPagination = useMemo(() => {
     if (selectedLibraryCategory !== "built-in") {
@@ -295,14 +317,31 @@ export function useScoreLibrary({
   }, [builtInPage, selectedLibraryCategory, visibleLibraryItems.length]);
   const pagedVisibleLibraryItems = useMemo(() => {
     if (selectedLibraryCategory !== "built-in" || builtInPagination === null) {
-      return visibleLibraryItems;
+      return sortedVisibleLibraryItems;
     }
 
-    return visibleLibraryItems.slice(
-      builtInPagination.start === 0 ? 0 : builtInPagination.start - 1,
-      builtInPagination.end,
+    return getLibraryPageItems(
+      sortedVisibleLibraryItems, builtInPagination.page, builtInPagination.pageSize,
     );
-  }, [builtInPagination, selectedLibraryCategory, visibleLibraryItems]);
+  }, [builtInPagination, selectedLibraryCategory, sortedVisibleLibraryItems]);
+  const sortingControls: LibrarySortingControls = {
+    mode: librarySorting.mode,
+    supportsAdded: supportsAdditionSort(selectedLibraryCategory),
+    canReorder: librarySorting.canReorder,
+    onModeChange: (mode) => {
+      const nextItems = librarySorting.setMode(mode);
+      if (nextItems) {
+        // Keep the selected built-in song visible after sorting; the bottom
+        // player still resolves selection against the current visible page.
+        setBuiltInPage(selectedLibraryCategory === "built-in"
+          ? getLibrarySongPage(filterSongsByQuery(nextItems, deferredSearchQuery), selectedSongId, BUILT_IN_PAGE_SIZE)
+          : 1);
+      }
+    },
+    onReorder: (songId, targetId, position) => librarySorting.reorder(
+      songId, targetId, position, pagedVisibleLibraryItems.map(item => item.librarySong.id),
+    ),
+  };
   const hasSearchQuery = searchQuery.trim().length > 0;
   const validCollectionSongIds = useMemo(
     () => librarySongs.map((librarySong) => librarySong.id),
@@ -637,16 +676,12 @@ export function useScoreLibrary({
     setSearchQuery("");
 
     if (selectedLibrarySong.source === "built-in") {
-      const builtInIndex = librarySongsRef.current
-        .filter((librarySong) => librarySong.source === "built-in")
-        .findIndex((librarySong) => librarySong.id === selectedLibrarySong.id);
+      const builtInItems = librarySorting.sortForScope(
+        allLibraryItems.filter(item => item.librarySong.source === "built-in"), "built-in",
+      );
 
       setSelectedLibraryCategory("built-in");
-      setBuiltInPage(
-        builtInIndex >= 0
-          ? Math.floor(builtInIndex / BUILT_IN_PAGE_SIZE) + 1
-          : 1,
-      );
+      setBuiltInPage(getLibrarySongPage(builtInItems, selectedLibrarySong.id, BUILT_IN_PAGE_SIZE));
     } else {
       setSelectedLibraryCategory("local-imports");
     }
@@ -1127,6 +1162,7 @@ export function useScoreLibrary({
     setMigrationFallbackSongs(nextFallbackSongs);
     setLikedSongs(library.likedSongs);
     setPlaylists(library.playlists);
+    librarySorting.applyPreferences(library.sorting, library.playlists);
     setSelectedPlaylistId(nextSelectedPlaylistId);
     setSelectedLibraryCategory(library.selectedLibraryCategory);
     setBuiltInPage(1);
@@ -1410,6 +1446,9 @@ export function useScoreLibrary({
   }
 
   return {
+    sortingControls,
+    librarySortingPreferences: librarySorting.preferences,
+    libraryOrderRevision: librarySorting.orderRevision,
     allLibraryItems,
     applyScoreLibrary,
     currentSelectedSong,

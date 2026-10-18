@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  getLibraryPageItems,
+  getLibrarySongPage,
   isLibraryPageInputOutOfRange,
   parseLibraryPageInput,
 } from "./libraryPagination";
+
+describe("getLibraryPageItems", () => {
+  it("clamps page boundaries and handles empty data", () => {
+    expect(getLibraryPageItems([1, 2, 3], 99, 2)).toEqual([3]);
+    expect(getLibraryPageItems([1, 2, 3], -1, 2)).toEqual([1, 2]);
+    expect(getLibraryPageItems([], 2, 100)).toEqual([]);
+    expect(getLibraryPageItems([1, 2], 1, 0)).toEqual([]);
+  });
+
+  it("locates the selected stable ID in the sorted dataset", () => {
+    const items = Array.from({ length: 205 }, (_, index) => ({ librarySong: { id: String(204 - index) } }));
+    expect(getLibrarySongPage(items, "0", 100)).toBe(3);
+    expect(getLibrarySongPage(items, "204", 100)).toBe(1);
+    expect(getLibrarySongPage(items, "missing", 100)).toBe(1);
+    expect(getLibrarySongPage(items, null, 100)).toBe(1);
+  });
+});
 
 describe("parseLibraryPageInput", () => {
   it.each([

@@ -4,6 +4,7 @@ import {
   AudioLines,
   BookmarkPlus,
   Heart,
+  GripVertical,
   Hourglass,
   ListPlus,
   MoreHorizontal,
@@ -17,6 +18,9 @@ import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import { useLibraryToolbarVisibility } from "../hooks/useLibraryToolbarVisibility";
+import { useLibraryRowReorder } from "../hooks/useLibraryRowReorder";
+import { LibrarySortingControl } from "./LibrarySortingControl";
+import type { LibrarySortingControls } from "../types/librarySorting";
 import { UpgradeScoreToV2Dialog } from "./UpgradeScoreToV2Dialog";
 import type {
   LocateScoreRequest,
@@ -69,6 +73,7 @@ type LibraryPanelProps = {
   importError: string;
   isQueueOpen: boolean;
   items: LibrarySongListItem[];
+  sorting: LibrarySortingControls;
   locateScoreRequest: LocateScoreRequest | null;
   onAddSongToPlaylist: (
     playlistId: string,
@@ -693,6 +698,7 @@ function LibraryActionMenu({
   selectedPlaylist,
   text,
   isLocalSongExporting,
+  moveActions,
 }: Pick<
   LibraryPanelProps,
   | "onAddToQueue"
@@ -713,6 +719,12 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   onRequestUpgrade: (item: LibrarySongListItem) => void;
+  moveActions?: {
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+  };
 }) {
   const upgradeActionState = getUpgradeToV2ActionState(
     item,
@@ -734,6 +746,17 @@ function LibraryActionMenu({
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
+      {moveActions ? <>
+        <DropdownMenu.Item asChild disabled={!moveActions.canMoveUp}
+          onSelect={(event) => runAction(event, moveActions.onMoveUp)}>
+          <button type="button" disabled={!moveActions.canMoveUp}>{text.sorting.moveUp}</button>
+        </DropdownMenu.Item>
+        <DropdownMenu.Item asChild disabled={!moveActions.canMoveDown}
+          onSelect={(event) => runAction(event, moveActions.onMoveDown)}>
+          <button type="button" disabled={!moveActions.canMoveDown}>{text.sorting.moveDown}</button>
+        </DropdownMenu.Item>
+        <DropdownMenu.Separator className="library-menu-separator" />
+      </> : null}
       <DropdownMenu.Item
         asChild
         onSelect={(event) => runAction(event, () => onPlaySong(item))}
@@ -850,6 +873,8 @@ function LibrarySongTable({
   manualState,
   isV1ToV2UpgradePreferenceReady,
   items,
+  sorting,
+  rowNumberStart,
   locateScoreRequest,
   onAddToQueue,
   onCloseActionMenu,
@@ -880,6 +905,7 @@ function LibrarySongTable({
   | "playbackState"
   | "manualState"
   | "items"
+  | "sorting"
   | "isV1ToV2UpgradePreferenceReady"
   | "locateScoreRequest"
   | "onAddToQueue"
@@ -906,7 +932,11 @@ function LibrarySongTable({
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   onRequestUpgrade: (item: LibrarySongListItem) => void;
   openActionMenuSongId: LibrarySongId | null;
+  rowNumberStart: number;
 }) {
+  const reordering = useLibraryRowReorder(
+    items, sorting, `${selectedCategory}:${selectedPlaylist?.id ?? ""}`, text.sorting.moved, rowNumberStart,
+  );
   const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
   const handledLocateRequestIdRef = useRef<number | null>(null);
 
@@ -978,6 +1008,7 @@ function LibrarySongTable({
 
   return (
     <section
+      ref={reordering.tableRef}
       className={`library-table${showSource ? "" : " is-single-source"}`}
       aria-label={text.aria}
     >
@@ -1018,7 +1049,7 @@ function LibrarySongTable({
           const duration = formatDuration(
             durationMs,
           );
-          const rowNumber = String(displayIndex + 1).padStart(2, "0");
+          const rowNumber = String(displayIndex + rowNumberStart).padStart(2, "0");
 
           return (
             <div
@@ -1026,7 +1057,10 @@ function LibrarySongTable({
                 openActionMenuSongId === librarySong.id ? " has-open-menu" : ""
               }${playbackIndicator ? ` is-${playbackIndicator}` : ""}${
                 isLoading ? " is-loading" : ""
+              }${reordering.draggedId === librarySong.id ? " is-reordering" : ""}${
+                reordering.target?.id === librarySong.id ? ` is-drop-${reordering.target.position}` : ""
               }`}
+              {...reordering.rowProps(librarySong.id)}
               key={librarySong.id}
               ref={(node) => {
                 if (node) {
@@ -1084,6 +1118,17 @@ function LibrarySongTable({
                 </button>
               </span>
               <span className="library-song-title">
+                {sorting.mode === "custom" ? (
+                  <button type="button" className="library-reorder-handle"
+                    disabled={!sorting.canReorder}
+                    aria-label={text.sorting.handle}
+                    title={sorting.canReorder ? text.sorting.handle : text.sorting.searchDisabled}
+                    onClick={event => event.stopPropagation()}
+                    onKeyDown={event => event.stopPropagation()}
+                    {...reordering.handleProps(librarySong.id)}>
+                    <GripVertical aria-hidden="true" focusable="false" />
+                  </button>
+                ) : null}
                 <span className="library-song-title-text" title={songName}>
                   {songName}
                 </span>
@@ -1183,6 +1228,12 @@ function LibrarySongTable({
                           selectedPlaylist={selectedPlaylist}
                           text={text}
                           isLocalSongExporting={isLocalSongExporting}
+                          moveActions={sorting.mode === "custom" ? {
+                            canMoveUp: sorting.canReorder && displayIndex > 0,
+                            canMoveDown: sorting.canReorder && displayIndex < items.length - 1,
+                            onMoveUp: () => reordering.move(librarySong.id, -1),
+                            onMoveDown: () => reordering.move(librarySong.id, 1),
+                          } : undefined}
                         />
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
@@ -1225,6 +1276,7 @@ function LibrarySongTable({
           );
         })}
       </div>
+      <span className="sr-only" role="status" aria-live="polite">{reordering.announcement}</span>
     </section>
   );
 }
@@ -1240,6 +1292,7 @@ export function LibraryPanel({
   isV1ToV2UpgradePreferenceReady,
   isQueueOpen,
   items,
+  sorting,
   locateScoreRequest,
   onAddSongToPlaylist,
   onAddToQueue,
@@ -1404,6 +1457,7 @@ export function LibraryPanel({
               onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
             />
           </label>
+          <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
           {isLocalImports ? (
             <LibraryImportArea
               importDisabled={importDisabled}
@@ -1412,6 +1466,14 @@ export function LibraryPanel({
             />
           ) : null}
         </div>
+        {sorting.mode === "custom" && (!isPlaylists || selectedPlaylist) ? (
+          <p className="library-sort-hint">
+            {!sorting.canReorder ? text.sorting.searchDisabled :
+              `${text.sorting.customHint}${isBuiltIn ? ` ${text.sorting.pageHint}` : ""}`}
+          </p>
+        ) : selectedCategory === "liked" && sorting.mode.startsWith("added-") ? (
+          <p className="library-sort-hint">{text.sorting.likedTime}</p>
+        ) : null}
         {isLocalImports && importDisabled ? (
           <p className="library-import-hint" id="library-import-disabled-reason">
             {text.importDisabledDescription}
@@ -1460,6 +1522,8 @@ export function LibraryPanel({
           </div>
         ) : (
           <LibrarySongTable
+            sorting={sorting}
+            rowNumberStart={isBuiltIn ? builtInPagination?.start || 1 : 1}
             playbackSongId={playbackSongId}
             playbackState={playbackState}
             manualState={manualState}
