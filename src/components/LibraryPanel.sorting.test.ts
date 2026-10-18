@@ -36,7 +36,7 @@ function props(overrides: Partial<Props> = {}): Props {
     isBuiltInSongLoading: () => false, isLocalSongExporting: () => false,
     onAddSongToPlaylist: () => ({ status: "added" }), onAddToQueue: noOp,
     onCreatePlaylistWithSong: noOp, onCreatePlaylistRequest: noOp,
-    onDeleteLocalSong: noOp, onExportLocalSong: noOp, onDeletePlaylist: noOp,
+    onDeleteLocalSong: noOp, onExportLocalSong: noOp, onMoveLocalSong: noOp, onDeletePlaylist: noOp,
     onImportFiles: noOp, onLocateSelectedSong: noOp, onPaginationNotice: noOp,
     onPrepareSong: noOp, onPlaySong: noOp, onPlayAll: noOp, onPlaySongNext: noOp,
     onRemoveFromLiked: noOp, onRemoveSongFromPlaylist: noOp, onRenamePlaylist: noOp,
@@ -50,6 +50,25 @@ function props(overrides: Partial<Props> = {}): Props {
 const render = (overrides: Partial<Props> = {}) => renderToStaticMarkup(createElement(LibraryPanel, props(overrides)));
 
 describe("library sort editing and toolbar markup", () => {
+  it.each(["zh-CN", "en-US"] as const)("renders the Converted empty state without an Import button (%s)", language => {
+    const text = uiText[language].library;
+    const html = render({ selectedCategory: "converted", items: [], text });
+    expect(html).toContain(text.categoryEmptyStates.converted.title);
+    expect(html).toContain(text.categoryEmptyStates.converted.description);
+    expect(html).toContain('class="library-sort-trigger"');
+    expect(html).not.toContain('class="library-import-area"');
+  });
+
+  it("retains Edit / Done and drag handles for Converted songs", () => {
+    const items = [{ librarySong: { ...song, libraryGroup: "converted" as const }, songIndex: 41, isLiked: true }];
+    const normal = render({ selectedCategory: "converted", items });
+    expect(normal).toContain('class="library-sort-edit-button"');
+    expect(normal).not.toContain('class="library-reorder-handle"');
+    const editing = render({ selectedCategory: "converted", items, sorting: controls({ isEditing: true, canReorder: true }) });
+    expect(editing).toContain('class="library-reorder-handle"');
+    expect(editing).toContain(uiText["zh-CN"].library.sorting.done);
+  });
+
   it("hides handles and instructions in normal Custom Order without leaving a handle element", () => {
     const html = render();
     expect(html).toContain("编辑排序");

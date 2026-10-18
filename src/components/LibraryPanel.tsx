@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
+import { getLocalLibraryMoveTarget } from "../lib/libraryGroups";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import { useLibraryToolbarVisibility } from "../hooks/useLibraryToolbarVisibility";
 import { useLibraryRowReorder } from "../hooks/useLibraryRowReorder";
@@ -48,6 +49,7 @@ import type {
   AddSongToPlaylistResult,
   LibrarySongId,
   LibrarySongListItem,
+  LocalLibraryGroup,
   UserPlaylist,
 } from "../types/library";
 import type { Song } from "../types/score";
@@ -87,6 +89,7 @@ type LibraryPanelProps = {
   onCreatePlaylistRequest: () => void;
   onDeleteLocalSong: (songIndex: number) => void;
   onExportLocalSong: (songId: LibrarySongId) => void;
+  onMoveLocalSong: (songId: LibrarySongId, group: LocalLibraryGroup) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
@@ -687,6 +690,7 @@ function LibraryActionMenu({
   onClose,
   onDeleteLocalSong,
   onExportLocalSong,
+  onMoveLocalSong,
   onOpenCollectDialog,
   onPlaySong,
   onPlaySongNext,
@@ -699,11 +703,13 @@ function LibraryActionMenu({
   text,
   isLocalSongExporting,
   moveActions,
+  usesPointerAnchor,
 }: Pick<
   LibraryPanelProps,
   | "onAddToQueue"
   | "onDeleteLocalSong"
   | "onExportLocalSong"
+  | "onMoveLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
   | "onPrepareSong"
@@ -719,6 +725,7 @@ function LibraryActionMenu({
   onClose: () => void;
   onOpenCollectDialog: (item: LibrarySongListItem) => void;
   onRequestUpgrade: (item: LibrarySongListItem) => void;
+  usesPointerAnchor: boolean;
   moveActions?: {
     canMoveUp: boolean;
     canMoveDown: boolean;
@@ -730,6 +737,7 @@ function LibraryActionMenu({
     item,
     isV1ToV2UpgradePreferenceReady,
   );
+  const moveGroup = getLocalLibraryMoveTarget(item.librarySong);
 
   function runAction(event: Event, action: () => void) {
     event.preventDefault();
@@ -740,9 +748,14 @@ function LibraryActionMenu({
   return (
     <DropdownMenu.Content
       className="library-action-menu"
-      align="end"
-      sideOffset={6}
+      align={usesPointerAnchor ? "start" : "end"}
+      side="bottom"
+      sideOffset={usesPointerAnchor ? 4 : 6}
       collisionPadding={8}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -851,6 +864,18 @@ function LibraryActionMenu({
           </button>
         </DropdownMenu.Item>
       ) : null}
+      {moveGroup !== null ? (
+        <DropdownMenu.Item
+          asChild
+          onSelect={(event) => runAction(event, () => onMoveLocalSong(
+            item.librarySong.id, moveGroup,
+          ))}
+        >
+          <button type="button">
+            {moveGroup === "imported" ? text.moveToLocalImports : text.moveToConverted}
+          </button>
+        </DropdownMenu.Item>
+      ) : null}
       {item.librarySong.source === "local-import" ? (
         <DropdownMenu.Item
           asChild
@@ -859,7 +884,7 @@ function LibraryActionMenu({
           }
         >
           <button className="is-danger" type="button">
-            {text.deleteFromLocalImports}
+            {text.deleteLocalSong}
           </button>
         </DropdownMenu.Item>
       ) : null}
@@ -880,6 +905,7 @@ function LibrarySongTable({
   onCloseActionMenu,
   onDeleteLocalSong,
   onExportLocalSong,
+  onMoveLocalSong,
   onOpenActionMenu,
   onOpenCollectDialog,
   onPlaySong,
@@ -911,6 +937,7 @@ function LibrarySongTable({
   | "onAddToQueue"
   | "onDeleteLocalSong"
   | "onExportLocalSong"
+  | "onMoveLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
   | "onPrepareSong"
@@ -938,6 +965,9 @@ function LibrarySongTable({
     items, sorting, `${selectedCategory}:${selectedPlaylist?.id ?? ""}`, text.sorting.moved, rowNumberStart,
   );
   const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
+  const [contextMenuPosition, setContextMenuPosition] = useState<{
+    songId: LibrarySongId; x: number; y: number;
+  } | null>(null);
   const handledLocateRequestIdRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -1022,6 +1052,8 @@ function LibrarySongTable({
       <div className="library-table-body">
         {items.map((item, displayIndex) => {
           const { librarySong, songIndex } = item;
+          const pointerAnchor = openActionMenuSongId === librarySong.id && contextMenuPosition?.songId === librarySong.id
+            ? contextMenuPosition : null;
           const songName = getLibrarySongName(librarySong);
           const isSelected = selectedSongIndex === songIndex;
           const isLoading = isBuiltInSongLoading(librarySong.id);
@@ -1071,8 +1103,25 @@ function LibrarySongTable({
               }}
               role="button"
               tabIndex={0}
+              aria-haspopup="menu"
+              aria-expanded={openActionMenuSongId === librarySong.id}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setContextMenuPosition({ songId: librarySong.id, x: event.clientX, y: event.clientY });
+                onOpenActionMenu(librarySong.id);
+              }}
               onClick={() => onSelectSong(songIndex)}
               onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  setContextMenuPosition({ songId: librarySong.id, x: bounds.left + 16, y: bounds.bottom });
+                  onOpenActionMenu(librarySong.id);
+                  return;
+                }
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelectSong(songIndex);
@@ -1179,8 +1228,10 @@ function LibrarySongTable({
                   </button>
                   <span className="library-action-menu-anchor">
                     <DropdownMenu.Root
+                      modal={false}
                       open={openActionMenuSongId === librarySong.id}
                       onOpenChange={(open) => {
+                        setContextMenuPosition(null);
                         if (open) {
                           onOpenActionMenu(librarySong.id);
                         } else {
@@ -1188,9 +1239,24 @@ function LibrarySongTable({
                         }
                       }}
                     >
-                      <DropdownMenu.Trigger asChild>
+                      {pointerAnchor ? (
                         <button
                           className="library-title-icon-button"
+                          type="button"
+                          aria-label={text.moreActions}
+                          title={text.moreActions}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setContextMenuPosition(null);
+                          }}
+                        ><LibraryMoreIcon /></button>
+                      ) : null}
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          className={pointerAnchor ? "library-context-menu-trigger" : "library-title-icon-button"}
+                          style={pointerAnchor ? { left: pointerAnchor.x, top: pointerAnchor.y } : undefined}
+                          tabIndex={pointerAnchor ? -1 : undefined}
                           type="button"
                           aria-label={text.moreActions}
                           title={text.moreActions}
@@ -1204,7 +1270,7 @@ function LibrarySongTable({
                             event.stopPropagation();
                           }}
                         >
-                          <LibraryMoreIcon />
+                          {pointerAnchor ? null : <LibraryMoreIcon />}
                         </button>
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Portal>
@@ -1213,10 +1279,12 @@ function LibrarySongTable({
                             isV1ToV2UpgradePreferenceReady
                           }
                           item={item}
+                          usesPointerAnchor={pointerAnchor !== null}
                           onAddToQueue={onAddToQueue}
                           onClose={onCloseActionMenu}
                           onDeleteLocalSong={onDeleteLocalSong}
                           onExportLocalSong={onExportLocalSong}
+                          onMoveLocalSong={onMoveLocalSong}
                           onOpenCollectDialog={onOpenCollectDialog}
                           onPlaySong={onPlaySong}
                           onPlaySongNext={onPlaySongNext}
@@ -1300,6 +1368,7 @@ export function LibraryPanel({
   onCreatePlaylistRequest,
   onDeleteLocalSong,
   onExportLocalSong,
+  onMoveLocalSong,
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
@@ -1542,6 +1611,7 @@ export function LibraryPanel({
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
             onExportLocalSong={onExportLocalSong}
+            onMoveLocalSong={onMoveLocalSong}
             onOpenActionMenu={(songId) => setOpenActionMenuSongId(songId)}
             onOpenCollectDialog={(item) => {
               setOpenActionMenuSongId(null);
@@ -1651,6 +1721,10 @@ function getLibraryEmptyState({
       description: text.likedEmptyDescription,
       title: text.likedEmptyTitle,
     };
+  }
+
+  if (selectedCategory === "converted") {
+    return text.categoryEmptyStates.converted;
   }
 
   if (selectedCategory === "playlists") {

@@ -459,7 +459,7 @@ button {
 .sidebar-playlist-name {
   min-width: 0;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 400;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -635,7 +635,7 @@ button {
   padding: 0 10px;
   border: 0;
   border-radius: 7px;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .sidebar-link.is-compact .sidebar-link-content {
@@ -1960,6 +1960,16 @@ button {
 .library-action-menu-anchor {
   position: relative;
   display: inline-grid;
+}
+
+.library-context-menu-trigger {
+  position: fixed;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .library-action-menu {

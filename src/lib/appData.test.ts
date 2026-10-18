@@ -16,6 +16,7 @@ import { defaultAccentColor } from "./accentColor";
 import { defaultUiScale } from "./uiScale";
 import { createLocalSongMetadata } from "./libraryCollections";
 import { sortLibraryItems } from "./librarySorting";
+import { getLibrarySongCategory, moveLocalLibrarySong } from "./libraryGroups";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 import {
   createDefaultV1ToV2UpgradePreferences,
@@ -89,6 +90,52 @@ function buildMinimalPersistedAppData(
     ...overrides,
   });
 }
+
+describe("local library group persistence", () => {
+  it.each([undefined, "imported", "converted"] as const)("round-trips group %s, selection, likes, playlists, and sorting", libraryGroup => {
+    const song = { ...createLocalLibrarySong(), ...(libraryGroup ? { libraryGroup } : {}) };
+    const likedSongs = [{ songId: song.id, likedAt: 1 }];
+    const playlists = [createPlaylist("p", [song.id])];
+    const sorting = {
+      "local-imports": { mode: "name-asc" as const, customOrder: [] },
+      converted: { mode: "added-desc" as const, customOrder: libraryGroup === "converted" ? [song.id] : [] },
+    };
+    const saved = buildMinimalPersistedAppData({
+      librarySongs: [song], likedSongs, playlists, librarySorting: sorting,
+      selectedLibraryCategory: "converted", selectedSongIndex: 0,
+    });
+    const loaded = sanitizePersistedAppData(JSON.parse(JSON.stringify(saved)))!;
+    expect(loaded.appDataVersion).toBe(3);
+    expect(loaded.library.librarySongs).toEqual([song]);
+    expect(loaded.library.likedSongs).toEqual(likedSongs);
+    expect(loaded.library.playlists).toEqual(playlists);
+    expect(loaded.library.sorting).toEqual(sorting);
+    expect(loaded.library.selectedLibraryCategory).toBe("converted");
+    expect(loaded.library.selectedSongIndex).toBe(0);
+    expect(getLibrarySongCategory(loaded.library.librarySongs[0]))
+      .toBe(libraryGroup === "converted" ? "converted" : "local-imports");
+  });
+
+  it.each([null, "v2", "unknown", 2, {}])("defaults malformed group %j to Local Imports without discarding the song", libraryGroup => {
+    const saved = buildMinimalPersistedAppData({ librarySongs: [createLocalLibrarySong()] });
+    const raw = JSON.parse(JSON.stringify(saved));
+    raw.library.librarySongs[0].libraryGroup = libraryGroup;
+    const loaded = sanitizePersistedAppData(raw)!;
+    expect(loaded.library.librarySongs).toEqual(saved.library.librarySongs);
+  });
+
+  it("restores manual moves in both directions without rewriting metadata or score fallbacks", () => {
+    const song = { ...createLocalLibrarySong(), metadata: createLocalSongMetadata({ ...createTestSong(), formatVersion: 2 }) };
+    let songs = [song];
+    for (const group of ["converted", "imported"] as const) {
+      const moved = moveLocalLibrarySong(songs, song.id, group);
+      const saved = buildMinimalPersistedAppData({ librarySongs: moved });
+      expect(sanitizePersistedAppData(JSON.parse(JSON.stringify(saved)))!.library.librarySongs)
+        .toEqual([{ ...song, libraryGroup: group }]);
+      songs = moved;
+    }
+  });
+});
 
 describe("buildPersistedAppData", () => {
   it("writes the current appDataVersion", () => {

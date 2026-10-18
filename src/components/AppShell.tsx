@@ -10,6 +10,7 @@ import {
   ListMusic,
   Pin,
   Plus,
+  RefreshCw,
   ScrollText,
   Settings,
   type LucideIcon,
@@ -29,7 +30,7 @@ import { HeaderLibrarySearch } from "./HeaderLibrarySearch";
 import type { UpdateInfo } from "../lib/updateCheck";
 import type { UserPlaylist } from "../types/library";
 
-export type LibraryCategoryId = "built-in" | "local-imports" | "playlists" | "liked";
+export type LibraryCategoryId = "built-in" | "local-imports" | "converted" | "playlists" | "liked";
 
 export type AppSection =
   | "Library"
@@ -439,6 +440,12 @@ export function AppSidebar({
               onClick={() => onLibraryCategorySelect("local-imports")}
             />
             <SidebarCategoryButton
+              Icon={RefreshCw}
+              isActive={activeSection === "Library" && selectedLibraryCategory === "converted"}
+              label={text.sidebar.converted}
+              onClick={() => onLibraryCategorySelect("converted")}
+            />
+            <SidebarCategoryButton
               Icon={Heart}
               isActive={
                 activeSection === "Library" &&
@@ -619,6 +626,7 @@ export function getWorkspaceHeaderTitle({
   return {
     "built-in": text.library.categoryBuiltIn,
     "local-imports": text.library.categoryLocalImports,
+    converted: text.library.categoryConverted,
     liked: text.library.categoryLiked,
     playlists: selectedPlaylist?.name ?? text.sidebar.createdPlaylists,
   }[libraryCategory];

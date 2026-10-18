@@ -64,6 +64,7 @@ const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
   "built-in",
   "local-imports",
+  "converted",
   "playlists",
   "liked",
 ];
@@ -632,6 +633,7 @@ function sanitizeV3Library(
         Array<{
           id: string;
           importedAt: number;
+          libraryGroup?: LocalLibrarySong["libraryGroup"];
           rawMetadata: unknown;
         }>
       >((nextCandidates, rawLibrarySong) => {
@@ -648,6 +650,8 @@ function sanitizeV3Library(
         nextCandidates.push({
           id: rawLibrarySong.id,
           importedAt: sanitizeImportedAt(rawLibrarySong.importedAt),
+          ...(rawLibrarySong.libraryGroup === "converted" || rawLibrarySong.libraryGroup === "imported"
+            ? { libraryGroup: rawLibrarySong.libraryGroup } : {}),
           rawMetadata: rawLibrarySong.metadata,
         });
 
@@ -681,6 +685,7 @@ function sanitizeV3Library(
       nextSongs.push({
         id: candidate.id,
         importedAt: candidate.importedAt,
+        ...(candidate.libraryGroup === undefined ? {} : { libraryGroup: candidate.libraryGroup }),
         metadata,
         source: "local-import",
       });

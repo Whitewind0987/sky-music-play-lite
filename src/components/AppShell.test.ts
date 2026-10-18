@@ -5,6 +5,7 @@ import { uiText, type LanguageCode } from "../i18n/uiText";
 import {
   getAlwaysOnTopActionText,
   getWorkspaceHeaderTitle,
+  AppSidebar,
   WorkspaceHeader,
   type AppSection,
   type LibraryCategoryId,
@@ -35,6 +36,22 @@ function renderHeader({
     }),
   );
 }
+
+describe.each<LanguageCode>(["zh-CN", "en-US"])("Converted sidebar (%s)", language => {
+  it("places Converted between Local Imports and Liked with the selected state", () => {
+    const text = uiText[language];
+    const markup = renderToStaticMarkup(createElement(AppSidebar, {
+      activeSection: "Library", selectedLibraryCategory: "converted", selectedPlaylistId: null,
+      playlists: [], text, updateInfo: null, onCreatePlaylistRequest: vi.fn(),
+      onLibraryCategorySelect: vi.fn(), onPlaylistSelect: vi.fn(), onSectionChange: vi.fn(), onUpdateClick: vi.fn(),
+    }));
+    expect(markup.indexOf(text.sidebar.localImports)).toBeLessThan(markup.indexOf(text.sidebar.converted));
+    expect(markup.indexOf(text.sidebar.converted)).toBeLessThan(markup.indexOf(text.sidebar.liked));
+    expect(markup).toContain(`class="sidebar-link is-compact is-active"`);
+    expect(getWorkspaceHeaderTitle({ activeSection: "Library", libraryCategory: "converted", text }))
+      .toBe(text.library.categoryConverted);
+  });
+});
 
 describe("WorkspaceHeader actions", () => {
   it("renders Pin immediately before Logs, Settings, and User Manual", () => {

@@ -7,9 +7,10 @@ import {
   type LibrarySortingPreferences,
 } from "../types/librarySorting";
 import { getLibrarySongName, getLibrarySongRawDurationMs } from "./libraryCollections";
+import { getLibrarySongCategory } from "./libraryGroups";
 
 const nameCollator = new Intl.Collator("zh-CN", { sensitivity: "base", numeric: true });
-const categories = new Set(["built-in", "local-imports", "liked"]);
+const categories = new Set(["built-in", "local-imports", "converted", "liked"]);
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -28,7 +29,7 @@ export function getLibrarySortScope(category: LibraryCategoryId, playlistId: str
 
 export function supportsAdditionSort(category: LibraryCategoryId) {
   // Likes have a real collection timestamp; built-ins and playlist memberships do not.
-  return category === "local-imports" || category === "liked";
+  return category === "local-imports" || category === "converted" || category === "liked";
 }
 
 export function updateLibrarySortMode(
@@ -68,7 +69,7 @@ export function sanitizeLibrarySorting(
       ? value.customOrder.filter((id): id is string =>
           typeof id === "string" && id.trim().length > 0 && id.length <= 512 &&
           (validSongIds === undefined || validSongIds.has(id) ||
-            (!hasBuiltInCatalog && scope !== "local-imports" && id.startsWith("builtin:"))))
+            (!hasBuiltInCatalog && scope !== "local-imports" && scope !== "converted" && id.startsWith("builtin:"))))
       : [];
     return [[scope, {
       mode,
@@ -176,11 +177,39 @@ export function reconcileSortingMembership(
   for (const [scope, preference] of Object.entries(next)) {
     if (scope.startsWith("playlist:")) continue;
     const members = new Set(allItems.filter(item => scope === "liked" ? item.isLiked :
-      item.librarySong.source === (scope === "built-in" ? "built-in" : "local-import"))
+      getLibrarySongCategory(item.librarySong) === scope)
       .map(item => item.librarySong.id));
     // An unavailable index is not evidence that every built-in song was deleted.
     preference.customOrder = preference.customOrder.filter(id => members.has(id) ||
-      (!hasBuiltInCatalog && scope !== "local-imports" && id.startsWith("builtin:")));
+      (!hasBuiltInCatalog && scope !== "local-imports" && scope !== "converted" && id.startsWith("builtin:")));
   }
   return JSON.stringify(next) === JSON.stringify(preferences) ? preferences : next;
+}
+
+export function moveLibrarySortingMembership(
+  preferences: LibrarySortingPreferences,
+  allItems: readonly LibrarySongListItem[],
+  songId: string,
+  destination: "local-imports" | "converted",
+) {
+  const item = allItems.find(item => item.librarySong.id === songId);
+  if (!item || item.librarySong.source !== "local-import") return preferences;
+  const source = getLibrarySongCategory(item.librarySong);
+  if (source === destination) return preferences;
+  const target = preferences[destination];
+  const destinationIds = sortLibraryItems(
+    allItems.filter(item => getLibrarySongCategory(item.librarySong) === destination),
+    "custom", target?.customOrder,
+  ).map(item => item.librarySong.id);
+  return {
+    ...preferences,
+    ...(preferences[source] ? { [source]: {
+      ...preferences[source],
+      customOrder: preferences[source].customOrder.filter(id => id !== songId),
+    } } : {}),
+    [destination]: {
+      mode: target?.mode ?? "custom",
+      customOrder: [...destinationIds.filter(id => id !== songId), songId],
+    },
+  };
 }

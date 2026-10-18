@@ -37,6 +37,7 @@ export const uiText = {
       expandCreatedPlaylists: "展开创建的歌单",
       liked: "我喜欢",
       localImports: "本地导入",
+      converted: "已转换",
       mySection: "我的",
       noCreatedPlaylists: "暂无歌单",
       preview: "预览",
@@ -163,9 +164,14 @@ export const uiText = {
       categoriesTitle: "分类",
       categoryBuiltIn: "系统自带",
       categoryLocalImports: "本地导入",
+      categoryConverted: "已转换",
       categoryPlaylists: "收藏歌单",
       categoryLiked: "我喜欢",
       categoryEmptyStates: {
+        converted: {
+          title: "暂无已转换曲谱",
+          description: "使用 V1 转 V2 功能生成的曲谱将显示在这里。",
+        },
         "built-in": {
           title: "还没有内置曲谱",
           description: "内置曲谱资源尚未添加。",
@@ -238,6 +244,8 @@ export const uiText = {
       moreActions: "更多操作",
       deleteLocalSong: "删除",
       deleteFromLocalImports: "从本地导入删除",
+      moveToConverted: "移至已转换",
+      moveToLocalImports: "移至本地导入",
       exportLocalScore: "导出曲谱",
       exportingLocalScore: "正在导出…",
       upgradeToV2: {
@@ -328,7 +336,7 @@ export const uiText = {
       removeFromLiked: "从我喜欢移除",
       removeFromPlaylist: "从歌单移除",
       deleteLocalSongConfirm:
-        "确定要删除《{songName}》吗？这会从本地导入、我喜欢和所有歌单中移除。",
+        "确定要删除《{songName}》吗？这会从本地曲库、我喜欢和所有歌单中移除。",
       deletePlaylistConfirm:
         "确定要删除歌单《{playlistName}》吗？曲谱本身不会被删除。",
       selected: "已选",
@@ -863,6 +871,7 @@ export const uiText = {
       expandCreatedPlaylists: "Expand created playlists",
       liked: "Liked",
       localImports: "Local Imports",
+      converted: "Converted",
       mySection: "My",
       noCreatedPlaylists: "No playlists yet",
       preview: "Preview",
@@ -993,6 +1002,7 @@ export const uiText = {
       categoriesTitle: "Categories",
       categoryBuiltIn: "Built-in",
       categoryLocalImports: "Local Imports",
+      categoryConverted: "Converted",
       categoryPlaylists: "Playlists",
       categoryLiked: "Liked",
       categoryEmptyStates: {
@@ -1003,6 +1013,10 @@ export const uiText = {
         "local-imports": {
           title: "Local Imports",
           description: "Use the import button to add local scores.",
+        },
+        converted: {
+          title: "No converted scores yet",
+          description: "Scores generated with V1 to V2 conversion will appear here.",
         },
         playlists: {
           title: "Playlists",
@@ -1070,6 +1084,8 @@ export const uiText = {
       moreActions: "More actions",
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
+      moveToConverted: "Move to Converted",
+      moveToLocalImports: "Move to Local Imports",
       exportLocalScore: "Export Score",
       exportingLocalScore: "Exporting…",
       upgradeToV2: {
@@ -1162,7 +1178,7 @@ export const uiText = {
       removeFromLiked: "Remove from Liked",
       removeFromPlaylist: "Remove from Playlist",
       deleteLocalSongConfirm:
-        "Delete “{songName}”? This will remove it from Local Imports, Liked, and all playlists.",
+        "Delete “{songName}”? This will remove it from the local library, Liked, and all playlists.",
       deletePlaylistConfirm:
         "Delete playlist “{playlistName}”? The scores themselves will not be deleted.",
       selected: "Selected",

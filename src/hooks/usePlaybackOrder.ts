@@ -252,6 +252,7 @@ export function buildPlaybackOrderFromVisibleItems(
 function normalizeCategorySource(
   selectedCategory: LibraryCategoryId,
 ): ActivePlaybackContext["source"] {
+  if (selectedCategory === "converted") return "converted";
   if (selectedCategory === "liked" || selectedCategory === "playlists") {
     return selectedCategory === "liked" ? "liked" : "playlist";
   }

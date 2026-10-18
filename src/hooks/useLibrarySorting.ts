@@ -6,6 +6,7 @@ import {
   canManuallyReorder, getLibrarySortScope, reconcileSortingMembership,
   reorderSongIds, reorderPlaylistSongs, sanitizeLibrarySorting, sortLibraryItems, supportsAdditionSort,
   updateLibrarySortMode,
+  moveLibrarySortingMembership,
 } from "../lib/librarySorting";
 import { isLibrarySortEditActive, librarySortEditReducer } from "../lib/librarySortEditing";
 
@@ -90,8 +91,14 @@ export function useLibrarySorting({
     dispatchEditing({ type: "toggle", scope, canEdit });
   }
 
+  function moveSongToCategory(songId: string, destination: "local-imports" | "converted") {
+    dispatchEditing({ type: "exit" });
+    setPreferences(current => moveLibrarySortingMembership(current, allItems, songId, destination));
+    setOrderRevision(revision => revision + 1);
+  }
+
   return {
     preferences, orderRevision, mode, canEdit, isEditing, canReorder, toggleEditing,
-    sortedItems, applyPreferences, setMode, reorder, sortForScope,
+    sortedItems, applyPreferences, setMode, reorder, sortForScope, moveSongToCategory,
   };
 }

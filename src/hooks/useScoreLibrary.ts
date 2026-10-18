@@ -10,6 +10,7 @@ import type { LibraryCategoryId } from "../components/AppShell";
 import { useLibrarySorting } from "./useLibrarySorting";
 import { getLibraryPageItems, getLibrarySongPage } from "../lib/libraryPagination";
 import { supportsAdditionSort } from "../lib/librarySorting";
+import { getLibraryCategoryItems, getLibrarySongCategory, moveLocalLibrarySong } from "../lib/libraryGroups";
 import type { LibrarySortingControls } from "../types/librarySorting";
 import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
@@ -72,6 +73,7 @@ import type {
   LibrarySongId,
   LikedSongEntry,
   LocalLibrarySong,
+  LocalLibraryGroup,
   MigrationFallbackSongs,
   UserPlaylist,
 } from "../types/library";
@@ -223,39 +225,10 @@ export function useScoreLibrary({
       })),
     [librarySongs, likedSongs],
   );
-  const categoryLibraryItems = useMemo(() => {
-    if (selectedLibraryCategory === "built-in") {
-      return allLibraryItems.filter(
-        (item) => item.librarySong.source === "built-in",
-      );
-    }
-
-    if (selectedLibraryCategory === "liked") {
-      return allLibraryItems.filter((item) => item.isLiked);
-    }
-
-    if (selectedLibraryCategory === "playlists") {
-      if (!selectedPlaylist) {
-        return [];
-      }
-
-      return selectedPlaylist.songIds
-        .map((songId) =>
-          allLibraryItems.find((item) => item.librarySong.id === songId),
-        )
-        .filter((item): item is (typeof allLibraryItems)[number] =>
-          Boolean(item),
-        );
-    }
-
-    if (selectedLibraryCategory === "local-imports") {
-      return allLibraryItems.filter(
-        (item) => item.librarySong.source === "local-import",
-      );
-    }
-
-    return [];
-  }, [allLibraryItems, selectedLibraryCategory, selectedPlaylist]);
+  const categoryLibraryItems = useMemo(
+    () => getLibraryCategoryItems(allLibraryItems, selectedLibraryCategory, selectedPlaylist),
+    [allLibraryItems, selectedLibraryCategory, selectedPlaylist],
+  );
   const librarySorting = useLibrarySorting({
     allItems: allLibraryItems,
     categoryItems: categoryLibraryItems,
@@ -686,10 +659,20 @@ export function useScoreLibrary({
       setSelectedLibraryCategory("built-in");
       setBuiltInPage(getLibrarySongPage(builtInItems, selectedLibrarySong.id, BUILT_IN_PAGE_SIZE));
     } else {
-      setSelectedLibraryCategory("local-imports");
+      setSelectedLibraryCategory(getLibrarySongCategory(selectedLibrarySong));
     }
 
     requestLocateSong(selectedLibrarySong.id);
+  }
+
+  function handleMoveLocalSong(songId: LibrarySongId, group: LocalLibraryGroup) {
+    const nextSongs = moveLocalLibrarySong(localLibrarySongsRef.current, songId, group);
+    if (nextSongs === localLibrarySongsRef.current) return;
+    librarySorting.moveSongToCategory(songId, group === "converted" ? "converted" : "local-imports");
+    localLibrarySongsRef.current = nextSongs;
+    const byId = new Map(nextSongs.map(song => [song.id, song]));
+    librarySongsRef.current = librarySongsRef.current.map(song => byId.get(song.id) ?? song);
+    setLocalLibrarySongs(nextSongs);
   }
 
   function handleToggleLikedSong(songIndex: number) {
@@ -1461,6 +1444,7 @@ export function useScoreLibrary({
     handleDeleteLocalSong,
     handleDeletePlaylist,
     handleExportLocalSong,
+    handleMoveLocalSong,
     handleImportScoreFiles,
     handleLibraryCategoryChange,
     handleLocateSelectedSong,
