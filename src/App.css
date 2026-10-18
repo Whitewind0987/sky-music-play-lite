@@ -1343,21 +1343,13 @@ button {
   height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 4px;
   color: #1f2933;
-  background: rgba(var(--app-primary-rgb), 0.12);
-  box-shadow: inset 3px 0 var(--app-primary);
 }
 
 .library-playback-indicator svg {
   width: 14px;
   height: 14px;
   stroke-width: 1.8;
-}
-
-.library-song-row.is-paused .library-playback-indicator,
-.library-song-row.is-releasing .library-playback-indicator {
-  background: #eef0f3;
 }
 
 .library-row-play {
