@@ -1242,6 +1242,16 @@ button {
   gap: 12px;
 }
 
+.library-content-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .library-search {
   flex: 1 1 240px;
   min-width: 0;
@@ -1268,9 +1278,10 @@ button {
   outline: none;
 }
 
-.library-sort-trigger {
+.library-sort-trigger,
+.library-sort-edit-button {
   flex: 0 0 auto;
-  max-width: min(200px, 55vw);
+  max-width: min(200px, 100%);
   min-width: 0;
   min-height: 34px;
   display: inline-flex;
@@ -1303,20 +1314,29 @@ button {
   height: 14px;
 }
 
-.library-sort-trigger:hover:not(:disabled) {
+.library-sort-trigger:hover:not(:disabled),
+.library-sort-edit-button:hover:not(:disabled) {
   background: #f1f3f5;
 }
 
 .library-sort-trigger:focus-visible,
+.library-sort-edit-button:focus-visible,
 .library-reorder-handle:focus-visible {
   outline: 2px solid rgba(var(--app-primary-rgb), 0.6);
   outline-offset: 2px;
 }
 
 .library-sort-trigger:disabled,
+.library-sort-edit-button:disabled,
 .library-action-menu button:disabled {
   color: #9aa5b1;
   cursor: not-allowed;
+}
+
+.library-sort-edit-button[aria-pressed="true"] {
+  border-color: var(--app-primary);
+  color: var(--app-primary-hover);
+  background: rgba(var(--app-primary-rgb), 0.08);
 }
 
 .library-sort-menu {

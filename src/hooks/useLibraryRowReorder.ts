@@ -91,7 +91,9 @@ export function useLibraryRowReorder(
   }
 
   return {
-    tableRef, draggedId, target, announcement,
+    tableRef, announcement,
+    draggedId: sorting.canReorder ? draggedId : null,
+    target: sorting.canReorder ? target : null,
     move(songId: string, direction: -1 | 1) {
       const adjacent = getAdjacentReorderTarget(visibleIds, songId, direction);
       if (adjacent !== null) commit(songId, adjacent, direction === -1 ? "before" : "after");

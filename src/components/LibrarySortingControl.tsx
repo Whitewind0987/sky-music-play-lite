@@ -9,6 +9,16 @@ export function LibrarySortingControl({ sorting, disabled, text }: {
   text: UiText["library"]["sorting"];
 }) {
   return (
+    <>
+    {sorting.mode === "custom" ? (
+      <button className="library-sort-edit-button" type="button"
+        disabled={disabled || !sorting.canEdit}
+        aria-pressed={sorting.isEditing}
+        title={!disabled && !sorting.canEdit ? text.searchDisabled : undefined}
+        onClick={sorting.onToggleEditing}>
+        {sorting.isEditing ? text.done : text.editOrder}
+      </button>
+    ) : null}
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button className="library-sort-trigger" type="button" disabled={disabled}
@@ -40,5 +50,6 @@ export function LibrarySortingControl({ sorting, disabled, text }: {
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+    </>
   );
 }

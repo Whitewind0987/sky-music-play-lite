@@ -1118,7 +1118,7 @@ function LibrarySongTable({
                 </button>
               </span>
               <span className="library-song-title">
-                {sorting.mode === "custom" ? (
+                {sorting.isEditing ? (
                   <button type="button" className="library-reorder-handle"
                     disabled={!sorting.canReorder}
                     aria-label={text.sorting.handle}
@@ -1228,7 +1228,7 @@ function LibrarySongTable({
                           selectedPlaylist={selectedPlaylist}
                           text={text}
                           isLocalSongExporting={isLocalSongExporting}
-                          moveActions={sorting.mode === "custom" ? {
+                          moveActions={sorting.isEditing ? {
                             canMoveUp: sorting.canReorder && displayIndex > 0,
                             canMoveDown: sorting.canReorder && displayIndex < items.length - 1,
                             onMoveUp: () => reordering.move(librarySong.id, -1),
@@ -1457,19 +1457,22 @@ export function LibraryPanel({
               onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
             />
           </label>
-          <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
-          {isLocalImports ? (
-            <LibraryImportArea
-              importDisabled={importDisabled}
-              onImportFiles={onImportFiles}
-              text={text}
-            />
-          ) : null}
+          <div className="library-content-actions">
+            <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
+            {isLocalImports ? (
+              <LibraryImportArea
+                importDisabled={importDisabled}
+                onImportFiles={onImportFiles}
+                text={text}
+              />
+            ) : null}
+          </div>
         </div>
-        {sorting.mode === "custom" && (!isPlaylists || selectedPlaylist) ? (
+        {sorting.mode === "custom" && !sorting.canEdit && (!isPlaylists || selectedPlaylist) ? (
+          <p className="library-sort-hint">{text.sorting.searchDisabled}</p>
+        ) : sorting.isEditing ? (
           <p className="library-sort-hint">
-            {!sorting.canReorder ? text.sorting.searchDisabled :
-              `${text.sorting.customHint}${isBuiltIn ? ` ${text.sorting.pageHint}` : ""}`}
+            {text.sorting.customHint}{isBuiltIn ? ` ${text.sorting.pageHint}` : ""}
           </p>
         ) : selectedCategory === "liked" && sorting.mode.startsWith("added-") ? (
           <p className="library-sort-hint">{text.sorting.likedTime}</p>

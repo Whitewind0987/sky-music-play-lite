@@ -142,6 +142,8 @@ export const uiText = {
       headerSearchClose: "收起搜索",
       sorting: {
         label: "排序",
+        editOrder: "编辑排序",
+        done: "完成",
         modes: {
           custom: "自定义排序", "name-asc": "名称 A–Z", "name-desc": "名称 Z–A",
           "added-desc": "最近添加", "added-asc": "最早添加",
@@ -970,6 +972,8 @@ export const uiText = {
       headerSearchClose: "Close search",
       sorting: {
         label: "Sort",
+        editOrder: "Edit Order",
+        done: "Done",
         modes: {
           custom: "Custom Order", "name-asc": "Name A–Z", "name-desc": "Name Z–A",
           "added-desc": "Newest Added", "added-asc": "Oldest Added",

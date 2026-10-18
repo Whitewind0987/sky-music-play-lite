@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState, type Dispatch, type SetStateAction } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { LibrarySongListItem, LikedSongEntry, UserPlaylist } from "../types/library";
 import type { LibraryDropPosition, LibrarySortMode, LibrarySortingPreferences } from "../types/librarySorting";
@@ -7,6 +7,7 @@ import {
   reorderSongIds, reorderPlaylistSongs, sanitizeLibrarySorting, sortLibraryItems, supportsAdditionSort,
   updateLibrarySortMode,
 } from "../lib/librarySorting";
+import { isLibrarySortEditActive, librarySortEditReducer } from "../lib/librarySortEditing";
 
 type Options = {
   allItems: LibrarySongListItem[];
@@ -27,10 +28,13 @@ export function useLibrarySorting({
 }: Options) {
   const [preferences, setPreferences] = useState<LibrarySortingPreferences>({});
   const [orderRevision, setOrderRevision] = useState(0);
+  const [editingScope, dispatchEditing] = useReducer(librarySortEditReducer, null);
   const scope = getLibrarySortScope(category, playlistId);
   const preference = scope === null ? undefined : preferences[scope];
   const mode = preference?.mode ?? "custom";
-  const canReorder = scope !== null && canManuallyReorder(mode, searchQuery, deferredQuery);
+  const canEdit = scope !== null && canManuallyReorder(mode, searchQuery, deferredQuery);
+  const isEditing = isLibrarySortEditActive(editingScope, scope, canEdit);
+  const canReorder = isEditing;
   const sortedItems = useMemo(() => sortLibraryItems(
     categoryItems, mode, preference?.customOrder, likedSongs, category,
   ), [categoryItems, mode, preference, likedSongs, category]);
@@ -39,13 +43,19 @@ export function useLibrarySorting({
     if (catalogReady) setPreferences(current => reconcileSortingMembership(current, allItems, playlists));
   }, [catalogReady, allItems, playlists]);
 
+  useEffect(() => {
+    dispatchEditing({ type: "exit" });
+  }, [scope, mode, canEdit]);
+
   const applyPreferences = useCallback((value: unknown, savedPlaylists: UserPlaylist[]) => {
+    dispatchEditing({ type: "exit" });
     setPreferences(sanitizeLibrarySorting(value, savedPlaylists));
   }, []);
 
   function setMode(nextMode: LibrarySortMode) {
     if (scope === null || nextMode === mode ||
         (nextMode.startsWith("added-") && !supportsAdditionSort(category))) return;
+    dispatchEditing({ type: "exit" });
     setPreferences(current => updateLibrarySortMode(current, scope, nextMode));
     setOrderRevision(revision => revision + 1);
     return sortLibraryItems(categoryItems, nextMode, preference?.customOrder, likedSongs, category);
@@ -76,5 +86,12 @@ export function useLibrarySorting({
     return sortLibraryItems(items, target?.mode ?? "custom", target?.customOrder, likedSongs, targetCategory);
   }
 
-  return { preferences, orderRevision, mode, canReorder, sortedItems, applyPreferences, setMode, reorder, sortForScope };
+  function toggleEditing() {
+    dispatchEditing({ type: "toggle", scope, canEdit });
+  }
+
+  return {
+    preferences, orderRevision, mode, canEdit, isEditing, canReorder, toggleEditing,
+    sortedItems, applyPreferences, setMode, reorder, sortForScope,
+  };
 }

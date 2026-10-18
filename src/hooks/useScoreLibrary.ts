@@ -327,7 +327,10 @@ export function useScoreLibrary({
   const sortingControls: LibrarySortingControls = {
     mode: librarySorting.mode,
     supportsAdded: supportsAdditionSort(selectedLibraryCategory),
+    canEdit: librarySorting.canEdit,
+    isEditing: librarySorting.isEditing,
     canReorder: librarySorting.canReorder,
+    onToggleEditing: librarySorting.toggleEditing,
     onModeChange: (mode) => {
       const nextItems = librarySorting.setMode(mode);
       if (nextItems) {
