@@ -4726,23 +4726,6 @@ button {
     border: 1px solid transparent;
   }
 
-  .library-song-title {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .library-song-title-text {
-    flex-basis: 100%;
-  }
-
-  .library-row-title-actions {
-    gap: 0;
-  }
-
-  .library-title-icon-button {
-    width: 20px;
-  }
-
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
   }

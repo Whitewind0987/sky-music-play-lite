@@ -3,12 +3,10 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BookmarkPlus,
   Heart,
-  ListPlus,
   MoreHorizontal,
   Play,
   Plus,
   LocateFixed,
-  SkipForward,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
@@ -391,26 +389,6 @@ function LibraryLocateIcon() {
   return (
     <LocateFixed
       className="library-locate-floating-icon"
-      aria-hidden="true"
-      focusable="false"
-    />
-  );
-}
-
-function LibraryPlayNextIcon() {
-  return (
-    <SkipForward
-      className="library-title-icon"
-      aria-hidden="true"
-      focusable="false"
-    />
-  );
-}
-
-function LibraryAddToQueueIcon() {
-  return (
-    <ListPlus
-      className="library-title-icon"
       aria-hidden="true"
       focusable="false"
     />
@@ -1040,47 +1018,6 @@ function LibrarySongTable({
               <span className="library-song-title">
                 <span className="library-song-title-text">{songName}</span>
                 <span className="library-row-title-actions">
-                  <button
-                    className="library-title-icon-button"
-                    type="button"
-                    aria-label={text.playNextAction}
-                    title={text.playNextAction}
-                    onFocus={() => onPrepareSong(songIndex)}
-                    onPointerEnter={() => onPrepareSong(songIndex)}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.currentTarget.blur();
-                      onPlaySongNext(songIndex);
-                    }}
-                  >
-                    <LibraryPlayNextIcon />
-                  </button>
-                  <button
-                    className="library-title-icon-button"
-                    type="button"
-                    aria-label={text.addToQueueAction}
-                    title={text.addToQueueAction}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.currentTarget.blur();
-                      onAddToQueue(songIndex);
-                    }}
-                  >
-                    <LibraryAddToQueueIcon />
-                  </button>
-                  <button
-                    className="library-title-icon-button"
-                    type="button"
-                    aria-label={text.addToPlaylist}
-                    title={text.addToPlaylist}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.currentTarget.blur();
-                      onOpenCollectDialog(item);
-                    }}
-                  >
-                    <LibraryCollectIcon />
-                  </button>
                   <span className="library-action-menu-anchor">
                     <DropdownMenu.Root
                       open={openActionMenuSongId === librarySong.id}
