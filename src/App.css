@@ -1021,6 +1021,13 @@ button {
   background: #fcfcfd;
 }
 
+.app-layout-settings,
+.app-layout-recording,
+.app-layout-playback,
+.app-layout-logs {
+  background: #fcfcfd;
+}
+
 .app-layout-score {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "score";
@@ -1032,8 +1039,7 @@ button {
 }
 
 .app-layout-logs {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "log";
+  display: block;
 }
 
 .overview-grid {
@@ -2760,18 +2766,30 @@ button {
 
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 12px;
+  gap: 24px;
 }
 
 .settings-panel {
-  min-height: 300px;
+  min-height: 0;
 }
 
-.settings-system-panel,
-.settings-app-info-panel {
-  min-height: 0;
+.settings-grid > .settings-panel + .settings-panel {
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.settings-grid .setting-row {
+  min-height: 44px;
+}
+
+.settings-grid .setting-row > * {
+  min-width: 0;
+}
+
+.settings-grid .setting-placeholder-list {
+  gap: 8px;
 }
 
 .setting-placeholder-list {
@@ -2965,7 +2983,7 @@ button {
 .settings-app-info-panel .settings-plain-row-list {
   display: grid;
   gap: 0;
-  margin-inline: -8px;
+  margin-inline: 0;
   border-radius: 0;
   overflow: visible;
 }
@@ -2976,7 +2994,7 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  padding: 0 18px;
+  padding: 8px 0;
   border: 0;
   color: #111827;
   background: transparent;
@@ -3422,6 +3440,31 @@ button {
   overflow-wrap: anywhere;
 }
 
+/* Continuous page surfaces; shared panels and player overlays keep their styling. */
+.settings-grid > .settings-panel,
+.score-recording-page > .score-recording-panel,
+.score-recording-page > .score-recording-visualizer,
+.playback-workspace-content > .playback-score-preview,
+.app-layout-logs > .log-panel {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-grid .panel-header h2,
+.score-recording-page .score-recording-copy h2,
+.app-layout-logs .panel-header h2 {
+  font-weight: 600;
+}
+
+.settings-grid .panel-header p,
+.score-recording-page .score-recording-copy p,
+.app-layout-logs .panel-header p {
+  line-height: 1.5;
+}
+
 .score-panel {
   grid-area: score;
 }
@@ -3436,10 +3479,60 @@ button {
 
 .score-recording-page {
   width: 100%;
-  max-width: 1040px;
+  min-width: 0;
   display: grid;
-  gap: 10px;
-  margin: 0 auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.score-recording-page > .score-recording-visualizer,
+.score-recording-page > .score-recording-guide {
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.score-recording-page .score-recording-panel {
+  gap: 14px;
+}
+
+.score-recording-page .score-recording-status {
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.score-recording-page .score-recording-status.is-active {
+  padding-inline: 12px;
+  border-inline-start: 3px solid #d92d20;
+  background: #fff7f7;
+}
+
+.score-recording-page .score-recording-save {
+  gap: 8px;
+}
+
+.score-recording-page .score-recording-save input {
+  max-width: 480px;
+}
+
+.score-recording-page .score-live-visualizer,
+.playback-workspace-content .playback-score-preview {
+  gap: 20px;
+}
+
+.score-recording-visualizer > .score-live-visualizer__flow,
+.playback-score-preview > .score-live-visualizer__flow {
+  padding-inline-start: 20px;
+  border-inline-start: 1px solid #e5e7eb;
+}
+
+.score-recording-visualizer .score-live-visualizer__column h2,
+.playback-score-preview .score-live-visualizer__column h2 {
+  color: #1f2933;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .score-live-visualizer,
@@ -3803,6 +3896,14 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .score-recording-visualizer > .score-live-visualizer__flow,
+  .playback-score-preview > .score-live-visualizer__flow {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+  }
+
   .sky-keyboard-visualizer {
     width: min(100%, 310px);
   }
@@ -3820,12 +3921,9 @@ button {
 
 .score-recording-guide {
   display: grid;
-  gap: 8px;
-  padding: 11px 12px;
-  border: 1px solid #e2e7ed;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 0;
   color: #52616f;
-  background: #f8fafc;
 }
 
 .score-recording-guide h2,
@@ -3837,14 +3935,15 @@ button {
 
 .score-recording-guide h2 {
   color: #1f2933;
-  font-size: 18px;
-  line-height: 1.2;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .score-recording-guide ol {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
   padding-left: 22px;
 }
 
@@ -3853,7 +3952,7 @@ button {
 }
 
 .score-recording-guide li::marker {
-  color: #b42318;
+  color: #52616f;
   font-weight: 700;
 }
 
@@ -3866,7 +3965,7 @@ button {
 .score-recording-guide p {
   margin-top: 2px;
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
 @media (max-width: 760px) {
@@ -5122,6 +5221,54 @@ button {
   color: #52616f;
 }
 
+.app-layout-logs .log-panel {
+  gap: 20px;
+}
+
+.app-layout-logs .log-group-list {
+  min-width: 0;
+  gap: 0;
+}
+
+.app-layout-logs .log-group {
+  min-width: 0;
+  overflow: visible;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  border-radius: 0;
+  background: transparent;
+}
+
+.app-layout-logs .log-group summary {
+  display: list-item;
+  padding: 12px 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  list-style-position: inside;
+}
+
+.app-layout-logs .log-group summary span:last-child {
+  margin-inline-start: 8px;
+}
+
+.app-layout-logs .log-group summary:focus-visible {
+  outline: 2px solid rgba(var(--app-primary-rgb), 0.5);
+  outline-offset: -2px;
+}
+
+.app-layout-logs .log-list {
+  min-width: 0;
+  padding: 0 4px 16px 24px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.app-layout-logs .log-empty {
+  padding-block: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     --bottom-player-height: 92px;
@@ -5359,6 +5506,35 @@ button {
 }
 
 @media (max-width: 600px) {
+  .settings-grid .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .settings-grid .setting-row > :last-child:not(:first-child) {
+    max-width: 100%;
+    justify-self: start;
+  }
+
+  .settings-grid .language-options,
+  .settings-grid .accent-color-controls,
+  .settings-grid .shortcut-binding-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .settings-grid .experimental-mode-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-grid .key-mapping-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .settings-grid .setting-placeholder-list {
+    gap: 16px;
+  }
+
   .workspace-header-library .header-actions {
     gap: 4px;
   }
