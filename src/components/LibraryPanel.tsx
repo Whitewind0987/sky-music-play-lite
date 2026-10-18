@@ -3,12 +3,15 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   BookmarkPlus,
   Heart,
+  Hourglass,
   ListPlus,
   MoreHorizontal,
   Play,
+  Pause,
   Plus,
   LocateFixed,
   SkipForward,
+  StepForward,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
@@ -28,6 +31,9 @@ import {
   parseLibraryPageInput,
 } from "../lib/libraryPagination";
 import { calculateCenteredScrollTop } from "../lib/libraryScroll";
+import { getLibraryPlaybackIndicator } from "../lib/libraryPlaybackPresentation";
+import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
+import type { PlaybackState } from "../types/playback";
 import type { V1ToV2ConversionOptions } from "../lib/v1ToV2Conversion";
 import {
   getAdjustedPreviewDurationFromMetadata,
@@ -43,6 +49,9 @@ import type { Song } from "../types/score";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 
 type LibraryPanelProps = {
+  playbackSongId: LibrarySongId | null;
+  playbackState: PlaybackState;
+  manualState: ManualPlaybackUiState;
   builtInPagination: {
     end: number;
     onNextPage: () => void;
@@ -449,27 +458,26 @@ function LibraryPlusIcon() {
 
 function LibraryImportArea({
   importDisabled,
-  importError,
   onImportFiles,
   text,
 }: Pick<
   LibraryPanelProps,
-  "importDisabled" | "importError" | "onImportFiles" | "text"
+  "importDisabled" | "onImportFiles" | "text"
 >) {
   return (
-    <section className="library-import-area" aria-label={text.importTitle}>
-      <div>
-        <p className="eyebrow">{text.importEyebrow}</p>
-        <h3>{text.importTitle}</h3>
-        <p>{text.importDescription}</p>
-      </div>
+    <div className="library-import-area">
       <label
         className={`library-import-button${importDisabled ? " is-disabled" : ""}`}
         aria-disabled={importDisabled}
       >
-        <span>{text.importLabel}</span>
+        <span>{text.importTitle}</span>
         <input
           accept=".json,.txt"
+          aria-label={text.importLabel}
+          aria-describedby={
+            importDisabled ? "library-import-disabled-reason" : undefined
+          }
+          title={importDisabled ? text.importDisabledDescription : text.importDescription}
           disabled={importDisabled}
           multiple
           type="file"
@@ -484,8 +492,7 @@ function LibraryImportArea({
           }}
         />
       </label>
-      {importError ? <p className="parse-error">{importError}</p> : null}
-    </section>
+    </div>
   );
 }
 
@@ -520,13 +527,7 @@ function PlaylistHeader({
 
   return (
     <div className="playlist-detail-header">
-      <div className="playlist-cover-placeholder" aria-hidden="true">
-        <LibraryCollectIcon />
-      </div>
       <div className="playlist-detail-main">
-        <div className="playlist-detail-title-row">
-          <h3>{selectedPlaylist.name}</h3>
-        </div>
         <p>
           {text.playlistSongCountMeta.replace(
             "{count}",
@@ -563,6 +564,7 @@ function PlaylistHeader({
                 className="playlist-more-menu"
                 align="end"
                 sideOffset={6}
+                collisionPadding={8}
               >
                 <DropdownMenu.Item asChild>
                   <button
@@ -726,6 +728,7 @@ function LibraryActionMenu({
       className="library-action-menu"
       align="end"
       sideOffset={6}
+      collisionPadding={8}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -840,6 +843,9 @@ function LibraryActionMenu({
 }
 
 function LibrarySongTable({
+  playbackSongId,
+  playbackState,
+  manualState,
   isV1ToV2UpgradePreferenceReady,
   items,
   locateScoreRequest,
@@ -868,6 +874,9 @@ function LibrarySongTable({
   openActionMenuSongId,
 }: Pick<
   LibraryPanelProps,
+  | "playbackSongId"
+  | "playbackState"
+  | "manualState"
   | "items"
   | "isV1ToV2UpgradePreferenceReady"
   | "locateScoreRequest"
@@ -962,12 +971,18 @@ function LibrarySongTable({
     );
   }
 
+  const showSource =
+    selectedCategory === "liked" || selectedCategory === "playlists";
+
   return (
-    <section className="library-table" aria-label={text.tableTitle}>
+    <section
+      className={`library-table${showSource ? "" : " is-single-source"}`}
+      aria-label={text.aria}
+    >
       <div className="library-table-header">
         <span>{text.columns.index}</span>
         <span>{text.columns.title}</span>
-        <span>{text.columns.source}</span>
+        {showSource ? <span>{text.columns.source}</span> : null}
         <span>{text.columns.liked}</span>
         <span>{text.columns.duration}</span>
       </div>
@@ -977,6 +992,20 @@ function LibrarySongTable({
           const songName = getLibrarySongName(librarySong);
           const isSelected = selectedSongIndex === songIndex;
           const isLoading = isBuiltInSongLoading(librarySong.id);
+          const playbackIndicator = getLibraryPlaybackIndicator({
+            songId: librarySong.id,
+            playbackSongId,
+            playbackState,
+            manualState,
+          });
+          const PlaybackIcon =
+            playbackIndicator === "paused"
+              ? Pause
+              : playbackIndicator === "manual"
+                ? StepForward
+                : playbackIndicator === "releasing"
+                  ? Hourglass
+                  : Play;
           const durationMs =
             librarySong.source === "local-import"
               ? getAdjustedPreviewDurationFromMetadata(librarySong.metadata)
@@ -993,6 +1022,8 @@ function LibrarySongTable({
             <div
               className={`library-song-row${isSelected ? " is-selected" : ""}${
                 openActionMenuSongId === librarySong.id ? " has-open-menu" : ""
+              }${playbackIndicator ? ` is-${playbackIndicator}` : ""}${
+                isLoading ? " is-loading" : ""
               }`}
               key={librarySong.id}
               ref={(node) => {
@@ -1013,7 +1044,20 @@ function LibrarySongTable({
               }}
             >
               <span className="library-song-index">
-                <span className="library-song-number">{rowNumber}</span>
+                <span className="library-song-number">
+                  {playbackIndicator ? (
+                    <span
+                      className="library-playback-indicator"
+                      role="img"
+                      aria-label={text.playbackIndicators[playbackIndicator]}
+                      title={text.playbackIndicators[playbackIndicator]}
+                    >
+                      <PlaybackIcon aria-hidden="true" focusable="false" />
+                    </span>
+                  ) : (
+                    rowNumber
+                  )}
+                </span>
                 <button
                   className="library-row-play"
                   type="button"
@@ -1038,7 +1082,9 @@ function LibrarySongTable({
                 </button>
               </span>
               <span className="library-song-title">
-                <span className="library-song-title-text">{songName}</span>
+                <span className="library-song-title-text" title={songName}>
+                  {songName}
+                </span>
                 <span className="library-row-title-actions">
                   <button
                     className="library-title-icon-button library-row-quick-action"
@@ -1140,20 +1186,22 @@ function LibrarySongTable({
                     </DropdownMenu.Root>
                   </span>
                 </span>
-                {isSelected ? (
+                {isSelected && !isLoading ? (
                   <span className="library-selected-badge">{text.selected}</span>
                 ) : null}
-                {isSelected && isLoading ? (
+                {isLoading ? (
                   <span className="library-loading-badge">
                     {text.loadingScore}
                   </span>
                 ) : null}
               </span>
-              <span className="library-song-source">
-                {librarySong.source === "built-in"
-                  ? text.builtInSource
-                  : text.localImport}
-              </span>
+              {showSource ? (
+                <span className="library-song-source">
+                  {librarySong.source === "built-in"
+                    ? text.builtInSource
+                    : text.localImport}
+                </span>
+              ) : null}
               <span className="library-song-liked">
                 <button
                   className={`library-heart-button${
@@ -1183,6 +1231,9 @@ function LibrarySongTable({
 }
 
 export function LibraryPanel({
+  playbackSongId,
+  playbackState,
+  manualState,
   builtInPagination,
   hasSearchQuery,
   importDisabled,
@@ -1246,12 +1297,6 @@ export function LibraryPanel({
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
   const emptyState = text.categoryEmptyStates[selectedCategory];
-  const contentTitle =
-    isBuiltIn && (items.length > 0 || hasSearchQuery)
-      ? text.categoryBuiltIn
-      : isPlaylists && selectedPlaylist
-        ? selectedPlaylist.name
-        : emptyState.title;
   const listEmptyState = getLibraryEmptyState({
     hasSearchQuery,
     selectedCategory,
@@ -1346,24 +1391,8 @@ export function LibraryPanel({
 
   return (
     <section ref={panelRef} className="library-panel" aria-label={text.aria}>
-      {isLocalImports ? (
-        <LibraryImportArea
-          importDisabled={importDisabled}
-          importError={importError}
-          onImportFiles={onImportFiles}
-          text={text}
-        />
-      ) : null}
       <div className="library-content">
         <div className="library-content-header">
-          <div>
-            <h3>{isLocalImports ? text.tableTitle : contentTitle}</h3>
-            {!isLocalImports &&
-            !isPlaylists &&
-            (!isBuiltIn || (items.length === 0 && !hasSearchQuery)) ? (
-              <p>{emptyState.description}</p>
-            ) : null}
-          </div>
           <label className="library-search">
             <span className="sr-only">{text.searchPlaceholder}</span>
             <input
@@ -1373,7 +1402,24 @@ export function LibraryPanel({
               onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
             />
           </label>
+          {isLocalImports ? (
+            <LibraryImportArea
+              importDisabled={importDisabled}
+              onImportFiles={onImportFiles}
+              text={text}
+            />
+          ) : null}
         </div>
+        {isLocalImports && importDisabled ? (
+          <p className="library-import-hint" id="library-import-disabled-reason">
+            {text.importDisabledDescription}
+          </p>
+        ) : null}
+        {isLocalImports && importError ? (
+          <p className="parse-error library-import-error" role="alert">
+            {importError}
+          </p>
+        ) : null}
         {isPlaylists && selectedPlaylist ? (
           <PlaylistHeader
             onDeletePlaylist={onDeletePlaylist}
@@ -1412,6 +1458,9 @@ export function LibraryPanel({
           </div>
         ) : (
           <LibrarySongTable
+            playbackSongId={playbackSongId}
+            playbackState={playbackState}
+            manualState={manualState}
             isV1ToV2UpgradePreferenceReady={
               isV1ToV2UpgradePreferenceReady
             }

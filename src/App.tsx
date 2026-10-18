@@ -759,6 +759,21 @@ function App() {
       return (
         <LibraryPanel
           builtInPagination={scoreLibrary.builtInPagination}
+          playbackSongId={
+            playbackOutput.mode === "preview"
+              ? previewPlayback.getActivePreviewPlaybackSongId()
+              : experimentalInput.getActiveManualPlaybackSongId() ??
+                (playbackOutput.mode === "experimental-foreground"
+                  ? experimentalInput.getActiveForegroundPlaybackSongId()
+                  : experimentalInput.getActiveTargetWindowPlaybackSongId())
+          }
+          playbackState={playbackOutput.playbackState}
+          manualState={
+            playbackOutput.isRealInputOutput &&
+            experimentalInput.getActiveManualPlaybackSongId() !== null
+              ? playbackOutput.manualState
+              : "idle"
+          }
           importError={scoreLibrary.importError}
           importDisabled={isAnyPlaybackActive}
           isV1ToV2UpgradePreferenceReady={
@@ -985,6 +1000,8 @@ function App() {
       <section className="workspace-shell" aria-label={text.app.contentAria}>
         <WorkspaceHeader
           activeSection={activeSection}
+          libraryCategory={scoreLibrary.selectedLibraryCategory}
+          selectedPlaylist={scoreLibrary.selectedPlaylist}
           isAlwaysOnTop={alwaysOnTop.isAlwaysOnTop}
           isAlwaysOnTopReady={alwaysOnTop.isReady}
           isAlwaysOnTopUpdating={alwaysOnTop.isUpdating}
