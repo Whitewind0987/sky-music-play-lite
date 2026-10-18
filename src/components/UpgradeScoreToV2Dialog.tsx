@@ -167,7 +167,10 @@ export function UpgradeScoreToV2Dialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const options = buildV1ToV2OptionsFromDialogValues(formState.values);
+    const options = buildV1ToV2OptionsFromDialogValues(
+      formState.values,
+      formState.selectedStyle,
+    );
     const nextValidationError =
       getV1ToV2ConversionValidationError(options);
 
@@ -330,6 +333,7 @@ export function UpgradeScoreToV2Form({
       : formatText(text.activeValuesSummary, readableTimeValues);
   const previewOptions = buildV1ToV2OptionsFromDialogValues(
     formState.values,
+    formState.selectedStyle,
   );
   const previewValidationError = getV1ToV2ConversionValidationError(
     previewOptions.name.trim().length === 0

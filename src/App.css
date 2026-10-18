@@ -4726,6 +4726,10 @@ button {
     border: 1px solid transparent;
   }
 
+  .library-row-quick-action {
+    display: none;
+  }
+
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
   }

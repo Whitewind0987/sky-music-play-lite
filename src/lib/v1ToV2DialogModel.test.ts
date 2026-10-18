@@ -76,6 +76,43 @@ function preferences(
 }
 
 describe("V1 to V2 dialog model defaults and presets", () => {
+  it.each(["conservative", "balanced", "connected", "custom"] as const)(
+    "includes an explicitly selected %s style in runtime conversion options",
+    selectedStyle => {
+      const state = createInitialUpgradeScoreToV2FormState(
+        "New", preferences(selectedStyle),
+      );
+      const options = buildV1ToV2OptionsFromDialogValues(
+        state.values, state.selectedStyle,
+      );
+      expect(options).toEqual({
+        ...buildV1ToV2OptionsFromDialogValues(state.values), selectedStyle,
+      });
+      expect(Object.keys(getUpgradeScoreToV2Preferences(state)))
+        .toEqual(["selectedStyle", "customValues"]);
+      expect(Object.keys(state.rememberedCustomValues)).toHaveLength(5);
+    },
+  );
+
+  it("marks a numeric edit as Custom even when it matches Connected exactly", () => {
+    const connected = createModelState("Source", generatedNameTemplates);
+    const edited = editModelField(
+      connected, "minimumSustainGapMs", connected.values.minimumSustainGapMs,
+      generatedNameTemplates,
+    );
+    const connectedOptions = buildV1ToV2OptionsFromDialogValues(
+      connected.values, connected.selectedStyle,
+    );
+    const customOptions = buildV1ToV2OptionsFromDialogValues(
+      edited.values, edited.selectedStyle,
+    );
+    expect(connectedOptions.selectedStyle).toBe("connected");
+    expect(customOptions.selectedStyle).toBe("custom");
+    expect(customOptions).toEqual({
+      ...connectedOptions, selectedStyle: "custom", name: edited.values.name,
+    });
+  });
+
   it("starts with the exact Connected preset on first use", () => {
     const state = createInitialUpgradeScoreToV2FormState("New");
 

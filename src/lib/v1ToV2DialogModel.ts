@@ -218,9 +218,11 @@ export function applyUpgradeScoreToV2OperationError(
 
 export function buildV1ToV2OptionsFromDialogValues(
   values: UpgradeScoreToV2FormValues,
+  selectedStyle?: V1ToV2SustainStyle,
 ): V1ToV2ConversionOptions {
   return {
     name: values.name,
+    ...(selectedStyle === undefined ? {} : { selectedStyle }),
     minimumSustainGapMs: parseNumericField(
       values.minimumSustainGapMs,
     ),

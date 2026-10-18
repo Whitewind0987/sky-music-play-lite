@@ -254,7 +254,7 @@ export const uiText = {
           },
         },
         activeValuesSummary:
-          "仅对 {minimumSeconds}–{restSeconds} 秒的间隔生成延音，并在下一组音前约 {releaseLeadMs} 毫秒松开；单个音最长约 {maximumSeconds} 秒。",
+          "短于 {minimumSeconds} 秒的间隔保持普通点按；结合全曲及附近节奏估计延音，以 {restSeconds} 秒作为休止判断参考。延音结束与下一组音之间至少留出 {releaseLeadMs} 毫秒；单个音不超过 {maximumSeconds} 秒。",
         activeValuesFallback: "请检查下方的自定义参数。",
         currentStyleEstimate: "当前风格预计添加 {count} 个长音。",
         profileEstimateFallback:
@@ -265,12 +265,12 @@ export const uiText = {
           "相邻音组间隔短于此值时，保持普通点按，避免快速段落粘连。",
         releaseLeadLabel: "提前松开",
         releaseLeadHelp:
-          "延音会在下一组音开始前提前这么久松开，避免音组重叠。",
-        restGapThresholdLabel: "超过此间隔视为休止",
+          "在下一组音开始前至少留出这段松键时间；延音也可能更早结束。",
+        restGapThresholdLabel: "休止间隔参考值",
         restGapThresholdHelp:
-          "相邻音组间隔超过此值时，前一个音保持普通点按。",
+          "结合全曲及附近节奏判断延音与休止；超过此参考值仍可能生成延音，疑似休止前会更早松开。",
         maximumDurationLabel: "单个音符最大时长",
-        maximumDurationHelp: "单个音最长持续约 {seconds} 秒。",
+        maximumDurationHelp: "单个音符的时长不超过 {seconds} 秒。",
         maximumDurationHelpFallback:
           "此值决定单个音的最长持续时间。",
         finalGroupDurationLabel: "最后一组音符时长",
@@ -1052,7 +1052,7 @@ export const uiText = {
           },
         },
         activeValuesSummary:
-          "Only gaps from {minimumSeconds} to {restSeconds} seconds are sustained, releasing about {releaseLeadMs} ms before the next group; each note can last up to about {maximumSeconds} seconds.",
+          "Gaps below {minimumSeconds} seconds stay as normal taps. Sustain estimates follow the score's overall and nearby rhythm, using {restSeconds} seconds as a rest reference. At least {releaseLeadMs} ms is left between release and the next group; each note is limited to {maximumSeconds} seconds.",
         activeValuesFallback: "Check the custom values below.",
         currentStyleEstimate:
           "The current style will add about {count} sustained notes.",
@@ -1064,13 +1064,13 @@ export const uiText = {
           "Gaps shorter than this stay as normal taps so rapid passages do not blur together.",
         releaseLeadLabel: "Release before next group",
         releaseLeadHelp:
-          "Sustained notes are released this long before the next note group to prevent overlap.",
-        restGapThresholdLabel: "Treat longer gaps as rests",
+          "Leaves at least this much time after release before the next group; sustain may end earlier.",
+        restGapThresholdLabel: "Rest-gap reference",
         restGapThresholdHelp:
-          "When the next note group is farther away than this value, the previous note remains a normal tap.",
+          "Used with the score's overall and nearby rhythm to estimate sustain and rests. Gaps above this reference may still receive sustain; notes end early before likely rests.",
         maximumDurationLabel: "Maximum note duration",
         maximumDurationHelp:
-          "A single note can last up to about {seconds} seconds.",
+          "Each note's duration is limited to {seconds} seconds.",
         maximumDurationHelpFallback:
           "This value controls how long a single note can last.",
         finalGroupDurationLabel: "Final note-group duration",
