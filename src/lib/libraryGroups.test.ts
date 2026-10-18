@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { buildPlaybackOrderFromVisibleItems, resolvePlaybackOrderNextDecision } from "../hooks/usePlaybackOrder";

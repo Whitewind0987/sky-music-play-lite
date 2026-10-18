@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
 export interface ActivePlaybackContext {
   currentSongId: string;
   songIds: string[];

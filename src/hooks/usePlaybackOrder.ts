@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { useRef } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type {

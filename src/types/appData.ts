@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { UiScale } from "../lib/uiScale";
 import type { LibrarySortingPreferences } from "./librarySorting";

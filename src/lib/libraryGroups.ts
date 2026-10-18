@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-License-Identifier: GPL-3.0-only
+
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { LibrarySong, LibrarySongId, LibrarySongListItem, LocalLibraryGroup, LocalLibrarySong, UserPlaylist } from "../types/library";
 import { getLibrarySongFormatVersion } from "./libraryCollections";

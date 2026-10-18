@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as Dialog from "@radix-ui/react-dialog";
