@@ -21,6 +21,7 @@ const balanced: V1ToV2ConversionOptions = {
   finalGroupDurationMs: 500,
 };
 
+// Numeric-only options keep the pre-existing direct-caller regression coverage.
 const styles = {
   conservative: {
     name: "Converted",
@@ -40,6 +41,11 @@ const styles = {
     finalGroupDurationMs: 450,
   },
 } satisfies Record<string, V1ToV2ConversionOptions>;
+
+const explicitlyConnected: V1ToV2ConversionOptions = {
+  ...styles.connected,
+  selectedStyle: "connected",
+};
 
 function song(
   songNotes: Song["songNotes"] = [
@@ -580,6 +586,154 @@ describe("adaptive V1 to V2 sustain timing", () => {
     const snapshot = structuredClone(source);
     expect(() => convertV1SongToV2(source, balanced)).toThrow(code);
     expect(() => previewV1ToV2Conversion(source, balanced)).toThrow(code);
+    expect(source).toEqual(snapshot);
+  });
+});
+
+describe("explicit Connected sustain selection", () => {
+  // The four long-gap onset pairs are supplied from the real score. Nearby
+  // 342ms groups provide representative timing context without moving them.
+  const intervals = [
+    { start: 3420, end: 3762, before: 327, after: 327 },
+    { start: 3420, end: 4104, before: 669, after: 669 },
+    { start: 69426, end: 70794, before: 669, after: 1163 },
+    { start: 74898, end: 76779, before: 669, after: 1599 },
+    { start: 94905, end: 96957, before: 669, after: 1744 },
+    { start: 65322, end: 68058, before: 669, after: 2000 },
+  ];
+
+  it.each(intervals)(
+    "sustains $start to $end with $after ms while retaining a rest",
+    ({ start, end, before, after }) => {
+      const source = songAtTimes([
+        start - 1026, start - 684, start - 342, start,
+        end, end + 342, end + 684, end + 1026,
+      ]);
+      const baseline = convertV1SongToV2(source, styles.connected);
+      const converted = convertV1SongToV2(source, explicitlyConnected);
+
+      expect(analyzeV1ToV2ScoreProfile(source).typicalGapMs).toBe(342);
+      expect(baseline.songNotes[3]?.duration).toBe(before);
+      expect(converted.songNotes[3]).toEqual({
+        time: start, key: "1Key3", duration: after,
+      });
+      expect(converted.songNotes[4]?.time).toBe(end);
+      expect(after).toBeGreaterThanOrEqual(before);
+      expect(after).toBeLessThanOrEqual(2000);
+      expect(end - start - after)
+        .toBeGreaterThanOrEqual(explicitlyConnected.releaseLeadMs);
+    },
+  );
+
+  it("grows with long intervals, caps at 2000ms, and preserves long rests", () => {
+    const source = songWithGaps([
+      342, 342, 1368, 342, 342, 1881, 342, 342, 2052,
+      342, 342, 2736, 342, 342, 30000, 342, 342,
+    ]);
+    const converted = convertV1SongToV2(source, explicitlyConnected);
+    const durations = [2, 5, 8, 11, 14]
+      .map(index => converted.songNotes[index]?.duration ?? 0);
+    expect(durations).toEqual([1163, 1599, 1744, 2000, 2000]);
+    expect(2736 - durations[3]).toBe(736);
+    expect(30000 - durations[4]).toBe(28000);
+  });
+
+  it.each(["conservative", "balanced", "custom"] as const)(
+    "keeps %s on the adaptive baseline, including Custom matching Connected",
+    selectedStyle => {
+      const options = selectedStyle === "custom"
+        ? styles.connected : styles[selectedStyle];
+      const source = songWithGaps([342, 342, 2736, 342, 342, 2500]);
+      expect(convertV1SongToV2(source, { ...options, selectedStyle }))
+        .toEqual(convertV1SongToV2(source, options));
+      expect(convertV1SongToV2(source, { ...options, selectedStyle })
+        .songNotes[2]?.duration).toBeLessThan(1000);
+    },
+  );
+
+  it("leaves numeric-only direct callers unchanged", () => {
+    const source = songWithGaps([342, 342, 2736, 342, 342]);
+    expect(convertV1SongToV2(source, styles.connected).songNotes[2]?.duration)
+      .toBe(669);
+    expect(convertV1SongToV2(source, explicitlyConnected).songNotes[2]?.duration)
+      .toBe(2000);
+  });
+
+  it("preserves minimum-gap eligibility and ordinary short holds", () => {
+    const source = songWithGaps([149, 150, 342, 684, 342, 342]);
+    const converted = convertV1SongToV2(source, explicitlyConnected);
+    expect(converted.songNotes[0]?.duration).toBeUndefined();
+    expect(converted.songNotes[1]?.duration).toBe(135);
+    expect(converted.songNotes[2]?.duration).toBe(327);
+  });
+
+  it.each([1.1, 15, 500])(
+    "respects a %ims release lead and normalized same-key safety at fractional times",
+    releaseLeadMs => {
+      const source = song([
+        { time: 0, key: "1Key0" },
+        { time: 525.8, key: "2Key0" },
+      ]);
+      const options = {
+        ...explicitlyConnected, minimumSustainGapMs: 525, releaseLeadMs,
+      };
+      const duration = convertV1SongToV2(source, options)
+        .songNotes[0]?.duration ?? 0;
+      expect(duration).toBeGreaterThanOrEqual(MIN_V2_NOTE_DURATION_MS);
+      expect(duration).toBeLessThanOrEqual(525.8 - releaseLeadMs);
+      expect(duration)
+        .toBeLessThanOrEqual(525.8 - V1_TO_V2_RETRIGGER_SAFETY_MS);
+    },
+  );
+
+  it("does not raise a configured maximum or change final-group rounding", () => {
+    const source = songWithGaps([342, 342, 2736, 342, 342]);
+    const options = {
+      ...explicitlyConnected, maxDurationMs: 700.75, finalGroupDurationMs: 700.7,
+    };
+    const converted = convertV1SongToV2(source, options);
+    expect(converted.songNotes[2]?.duration).toBeLessThanOrEqual(700.75);
+    expect(converted.songNotes[converted.songNotes.length - 1]?.duration)
+      .toBe(700.75);
+  });
+
+  it("omits a repeated-key hold when the safe interval is below the minimum", () => {
+    const converted = convertV1SongToV2(
+      song([{ time: 0, key: "1Key0" }, { time: 30.8, key: "2Key0" }]),
+      { ...explicitlyConnected, minimumSustainGapMs: 26, releaseLeadMs: 1 },
+    );
+    expect(converted.songNotes[0]?.duration).toBeUndefined();
+    expect(converted.songNotes[1]?.duration).toBe(800);
+  });
+
+  it("preserves chords, source data, deterministic plans, and preview counts", () => {
+    const source = song([
+      { time: 342, key: "1Key0" },
+      { time: 0, key: "1Key1" },
+      { time: 684, key: "1Key2" },
+      { time: 342, key: "2Key0" },
+      { time: 684, key: "1Key3" },
+      { time: 3420, key: "1Key2" },
+      { time: 3762, key: "1Key4" },
+      { time: 4104, key: "1Key5" },
+    ]);
+    const snapshot = structuredClone(source);
+    const converted = convertV1SongToV2(source, explicitlyConnected);
+    const { songNotes: sourceNotes, ...metadata } = snapshot;
+    const { songNotes: notes, ...convertedMetadata } = converted;
+    expect(convertedMetadata).toEqual({
+      ...metadata, formatVersion: 2, name: explicitlyConnected.name,
+    });
+    expect(notes.map(({ time, key }) => ({ time, key }))).toEqual(sourceNotes);
+    expect(notes.filter(note => note.time === 684)
+      .map(note => note.duration)).toEqual([2000, 2000]);
+    const sustainedKeys = new Set(notes
+      .filter(note => note.duration !== undefined)
+      .map(note => `${note.time}:${getPreviewKeyName(note.key)}`));
+    expect(previewV1ToV2Conversion(source, explicitlyConnected)
+      .generatedSustainCount).toBe(sustainedKeys.size);
+    expect(notes[notes.length - 1]?.duration).toBe(800);
+    expect(convertV1SongToV2(source, explicitlyConnected)).toEqual(converted);
     expect(source).toEqual(snapshot);
   });
 });

@@ -1,4 +1,5 @@
 import type { Song } from "../types/score";
+import type { V1ToV2SustainStyle } from "../types/v1ToV2Upgrade";
 import { getPreviewKeyName } from "../types/keyMapping";
 import { MAX_EXPLICIT_NOTE_DURATION_MS } from "./scoreTiming";
 
@@ -14,6 +15,8 @@ export const V1_TO_V2_POLYPHONIC_GROUP_RATIO = 0.35;
 
 export type V1ToV2ConversionOptions = {
   name: string;
+  // Runtime selection only; absent styles retain the adaptive baseline.
+  selectedStyle?: V1ToV2SustainStyle;
   minimumSustainGapMs: number;
   releaseLeadMs: number;
   restGapThresholdMs: number;
@@ -312,8 +315,17 @@ function getEligibleNonFinalBaseDuration(
           typicalGapMs +
             Math.min(typicalGapMs, options.restGapThresholdMs / 2),
         );
+  const adaptiveDurationMs =
+    Math.min(gapMs, sustainGapLimitMs) - options.releaseLeadMs;
+  // Connected deliberately favors longer holds, while the release margin
+  // and maximum still bound the candidate. Custom never opts in by value.
+  const preferredDurationMs =
+    options.selectedStyle === "connected"
+      ? Math.max(adaptiveDurationMs, Math.round(gapMs * 0.85))
+      : adaptiveDurationMs;
   const baseDurationMs = Math.min(
-    Math.min(gapMs, sustainGapLimitMs) - options.releaseLeadMs,
+    preferredDurationMs,
+    gapMs - options.releaseLeadMs,
     options.maxDurationMs,
   );
 

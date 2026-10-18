@@ -8,7 +8,11 @@ import {
   createInitialUpgradeScoreToV2FormState as createModelState,
   selectV1ToV2SustainStyle as selectModelStyle,
 } from "../lib/v1ToV2DialogModel";
-import { createDefaultV1ToV2UpgradePreferences } from "../lib/v1ToV2UpgradePreferences";
+import {
+  createDefaultV1ToV2UpgradePreferences,
+  V1_TO_V2_SUSTAIN_STYLE_PRESETS,
+} from "../lib/v1ToV2UpgradePreferences";
+import * as conversion from "../lib/v1ToV2Conversion";
 import type { Song } from "../types/score";
 import type {
   V1ToV2SustainStyle,
@@ -144,6 +148,37 @@ function expectStyleChecked(markup: string, style: V1ToV2SustainStyle) {
 }
 
 describe("UpgradeScoreToV2Dialog rendering", () => {
+  it.each(["connected", "custom"] as const)(
+    "passes explicit %s selection to preview and builds matching final options",
+    selectedStyle => {
+      const formState = createInitialUpgradeScoreToV2FormState("Long V2", {
+        selectedStyle,
+        customValues: { ...V1_TO_V2_SUSTAIN_STYLE_PRESETS.connected },
+      });
+      const sourceSong: Song = {
+        ...denseSong,
+        songNotes: [0, 342, 684, 3420, 3762, 4104]
+          .map((time, index) => ({ time, key: `Key${index}` })),
+      };
+      const preview = vi.spyOn(conversion, "previewV1ToV2Conversion");
+      try {
+        renderForm({ formState, sourceSong });
+        const finalOptions = buildV1ToV2OptionsFromDialogValues(
+          formState.values, formState.selectedStyle,
+        );
+        expect(preview).toHaveBeenCalledExactlyOnceWith(sourceSong, finalOptions);
+        expect(finalOptions.selectedStyle).toBe(selectedStyle);
+        const converted = conversion.convertV1SongToV2(sourceSong, finalOptions);
+        expect(converted.songNotes[2]?.duration)
+          .toBe(selectedStyle === "connected" ? 2000 : 669);
+        expect(preview.mock.results[0].value.generatedSustainCount)
+          .toBe(converted.songNotes.filter(note => note.duration !== undefined).length);
+      } finally {
+        preview.mockRestore();
+      }
+    },
+  );
+
   it("renders first-use and persisted generated names in the input", () => {
     const firstUse = createModelState(
       "Test",
