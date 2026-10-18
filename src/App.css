@@ -3996,11 +3996,8 @@ button {
 
 .bottom-player-score {
   min-width: 0;
-  max-width: 420px;
+  max-width: 480px;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
   margin-left: -6px;
   padding: 4px 6px;
   border-radius: 10px;
@@ -4018,74 +4015,6 @@ button {
 .bottom-player-score.is-visualization-trigger:focus-visible {
   outline: 2px solid rgba(var(--app-primary-rgb), 0.5);
   outline-offset: 2px;
-}
-
-.bottom-player-artwork {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 10px;
-  color: var(--app-primary);
-  background: linear-gradient(
-    145deg,
-    rgba(var(--app-primary-rgb), 0.16),
-    rgba(var(--app-primary-rgb), 0.06)
-  );
-  box-shadow: inset 0 0 0 1px rgba(var(--app-primary-rgb), 0.12);
-}
-
-.bottom-player-artwork.is-empty {
-  color: #9aa6b2;
-  background: #edf0f4;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
-}
-
-.bottom-player-artwork::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.42);
-  opacity: 0;
-  transition: opacity 140ms ease;
-}
-
-.bottom-player-artwork-icon,
-.bottom-player-artwork-expand {
-  grid-area: 1 / 1;
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.9;
-  transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.bottom-player-artwork-expand {
-  position: relative;
-  z-index: 1;
-  color: #ffffff;
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-.bottom-player-score.is-visualization-trigger:hover .bottom-player-artwork::after,
-.bottom-player-score.is-visualization-trigger:focus-visible
-  .bottom-player-artwork::after {
-  opacity: 1;
-}
-
-.bottom-player-score.is-visualization-trigger:hover .bottom-player-artwork-expand,
-.bottom-player-score.is-visualization-trigger:focus-visible
-  .bottom-player-artwork-expand {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.bottom-player-score.is-visualization-trigger:hover .bottom-player-artwork-icon,
-.bottom-player-score.is-visualization-trigger:focus-visible
-  .bottom-player-artwork-icon {
-  opacity: 0;
 }
 
 .bottom-player-info {
@@ -4354,9 +4283,6 @@ button {
 
 .bottom-player-center {
   min-width: 0;
-  display: grid;
-  justify-items: center;
-  gap: 3px;
   justify-self: center;
 }
 
@@ -4367,14 +4293,30 @@ button {
   gap: 10px;
 }
 
+.bottom-player-actions {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  justify-self: end;
+}
+
+.bottom-player-actions-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .bottom-player-output {
-  width: 0;
-  min-width: 100%;
+  order: 1;
+  min-width: 0;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   overflow: hidden;
+  padding-left: 13px;
   color: #7a8794;
   font-size: 11px;
   line-height: 14px;
@@ -4383,6 +4325,14 @@ button {
 
 .bottom-player-output-mode {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #52616f;
+}
+
+.bottom-player-output-label {
+  color: #9aa6b2;
 }
 
 .bottom-player-real-input-warning {
@@ -4396,6 +4346,16 @@ button {
   text-overflow: ellipsis;
 }
 
+.bottom-player-real-input-warning::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 3px;
+  height: 3px;
+  margin-right: 1px;
+  border-radius: 999px;
+  background: #c3ccd6;
+}
+
 .bottom-player-warning-dot {
   flex: 0 0 auto;
   width: 6px;
@@ -4403,15 +4363,6 @@ button {
   border-radius: 999px;
   background: #f59e0b;
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
-}
-
-.bottom-player-actions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  justify-self: end;
-  gap: 10px;
 }
 
 .bottom-player-options {
@@ -4910,22 +4861,16 @@ button {
     gap: 12px;
   }
 
-  .bottom-player-score {
-    grid-template-columns: 40px minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .bottom-player-artwork {
-    width: 40px;
-    height: 40px;
-  }
-
   .bottom-player-transport {
     gap: 6px;
   }
 
-  .bottom-player-actions {
+  .bottom-player-actions-row {
     gap: 6px;
+  }
+
+  .bottom-player-output {
+    padding-left: 11px;
   }
 
   .bottom-player-options {
@@ -4964,11 +4909,16 @@ button {
 }
 
 @media (max-width: 720px) {
-  .bottom-player-score {
-    grid-template-columns: minmax(0, 1fr);
+  .bottom-player-actions {
+    justify-items: end;
+    gap: 2px;
   }
 
-  .bottom-player-artwork {
+  .bottom-player-output {
+    padding-left: 0;
+  }
+
+  .bottom-player-output-label {
     display: none;
   }
 

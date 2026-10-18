@@ -1,4 +1,4 @@
-import { AudioLines, ChevronUp, Minus, Music, Plus } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -345,10 +345,6 @@ export function BottomPlayer({
     : manualState === "idle"
       ? text.states[playbackState]
       : text.manualStates[manualState];
-  const isSoundActive =
-    playbackState === "playing" ||
-    manualState === "starting" ||
-    manualState === "active";
   const isVisualizationTrigger = canOpenVisualization && !isVisualizationOpen;
   const canResume = playbackState === "paused";
   const primaryAction =
@@ -648,19 +644,6 @@ export function BottomPlayer({
           tabIndex={isVisualizationTrigger ? 0 : -1}
           onKeyDown={handleVisualizationTriggerKeyDown}
         >
-          <span
-            className={`bottom-player-artwork${
-              isSoundActive ? " is-active" : ""
-            }${currentSong ? "" : " is-empty"}`}
-            aria-hidden="true"
-          >
-            {isSoundActive ? (
-              <AudioLines className="bottom-player-artwork-icon" />
-            ) : (
-              <Music className="bottom-player-artwork-icon" />
-            )}
-            <ChevronUp className="bottom-player-artwork-expand" />
-          </span>
           <div className="bottom-player-info">
             <span className="visually-hidden">{text.currentScore}</span>
             <div className="bottom-player-title-row">
@@ -678,13 +661,16 @@ export function BottomPlayer({
                 {formatPlaybackTime(progress.currentMs)} /{" "}
                 {formatPlaybackTime(progress.totalMs)}
               </span>
-              <span className="bottom-player-meta-item">
-                {text.bpm} {currentSong ? getLibrarySongBpm(currentSong) : "--"}
-              </span>
-              <span className="bottom-player-meta-item">
-                {text.notes}{" "}
-                {currentSong ? getLibrarySongNoteCount(currentSong) : "--"}
-              </span>
+              {currentSong ? (
+                <>
+                  <span className="bottom-player-meta-item">
+                    {text.bpm} {getLibrarySongBpm(currentSong)}
+                  </span>
+                  <span className="bottom-player-meta-item">
+                    {text.notes} {getLibrarySongNoteCount(currentSong)}
+                  </span>
+                </>
+              ) : null}
               <span
                 className={`bottom-player-meta-item bottom-player-state${
                   isCurrentSongLoading ? " is-loading" : ""
@@ -774,14 +760,23 @@ export function BottomPlayer({
               <span className="visually-hidden">{text.repeat}</span>
             </button>
           </div>
+        </div>
+
+        <div className="bottom-player-actions" data-player-control-zone>
           <div
             className={`bottom-player-output${
               isRealInputOutput ? " is-real-input" : ""
             }`}
           >
-            <span className="bottom-player-output-mode">{outputModeLabel}</span>
+            <span className="bottom-player-output-mode">
+              <span className="bottom-player-output-label">{text.output}</span>
+              {outputModeLabel}
+            </span>
             {isRealInputOutput ? (
-              <span className="bottom-player-real-input-warning">
+              <span
+                className="bottom-player-real-input-warning"
+                title={text.realInputWarning}
+              >
                 <span
                   className="bottom-player-warning-dot"
                   aria-hidden="true"
@@ -790,67 +785,67 @@ export function BottomPlayer({
               </span>
             ) : null}
           </div>
-        </div>
 
-        <div className="bottom-player-actions" data-player-control-zone>
-          <div
-            className="bottom-player-options"
-            aria-label={text.optionsAria}
-            role="group"
-          >
-            <div className="player-option" title={text.delay}>
-              <span className="player-option-label">{text.delay}</span>
-              <PlayerStepper
-                buttonStep={noteIntervalDelayLimits.buttonStep}
-                inputStep={noteIntervalDelayLimits.inputStep}
-                label={text.delay}
-                max={noteIntervalDelayLimits.max}
-                min={noteIntervalDelayLimits.min}
-                normalizeValue={normalizeNoteIntervalDelay}
-                onChange={(value) =>
-                  onNoteIntervalDelayChange(value as NoteIntervalDelayMs)
-                }
-                unit="ms"
-                value={noteIntervalDelayMs}
-              />
+          <div className="bottom-player-actions-row">
+            <div
+              className="bottom-player-options"
+              aria-label={text.optionsAria}
+              role="group"
+            >
+              <div className="player-option" title={text.delay}>
+                <span className="player-option-label">{text.delay}</span>
+                <PlayerStepper
+                  buttonStep={noteIntervalDelayLimits.buttonStep}
+                  inputStep={noteIntervalDelayLimits.inputStep}
+                  label={text.delay}
+                  max={noteIntervalDelayLimits.max}
+                  min={noteIntervalDelayLimits.min}
+                  normalizeValue={normalizeNoteIntervalDelay}
+                  onChange={(value) =>
+                    onNoteIntervalDelayChange(value as NoteIntervalDelayMs)
+                  }
+                  unit="ms"
+                  value={noteIntervalDelayMs}
+                />
+              </div>
+
+              <span className="bottom-player-options-divider" aria-hidden="true" />
+
+              <div className="player-option" title={text.speed}>
+                <span className="player-option-label">{text.speed}</span>
+                <PlayerStepper
+                  buttonStep={playbackSpeedLimits.buttonStep}
+                  inputStep={playbackSpeedLimits.inputStep}
+                  label={text.speed}
+                  max={playbackSpeedLimits.max}
+                  min={playbackSpeedLimits.min}
+                  normalizeValue={normalizePlaybackSpeed}
+                  onChange={(value) => onPlaybackSpeedChange(value as PlaybackSpeed)}
+                  unit="x"
+                  value={playbackSpeed}
+                />
+              </div>
             </div>
 
-            <span className="bottom-player-options-divider" aria-hidden="true" />
-
-            <div className="player-option" title={text.speed}>
-              <span className="player-option-label">{text.speed}</span>
-              <PlayerStepper
-                buttonStep={playbackSpeedLimits.buttonStep}
-                inputStep={playbackSpeedLimits.inputStep}
-                label={text.speed}
-                max={playbackSpeedLimits.max}
-                min={playbackSpeedLimits.min}
-                normalizeValue={normalizePlaybackSpeed}
-                onChange={(value) => onPlaybackSpeedChange(value as PlaybackSpeed)}
-                unit="x"
-                value={playbackSpeed}
-              />
-            </div>
+            <button
+              className={`player-icon-button player-icon-button-secondary bottom-player-queue-button${
+                queueOpen ? " is-active" : ""
+              }`}
+              type="button"
+              aria-label={text.queue}
+              aria-pressed={queueOpen}
+              ref={queueButtonRef}
+              onClick={onQueueToggle}
+            >
+              <QueueIcon />
+              {queueItems.length > 0 ? (
+                <span className="bottom-player-queue-count">
+                  {queueItems.length}
+                </span>
+              ) : null}
+              <span className="visually-hidden">{text.queue}</span>
+            </button>
           </div>
-
-          <button
-            className={`player-icon-button player-icon-button-secondary bottom-player-queue-button${
-              queueOpen ? " is-active" : ""
-            }`}
-            type="button"
-            aria-label={text.queue}
-            aria-pressed={queueOpen}
-            ref={queueButtonRef}
-            onClick={onQueueToggle}
-          >
-            <QueueIcon />
-            {queueItems.length > 0 ? (
-              <span className="bottom-player-queue-count">
-                {queueItems.length}
-              </span>
-            ) : null}
-            <span className="visually-hidden">{text.queue}</span>
-          </button>
         </div>
       </div>
     </footer>
