@@ -1117,7 +1117,6 @@ function App() {
         hasLoadFailed={playerScoreVisualization.hasLoadFailed}
         isLoading={playerScoreVisualization.isLoading}
         isOpen={playerScoreVisualization.isOpen}
-        librarySong={scoreLibrary.currentPlaybackSong}
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onClose={playerScoreVisualization.close}
         playbackSpeed={playbackOutput.playbackSpeed}

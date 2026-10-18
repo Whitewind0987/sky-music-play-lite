@@ -7,8 +7,12 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { UiText } from "../i18n/uiText";
-import { getLibrarySongName } from "../lib/libraryCollections";
-import { getBottomPlayerNotice } from "../lib/bottomPlayerNotice";
+import {
+  getLibrarySongBpm,
+  getLibrarySongFormatVersion,
+  getLibrarySongName,
+  getLibrarySongNoteCount,
+} from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
 import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
@@ -332,8 +336,8 @@ export function BottomPlayer({
       event.preventDefault();
     }
   }
-  const songTitle = currentSong ? getLibrarySongName(currentSong) : text.noScore;
-  const notice = getBottomPlayerNotice({ isCurrentSongLoading, manualState });
+  const isV2Song =
+    currentSong !== null && getLibrarySongFormatVersion(currentSong) === 2;
   const canResume = playbackState === "paused";
   const primaryAction =
     playbackState === "playing"
@@ -629,37 +633,53 @@ export function BottomPlayer({
               : ""
           }`}
           aria-disabled={!canOpenVisualization || isVisualizationOpen}
-          aria-label={`${text.expandVisualization}: ${songTitle}`}
-          aria-expanded={isVisualizationOpen}
-          title={`${songTitle} — ${text.expandVisualization}`}
+          aria-label={text.expandVisualization}
           role="button"
           tabIndex={canOpenVisualization && !isVisualizationOpen ? 0 : -1}
           onKeyDown={handleVisualizationTriggerKeyDown}
         >
-          <strong className="bottom-player-title">{songTitle}</strong>
-          <div className="bottom-player-secondary">
-            <span className="bottom-player-time">
-              {formatPlaybackTime(progress.currentMs)} /{" "}
-              {formatPlaybackTime(progress.totalMs)}
+          <span className="bottom-player-label">{text.currentScore}</span>
+          <div className="bottom-player-title-row">
+            <strong className="bottom-player-title">
+              {currentSong ? getLibrarySongName(currentSong) : text.noScore}
+            </strong>
+            <span className="bottom-player-output-badge">
+              {outputModeLabel}
             </span>
-            {notice !== null ? (
-              <span
-                className={`bottom-player-status${notice === "error" ? " is-error" : ""}`}
-              >
-                {notice === "loading"
-                  ? text.loadingScore
-                  : text.manualStates[notice]}
+            {isCurrentSongLoading ? (
+              <span className="bottom-player-loading-badge">
+                {text.loadingScore}
               </span>
             ) : null}
-          </div>
-          <div className="bottom-player-output">
-            <span className="bottom-player-output-mode">{outputModeLabel}</span>
             {isRealInputOutput ? (
-              <span className="bottom-player-real-input-warning">
-                <span className="bottom-player-warning-dot" aria-hidden="true" />
+              <span className="bottom-player-real-input-badge">
                 {text.realInputWarning}
               </span>
             ) : null}
+            {isV2Song ? (
+              <span className="bottom-player-v2-badge" title={text.v2Score}>
+                V2
+              </span>
+            ) : null}
+          </div>
+          <div className="bottom-player-meta-line">
+            <span className="bottom-player-meta-item">
+              {text.bpm}: {currentSong ? getLibrarySongBpm(currentSong) : "--"}
+            </span>
+            <span className="bottom-player-meta-item">
+              {text.notes}:{" "}
+              {currentSong ? getLibrarySongNoteCount(currentSong) : "--"}
+            </span>
+            <span className="bottom-player-meta-item">
+              {text.state}:{" "}
+              {manualState === "idle"
+                ? text.states[playbackState]
+                : text.manualStates[manualState]}
+            </span>
+            <span className="bottom-player-meta-item bottom-player-time">
+              {formatPlaybackTime(progress.currentMs)} /{" "}
+              {formatPlaybackTime(progress.totalMs)}
+            </span>
           </div>
         </div>
 

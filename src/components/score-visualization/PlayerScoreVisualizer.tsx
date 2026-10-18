@@ -1,12 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { useMemo } from "react";
 import type { UiText } from "../../i18n/uiText";
-import type { LibrarySong } from "../../types/library";
-import {
-  getLibrarySongBpm,
-  getLibrarySongFormatVersion,
-  getLibrarySongNoteCount,
-} from "../../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../../lib/playbackScheduler";
 import {
   buildScoreVisualization,
@@ -29,7 +23,6 @@ type PlayerScoreVisualizerProps = {
   hasLoadFailed: boolean;
   isLoading: boolean;
   isOpen: boolean;
-  librarySong: LibrarySong | null;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onClose: () => void;
   playbackSpeed: PlaybackSpeed;
@@ -46,7 +39,6 @@ export function PlayerScoreVisualizer({
   hasLoadFailed,
   isLoading,
   isOpen,
-  librarySong,
   noteIntervalDelayMs,
   onClose,
   playbackSpeed,
@@ -57,9 +49,6 @@ export function PlayerScoreVisualizer({
   text,
   timingMode,
 }: PlayerScoreVisualizerProps) {
-  const formatVersion = librarySong
-    ? getLibrarySongFormatVersion(librarySong)
-    : undefined;
   const model = useMemo(
     () =>
       song === null
@@ -104,24 +93,10 @@ export function PlayerScoreVisualizer({
 
       <div className="player-score-visualizer__content">
         <div className="player-score-visualizer__heading">
-          <h2 title={songTitle}>{songTitle}</h2>
-          <dl className="player-score-visualizer__metadata">
-            <div>
-              <dt>{text.bpm}</dt>
-              <dd>{librarySong ? getLibrarySongBpm(librarySong) : "--"}</dd>
-            </div>
-            <div>
-              <dt>{text.notes}</dt>
-              <dd>{librarySong ? getLibrarySongNoteCount(librarySong) : "--"}</dd>
-            </div>
-            <div>
-              <dt>{text.format}</dt>
-              <dd>{formatVersion === undefined ? "--" : `V${formatVersion}`}</dd>
-            </div>
-          </dl>
+          <h2>{songTitle}</h2>
         </div>
 
-        <div className="player-score-visualizer__body" tabIndex={isOpen ? 0 : -1}>
+        <div className="player-score-visualizer__body">
           {isLoading ? (
             <p className="player-score-visualizer__state">{text.loading}</p>
           ) : hasLoadFailed || song === null || model === null ? (
