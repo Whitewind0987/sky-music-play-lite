@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { PersistedAppData } from "../types/appData";
 import type {
   CandidateWindow,
@@ -212,6 +213,10 @@ export type ExportedScoreFile = {
   fileName: string;
   path: string;
 };
+
+export function setWebviewZoom(scaleFactor: number): Promise<void> {
+  return getCurrentWebview().setZoom(scaleFactor);
+}
 
 export function loadAppData(): Promise<unknown | null> {
   return invoke<unknown | null>("load_app_data");

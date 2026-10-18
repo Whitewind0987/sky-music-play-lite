@@ -16,6 +16,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { LibraryCategoryId } from "./AppShell";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
+import { useLibraryToolbarVisibility } from "../hooks/useLibraryToolbarVisibility";
 import { UpgradeScoreToV2Dialog } from "./UpgradeScoreToV2Dialog";
 import type {
   LocateScoreRequest,
@@ -97,6 +98,7 @@ type LibraryPanelProps = {
     item: LibrarySongListItem,
   ) => void;
   onSearchQueryChange: (query: string) => void;
+  onSearchToolbarVisibilityChange?: (isVisible: boolean) => void;
   onSelectSong: (songIndex: number) => void;
   onToggleLiked: (songIndex: number) => void;
   onUpgradeBlocked: () => void;
@@ -1262,6 +1264,7 @@ export function LibraryPanel({
   onV1ToV2UpgradePreferencesChange,
   onRenamePlaylist,
   onSearchQueryChange,
+  onSearchToolbarVisibilityChange,
   onSelectSong,
   onToggleLiked,
   playlists,
@@ -1277,6 +1280,7 @@ export function LibraryPanel({
   text,
 }: LibraryPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
+  const searchToolbarRef = useRef<HTMLDivElement | null>(null);
   const [showLocateButton, setShowLocateButton] = useState(false);
   const locateHideTimerRef = useRef<number | null>(null);
   const [collectingSongItem, setCollectingSongItem] =
@@ -1290,6 +1294,7 @@ export function LibraryPanel({
   const latestUpgradeSourceRequestIdRef = useRef(0);
   const [openActionMenuSongId, setOpenActionMenuSongId] =
     useState<LibrarySongId | null>(null);
+  useLibraryToolbarVisibility(searchToolbarRef, onSearchToolbarVisibilityChange);
   const isLocalImports = selectedCategory === "local-imports";
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
@@ -1389,7 +1394,7 @@ export function LibraryPanel({
   return (
     <section ref={panelRef} className="library-panel" aria-label={text.aria}>
       <div className="library-content">
-        <div className="library-content-header">
+        <div ref={searchToolbarRef} className="library-content-header">
           <label className="library-search">
             <span className="sr-only">{text.searchPlaceholder}</span>
             <input

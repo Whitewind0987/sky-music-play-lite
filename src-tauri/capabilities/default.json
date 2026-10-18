@@ -8,6 +8,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-always-on-top",
+    "core:webview:allow-set-webview-zoom",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     {

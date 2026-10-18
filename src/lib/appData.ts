@@ -56,6 +56,7 @@ import {
 } from "./v1ToV2UpgradePreferences";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
 import { defaultAccentColor, normalizeAccentColor } from "./accentColor";
+import { defaultUiScale, normalizeUiScale, type UiScale } from "./uiScale";
 
 const languageCodes: LanguageCode[] = ["zh-CN", "en-US"];
 const libraryCategoryIds: LibraryCategoryId[] = [
@@ -155,6 +156,7 @@ export function sanitizePersistedAppData(
     },
     playbackShortcuts: sanitizePlaybackShortcuts(rawData.playbackShortcuts),
     playbackSettings: sanitizePlaybackSettings(rawData.playbackSettings),
+    uiScale: normalizeUiScale(rawData.uiScale),
     v1ToV2UpgradePreferences: sanitizeV1ToV2UpgradePreferences(
       rawData.v1ToV2UpgradePreferences,
     ),
@@ -182,6 +184,7 @@ export function buildPersistedAppData({
   selectedLibraryCategory,
   selectedPlaylistId,
   selectedSongIndex,
+  uiScale = defaultUiScale,
   v1ToV2UpgradePreferences =
     createDefaultV1ToV2UpgradePreferences(),
 }: {
@@ -205,6 +208,7 @@ export function buildPersistedAppData({
   selectedLibraryCategory: LibraryCategoryId;
   selectedPlaylistId: string | null;
   selectedSongIndex: number | null;
+  uiScale?: UiScale;
   v1ToV2UpgradePreferences?: V1ToV2UpgradePreferences;
 }): PersistedAppData {
   const sanitizedLibrary = sanitizeV3Library(
@@ -264,6 +268,7 @@ export function buildPersistedAppData({
       playbackMode,
       playbackSpeed: normalizePlaybackSpeed(playbackSpeed),
     },
+    uiScale: normalizeUiScale(uiScale),
     v1ToV2UpgradePreferences: sanitizeV1ToV2UpgradePreferences(
       v1ToV2UpgradePreferences,
     ),

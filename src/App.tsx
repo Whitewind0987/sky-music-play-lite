@@ -30,6 +30,7 @@ import { SettingsPlaceholder } from "./components/SettingsPanel";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { USER_MANUAL_URL } from "./config/update";
 import { useAccentColor } from "./hooks/useAccentColor";
+import { useUiScale } from "./hooks/useUiScale";
 import { useAppFileLogger } from "./hooks/useAppFileLogger";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useAlwaysOnTop } from "./hooks/useAlwaysOnTop";
@@ -112,6 +113,7 @@ function App() {
   const text = uiText[language];
   const appFileLogger = useAppFileLogger(language);
   const accentColor = useAccentColor();
+  const uiScale = useUiScale();
   const appendDetailedLogRef = useRef(appFileLogger.appendDetailedLog);
   const missingLocalSongsRemovedRef = useRef<
     (removedSongs: RemovedLibrarySong[]) => void
@@ -294,6 +296,7 @@ function App() {
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
     applyPlaybackShortcuts: playbackShortcutsController.setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
+    applyUiScale: uiScale.applyPersistedUiScale,
     applyV1ToV2UpgradePreferences:
       v1ToV2UpgradePreferences.applyPersistedPreferences,
     canSaveAppData: scoreLibrary.hasLoadedBuiltInSongs,
@@ -324,6 +327,7 @@ function App() {
     targetWindowKeyHoldMs: experimentalInput.targetWindowKeyHoldMs,
     targetWindowMessageMethod: experimentalInput.targetWindowMessageMethod,
     text: text.logs,
+    uiScale: uiScale.uiScale,
     validCollectionSongIds: scoreLibrary.validCollectionSongIds,
     v1ToV2UpgradePreferences:
       v1ToV2UpgradePreferences.preferences,
@@ -393,6 +397,8 @@ function App() {
     text: text.library,
   });
   const [queueOpen, setQueueOpen] = useState(false);
+  const [isLibrarySearchToolbarVisible, setIsLibrarySearchToolbarVisible] =
+    useState(true);
   const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
     useState(false);
   const isAnyPlaybackActive =
@@ -813,6 +819,7 @@ function App() {
           }
           onRenamePlaylist={libraryDialogs.requestRenamePlaylist}
           onSearchQueryChange={scoreLibrary.setSearchQuery}
+          onSearchToolbarVisibilityChange={setIsLibrarySearchToolbarVisible}
           onSelectSong={handleLibrarySongSelection}
           onToggleLiked={playbackCoordinator.handleToggleLikedSong}
           onUpgradeBlocked={scoreUpgradeGuard.reportBlocked}
@@ -934,6 +941,8 @@ function App() {
           onConfirmBeforeExitChange={handleConfirmBeforeExitSettingChange}
           onAccentColorChange={accentColor.setAccentColor}
           onAccentColorReset={accentColor.resetAccentColor}
+          onUiScaleChange={uiScale.setUiScale}
+          uiScale={uiScale.uiScale}
           onLanguageChange={setLanguage}
           appRuntimeInfo={appFileLogger.runtimeInfo}
           onOpenLogDirectory={appFileLogger.openLogDirectory}
@@ -1011,6 +1020,11 @@ function App() {
           onLogsClick={() => setActiveSection("Logs")}
           onSettingsClick={() => setActiveSection("Settings")}
           onUserManualClick={handleOpenUserManual}
+          search={{
+            isToolbarVisible: isLibrarySearchToolbarVisible,
+            onQueryChange: scoreLibrary.setSearchQuery,
+            query: scoreLibrary.searchQuery,
+          }}
           text={text}
         />
 

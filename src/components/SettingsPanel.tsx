@@ -6,6 +6,7 @@ import {
   type UiText,
 } from "../i18n/uiText";
 import { isValidAccentColor } from "../lib/accentColor";
+import { uiScalePresets, type UiScale } from "../lib/uiScale";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import type { AppRuntimeInfo } from "../lib/tauriApi";
 import {
@@ -85,6 +86,8 @@ type SettingsPlaceholderProps = {
   onShortcutNoticeClear: (action?: PlaybackShortcutAction) => void;
   onAccentColorChange: (accentColor: string) => void;
   onAccentColorReset: () => void;
+  onUiScaleChange: (uiScale: UiScale) => void;
+  uiScale: UiScale;
   onKeyMappingListenStart: (skyKey: SkyKeyName) => void;
   onConfirmBeforeExitChange: (confirmBeforeExit: boolean) => void;
   onLanguageChange: (language: LanguageCode) => void;
@@ -116,6 +119,8 @@ export function SettingsPlaceholder({
   onShortcutNoticeClear,
   onAccentColorChange,
   onAccentColorReset,
+  onUiScaleChange,
+  uiScale,
   onKeyMappingListenStart,
   onConfirmBeforeExitChange,
   onLanguageChange,
@@ -672,6 +677,30 @@ export function SettingsPlaceholder({
           <div className="setting-row">
             <span>{text.theme}</span>
             <span className="fake-segment">{text.systemTheme}</span>
+          </div>
+          <div className="setting-row">
+            <span id="settings-ui-scale-label">{text.uiScale}</span>
+            <div
+              className="ui-scale-segment"
+              role="radiogroup"
+              aria-labelledby="settings-ui-scale-label"
+            >
+              {uiScalePresets.map((preset) => (
+                <button
+                  className={`ui-scale-option${
+                    preset === uiScale ? " is-active" : ""
+                  }`}
+                  key={preset}
+                  type="button"
+                  role="radio"
+                  aria-checked={preset === uiScale}
+                  title={text.uiScaleOptions[String(preset) as keyof typeof text.uiScaleOptions]}
+                  onClick={() => onUiScaleChange(preset)}
+                >
+                  {Math.round(preset * 100)}%
+                </button>
+              ))}
+            </div>
           </div>
           <div className="setting-row">
             <span>{text.accentColor}</span>

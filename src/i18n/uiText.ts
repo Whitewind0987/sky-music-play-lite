@@ -41,6 +41,7 @@ export const uiText = {
       noCreatedPlaylists: "暂无歌单",
       preview: "预览",
       recording: "录制",
+      toolsSection: "工具",
     },
     sections: {
       Library: {
@@ -137,6 +138,8 @@ export const uiText = {
         "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件。",
       importLabel: "导入 .json / .txt",
       searchPlaceholder: "搜索曲谱",
+      headerSearchOpen: "搜索曲谱",
+      headerSearchClose: "收起搜索",
       locateCurrentScore: "定位当前曲谱",
       locateCurrentScoreUnavailable: "当前没有选中的曲谱",
       categoriesTitle: "分类",
@@ -697,6 +700,12 @@ export const uiText = {
       theme: "主题",
       systemTheme: "跟随系统",
       accentColor: "强调色",
+      uiScale: "界面大小",
+      uiScaleOptions: {
+        "1": "100% 标准",
+        "1.1": "110% 舒适",
+        "1.2": "120% 大",
+      },
       accentColorHex: "HEX 强调色",
       accentColorPicker: "选择强调色",
       accentColorReset: "恢复默认",
@@ -840,6 +849,7 @@ export const uiText = {
       noCreatedPlaylists: "No playlists yet",
       preview: "Preview",
       recording: "Recording",
+      toolsSection: "Tools",
     },
     sections: {
       Library: {
@@ -940,6 +950,8 @@ export const uiText = {
         "Import one or more SkyStudio-style JSON / TXT score files.",
       importLabel: "Import .json / .txt",
       searchPlaceholder: "Search scores",
+      headerSearchOpen: "Search scores",
+      headerSearchClose: "Close search",
       locateCurrentScore: "Locate current score",
       locateCurrentScoreUnavailable: "No score is currently selected",
       categoriesTitle: "Categories",
@@ -1543,6 +1555,12 @@ export const uiText = {
       theme: "Theme",
       systemTheme: "System",
       accentColor: "Accent color",
+      uiScale: "UI Size",
+      uiScaleOptions: {
+        "1": "100% Standard",
+        "1.1": "110% Comfortable",
+        "1.2": "120% Large",
+      },
       accentColorHex: "HEX accent color",
       accentColorPicker: "Choose accent color",
       accentColorReset: "Reset",

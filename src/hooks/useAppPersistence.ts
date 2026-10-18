@@ -53,6 +53,7 @@ import type {
   UserPlaylist,
 } from "../types/library";
 import type { V1ToV2UpgradePreferences } from "../types/v1ToV2Upgrade";
+import { normalizeUiScale, type UiScale } from "../lib/uiScale";
 
 export const normalAppDataSaveDebounceMs = 500;
 
@@ -73,6 +74,7 @@ type UseAppPersistenceOptions = {
   ) => void;
   applyPlaybackShortcuts: (playbackShortcuts: PlaybackShortcuts) => void;
   applyScoreLibrary: (library: PersistedAppData["library"]) => void;
+  applyUiScale: (uiScale: UiScale) => void;
   applyV1ToV2UpgradePreferences: (
     preferences: V1ToV2UpgradePreferences,
   ) => void;
@@ -102,6 +104,7 @@ type UseAppPersistenceOptions = {
   targetWindowKeyHoldMs: number;
   targetWindowMessageMethod: TargetWindowMessageMethod;
   text: UiText["logs"];
+  uiScale: UiScale;
   validCollectionSongIds?: string[];
   v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
 };
@@ -172,6 +175,7 @@ export function useAppPersistence({
   applyPlaybackSettings,
   applyPlaybackShortcuts,
   applyScoreLibrary,
+  applyUiScale,
   applyV1ToV2UpgradePreferences,
   canSaveAppData = true,
   confirmBeforeExit,
@@ -199,6 +203,7 @@ export function useAppPersistence({
   targetWindowKeyHoldMs,
   targetWindowMessageMethod,
   text,
+  uiScale,
   validCollectionSongIds,
   v1ToV2UpgradePreferences,
 }: UseAppPersistenceOptions) {
@@ -257,6 +262,7 @@ export function useAppPersistence({
       selectedPlaylistId,
       selectedSongIndex,
       validCollectionSongIds,
+      uiScale,
       v1ToV2UpgradePreferences,
     });
   }
@@ -498,6 +504,7 @@ export function useAppPersistence({
           applyAlwaysOnTop,
         );
         applyAccentColor(runtimeAppData.accentColor);
+        applyUiScale(normalizeUiScale(runtimeAppData.uiScale));
         setLanguage(runtimeAppData.language);
         applyConfirmBeforeExit(runtimeAppData.confirmBeforeExit);
         applyKeyMapping(runtimeAppData.keyMapping);
@@ -602,6 +609,7 @@ export function useAppPersistence({
     targetWindowCompatibilityProfile,
     targetWindowKeyHoldMs,
     targetWindowMessageMethod,
+    uiScale,
     validCollectionSongIds,
     v1ToV2UpgradePreferences,
   ]);

@@ -1,4 +1,5 @@
 import type { LibraryCategoryId } from "../components/AppShell";
+import type { UiScale } from "../lib/uiScale";
 import type { LanguageCode } from "../i18n/uiText";
 import type {
   ExperimentalInputMode,
@@ -62,5 +63,6 @@ export type PersistedAppData = {
     playbackMode: PlaybackMode;
     playbackSpeed: PlaybackSpeed;
   };
+  uiScale?: UiScale;
   v1ToV2UpgradePreferences: V1ToV2UpgradePreferences;
 };

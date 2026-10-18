@@ -13,6 +13,7 @@ import {
 import { defaultPlaybackShortcuts } from "../types/playbackShortcuts";
 import { buildPersistedAppData, sanitizePersistedAppData } from "./appData";
 import { defaultAccentColor } from "./accentColor";
+import { defaultUiScale } from "./uiScale";
 import { createLocalSongMetadata } from "./libraryCollections";
 import { ImportedScoreSongLoader } from "./importedScoreSongLoader";
 import {
@@ -269,6 +270,59 @@ describe("buildPersistedAppData", () => {
       noteIntervalDelayLimits.min,
     );
     expect(result.playbackSettings.playbackSpeed).toBe(playbackSpeedLimits.max);
+  });
+});
+
+describe("UI size persistence", () => {
+  it("defaults new app data to 110%", () => {
+    expect(buildMinimalPersistedAppData().uiScale).toBe(defaultUiScale);
+    expect(defaultUiScale).toBe(1.1);
+  });
+
+  it.each([1, 1.1, 1.2] as const)(
+    "saves and restores %s across a JSON round trip",
+    (uiScale) => {
+      const saved = JSON.parse(
+        JSON.stringify(buildMinimalPersistedAppData({ uiScale })),
+      );
+
+      expect(saved.uiScale).toBe(uiScale);
+      expect(sanitizePersistedAppData(saved)?.uiScale).toBe(uiScale);
+    },
+  );
+
+  it("defaults old data without a UI size", () => {
+    const oldData: Record<string, unknown> = {
+      ...buildMinimalPersistedAppData(),
+    };
+    delete oldData.uiScale;
+
+    expect(sanitizePersistedAppData(oldData)?.uiScale).toBe(defaultUiScale);
+  });
+
+  it.each([1.15, 2, "1.2", null, -1])(
+    "replaces the invalid stored UI size %s with the default",
+    (uiScale) => {
+      expect(
+        sanitizePersistedAppData({
+          ...buildMinimalPersistedAppData(),
+          uiScale,
+        })?.uiScale,
+      ).toBe(defaultUiScale);
+    },
+  );
+
+  it("does not change unrelated settings", () => {
+    const sanitized = sanitizePersistedAppData({
+      ...buildMinimalPersistedAppData({
+        accentColor: "#12abef",
+        alwaysOnTop: true,
+      }),
+      uiScale: "bad",
+    });
+
+    expect(sanitized?.accentColor).toBe("#12abef");
+    expect(sanitized?.alwaysOnTop).toBe(true);
   });
 });
 

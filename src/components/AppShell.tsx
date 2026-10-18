@@ -23,7 +23,9 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import appIconUrl from "../../src-tauri/icons/64x64.png";
 import type { UiText } from "../i18n/uiText";
+import { HeaderLibrarySearch } from "./HeaderLibrarySearch";
 import type { UpdateInfo } from "../lib/updateCheck";
 import type { UserPlaylist } from "../types/library";
 
@@ -71,6 +73,7 @@ type SidebarNavButtonProps = {
 
 type SidebarRippleButtonProps = {
   children: ReactNode;
+  isCurrent?: boolean;
   className: string;
   onClick: () => void;
 };
@@ -85,6 +88,7 @@ type SidebarCategoryButtonProps = {
 function SidebarRippleButton({
   children,
   className,
+  isCurrent = false,
   onClick,
 }: SidebarRippleButtonProps) {
   const [ripple, setRipple] = useState<RippleState | null>(null);
@@ -209,6 +213,7 @@ function SidebarRippleButton({
     <button
       className={`${className}${isPressing ? " is-pressing" : ""}`}
       type="button"
+      aria-current={isCurrent ? "page" : undefined}
       onBlur={releaseRipple}
       onClick={onClick}
       onKeyDown={handleKeyDown}
@@ -247,6 +252,7 @@ function SidebarCategoryButton({
   return (
     <SidebarRippleButton
       className={`sidebar-link is-compact${isActive ? " is-active" : ""}`}
+      isCurrent={isActive}
       onClick={onClick}
     >
       <span className="sidebar-link-content">
@@ -274,6 +280,7 @@ function SidebarNavButton({
       className={`sidebar-link${isCompact ? " is-compact" : ""}${
         isActive ? " is-active" : ""
       }`}
+      isCurrent={isActive}
       onClick={onClick}
     >
       <span className="sidebar-link-content">
@@ -373,22 +380,29 @@ export function AppSidebar({
   return (
     <aside className="app-sidebar" aria-label={text.app.navigationAria}>
       <div className="sidebar-brand">
-        <span className="brand-mark">S</span>
-        <div className="brand-copy">
-          <p className="eyebrow">{text.brand.eyebrow}</p>
-          <h1 className="brand-title">{text.brand.name}</h1>
-          {updateInfo ? (
-            <button
-              className="update-badge"
-              type="button"
-              aria-label={`${text.actions.updateAvailable}: ${updateInfo.latestVersion}`}
-              title={`${text.actions.updateAvailable} ${updateInfo.latestVersion}`}
-              onClick={onUpdateClick}
-            >
-              {text.actions.updateBadge}
-            </button>
-          ) : null}
-        </div>
+        <img
+          className="brand-icon"
+          src={appIconUrl}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          width={28}
+          height={28}
+        />
+        <h1 className="brand-title" title={text.brand.name}>
+          {text.brand.name}
+        </h1>
+        {updateInfo ? (
+          <button
+            className="update-badge"
+            type="button"
+            aria-label={`${text.actions.updateAvailable}: ${updateInfo.latestVersion}`}
+            title={`${text.actions.updateAvailable} ${updateInfo.latestVersion}`}
+            onClick={onUpdateClick}
+          >
+            {text.actions.updateBadge}
+          </button>
+        ) : null}
       </div>
 
       <div className="sidebar-scroll-frame">
@@ -495,6 +509,7 @@ export function AppSidebar({
                         className={`sidebar-playlist-item${
                           isActive ? " is-active" : ""
                         }`}
+                        isCurrent={isActive}
                         key={playlist.id}
                         onClick={() => onPlaylistSelect(playlist.id)}
                       >
@@ -520,7 +535,11 @@ export function AppSidebar({
             ) : null}
           </section>
 
-          <nav className="sidebar-nav" aria-label={text.app.mainSectionsAria}>
+          <nav
+            className="sidebar-section sidebar-nav"
+            aria-label={text.app.mainSectionsAria}
+          >
+            <p className="sidebar-section-title">{text.sidebar.toolsSection}</p>
             <SidebarNavButton
               Icon={CircleDot}
               isActive={activeSection === "Recording"}
@@ -567,6 +586,11 @@ type WorkspaceHeaderProps = {
   onLogsClick: () => void;
   onSettingsClick: () => void;
   onUserManualClick: () => void;
+  search?: {
+    isToolbarVisible: boolean;
+    onQueryChange: (query: string) => void;
+    query: string;
+  };
   text: UiText;
 };
 
@@ -611,6 +635,7 @@ export function WorkspaceHeader({
   onLogsClick,
   onSettingsClick,
   onUserManualClick,
+  search,
   text,
 }: WorkspaceHeaderProps) {
   const title = getWorkspaceHeaderTitle({
@@ -632,6 +657,17 @@ export function WorkspaceHeader({
     >
       <h2 title={activeSection === "Library" ? title : undefined}>{title}</h2>
       <div className="header-actions" aria-label={text.app.placeholderActionsAria}>
+        {search ? (
+          <HeaderLibrarySearch
+            closeLabel={text.library.headerSearchClose}
+            isLibrary={activeSection === "Library"}
+            isToolbarVisible={search.isToolbarVisible}
+            onQueryChange={search.onQueryChange}
+            openLabel={text.library.headerSearchOpen}
+            placeholder={text.library.searchPlaceholder}
+            query={search.query}
+          />
+        ) : null}
         <button
           className={`icon-action always-on-top-action${
             isAlwaysOnTop ? " is-active" : ""
