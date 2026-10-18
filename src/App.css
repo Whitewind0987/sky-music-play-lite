@@ -1485,14 +1485,6 @@ button {
   outline: none;
 }
 
-.library-selected-badge {
-  flex: 0 0 auto;
-  padding: 2px 4px;
-  color: #52616f;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
 .library-loading-badge {
   flex: 0 0 auto;
   padding: 2px 4px;

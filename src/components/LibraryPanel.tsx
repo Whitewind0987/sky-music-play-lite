@@ -1,13 +1,13 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
+  AudioLines,
   BookmarkPlus,
   Heart,
   Hourglass,
   ListPlus,
   MoreHorizontal,
   Play,
-  Pause,
   Plus,
   LocateFixed,
   SkipForward,
@@ -999,8 +999,8 @@ function LibrarySongTable({
             manualState,
           });
           const PlaybackIcon =
-            playbackIndicator === "paused"
-              ? Pause
+            playbackIndicator === "playing"
+              ? AudioLines
               : playbackIndicator === "manual"
                 ? StepForward
                 : playbackIndicator === "releasing"
@@ -1186,9 +1186,6 @@ function LibrarySongTable({
                     </DropdownMenu.Root>
                   </span>
                 </span>
-                {isSelected && !isLoading ? (
-                  <span className="library-selected-badge">{text.selected}</span>
-                ) : null}
                 {isLoading ? (
                   <span className="library-loading-badge">
                     {text.loadingScore}
