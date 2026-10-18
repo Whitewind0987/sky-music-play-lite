@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-FileCopyrightText: 2026 wjhhuizi (LemonGo)
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { describe, expect, it, vi } from "vitest";
 import type { LocalLibrarySong, UserPlaylist } from "../types/library";
 import type { Song } from "../types/score";

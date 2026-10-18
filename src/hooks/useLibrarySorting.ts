@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { useCallback, useEffect, useMemo, useReducer, useState, type Dispatch, type SetStateAction } from "react";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { LibrarySongListItem, LikedSongEntry, UserPlaylist } from "../types/library";

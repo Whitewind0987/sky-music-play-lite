@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {

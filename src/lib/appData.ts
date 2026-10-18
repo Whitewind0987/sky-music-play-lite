@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-FileCopyrightText: 2026 wjhhuizi (LemonGo)
+// SPDX-License-Identifier: GPL-3.0-only
+
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { LanguageCode } from "../i18n/uiText";
 import {

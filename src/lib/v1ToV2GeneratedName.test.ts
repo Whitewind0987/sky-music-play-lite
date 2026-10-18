@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-License-Identifier: GPL-3.0-only
+
 import { describe, expect, it } from "vitest";
 import { uiText } from "../i18n/uiText";
 import { V1_TO_V2_SUSTAIN_STYLE_PRESETS } from "./v1ToV2UpgradePreferences";

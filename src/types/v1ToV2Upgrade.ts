@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987
+// SPDX-License-Identifier: GPL-3.0-only
+
 export const V1_TO_V2_SUSTAIN_STYLES = [
   "conservative",
   "balanced",
