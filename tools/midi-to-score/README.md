@@ -24,10 +24,24 @@ Change $repo to your actual checkout location.
     $repo = "F:\code\Project\sky-music-play-lite"
     & "D:\AI\MuScriptor\.venv\Scripts\python.exe" "$repo\tools\midi-to-score\midi_to_sky_txt.py" "D:\Music\piano.mid" --output "D:\Music\piano.txt" --mode polyphonic --mapping octave-fold
 
-Try --mode melody-dp for experimental single-melody extraction; long or dense
-pieces may make it slow. Use --mapping clamp for the historical baseline,
---transpose 0 to disable automatic octave transposition, and --max-chord-notes
-to control polyphonic density (default: 3).
+Automatic key analysis is enabled by default. The converter reads an explicit
+MIDI key-signature event if available; otherwise it estimates tonic and mode
+from the duration-weighted distribution of note pitch classes. Major keys are
+transposed toward C major, minor keys toward A minor (for example, E-flat
+major selects -3 semitones). Low-confidence estimates fall back to the old
+octave-only adjustment. Printed profile margin is not a probability. Modulating
+or noisy MIDI may still be misclassified.
+
+Transposition controls:
+
+- `--transpose auto`: detect musical key (default).
+- `--transpose -3`: manually force -3 semitones, overriding analysis.
+- `--transpose 0`: do not transpose.
+- `--transpose octave`: use historical octave-only selection.
+- `--mode melody-dp`: experimental single-melody extraction; dense pieces
+  may take longer.
+- `--mapping clamp`: use original range-clamping baseline.
+- `--max-chord-notes`: limit chord size (default 3).
 
 Existing output files are protected; use --force to overwrite deliberately.
 Writes use a temporary file and atomic replacement.
