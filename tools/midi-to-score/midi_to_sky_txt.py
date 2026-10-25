@@ -16,6 +16,7 @@ import tempfile
 from typing import Sequence
 
 from sky_arrangement import RawNoteEvent, arrange_events, build_lite_score
+from key_detection import estimate_key, midi_key_signature
 
 
 def midi_note_events(source: Path) -> tuple[list[RawNoteEvent], int]:
@@ -100,7 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--mode", choices=("polyphonic", "melody-dp"), default="polyphonic")
     parser.add_argument("--mapping", choices=("clamp", "octave-fold"), default="octave-fold")
     parser.add_argument("--max-chord-notes", type=int, default=3)
-    parser.add_argument("--transpose", type=int, help="semitone shift; default selects an octave automatically")
+    parser.add_argument("--transpose", default="auto", help="auto: detect key (default); octave: legacy octave shift; or manual semitones from -36 to 36")
     parser.add_argument("--force", action="store_true", help="overwrite an existing output file")
     args = parser.parse_args(argv)
 
@@ -118,18 +119,59 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not events:
             raise ValueError("No complete melodic MIDI notes found")
 
+        key_estimate = None
+        if args.transpose == "auto":
+            import mido
+
+            song = mido.MidiFile(str(args.midi))
+            key_estimate = estimate_key(events, key_signature=midi_key_signature(song))
+            # With weak evidence, keep the legacy octave-only algorithm.
+            selected_transpose = (
+                key_estimate.transpose
+                if key_estimate is not None and key_estimate.reliable
+                else None
+            )
+        elif args.transpose == "octave":
+            selected_transpose = None
+        else:
+            try:
+                selected_transpose = int(args.transpose)
+            except ValueError as exc:
+                raise ValueError(
+                    "--transpose must be auto, octave, or an integer from -36 to 36"
+                ) from exc
+            if not -36 <= selected_transpose <= 36:
+                raise ValueError("--transpose must be between -36 and 36")
+
         result = arrange_events(
             events,
             min_amplitude=0.001,
             min_duration_ms=1,
             chord_window_ms=35,
             max_chord_notes=args.max_chord_notes,
-            transpose=args.transpose,
+            transpose=selected_transpose,
             pitch_mapping_mode=args.mapping,
             arrangement_mode=args.mode,
         )
         document = build_lite_score(args.name or args.midi.stem, result.notes)
         write_score(output, document, force=args.force)
+        if args.transpose == "auto":
+            if key_estimate is None:
+                print("No key estimate; using legacy octave-only transpose")
+            elif key_estimate.source == "MIDI key signature":
+                print(f"Detected key: {key_estimate.name} (MIDI metadata)")
+            else:
+                status = "accepted" if key_estimate.reliable else "uncertain"
+                print(
+                    f"Estimated key: {key_estimate.name} "
+                    f"(profile margin: {key_estimate.confidence:.3f}; {status})"
+                )
+            if key_estimate is not None and not key_estimate.reliable:
+                print("Uncertain key estimate; using legacy octave-only transpose")
+        elif args.transpose == "octave":
+            print("Key analysis disabled; using legacy octave-only transpose")
+        else:
+            print(f"Manual transpose: {selected_transpose:+d} semitones")
         print(f"Input MIDI notes: {len(events)}")
         print(f"Output Sky notes: {len(result.notes)}")
         print(f"Transpose: {result.transpose} semitones")
