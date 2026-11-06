@@ -18,6 +18,8 @@ import {
   StepForward,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { MultiSelectCheckbox, MultiSelectToolbar } from "./MultiSelectToolbar";
+import type { MultiSelectState } from "../hooks/useMultiSelect";
 import type { LibraryCategoryId } from "./AppShell";
 import { getLocalLibraryMoveTarget } from "../lib/libraryGroups";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
@@ -103,6 +105,10 @@ type LibraryPanelProps = {
   onPlaySongNext: (songIndex: number) => void;
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
+  multiSelect: MultiSelectState;
+  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => void;
+  onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
+  onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRenamePlaylist: (playlistId: string) => void;
   onResolveUpgradeSource: (songIndex: number) => Promise<Song | null>;
   onUpgradeSourceLoadFailed: (
@@ -928,6 +934,7 @@ function LibrarySongTable({
   selectedSongIndex,
   text,
   openActionMenuSongId,
+  multiSelect,
 }: Pick<
   LibraryPanelProps,
   | "playbackSongId"
@@ -946,6 +953,7 @@ function LibrarySongTable({
   | "onPrepareSong"
   | "onRemoveFromLiked"
   | "onRemoveSongFromPlaylist"
+  | "multiSelect"
   | "onSelectSong"
   | "onToggleLiked"
   | "selectedCategory"
@@ -1089,6 +1097,12 @@ function LibrarySongTable({
           return (
             <div
               className={`library-song-row${isSelected ? " is-selected" : ""}${
+                multiSelect.enabled ? " is-multi-select" : ""
+              }${
+                multiSelect.enabled && multiSelect.isSelected(librarySong.id)
+                  ? " is-multi-selected"
+                  : ""
+              }${
                 openActionMenuSongId === librarySong.id ? " has-open-menu" : ""
               }${playbackIndicator ? ` is-${playbackIndicator}` : ""}${
                 isLoading ? " is-loading" : ""
@@ -1114,7 +1128,13 @@ function LibrarySongTable({
                 setContextMenuPosition({ songId: librarySong.id, x: event.clientX, y: event.clientY });
                 onOpenActionMenu(librarySong.id);
               }}
-              onClick={() => onSelectSong(songIndex)}
+              onClick={() => {
+                if (multiSelect.enabled) {
+                  multiSelect.toggle(librarySong.id);
+                  return;
+                }
+                onSelectSong(songIndex);
+              }}
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
                 if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
@@ -1132,6 +1152,12 @@ function LibrarySongTable({
               }}
             >
               <span className="library-song-index">
+                {multiSelect.enabled ? (
+                  <MultiSelectCheckbox
+                    checked={multiSelect.isSelected(librarySong.id)}
+                    label={songName}
+                  />
+                ) : null}
                 <span className="library-song-number">
                   {playbackIndicator ? (
                     <span
@@ -1382,6 +1408,10 @@ export function LibraryPanel({
   onPrepareSong,
   onRemoveFromLiked,
   onRemoveSongFromPlaylist,
+  onDeleteLocalSongs,
+  onAddSongsToPlaylist,
+  onRemoveSongsFromPlaylist,
+  multiSelect,
   onResolveUpgradeSource,
   onUpgradeSourceLoadFailed,
   onUpgradeBlocked,
@@ -1420,6 +1450,25 @@ export function LibraryPanel({
   const [openActionMenuSongId, setOpenActionMenuSongId] =
     useState<LibrarySongId | null>(null);
   useLibraryToolbarVisibility(searchToolbarRef, onSearchToolbarVisibilityChange);
+
+  // 快捷键：Ctrl+Shift+M 切换多选模式
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.ctrlKey &&
+        event.shiftKey &&
+        (event.key === "M" || event.key === "m")
+      ) {
+        event.preventDefault();
+        if (multiSelect.enabled) {
+          multiSelect.clear();
+        }
+        multiSelect.setEnabled(!multiSelect.enabled);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [multiSelect]);
   const isLocalImports = selectedCategory === "local-imports";
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
@@ -1530,6 +1579,21 @@ export function LibraryPanel({
             />
           </label>
           <div className="library-content-actions">
+            <button
+              className={`library-multi-select-toggle${multiSelect.enabled ? " is-active" : ""}`}
+              type="button"
+              aria-pressed={multiSelect.enabled}
+              aria-label={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
+              title={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
+              onClick={() => {
+                if (multiSelect.enabled) {
+                  multiSelect.clear();
+                }
+                multiSelect.setEnabled(!multiSelect.enabled);
+              }}
+            >
+              {multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
+            </button>
             <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
             {isLocalImports ? (
               <LibraryImportArea
@@ -1549,6 +1613,16 @@ export function LibraryPanel({
         ) : selectedCategory === "liked" && sorting.mode.startsWith("added-") ? (
           <p className="library-sort-hint">{text.sorting.likedTime}</p>
         ) : null}
+        <MultiSelectToolbar
+          multiSelect={multiSelect}
+          playlists={playlists}
+          text={text}
+          visibleSongIds={items.map((item) => item.librarySong.id)}
+          selectedPlaylistId={selectedPlaylistId}
+          onDeleteLocalSongs={onDeleteLocalSongs}
+          onAddSongsToPlaylist={onAddSongsToPlaylist}
+          onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
+        />
         {isLocalImports && importDisabled ? (
           <p className="library-import-hint" id="library-import-disabled-reason">
             {text.importDisabledDescription}
@@ -1597,6 +1671,7 @@ export function LibraryPanel({
           </div>
         ) : (
           <LibrarySongTable
+            multiSelect={multiSelect}
             sorting={sorting}
             rowNumberStart={isBuiltIn ? builtInPagination?.start || 1 : 1}
             playbackSongId={playbackSongId}

@@ -20,6 +20,7 @@ import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
+import { useMultiSelect } from "./hooks/useMultiSelect";
 import {
   getV1ToV2UpgradePreferenceReadiness,
   LibraryPanel,
@@ -404,6 +405,8 @@ function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [isLibrarySearchToolbarVisible, setIsLibrarySearchToolbarVisible] =
     useState(true);
+  const multiSelect = useMultiSelect();
+
   const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
     useState(false);
   const isAnyPlaybackActive =
@@ -797,6 +800,7 @@ function App() {
           items={scoreLibrary.pagedVisibleLibraryItems}
           sorting={scoreLibrary.sortingControls}
           locateScoreRequest={scoreLibrary.locateScoreRequest}
+          multiSelect={multiSelect}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={handleAddSongToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
@@ -818,6 +822,11 @@ function App() {
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
+          onDeleteLocalSongs={(songIds) => {
+            void scoreLibrary.handleDeleteLocalSongs(songIds);
+          }}
+          onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
+          onRemoveSongsFromPlaylist={scoreLibrary.handleRemoveSongsFromPlaylist}
           onResolveUpgradeSource={scoreLibrary.preloadSong}
           onUpgradeSourceLoadFailed={(item) =>
             scoreLibrary.reportUpgradeSourceLoadFailure(
@@ -1048,6 +1057,8 @@ function App() {
         open={isAppNoticeOpen}
         onOpenChange={setIsAppNoticeOpen}
       />
+
+
 
       {isDraggingScoreFiles ? (
         <div
