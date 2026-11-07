@@ -31,6 +31,7 @@ describe("MultiSelectToolbar", () => {
         text={uiText["zh-CN"].library}
         visibleSongIds={[]}
         selectedPlaylistId={null}
+        isViewingPlaylist={false}
       />,
     );
     expect(html).toBe("");
@@ -44,6 +45,7 @@ describe("MultiSelectToolbar", () => {
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
+        isViewingPlaylist={false}
       />,
     );
     expect(html).toContain("已选 2 首");
@@ -68,6 +70,7 @@ describe("MultiSelectToolbar", () => {
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
+        isViewingPlaylist={false}
       />,
     );
     expect(html).toContain("我的本地组");
@@ -82,9 +85,50 @@ describe("MultiSelectToolbar", () => {
         text={uiText["en-US"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
+        isViewingPlaylist={false}
       />,
     );
     expect(html).toContain("2 selected");
     expect(html).toContain("Delete selected");
+  });
+
+  const playlistFixture = [
+    {
+      id: "p1",
+      name: "我的本地组",
+      songIds: [],
+      createdAt: 0,
+      updatedAt: 0,
+    },
+  ];
+
+  it("不在歌单分类时不显示「从歌单移除」（即使选中过歌单）", () => {
+    const html = renderToStaticMarkup(
+      <MultiSelectToolbar
+        multiSelect={multiSelectState()}
+        playlists={playlistFixture}
+        text={uiText["zh-CN"].library}
+        visibleSongIds={["a", "b"]}
+        selectedPlaylistId="p1"
+        isViewingPlaylist={false}
+      />,
+    );
+    expect(html).not.toContain("从歌单移除");
+    // 加入歌单仍然可用
+    expect(html).toContain("加入歌单");
+  });
+
+  it("在歌单分类时显示「从歌单移除」", () => {
+    const html = renderToStaticMarkup(
+      <MultiSelectToolbar
+        multiSelect={multiSelectState()}
+        playlists={playlistFixture}
+        text={uiText["zh-CN"].library}
+        visibleSongIds={["a", "b"]}
+        selectedPlaylistId="p1"
+        isViewingPlaylist
+      />,
+    );
+    expect(html).toContain("从歌单移除");
   });
 });

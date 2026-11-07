@@ -493,6 +493,30 @@ export function usePlaybackCoordinator({
     );
   }
 
+  async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
+    const removedSongIds = Array.from(new Set(songIds));
+
+    for (const songId of removedSongIds) {
+      const songIndex = scoreLibrary.librarySongsRef.current.findIndex(
+        (librarySong) => librarySong.id === songId,
+      );
+
+      if (songIndex < 0) {
+        continue;
+      }
+
+      if (scoreLibrary.librarySongsRef.current[songIndex].source !==
+        "local-import"
+      ) {
+        continue;
+      }
+
+      await handleDeleteLocalSong(songIndex, songId, {
+        stopPlaybackBeforeDelete: true,
+      });
+    }
+  }
+
   function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
     playbackOrder.setPlaybackContext(getPlaybackContextOptions(item));
   }
@@ -547,6 +571,7 @@ export function usePlaybackCoordinator({
     clearCurrentSelectionAfterRemoval,
     handleBottomPlayerPlay,
     handleDeleteLocalSong,
+    handleDeleteLocalSongs,
     handleNextPlayback,
     handlePlayLibraryItem,
     handlePlayAllPlaylist,

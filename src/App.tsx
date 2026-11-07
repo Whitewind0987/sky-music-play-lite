@@ -823,7 +823,7 @@ function App() {
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
           onDeleteLocalSongs={(songIds) => {
-            void scoreLibrary.handleDeleteLocalSongs(songIds);
+            void playbackCoordinator.handleDeleteLocalSongs(songIds);
           }}
           onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
           onRemoveSongsFromPlaylist={scoreLibrary.handleRemoveSongsFromPlaylist}

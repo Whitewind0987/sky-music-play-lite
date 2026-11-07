@@ -1619,6 +1619,7 @@ export function LibraryPanel({
           text={text}
           visibleSongIds={items.map((item) => item.librarySong.id)}
           selectedPlaylistId={selectedPlaylistId}
+          isViewingPlaylist={isPlaylists}
           onDeleteLocalSongs={onDeleteLocalSongs}
           onAddSongsToPlaylist={onAddSongsToPlaylist}
           onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
