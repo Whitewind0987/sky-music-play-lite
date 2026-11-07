@@ -240,6 +240,8 @@ export const uiText = {
       renamePlaylistConfirm: "保存",
       renamePlaylistNameLabel: "歌单名称",
       deletePlaylist: "删除歌单",
+      exportPlaylistToFolder: "导出歌单到文件夹",
+      archiveToFolders: "归档到文件夹",
       cancelDelete: "取消",
       confirmDelete: "删除",
       noPlaylists: "还没有歌单。",
@@ -263,6 +265,7 @@ export const uiText = {
       moveToLocalImports: "移至本地导入",
       exportLocalScore: "导出曲谱",
       exportingLocalScore: "正在导出…",
+      revealLocalScoreFile: "打开本地文件",
       upgradeToV2: {
         menuAction: "升级为 V2（保留原曲谱）",
         title: "升级为 V2",
@@ -581,6 +584,22 @@ export const uiText = {
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
       importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
       localScoreExported: "已导出“{fileName}”，可以直接发送给其他人。",
+      playlistExportedToFolder:
+        "已把 {count} 首曲谱导出到文件夹“{folderName}”。",
+      playlistExportedPartial:
+        "已导出 {count} 首到“{folderName}”；{failed} 首失败：{details}",
+      playlistExportFolderRemoved:
+        "已删除歌单“{folderName}”对应的导出文件夹及其乐谱。",
+      playlistExportFolderRemoveFailed:
+        "删除歌单“{folderName}”的导出文件夹失败：{error}",
+      playlistExportFolderSkippedReserved:
+        "歌单“{folderName}”与分类文件夹同名，已保留该分类文件夹不删除。",
+      playlistArchiveFolderRenameFailed:
+        "重命名歌单的归档文件夹失败（“{oldName}” → “{newName}”）：{error}",
+      archiveCompleted: "已归档 {count} 首曲谱到 {path}。",
+      archiveCompletedWithSkips: "有 {failed} 首未能归档：{details}",
+      archiveFailed: "归档曲谱失败：{error}",
+      archiveNothingToWrite: "没有可归档的曲谱。",
       localScoreExportFailed: "导出曲谱“{songName}”失败：{error}",
       exportedScoreFolderOpenFailed:
         "曲谱已导出，但无法打开导出目录。文件位置：{path}；错误：{error}",
@@ -632,6 +651,10 @@ export const uiText = {
       scoreUpgradeFailed: "创建 V2 曲谱失败：{error}",
       localScoreDeleteFailed:
         "删除本地曲谱文件失败：{songName}；{error}",
+      revealLocalScoreFileFailed:
+        "定位本地曲谱文件失败：{songName}；{error}",
+      playlistCopyFailed:
+        "加入歌单失败（无法创建歌单副本）：{songName}；{error}",
       localScoreLoadFailed:
         "读取本地曲谱文件失败：{songName} ({songId})；{error}",
       localScoreRecoveryFallbackUsed:
@@ -1091,6 +1114,8 @@ export const uiText = {
       renamePlaylistConfirm: "Save",
       renamePlaylistNameLabel: "Playlist name",
       deletePlaylist: "Delete Playlist",
+      exportPlaylistToFolder: "Export Playlist to Folder",
+      archiveToFolders: "Archive to Folders",
       cancelDelete: "Cancel",
       confirmDelete: "Delete",
       noPlaylists: "No playlists yet.",
@@ -1115,6 +1140,7 @@ export const uiText = {
       moveToLocalImports: "Move to Local Imports",
       exportLocalScore: "Export Score",
       exportingLocalScore: "Exporting…",
+      revealLocalScoreFile: "Open Local File",
       upgradeToV2: {
         menuAction: "Upgrade to V2 (keep original score)",
         title: "Upgrade to V2",
@@ -1458,6 +1484,22 @@ export const uiText = {
         "Imported {count} score(s) from {fileCount} file(s).",
       localScoreExported:
         "Exported “{fileName}”. You can share this file directly.",
+      playlistExportedToFolder:
+        "Exported {count} score(s) into the folder “{folderName}”.",
+      playlistExportedPartial:
+        "Exported {count} into “{folderName}”; {failed} failed: {details}",
+      playlistExportFolderRemoved:
+        "Deleted the export folder and its scores for “{folderName}”.",
+      playlistExportFolderRemoveFailed:
+        "Failed to delete the export folder for “{folderName}”: {error}",
+      playlistExportFolderSkippedReserved:
+        "The playlist “{folderName}” shares a name with a category folder; that category folder was kept.",
+      playlistArchiveFolderRenameFailed:
+        "Failed to rename the archive folder (“{oldName}” → “{newName}”): {error}",
+      archiveCompleted: "Archived {count} score(s) to {path}.",
+      archiveCompletedWithSkips: "{failed} score(s) could not be archived: {details}",
+      archiveFailed: "Failed to archive scores: {error}",
+      archiveNothingToWrite: "There are no scores to archive.",
       localScoreExportFailed: "Failed to export “{songName}”: {error}",
       exportedScoreFolderOpenFailed:
         "The score was exported, but the export folder could not be opened. File: {path}; error: {error}",
@@ -1513,6 +1555,10 @@ export const uiText = {
       scoreUpgradeFailed: "Failed to create V2 score: {error}",
       localScoreDeleteFailed:
         "Failed to delete local score file for {songName}: {error}",
+      revealLocalScoreFileFailed:
+        "Failed to reveal the local score file for {songName}: {error}",
+      playlistCopyFailed:
+        "Failed to add to playlist (could not create the playlist copy) for {songName}: {error}",
       localScoreLoadFailed:
         "Failed to load local score file for {songName} ({songId}): {error}",
       localScoreRecoveryFallbackUsed:

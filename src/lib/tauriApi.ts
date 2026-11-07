@@ -215,6 +215,13 @@ export type ExportedScoreFile = {
   path: string;
 };
 
+export type PlaylistExportReport = {
+  exportedFiles: ExportedScoreFile[];
+  failures: string[];
+  folderName: string;
+  folderPath: string;
+};
+
 export function setWebviewZoom(scaleFactor: number): Promise<void> {
   return getCurrentWebview().setZoom(scaleFactor);
 }
@@ -305,6 +312,12 @@ export function openImportedScoresDirectory(): Promise<void> {
   return invoke<void>("open_imported_scores_directory");
 }
 
+export function revealImportedScoreFile(
+  songId: LibrarySongId,
+): Promise<string> {
+  return invoke<string>("reveal_imported_score_file", { songId });
+}
+
 export function exportImportedScoreSong(
   songId: LibrarySongId,
 ): Promise<ExportedScoreFile> {
@@ -313,6 +326,84 @@ export function exportImportedScoreSong(
 
 export function openExportedScoresDirectory(): Promise<void> {
   return invoke<void>("open_exported_scores_directory");
+}
+
+export function exportPlaylistScoresToFolder(
+  playlistName: string,
+  songIds: LibrarySongId[],
+): Promise<PlaylistExportReport> {
+  return invoke<PlaylistExportReport>("export_playlist_scores_to_folder", {
+    playlistName,
+    songIds,
+  });
+}
+
+export function deletePlaylistExportFolder(
+  playlistName: string,
+): Promise<boolean> {
+  return invoke<boolean>("delete_playlist_export_folder", { playlistName });
+}
+
+export type ArchiveScoreEntry = {
+  folder: string;
+  song: Song;
+  songId: LibrarySongId;
+  title: string;
+};
+
+export type ArchivedScoreFile = {
+  folder: string;
+  path: string;
+  title: string;
+};
+
+export type ArchiveReport = {
+  failures: string[];
+  rootPath: string;
+  writtenFiles: ArchivedScoreFile[];
+};
+
+export function archiveScoresIntoFolders(
+  entries: ArchiveScoreEntry[],
+  emptyFolders: string[] = [],
+): Promise<ArchiveReport> {
+  return invoke<ArchiveReport>("archive_scores_into_folders", {
+    emptyFolders,
+    entries,
+  });
+}
+
+/**
+ * 全量同步镜像：先清空归档根目录，再按当前歌单/分类重建。
+ * 用于「本地文件夹自动镜像软件内歌单」。
+ */
+export function syncScoreMirrorToDisk(
+  entries: ArchiveScoreEntry[],
+  emptyFolders: string[] = [],
+): Promise<ArchiveReport> {
+  return invoke<ArchiveReport>("sync_score_mirror", {
+    entries,
+    emptyFolders,
+  });
+}
+
+export function clearScoreArchiveDirectory(): Promise<number> {
+  return invoke<number>("clear_score_archive_directory");
+}
+
+export function deleteArchiveFolder(folderName: string): Promise<boolean> {
+  return invoke<boolean>("delete_archive_folder", { folderName });
+}
+
+export function openScoreArchiveDirectory(): Promise<void> {
+  return invoke<void>("open_score_archive_directory");
+}
+
+export function renameArchiveFolder(
+  oldName: string,
+  newName: string,
+): Promise<boolean> {
+  return invoke<boolean>("rename_archive_folder", { oldName, newName });
 }
 
 export function listCandidateWindows(): Promise<CandidateWindow[]> {

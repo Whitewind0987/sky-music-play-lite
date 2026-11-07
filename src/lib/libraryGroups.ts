@@ -5,6 +5,10 @@ import type { LibraryCategoryId } from "../components/AppShell";
 import type { LibrarySong, LibrarySongId, LibrarySongListItem, LocalLibraryGroup, LocalLibrarySong, UserPlaylist } from "../types/library";
 import { getLibrarySongFormatVersion } from "./libraryCollections";
 
+export function isPlaylistCopySong(song: LibrarySong) {
+  return song.source === "local-import" && song.libraryGroup === "playlist-copy";
+}
+
 export function getLibrarySongCategory(song: LibrarySong) {
   if (song.source === "built-in") return "built-in";
   return song.libraryGroup === "converted" ? "converted" : "local-imports";
@@ -21,7 +25,13 @@ export function getLibraryCategoryItems(
       return item ? [item] : [];
     });
   }
-  return items.filter(item => getLibrarySongCategory(item.librarySong) === category);
+  // Playlist copies are private to their playlist; never list them as
+  // browsable library entries so the original delete can't cascade into them.
+  return items.filter(
+    item =>
+      !isPlaylistCopySong(item.librarySong) &&
+      getLibrarySongCategory(item.librarySong) === category,
+  );
 }
 
 export function getLocalLibraryMoveTarget(song: LibrarySong): LocalLibraryGroup | null {

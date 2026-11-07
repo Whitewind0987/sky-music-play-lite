@@ -94,6 +94,9 @@ type LibraryPanelProps = {
   onCreatePlaylistRequest: () => void;
   onDeleteLocalSong: (songIndex: number) => void;
   onExportLocalSong: (songId: LibrarySongId) => void;
+  onRevealLocalSongFile: (songId: LibrarySongId) => void;
+  onExportPlaylistToFolder: (playlistId: string) => void;
+  onArchiveLibraryToFolders: () => void;
   onMoveLocalSong: (songId: LibrarySongId, group: LocalLibraryGroup) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
@@ -517,6 +520,7 @@ function LibraryImportArea({
 
 function PlaylistHeader({
   onDeletePlaylist,
+  onExportPlaylistToFolder,
   onPlayAll,
   onRenamePlaylist,
   selectedPlaylist,
@@ -526,6 +530,7 @@ function PlaylistHeader({
 }: Pick<
   LibraryPanelProps,
   | "onDeletePlaylist"
+  | "onExportPlaylistToFolder"
   | "onRenamePlaylist"
   | "selectedPlaylist"
   | "selectedPlaylistId"
@@ -585,6 +590,17 @@ function PlaylistHeader({
                 sideOffset={6}
                 collisionPadding={8}
               >
+                <DropdownMenu.Item asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      onExportPlaylistToFolder(selectedPlaylist.id);
+                    }}
+                  >
+                    {text.exportPlaylistToFolder}
+                  </button>
+                </DropdownMenu.Item>
                 <DropdownMenu.Item asChild>
                   <button
                     className="is-danger"
@@ -699,6 +715,7 @@ function LibraryActionMenu({
   onClose,
   onDeleteLocalSong,
   onExportLocalSong,
+  onRevealLocalSongFile,
   onMoveLocalSong,
   onOpenCollectDialog,
   onPlaySong,
@@ -718,6 +735,7 @@ function LibraryActionMenu({
   | "onAddToQueue"
   | "onDeleteLocalSong"
   | "onExportLocalSong"
+  | "onRevealLocalSongFile"
   | "onMoveLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
@@ -856,22 +874,34 @@ function LibraryActionMenu({
         </DropdownMenu.Item>
       ) : null}
       {item.librarySong.source === "local-import" ? (
-        <DropdownMenu.Item
-          asChild
-          disabled={isLocalSongExporting(item.librarySong.id)}
-          onSelect={(event) =>
-            runAction(event, () => onExportLocalSong(item.librarySong.id))
-          }
-        >
-          <button
+        <>
+          <DropdownMenu.Item
+            asChild
             disabled={isLocalSongExporting(item.librarySong.id)}
-            type="button"
+            onSelect={(event) =>
+              runAction(event, () => onExportLocalSong(item.librarySong.id))
+            }
           >
-            {isLocalSongExporting(item.librarySong.id)
-              ? text.exportingLocalScore
-              : text.exportLocalScore}
-          </button>
-        </DropdownMenu.Item>
+            <button
+              disabled={isLocalSongExporting(item.librarySong.id)}
+              type="button"
+            >
+              {isLocalSongExporting(item.librarySong.id)
+                ? text.exportingLocalScore
+                : text.exportLocalScore}
+            </button>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            asChild
+            onSelect={(event) =>
+              runAction(event, () =>
+                onRevealLocalSongFile(item.librarySong.id),
+              )
+            }
+          >
+            <button type="button">{text.revealLocalScoreFile}</button>
+          </DropdownMenu.Item>
+        </>
       ) : null}
       {moveGroup !== null ? (
         <DropdownMenu.Item
@@ -914,6 +944,7 @@ function LibrarySongTable({
   onCloseActionMenu,
   onDeleteLocalSong,
   onExportLocalSong,
+  onRevealLocalSongFile,
   onMoveLocalSong,
   onOpenActionMenu,
   onOpenCollectDialog,
@@ -947,6 +978,7 @@ function LibrarySongTable({
   | "onAddToQueue"
   | "onDeleteLocalSong"
   | "onExportLocalSong"
+  | "onRevealLocalSongFile"
   | "onMoveLocalSong"
   | "onPlaySong"
   | "onPlaySongNext"
@@ -1313,6 +1345,7 @@ function LibrarySongTable({
                           onClose={onCloseActionMenu}
                           onDeleteLocalSong={onDeleteLocalSong}
                           onExportLocalSong={onExportLocalSong}
+                          onRevealLocalSongFile={onRevealLocalSongFile}
                           onMoveLocalSong={onMoveLocalSong}
                           onOpenCollectDialog={onOpenCollectDialog}
                           onPlaySong={onPlaySong}
@@ -1397,6 +1430,9 @@ export function LibraryPanel({
   onCreatePlaylistRequest,
   onDeleteLocalSong,
   onExportLocalSong,
+  onRevealLocalSongFile,
+  onExportPlaylistToFolder,
+  onArchiveLibraryToFolders,
   onMoveLocalSong,
   onDeletePlaylist,
   onImportFiles,
@@ -1595,6 +1631,14 @@ export function LibraryPanel({
               {multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
             </button>
             <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
+            <button
+              type="button"
+              className="library-archive-button"
+              title={text.archiveToFolders}
+              onClick={onArchiveLibraryToFolders}
+            >
+              {text.archiveToFolders}
+            </button>
             {isLocalImports ? (
               <LibraryImportArea
                 importDisabled={importDisabled}
@@ -1619,6 +1663,7 @@ export function LibraryPanel({
           text={text}
           visibleSongIds={items.map((item) => item.librarySong.id)}
           selectedPlaylistId={selectedPlaylistId}
+          isViewingPlaylist={isPlaylists}
           onDeleteLocalSongs={onDeleteLocalSongs}
           onAddSongsToPlaylist={onAddSongsToPlaylist}
           onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
@@ -1636,6 +1681,7 @@ export function LibraryPanel({
         {isPlaylists && selectedPlaylist ? (
           <PlaylistHeader
             onDeletePlaylist={onDeletePlaylist}
+            onExportPlaylistToFolder={onExportPlaylistToFolder}
             onPlayAll={onPlayAll}
             onRenamePlaylist={onRenamePlaylist}
             selectedPlaylist={selectedPlaylist}
@@ -1689,6 +1735,7 @@ export function LibraryPanel({
             onCloseActionMenu={() => setOpenActionMenuSongId(null)}
             onDeleteLocalSong={onDeleteLocalSong}
             onExportLocalSong={onExportLocalSong}
+            onRevealLocalSongFile={onRevealLocalSongFile}
             onMoveLocalSong={onMoveLocalSong}
             onOpenActionMenu={(songId) => setOpenActionMenuSongId(songId)}
             onOpenCollectDialog={(item) => {

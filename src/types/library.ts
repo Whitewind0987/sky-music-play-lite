@@ -6,7 +6,7 @@ import type { Song } from "./score";
 
 export type LibrarySongId = string;
 export type LibrarySongSource = "built-in" | "local-import";
-export type LocalLibraryGroup = "imported" | "converted";
+export type LocalLibraryGroup = "imported" | "converted" | "playlist-copy";
 
 export type LocalSongMetadata = {
   bitsPerPage: number;
