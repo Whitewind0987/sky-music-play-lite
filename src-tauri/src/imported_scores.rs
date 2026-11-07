@@ -12,6 +12,7 @@ use tauri_plugin_opener::OpenerExt;
 
 const IMPORTED_SCORES_DIR_NAME: &str = "imported-scores";
 const EXPORTED_SCORES_DIR_NAME: &str = "exported-scores";
+const SCORE_ARCHIVE_DIR_NAME: &str = "曲谱分类";
 const CANONICAL_IMPORTED_SCORE_FILE_EXTENSION: &str = "txt";
 const CANONICAL_FILE_NAME_SEPARATOR: &str = "__";
 const FALLBACK_SCORE_TITLE_SEGMENT: &str = "untitled-score";
@@ -34,6 +35,40 @@ pub struct ImportedScoreFileMetadata {
 pub struct ExportedScoreFile {
     pub file_name: String,
     pub path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistExportReport {
+    pub exported_files: Vec<ExportedScoreFile>,
+    pub failures: Vec<String>,
+    pub folder_name: String,
+    pub folder_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveScoreEntry {
+    pub folder: String,
+    pub song: Value,
+    pub song_id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchivedScoreFile {
+    pub folder: String,
+    pub path: String,
+    pub title: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveReport {
+    pub failures: Vec<String>,
+    pub root_path: String,
+    pub written_files: Vec<ArchivedScoreFile>,
 }
 
 #[derive(Deserialize)]
@@ -162,6 +197,569 @@ pub fn ensure_imported_scores_directory() -> Result<String, String> {
     ensure_imported_scores_directory_at(&directory)?;
 
     Ok(display_path(&directory))
+}
+
+#[tauri::command]
+pub fn export_playlist_scores_to_folder(
+    playlist_name: String,
+    song_ids: Vec<String>,
+) -> Result<PlaylistExportReport, String> {
+    let imported_directory = current_exe_imported_scores_directory()?;
+    let exported_root = current_exe_exported_scores_directory()?;
+
+    ensure_exported_scores_directory_at(&exported_root)?;
+
+    let folder_name = sanitize_exported_score_title(&playlist_name);
+    let playlist_directory = ensure_unique_playlist_folder(&exported_root, &folder_name)?;
+
+    let mut exported = Vec::new();
+    let mut failures = Vec::new();
+
+    for song_id in song_ids {
+        match export_imported_score_song_at(&imported_directory, &playlist_directory, &song_id) {
+            Ok(file) => exported.push(file),
+            Err(error) => failures.push(format!("{}: {}", song_id, error)),
+        }
+    }
+
+    Ok(PlaylistExportReport {
+        exported_files: exported,
+        failures,
+        folder_path: display_path(&playlist_directory),
+        folder_name,
+    })
+}
+
+/// 按「分类/歌单 → 文件夹」归档曲谱：把传入的曲谱内容写成实体文件。
+/// 每个条目携带 songId、显示名和完整曲谱 JSON，无论来源是内置还是本地导入，
+/// 都重新落一份自己的文件，实现「歌单文件夹内自带独立乐谱」。
+/// `empty_folders` 用于**没有曲谱的歌单**：照样建出对应文件夹，保持歌单与文件夹一一对应。
+#[tauri::command]
+pub fn archive_scores_into_folders(
+    empty_folders: Vec<String>,
+    entries: Vec<ArchiveScoreEntry>,
+) -> Result<ArchiveReport, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    ensure_archive_root_directory(&root)?;
+
+    let mut written = Vec::new();
+    let mut failures = Vec::new();
+
+    // 先建出空歌单对应的文件夹（不写文件，只建目录）
+    for folder in &empty_folders {
+        let folder_segment = sanitize_exported_score_title(folder);
+        let directory = root.join(&folder_segment);
+
+        if let Err(error) = ensure_exported_scores_directory_at(&directory) {
+            failures.push(format!("{}/（空文件夹）: {}", folder, error));
+        }
+    }
+
+    for entry in entries {
+        match write_archive_score_file(&root, &entry) {
+            Ok(path) => {
+                written.push(ArchivedScoreFile {
+                    folder: entry.folder,
+                    path: display_path(&path),
+                    title: entry.title,
+                });
+            }
+            Err(error) => failures.push(format!(
+                "{}/{} ({}): {}",
+                entry.folder, entry.title, entry.song_id, error
+            )),
+        }
+    }
+
+    Ok(ArchiveReport {
+        failures,
+        root_path: display_path(&root),
+        written_files: written,
+    })
+}
+
+/// 重命名后的歌单：把旧的分类归档文件夹改名为新名字，保持「歌单 ↔ 文件夹」一致。
+#[tauri::command]
+pub fn rename_archive_folder(
+    old_name: String,
+    new_name: String,
+) -> Result<bool, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    if !root.is_dir() {
+        return Ok(false);
+    }
+
+    let old_segment = sanitize_exported_score_title(&old_name);
+    let new_segment = sanitize_exported_score_title(&new_name);
+
+    if old_segment == new_segment {
+        return Ok(false);
+    }
+
+    let source = root.join(&old_segment);
+    let target = root.join(&new_segment);
+
+    if !path_exists_without_following(&source)? || !source.is_dir() {
+        return Ok(false);
+    }
+
+    let canonical_root = fs::canonicalize(&root).map_err(|error| {
+        format!(
+            "Failed to resolve score archive root {}: {}",
+            root.display(),
+            error
+        )
+    })?;
+    let canonical_source = fs::canonicalize(&source).map_err(|error| {
+        format!(
+            "Failed to resolve archive folder {}: {}",
+            source.display(),
+            error
+        )
+    })?;
+
+    if canonical_source.parent() != Some(canonical_root.as_path()) {
+        return Err(format!(
+            "Refusing to rename non-child path outside score archive root: {}",
+            source.display()
+        ));
+    }
+
+    // 目标已存在则不覆盖，避免把别的歌单文件夹挤掉。
+    if path_exists_without_following(&target)? {
+        return Err(format!(
+            "Cannot rename archive folder because target already exists: {}",
+            target.display()
+        ));
+    }
+
+    fs::rename(&canonical_source, &target).map_err(|error| {
+        format!(
+            "Failed to rename archive folder from {} to {}: {}",
+            canonical_source.display(),
+            target.display(),
+            error
+        )
+    })?;
+
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn open_score_archive_directory(app: AppHandle) -> Result<(), String> {
+    let root = current_exe_score_archive_directory()?;
+
+    ensure_archive_root_directory(&root)?;
+    app.opener()
+        .open_path(display_path(&root), None::<String>)
+        .map_err(|error| {
+            format!(
+                "Failed to open score archive directory at {}: {}",
+                root.display(),
+                error
+            )
+        })
+}
+
+/// 清空整个归档根目录，供「重新归档」使用。
+#[tauri::command]
+pub fn clear_score_archive_directory() -> Result<usize, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    if !root.is_dir() {
+        return Ok(0);
+    }
+
+    let mut removed = 0_usize;
+
+    for entry in fs::read_dir(&root).map_err(|error| {
+        format!(
+            "Failed to read score archive directory {}: {}",
+            root.display(),
+            error
+        )
+    })? {
+        let entry = entry.map_err(|error| {
+            format!(
+                "Failed to inspect score archive entry under {}: {}",
+                root.display(),
+                error
+            )
+        })?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            fs::remove_dir_all(&path).map_err(|error| {
+                format!(
+                    "Failed to remove score archive folder {}: {}",
+                    path.display(),
+                    error
+                )
+            })?;
+            removed += 1;
+        }
+    }
+
+    Ok(removed)
+}
+
+fn write_archive_score_file(root: &Path, entry: &ArchiveScoreEntry) -> Result<PathBuf, String> {
+    let folder_segment = sanitize_exported_score_title(&entry.folder);
+    let title_segment = sanitize_exported_score_title(&entry.title);
+    let directory = root.join(&folder_segment);
+
+    ensure_exported_scores_directory_at(&directory)?;
+
+    let file_path = directory.join(format!("{}.txt", title_segment));
+
+    // 同名曲谱（如同一首歌的多个版本）追加序号，避免互相覆盖。
+    let mut target = file_path.clone();
+    for sequence in 1_u32.. {
+        if !path_exists_without_following(&target)? {
+            break;
+        }
+        target = directory.join(format!("{} ({}).txt", title_segment, sequence));
+    }
+
+    let content = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&Value::Array(vec![entry.song.clone()])).map_err(|error| {
+            format!("Failed to serialize archived score {}: {}", entry.song_id, error)
+        })?
+    );
+
+    fs::write(&target, content.as_bytes()).map_err(|error| {
+        format!(
+            "Failed to write archived score at {}: {}",
+            target.display(),
+            error
+        )
+    })?;
+
+    Ok(target)
+}
+
+fn ensure_archive_root_directory(root: &Path) -> Result<(), String> {
+    fs::create_dir_all(root).map_err(|error| {
+        format!(
+            "Failed to create score archive directory at {}: {}",
+            root.display(),
+            error
+        )
+    })
+}
+
+fn current_exe_score_archive_directory() -> Result<PathBuf, String> {
+    current_exe_score_directory(SCORE_ARCHIVE_DIR_NAME)
+}
+
+/// 删除某个歌单/分类对应的归档文件夹。
+#[tauri::command]
+pub fn delete_archive_folder(folder_name: String) -> Result<bool, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    if !root.is_dir() {
+        return Ok(false);
+    }
+
+    let folder_segment = sanitize_exported_score_title(&folder_name);
+    let candidate = root.join(&folder_segment);
+
+    if !path_exists_without_following(&candidate)? || !candidate.is_dir() {
+        return Ok(false);
+    }
+
+    let canonical_root = fs::canonicalize(&root).map_err(|error| {
+        format!(
+            "Failed to resolve score archive root {}: {}",
+            root.display(),
+            error
+        )
+    })?;
+    let canonical_candidate = fs::canonicalize(&candidate).map_err(|error| {
+        format!(
+            "Failed to resolve archive folder {}: {}",
+            candidate.display(),
+            error
+        )
+    })?;
+
+    if canonical_candidate.parent() != Some(canonical_root.as_path()) {
+        return Err(format!(
+            "Refusing to delete non-child path outside score archive root: {}",
+            candidate.display()
+        ));
+    }
+
+    fs::remove_dir_all(&canonical_candidate).map_err(|error| {
+        format!(
+            "Failed to delete archive folder at {}: {}",
+            canonical_candidate.display(),
+            error
+        )
+    })?;
+
+    Ok(true)
+}
+
+/// 全量同步镜像：先清空归档根目录，再按当前歌单/分类重建。
+/// 这是「本地文件夹自动镜像软件内歌单」的实现——每次同步后，
+/// 文件夹内容与软件内的歌单结构严格一致，不会残留、不会重复堆积。
+#[tauri::command]
+pub fn sync_score_mirror(
+    empty_folders: Vec<String>,
+    entries: Vec<ArchiveScoreEntry>,
+) -> Result<ArchiveReport, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    ensure_archive_root_directory(&root)?;
+
+    let mut failures = Vec::new();
+
+    // 1) 清空旧的镜像目录（只删根目录下的子目录，不碰根目录本身）
+    if let Ok(canonical_root) = fs::canonicalize(&root) {
+        if let Ok(read_dir) = fs::read_dir(&canonical_root) {
+            for entry in read_dir.flatten() {
+                let path = entry.path();
+                if !path.is_dir() {
+                    continue;
+                }
+                if let Ok(canonical_child) = fs::canonicalize(&path) {
+                    if canonical_child.parent() == Some(canonical_root.as_path()) {
+                        if let Err(error) = fs::remove_dir_all(&canonical_child) {
+                            failures.push(format!(
+                                "清理旧目录 {} 失败: {}",
+                                canonical_child.display(),
+                                error
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2) 先建出空歌单/空分类对应的文件夹（只建目录，不写文件）
+    for folder in &empty_folders {
+        let folder_segment = sanitize_exported_score_title(folder);
+        let directory = root.join(&folder_segment);
+
+        if let Err(error) = ensure_exported_scores_directory_at(&directory) {
+            failures.push(format!("{}/（空文件夹）: {}", folder, error));
+        }
+    }
+
+    // 3) 按传入条目重建：entries 里的 folder 就是目标目录名
+    //    去重规则：同一个文件夹内，同一首曲谱只写一份；
+    //    不同歌单文件夹之间，同一首歌各自拥有独立文件（这是允许的）。
+    let mut written = Vec::new();
+    let mut written_keys = std::collections::BTreeSet::new();
+
+    for entry in entries {
+        let dedupe_key = format!("{}\u{1}{}", entry.folder, entry.song_id);
+
+        if !written_keys.insert(dedupe_key) {
+            continue;  // 同一文件夹内重复的曲谱，跳过
+        }
+
+        match write_archive_score_file_overwrite(&root, &entry) {
+            Ok(path) => written.push(ArchivedScoreFile {
+                folder: entry.folder,
+                path: display_path(&path),
+                title: entry.title,
+            }),
+            Err(error) => failures.push(format!(
+                "{}/{} ({}): {}",
+                entry.folder, entry.title, entry.song_id, error
+            )),
+        }
+    }
+
+    Ok(ArchiveReport {
+        failures,
+        root_path: display_path(&root),
+        written_files: written,
+    })
+}
+
+/// 写入归档文件，**同名直接覆盖**（用于镜像同步，避免重复堆积）。
+/// 调用方已保证同一文件夹内同一曲谱只调用一次，所以这里直接覆盖即可。
+fn write_archive_score_file_overwrite(
+    root: &Path,
+    entry: &ArchiveScoreEntry,
+) -> Result<PathBuf, String> {
+    let folder_segment = sanitize_exported_score_title(&entry.folder);
+    let title_segment = sanitize_exported_score_title(&entry.title);
+    let directory = root.join(&folder_segment);
+
+    ensure_exported_scores_directory_at(&directory)?;
+
+    let file_path = directory.join(format!("{}.txt", title_segment));
+
+    let content = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&Value::Array(vec![entry.song.clone()])).map_err(|error| {
+            format!("Failed to serialize archived score {}: {}", entry.song_id, error)
+        })?
+    );
+
+    fs::write(&file_path, content.as_bytes()).map_err(|error| {
+        format!(
+            "Failed to write archived score at {}: {}",
+            file_path.display(),
+            error
+        )
+    })?;
+
+    Ok(file_path)
+}
+
+/// 删除歌单对应的导出文件夹（含其中所有乐谱）。
+/// 只允许删除 exported-scores 根目录下的直接子目录，杜绝路径穿越。
+#[tauri::command]
+pub fn delete_playlist_export_folder(playlist_name: String) -> Result<bool, String> {
+    let exported_root = current_exe_exported_scores_directory()?;
+
+    if !exported_root.is_dir() {
+        return Ok(false);
+    }
+
+    let folder_name = sanitize_exported_score_title(&playlist_name);
+    let canonical_root = fs::canonicalize(&exported_root).map_err(|error| {
+        format!(
+            "Failed to resolve exported scores root {}: {}",
+            exported_root.display(),
+            error
+        )
+    })?;
+
+    let mut removed_any = false;
+
+    // 主文件夹，以及历史上因重名追加过序号的 "名字 (1)"、"名字 (2)"……
+    let mut candidates = vec![exported_root.join(&folder_name)];
+    for sequence in 1_u32..100 {
+        candidates.push(exported_root.join(format!("{} ({})", folder_name, sequence)));
+    }
+
+    for candidate in candidates {
+        if !path_exists_without_following(&candidate)? {
+            continue;
+        }
+
+        let canonical_candidate = fs::canonicalize(&candidate).map_err(|error| {
+            format!(
+                "Failed to resolve playlist export folder {}: {}",
+                candidate.display(),
+                error
+            )
+        })?;
+
+        // 只删根目录的直接子目录，防止路径穿越或误删。
+        if canonical_candidate.parent() != Some(canonical_root.as_path()) {
+            continue;
+        }
+
+        if !canonical_candidate.is_dir() {
+            continue;
+        }
+
+        fs::remove_dir_all(&canonical_candidate).map_err(|error| {
+            format!(
+                "Failed to delete playlist export folder at {}: {}",
+                canonical_candidate.display(),
+                error
+            )
+        })?;
+        removed_any = true;
+    }
+
+    Ok(removed_any)
+}
+
+/// 歌单文件夹命名：固定使用歌单名，保证「歌单 ↔ 文件夹」一一对应，
+/// 重复导出时清理旧内容重新写入，删除歌单时据此定位。
+fn ensure_unique_playlist_folder(root: &Path, folder_name: &str) -> Result<PathBuf, String> {
+    let candidate = root.join(folder_name);
+
+    if path_exists_without_following(&candidate)? {
+        // 清空旧内容，避免重复导出残留已从歌单移除的曲谱。
+        let canonical_root = fs::canonicalize(root).map_err(|error| {
+            format!(
+                "Failed to resolve exported scores root {}: {}",
+                root.display(),
+                error
+            )
+        })?;
+        let canonical_candidate = fs::canonicalize(&candidate).map_err(|error| {
+            format!(
+                "Failed to resolve playlist export folder {}: {}",
+                candidate.display(),
+                error
+            )
+        })?;
+
+        if canonical_candidate.parent() != Some(canonical_root.as_path()) {
+            return Err(format!(
+                "Refusing to reuse non-child path outside exported scores root: {}",
+                candidate.display()
+            ));
+        }
+
+        fs::remove_dir_all(&canonical_candidate).map_err(|error| {
+            format!(
+                "Failed to clear existing playlist export folder at {}: {}",
+                canonical_candidate.display(),
+                error
+            )
+        })?;
+    }
+
+    ensure_exported_scores_directory_at(&candidate)?;
+
+    Ok(candidate)
+}
+
+#[tauri::command]
+pub fn reveal_imported_score_file(app: AppHandle, song_id: String) -> Result<String, String> {
+    let directory = current_exe_imported_scores_directory()?;
+    let file_path = resolve_imported_score_file_for_id(&directory, &song_id)?;
+
+    app.opener()
+        .reveal_item_in_dir(&file_path)
+        .map_err(|error| {
+            format!(
+                "Failed to reveal imported score file at {}: {}",
+                file_path.display(),
+                error
+            )
+        })?;
+
+    Ok(display_path(&file_path))
+}
+
+/// 定位某个曲谱 id 的真实文件路径：优先用已登记的受管文件，
+/// 找不到时按规范命名回退，便于资源管理器高亮选中。
+fn resolve_imported_score_file_for_id(directory: &Path, song_id: &str) -> Result<PathBuf, String> {
+    let files = managed_score_files_for_id(directory, song_id)?;
+
+    if let Some(file) = files.first() {
+        return Ok(file.path.clone());
+    }
+
+    let song = read_imported_score_song_at(directory, song_id)?;
+    let canonical_path = canonical_imported_score_file_path(directory, song_id, &song)?;
+
+    if canonical_path.exists() {
+        return Ok(canonical_path);
+    }
+
+    Err(format!(
+        "No imported score file found for ID {} in {}",
+        song_id,
+        directory.display()
+    ))
 }
 
 #[tauri::command]
