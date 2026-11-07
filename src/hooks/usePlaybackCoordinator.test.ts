@@ -85,6 +85,7 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     });
     const experimentalInput = {
       experimentalInputEnabled: false,
+      getActiveManualPlaybackSongId: () => null,
       getActiveForegroundPlaybackSongId: () => null,
       getActiveTargetWindowPlaybackSongId: () => null,
       manualPlaybackState: "idle",
@@ -100,6 +101,14 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     const scoreLibrary = {
       get currentPlaybackLibrarySong() {
         return playbackSongIndex === null ? null : librarySongs[playbackSongIndex];
+      },
+      handleDeleteLocalSong: async (
+        songIndex: number,
+        onDeleted: (index: number, id: string) => void,
+      ) => {
+        onDeleted(songIndex, librarySongs[songIndex].id);
+        librarySongs.splice(songIndex, 1);
+        return true;
       },
       isSongLoading: () => false,
       librarySongs,
@@ -120,6 +129,7 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     } as unknown as CoordinatorOptions["scoreLibrary"];
     const coordinator = usePlaybackCoordinator({
       appendLog, experimentalInput, playbackOrder, playbackOutput, playbackQueue, scoreLibrary, text,
+      getActivePreviewPlaybackSongId: previewPlayback.getActivePreviewPlaybackSongId,
     });
     return {
       appendLog,
@@ -746,4 +756,27 @@ describe("pending playback coordination", () => {
     expect(contextStore.getPendingContext()).toBeNull();
     expect(contextStore.commit(transactionC)).toBe(false);
   });
+});
+
+it("remaps the queue and context during batch deletion and only stops for the active score", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("window", globalThis);
+  try {
+    const app = createPreviewHarness([0, 1, 2, 3]);
+    await app.coordinator.handlePlayLibraryItem(app.visibleLibraryItems[1]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("B");
+
+    await app.coordinator.handleDeleteLocalSongs(["A", "C"]);
+    expect(app.queueIds()).toEqual(["B", "D"]);
+    expect(app.playbackOrder.activePlaybackContextRef.current?.songIds).toEqual(["B", "D"]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("B");
+
+    await app.coordinator.handleDeleteLocalSongs(["B"]);
+    expect(app.queueIds()).toEqual(["D"]);
+    expect(app.playbackOrder.activePlaybackContextRef.current).toBeNull();
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBeNull();
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

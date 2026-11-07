@@ -377,6 +377,7 @@ function App() {
   const playbackCoordinator = usePlaybackCoordinator({
     appendLog,
     experimentalInput,
+    getActivePreviewPlaybackSongId: previewPlayback.getActivePreviewPlaybackSongId,
     onManualNextDecision: (details) =>
       appFileLogger.appendDetailedLog({
         details,
@@ -389,18 +390,19 @@ function App() {
     scoreLibrary,
     text,
   });
+  const isLocalSongDeleteBlocked = shouldBlockLocalSongDeletion({
+    isBackgroundHandoffPending: experimentalInput.isBackgroundHandoffPending,
+    isForegroundStartPending: experimentalInput.isForegroundStartPending,
+    isImportedScoreReconciliationInProgress:
+      appPersistence.isImportedScoreReconciliationInProgress,
+  });
   const libraryDialogs = useLibraryDialogs({
     librarySongs: scoreLibrary.librarySongs,
     onDeleteLocalSong: playbackCoordinator.handleDeleteLocalSong,
     onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
     onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
     playlists: scoreLibrary.playlists,
-    isLocalSongDeleteBlocked: shouldBlockLocalSongDeletion({
-      isBackgroundHandoffPending: experimentalInput.isBackgroundHandoffPending,
-      isForegroundStartPending: experimentalInput.isForegroundStartPending,
-      isImportedScoreReconciliationInProgress:
-        appPersistence.isImportedScoreReconciliationInProgress,
-    }),
+    isLocalSongDeleteBlocked,
     selectedSongId: scoreLibrary.selectedSongId,
     text: text.library,
   });
@@ -821,9 +823,9 @@ function App() {
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
-          onDeleteLocalSongs={(songIds) => {
-            void scoreLibrary.handleDeleteLocalSongs(songIds);
-          }}
+          onDeleteLocalSongs={
+            isLocalSongDeleteBlocked ? undefined : playbackCoordinator.handleDeleteLocalSongs
+          }
           onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
           onRemoveSongsFromPlaylist={scoreLibrary.handleRemoveSongsFromPlaylist}
           onResolveUpgradeSource={scoreLibrary.preloadSong}

@@ -857,24 +857,22 @@ export function useScoreLibrary({
         migrationFallbackSongsRef.current = nextFallbackSongs;
         setMigrationFallbackSongs(nextFallbackSongs);
         const removedCollections = removeSongFromAllCollections({
-          likedSongs,
-          playlists,
+          likedSongs: likedSongsRef.current,
+          playlists: playlistsRef.current,
           songId: librarySong.id,
         });
+        likedSongsRef.current = removedCollections.likedSongs;
+        playlistsRef.current = removedCollections.playlists;
         setLikedSongs(removedCollections.likedSongs);
         setPlaylists(removedCollections.playlists);
-        setLocalLibrarySongs((currentSongs) => {
-          const nextSongs = currentSongs.filter(
-            (currentSong) => currentSong.id !== librarySong.id,
-          );
-
-          localLibrarySongsRef.current = nextSongs;
-          return nextSongs;
-        });
-        if (selectedSongId === librarySong.id) {
+        const keepSong = (song: LibrarySong) => song.id !== librarySong.id;
+        librarySongsRef.current = librarySongsRef.current.filter(keepSong);
+        localLibrarySongsRef.current = localLibrarySongsRef.current.filter(keepSong);
+        setLocalLibrarySongs(localLibrarySongsRef.current);
+        if (selectedSongIdRef.current === librarySong.id) {
           updateSelectedSongId(null);
         }
-        if (playbackSongId === librarySong.id) {
+        if (playbackSongIdRef.current === librarySong.id) {
           updatePlaybackSongId(null);
         }
       },
@@ -884,27 +882,6 @@ export function useScoreLibrary({
     });
   }
 
-
-  async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
-    const ids = Array.from(new Set(songIds));
-    if (ids.length === 0) {
-      return;
-    }
-
-    // 只有本地导入的曲谱可以被删除；内置曲谱随应用分发，不在此处处理。
-    for (const songId of ids) {
-      const songIndex = librarySongsRef.current.findIndex(
-        (librarySong) => librarySong.id === songId,
-      );
-      if (songIndex < 0) {
-        continue;
-      }
-      if (librarySongsRef.current[songIndex].source !== "local-import") {
-        continue;
-      }
-      await handleDeleteLocalSong(songIndex);
-    }
-  }
 
   function handleAddSongsToPlaylist(
     playlistId: string,
@@ -1512,7 +1489,6 @@ export function useScoreLibrary({
     applyScoreLibrary,
     currentSelectedSong,
     handleAddSongToPlaylist,
-    handleDeleteLocalSongs,
     handleAddSongsToPlaylist,
     handleRemoveSongsFromPlaylist,
     handleCreatePlaylist,

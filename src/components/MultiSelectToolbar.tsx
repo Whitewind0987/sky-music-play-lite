@@ -14,6 +14,8 @@ type MultiSelectToolbarProps = {
   text: UiText["library"];
   visibleSongIds: LibrarySongId[];
   selectedPlaylistId: string | null;
+  /** 「从歌单移除」只对“当前正打开某个歌单”有意义；切到其它分类时它不该出现。 */
+  isViewingPlaylist: boolean;
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => void;
   onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
@@ -25,6 +27,7 @@ export function MultiSelectToolbar({
   text,
   visibleSongIds,
   selectedPlaylistId,
+  isViewingPlaylist,
   onDeleteLocalSongs,
   onAddSongsToPlaylist,
   onRemoveSongsFromPlaylist,
@@ -52,7 +55,8 @@ export function MultiSelectToolbar({
   };
 
   const handleRemoveFromPlaylist = () => {
-    if (!selectedPlaylistId || count === 0) {
+    // 只有正打开某个歌单时才有“从哪个歌单移除”的语义。
+    if (!isViewingPlaylist || !selectedPlaylistId || count === 0) {
       return;
     }
     onRemoveSongsFromPlaylist?.(selectedPlaylistId, selectedIds);
@@ -87,7 +91,7 @@ export function MultiSelectToolbar({
         <button
           type="button"
           className="library-multi-select-action is-danger"
-          disabled={count === 0}
+          disabled={count === 0 || !onDeleteLocalSongs}
           onClick={handleDelete}
         >
           {text.multiSelectDeleteSelected}
@@ -115,7 +119,7 @@ export function MultiSelectToolbar({
                 </option>
               ))}
             </select>
-            {selectedPlaylistId ? (
+            {isViewingPlaylist && selectedPlaylistId ? (
               <button
                 type="button"
                 className="library-multi-select-action"
