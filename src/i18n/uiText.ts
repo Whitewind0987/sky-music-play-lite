@@ -632,6 +632,8 @@ export const uiText = {
       scoreUpgradeFailed: "创建 V2 曲谱失败：{error}",
       localScoreDeleteFailed:
         "删除本地曲谱文件失败：{songName}；{error}",
+      playlistCopyFailed:
+        "加入歌单失败（无法创建歌单副本）：{songName}；{error}",
       localScoreLoadFailed:
         "读取本地曲谱文件失败：{songName} ({songId})；{error}",
       localScoreRecoveryFallbackUsed:
@@ -1513,6 +1515,8 @@ export const uiText = {
       scoreUpgradeFailed: "Failed to create V2 score: {error}",
       localScoreDeleteFailed:
         "Failed to delete local score file for {songName}: {error}",
+      playlistCopyFailed:
+        "Failed to add to playlist (could not create the playlist copy) for {songName}: {error}",
       localScoreLoadFailed:
         "Failed to load local score file for {songName} ({songId}): {error}",
       localScoreRecoveryFallbackUsed:

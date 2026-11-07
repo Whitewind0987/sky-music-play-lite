@@ -654,7 +654,9 @@ function sanitizeV3Library(
         nextCandidates.push({
           id: rawLibrarySong.id,
           importedAt: sanitizeImportedAt(rawLibrarySong.importedAt),
-          ...(rawLibrarySong.libraryGroup === "converted" || rawLibrarySong.libraryGroup === "imported"
+          ...(rawLibrarySong.libraryGroup === "converted" ||
+          rawLibrarySong.libraryGroup === "imported" ||
+          rawLibrarySong.libraryGroup === "playlist-copy"
             ? { libraryGroup: rawLibrarySong.libraryGroup } : {}),
           rawMetadata: rawLibrarySong.metadata,
         });

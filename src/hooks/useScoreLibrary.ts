@@ -29,6 +29,7 @@ import {
 import {
   addSongToPlaylist,
   createPlaylist,
+  createPlaylistCopyOfLocalSong as createPlaylistCopyRecord,
   enrichLocalSongFormatVersion,
   filterSongsByQuery,
   getLibrarySongFormatVersion,
@@ -388,6 +389,7 @@ export function useScoreLibrary({
     playlistsRef.current = playlists;
   }, [playlists]);
 
+
   useEffect(() => {
     selectedSongIdRef.current = selectedSongId;
   }, [selectedSongId]);
@@ -584,6 +586,7 @@ export function useScoreLibrary({
     return exportingLocalSongIds.has(songId);
   }
 
+
   function handleSelectImportedSong(songIndex: number | null) {
     selectSongByIndex(songIndex);
 
@@ -717,17 +720,20 @@ export function useScoreLibrary({
       return;
     }
 
+    const trimmedName = nextName.trim() || playlist.name;
+
     setPlaylists((currentPlaylists) =>
       currentPlaylists.map((currentPlaylist) =>
         currentPlaylist.id === playlistId
           ? {
               ...currentPlaylist,
-              name: nextName.trim() || playlist.name,
+              name: trimmedName,
               updatedAt: Date.now(),
             }
           : currentPlaylist,
       ),
     );
+
   }
 
   function handleDeletePlaylist(playlistId: string) {
@@ -738,6 +744,12 @@ export function useScoreLibrary({
     if (!playlist) {
       return;
     }
+
+    // 删歌单时，歌单内私有副本若不再被其它歌单引用，一并清理。
+    cleanupPlaylistCopies(
+      playlist.songIds,
+      playlists.filter((currentPlaylist) => currentPlaylist.id !== playlistId),
+    );
 
     setPlaylists((currentPlaylists) => {
       const deletedPlaylistIndex = currentPlaylists.findIndex(
@@ -756,6 +768,40 @@ export function useScoreLibrary({
 
       return nextPlaylists;
     });
+  }
+
+  // 加入歌单即与源曲解耦：为本地导入曲谱复制一份独立的歌单私有副本
+  // （新 id + 独立曲谱文件）。删除原曲只影响原 id，歌单副本不受牵连。
+  async function createPlaylistCopyForRound(
+    librarySong: LibrarySong,
+  ): Promise<LibrarySongId> {
+    if (librarySong.source !== "local-import") {
+      return librarySong.id;
+    }
+    // 已就是歌单私有副本，直接复用，避免副本套娃。
+    if (librarySong.libraryGroup === "playlist-copy") {
+      return librarySong.id;
+    }
+
+    const copyRecord = createPlaylistCopyRecord(librarySong);
+    const sourceSong =
+      importedScoreSongLoaderRef.current.getCachedSong(librarySong.id) ??
+      (await readImportedScoreSong(librarySong.id));
+
+    await saveImportedScoreSongFile(copyRecord.id, sourceSong);
+    importedScoreSongLoaderRef.current.seed(copyRecord.id, sourceSong);
+
+    localLibrarySongsRef.current = [
+      ...localLibrarySongsRef.current,
+      copyRecord,
+    ];
+    librarySongsRef.current = [
+      ...librarySongsRef.current,
+      copyRecord,
+    ];
+    setLocalLibrarySongs(localLibrarySongsRef.current);
+
+    return copyRecord.id;
   }
 
   function handleAddSongToPlaylist(
@@ -781,13 +827,29 @@ export function useScoreLibrary({
       return { message, status: "duplicate" };
     }
 
-    setPlaylists((currentPlaylists) =>
-      currentPlaylists.map((currentPlaylist) =>
-        currentPlaylist.id === playlistId
-          ? addSongToPlaylist(currentPlaylist, librarySong.id)
-          : currentPlaylist,
-      ),
-    );
+    // 加入歌单即与源曲解耦：后台复制独立副本，再挂到歌单。
+    void (async () => {
+      let targetSongId = librarySong.id;
+      try {
+        targetSongId = await createPlaylistCopyForRound(librarySong);
+      } catch (error) {
+        const message = formatText(text.logs.playlistCopyFailed, {
+          error: String(error instanceof Error ? error.message : error),
+          songName: getLibrarySongName(librarySong),
+        });
+        appendLog(message);
+        showNotice?.(message);
+        return;
+      }
+
+      setPlaylists((currentPlaylists) =>
+        currentPlaylists.map((currentPlaylist) =>
+          currentPlaylist.id === playlistId
+            ? addSongToPlaylist(currentPlaylist, targetSongId)
+            : currentPlaylist,
+        ),
+      );
+    })();
 
     return { status: "added" };
   }
@@ -802,20 +864,43 @@ export function useScoreLibrary({
       return;
     }
 
-    const playlist = addSongToPlaylist(
-      createPlaylist(playlistName.trim() || text.library.defaultPlaylistName),
-      librarySong.id,
-    );
+    const trimmedName =
+      playlistName.trim() || text.library.defaultPlaylistName;
 
-    setPlaylists((currentPlaylists) => [...currentPlaylists, playlist]);
-    setSelectedPlaylistId(playlist.id);
-    setSelectedLibraryCategory("playlists");
+    void (async () => {
+      let targetSongId = librarySong.id;
+      try {
+        targetSongId = await createPlaylistCopyForRound(librarySong);
+      } catch (error) {
+        const message = formatText(text.logs.playlistCopyFailed, {
+          error: String(error instanceof Error ? error.message : error),
+          songName: getLibrarySongName(librarySong),
+        });
+        appendLog(message);
+        showNotice?.(message);
+        return;
+      }
+
+      const playlist = addSongToPlaylist(createPlaylist(trimmedName), targetSongId);
+
+      setPlaylists((currentPlaylists) => [...currentPlaylists, playlist]);
+      setSelectedPlaylistId(playlist.id);
+      setSelectedLibraryCategory("playlists");
+    })();
   }
 
   function handleRemoveSongFromPlaylist(
     playlistId: string,
     songId: LibrarySongId,
   ) {
+    const remainingPlaylists = playlistsRef.current.map((playlist) =>
+      playlist.id === playlistId
+        ? removeSongFromPlaylist(playlist, songId)
+        : playlist,
+    );
+
+    cleanupPlaylistCopies([songId], remainingPlaylists);
+
     setPlaylists((currentPlaylists) =>
       currentPlaylists.map((playlist) =>
         playlist.id === playlistId
@@ -823,6 +908,46 @@ export function useScoreLibrary({
           : playlist,
       ),
     );
+  }
+
+  // 移除/删除歌单后，把不再被任何歌单引用的歌单私有副本清理掉（文件 + 记录）。
+  function cleanupPlaylistCopies(
+    candidateSongIds: LibrarySongId[],
+    remainingPlaylists: UserPlaylist[] = playlistsRef.current,
+  ) {
+    const stillReferenced = new Set(
+      remainingPlaylists.flatMap((playlist) => playlist.songIds),
+    );
+
+    const removableIds = candidateSongIds.filter((songId) => {
+      if (stillReferenced.has(songId)) {
+        return false;
+      }
+      const librarySong = localLibrarySongsRef.current.find(
+        (candidate) => candidate.id === songId,
+      );
+
+      return librarySong?.libraryGroup === "playlist-copy";
+    });
+
+    if (removableIds.length === 0) {
+      return;
+    }
+
+    const removableIdSet = new Set(removableIds);
+
+    localLibrarySongsRef.current = localLibrarySongsRef.current.filter(
+      (candidate) => !removableIdSet.has(candidate.id),
+    );
+    librarySongsRef.current = librarySongsRef.current.filter(
+      (candidate) => !removableIdSet.has(candidate.id),
+    );
+    setLocalLibrarySongs(localLibrarySongsRef.current);
+
+    removableIds.forEach((songId) => {
+      importedScoreSongLoaderRef.current.invalidate(songId);
+      void deleteImportedScoreFile(songId).catch(() => undefined);
+    });
   }
 
   async function handleDeleteLocalSong(
@@ -885,28 +1010,8 @@ export function useScoreLibrary({
   }
 
 
-  async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
-    const ids = Array.from(new Set(songIds));
-    if (ids.length === 0) {
-      return;
-    }
 
-    // 只有本地导入的曲谱可以被删除；内置曲谱随应用分发，不在此处处理。
-    for (const songId of ids) {
-      const songIndex = librarySongsRef.current.findIndex(
-        (librarySong) => librarySong.id === songId,
-      );
-      if (songIndex < 0) {
-        continue;
-      }
-      if (librarySongsRef.current[songIndex].source !== "local-import") {
-        continue;
-      }
-      await handleDeleteLocalSong(songIndex);
-    }
-  }
-
-  function handleAddSongsToPlaylist(
+  async function handleAddSongsToPlaylist(
     playlistId: string,
     songIds: LibrarySongId[],
   ) {
@@ -915,13 +1020,36 @@ export function useScoreLibrary({
       return;
     }
 
+    // 批量加入同样走副本解耦：先把每首源曲复制成歌单私有副本，再挂到歌单。
+    const targetSongIds: LibrarySongId[] = [];
+    for (const songId of ids) {
+      const librarySong = librarySongsRef.current.find(
+        (candidate) => candidate.id === songId,
+      );
+
+      if (!librarySong) {
+        continue;
+      }
+
+      try {
+        targetSongIds.push(await createPlaylistCopyForRound(librarySong));
+      } catch (error) {
+        const message = formatText(text.logs.playlistCopyFailed, {
+          error: String(error instanceof Error ? error.message : error),
+          songName: getLibrarySongName(librarySong),
+        });
+        appendLog(message);
+        showNotice?.(message);
+      }
+    }
+
     setPlaylists((currentPlaylists) =>
       currentPlaylists.map((currentPlaylist) => {
         if (currentPlaylist.id !== playlistId) {
           return currentPlaylist;
         }
         let next = currentPlaylist;
-        for (const songId of ids) {
+        for (const songId of targetSongIds) {
           if (!next.songIds.includes(songId)) {
             next = addSongToPlaylist(next, songId);
           }
@@ -939,6 +1067,19 @@ export function useScoreLibrary({
     if (ids.length === 0) {
       return;
     }
+
+    const remainingPlaylists = playlistsRef.current.map((playlist) => {
+      if (playlist.id !== playlistId) {
+        return playlist;
+      }
+      let next = playlist;
+      for (const songId of ids) {
+        next = removeSongFromPlaylist(next, songId);
+      }
+      return next;
+    });
+
+    cleanupPlaylistCopies(ids, remainingPlaylists);
 
     setPlaylists((currentPlaylists) =>
       currentPlaylists.map((currentPlaylist) => {
@@ -1512,7 +1653,6 @@ export function useScoreLibrary({
     applyScoreLibrary,
     currentSelectedSong,
     handleAddSongToPlaylist,
-    handleDeleteLocalSongs,
     handleAddSongsToPlaylist,
     handleRemoveSongsFromPlaylist,
     handleCreatePlaylist,

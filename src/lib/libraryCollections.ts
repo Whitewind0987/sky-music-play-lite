@@ -276,6 +276,22 @@ export function toggleLikedSong(
   return [...likedSongs, { likedAt: Date.now(), songId }];
 }
 
+export function createPlaylistCopyOfLocalSong(
+  source: LocalLibrarySong,
+  now = Date.now(),
+): LocalLibrarySong {
+  generatedIdCounter += 1;
+
+  return {
+    // 沿用 local- 前缀：持久化层只接受 local-/legacy- 前缀的 id。
+    id: `local-copy-${now}-${generatedIdCounter}`,
+    importedAt: now,
+    libraryGroup: "playlist-copy",
+    metadata: { ...source.metadata },
+    source: "local-import",
+  };
+}
+
 export function createPlaylist(name: string): UserPlaylist {
   const now = Date.now();
   generatedIdCounter += 1;
