@@ -32,7 +32,9 @@ import type { Song } from "../types/score";
 
 type UsePreviewPlaybackOptions = {
   appendLog: (entry: string) => void;
-  consumeNextQueueItemAfterCurrent: (
+  consumeQueuedItemAfterCurrent: (queueItemId: string, songCount: number) => void;
+  peekNextQueueItemAfterCurrent: (
+    currentSongIndex: number,
     songCount: number,
   ) => PlaybackQueueItem | null;
   currentSelectedSong: LibrarySong | null;
@@ -45,13 +47,14 @@ type UsePreviewPlaybackOptions = {
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
-  startQueuePlayback: (songIndex: number) => void;
+  startQueuePlayback: (songIndex: number, previousSongIndex: number | null) => void;
   text: UiText;
 };
 
 export function usePreviewPlayback({
   appendLog,
-  consumeNextQueueItemAfterCurrent,
+  consumeQueuedItemAfterCurrent,
+  peekNextQueueItemAfterCurrent,
   currentSelectedSong,
   getPlaybackOrderNextSongIndex,
   librarySongsRef,
@@ -62,6 +65,7 @@ export function usePreviewPlayback({
   text,
 }: UsePreviewPlaybackOptions) {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
+  const pendingRequestRef = useRef<object | null>(null);
   const activeKeyEntriesRef = useRef<PreviewActiveKeyEntry[]>([]);
   const activeKeyPruneTimerRef = useRef<number | null>(null);
   const activePreviewSongIdRef = useRef<LibrarySongId | null>(null);
@@ -71,6 +75,7 @@ export function usePreviewPlayback({
   const playbackSpeedRef = useRef(defaultPlaybackSpeed);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
+  const [isPreviewStartPending, setIsPreviewStartPending] = useState(false);
   const [playbackProgress, setPlaybackProgress] =
     useState<PreviewPlaybackProgress>({
       currentMs: 0,
@@ -111,10 +116,12 @@ export function usePreviewPlayback({
         };
   const canPlayPreview =
     currentSelectedSong !== null &&
+    !isPreviewStartPending &&
     (playbackState === "idle" || playbackState === "finished");
 
   useEffect(() => {
     return () => {
+      pendingRequestRef.current = null;
       playbackControllerRef.current?.stop();
 
       if (activeKeyPruneTimerRef.current !== null) {
@@ -182,6 +189,8 @@ export function usePreviewPlayback({
   }
 
   function stopCurrentPreview(nextState: PlaybackState = "idle") {
+    pendingRequestRef.current = null;
+    setIsPreviewStartPending(false);
     playbackControllerRef.current?.stop();
     playbackControllerRef.current = null;
     activePreviewSongIdRef.current = null;
@@ -192,14 +201,21 @@ export function usePreviewPlayback({
 
   async function startPreviewForSong(
     songIndex: number,
-    options: { initialSeekMs?: number } = {},
-  ) {
+    options: { initialSeekMs?: number; onStarted?: (songIndex: number) => void } = {},
+  ): Promise<boolean> {
+    const request = {};
+    pendingRequestRef.current = request;
+    setIsPreviewStartPending(true);
     try {
       const previewSongId = librarySongsRef.current[songIndex]?.id ?? null;
       const song = await resolveSongForPlayback(songIndex);
+      const resolvedSongIndex = resolveActivePlaybackSongIndex({
+        librarySongs: librarySongsRef.current,
+        songId: previewSongId,
+      });
 
-      if (!song) {
-        return;
+      if (request !== pendingRequestRef.current || !song || resolvedSongIndex === null) {
+        return false;
       }
 
       const notes = song.songNotes;
@@ -208,14 +224,13 @@ export function usePreviewPlayback({
         playbackSpeed: playbackSpeedRef.current,
       };
 
-      setSelectedSongIndex(songIndex);
-
       if (notes.length === 0) {
         stopCurrentPreview("finished");
         appendLog(text.logs.previewFinished);
-        return;
+        return false;
       }
 
+      setSelectedSongIndex(resolvedSongIndex);
       setPlaybackState("playing");
       activePreviewSongIdRef.current = previewSongId;
       setPlaybackProgress({
@@ -269,7 +284,7 @@ export function usePreviewPlayback({
           const queuedItem =
             playbackModeRef.current === "repeat-one"
               ? null
-              : consumeNextQueueItemAfterCurrent(currentLibrarySongs.length);
+              : peekNextQueueItemAfterCurrent(currentSongIndex, currentLibrarySongs.length);
           const playbackOrderNextSongIndex =
             queuedItem === null && playbackModeRef.current === "repeat-all"
               ? getPlaybackOrderNextSongIndex({
@@ -292,6 +307,7 @@ export function usePreviewPlayback({
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
+            setPlaybackState("finished");
             void startPreviewForSong(currentSongIndex);
             return;
           }
@@ -309,10 +325,21 @@ export function usePreviewPlayback({
                 songName: nextSong ? getLibrarySongName(nextSong) : song.name,
               }),
             );
-            if (queuedItem === null) {
-              startQueuePlayback(finishDecision.nextSongIndex);
-            }
-            void startPreviewForSong(finishDecision.nextSongIndex);
+            setPlaybackState("finished");
+            void startPreviewForSong(finishDecision.nextSongIndex, {
+              onStarted: (nextSongIndex) => {
+                const songs = librarySongsRef.current;
+                if (queuedItem) {
+                  consumeQueuedItemAfterCurrent(queuedItem.id, songs.length);
+                } else {
+                  const previousSongIndex = resolveActivePlaybackSongIndex({
+                    librarySongs: songs,
+                    songId: completedSongId,
+                  });
+                  startQueuePlayback(nextSongIndex, previousSongIndex);
+                }
+              },
+            });
             return;
           }
 
@@ -326,19 +353,30 @@ export function usePreviewPlayback({
           playbackSpeed: currentTimingOptions.playbackSpeed,
         },
       );
+      options.onStarted?.(resolvedSongIndex);
+      return true;
     } catch (error) {
+      if (request !== pendingRequestRef.current) {
+        return false;
+      }
       stopCurrentPreview();
       appendLog(
         formatText(text.logs.playbackError, {
           error: String(error instanceof Error ? error.message : error),
         }),
       );
+      return false;
+    } finally {
+      if (request === pendingRequestRef.current) {
+        pendingRequestRef.current = null;
+        setIsPreviewStartPending(false);
+      }
     }
   }
 
   function handlePlayImportedSong(songIndex: number) {
     stopCurrentPreview();
-    void startPreviewForSong(songIndex);
+    return startPreviewForSong(songIndex);
   }
 
   function handlePlayPreview() {
@@ -373,7 +411,7 @@ export function usePreviewPlayback({
   }
 
   function handleStopPreview() {
-    if (playbackState !== "playing" && playbackState !== "paused") {
+    if (playbackControllerRef.current === null && pendingRequestRef.current === null) {
       return;
     }
 
@@ -501,6 +539,7 @@ export function usePreviewPlayback({
     handleStopPreview,
     getActivePreviewPlaybackSongId,
     isShuffleEnabled,
+    isPreviewStartPending,
     noteIntervalDelayMs,
     playbackMode,
     playbackProgress,

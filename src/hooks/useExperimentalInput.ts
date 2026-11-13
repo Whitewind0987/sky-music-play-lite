@@ -99,9 +99,6 @@ type SelectedWindowSnapshot = NonNullable<
 
 type UseExperimentalInputOptions = {
   appendLog: (message: string) => void;
-  consumeNextQueueItemAfterCurrent: (
-    songCount: number,
-  ) => PlaybackQueueItem | null;
   consumeQueuedItemAfterCurrent: (
     queueItemId: string,
     songCount: number,
@@ -120,14 +117,14 @@ type UseExperimentalInputOptions = {
   noteIntervalDelayMs: NoteIntervalDelayMs;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
-  peekNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
+  peekNextQueueItemAfterCurrent: (currentSongIndex: number, songCount: number) => PlaybackQueueItem | null;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   resolveSongForWarmPreparation: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setRequestedPlaybackSongIndex: (songIndex: number | null) => void;
   setSelectedSongIndex: (songIndex: number | null) => void;
   showNotice?: (message: string) => void;
-  startQueuePlayback: (songIndex: number) => void;
+  startQueuePlayback: (songIndex: number, previousSongIndex: number | null) => void;
   stopPreviewPlayback: () => void;
   text: UiText;
 };
@@ -1289,6 +1286,8 @@ export function useExperimentalInput({
       initialSeekMs,
     }: { initialGroupIndex?: number; initialSeekMs?: number } = {},
   ) {
+    const preflightToken = backgroundHandoffTokenRef.current;
+    const requestedPlaybackSongId = librarySongsRef.current[songIndex]?.id ?? null;
     if (
       (selectedWindowHwndRef.current === null || isSkySnapshot(selectedWindowSnapshotRef.current)) &&
       !(await ensureTargetWindowAvailableForPlayback())
@@ -1296,25 +1295,29 @@ export function useExperimentalInput({
       logMissingTargetWindow();
       return false;
     }
+    if (backgroundHandoffTokenRef.current !== preflightToken) return false;
     if (!isTargetWindowReadyForPlayback()) {
       logMissingTargetWindow();
       return false;
     }
+    const requestedSongIndex = resolveActivePlaybackSongIndex({
+      librarySongs: librarySongsRef.current,
+      songId: requestedPlaybackSongId,
+    });
+    if (requestedSongIndex === null) return false;
 
     const handoffToken = beginBackgroundHandoff();
     const timing = createBackgroundHandoffTiming("background handoff");
-    const requestedPlaybackSongId =
-      librarySongsRef.current[songIndex]?.id ?? null;
     const rollbackPlaybackSongId =
       currentPlaybackSongIndex === null
         ? null
         : librarySongsRef.current[currentPlaybackSongIndex]?.id ?? null;
 
     timing.mark("request received");
-    setRequestedPlaybackSongIndex(songIndex);
+    setRequestedPlaybackSongIndex(requestedSongIndex);
     timing.mark("requested-song UI update");
 
-    const song = await resolveSongForPlayback(songIndex);
+    const song = await resolveSongForPlayback(requestedSongIndex);
     timing.mark("score resolution");
 
     if (
@@ -1328,9 +1331,14 @@ export function useExperimentalInput({
       return false;
     }
 
-    if (song === null) {
+    const resolvedSongIndex = resolveActivePlaybackSongIndex({
+      librarySongs: librarySongsRef.current,
+      songId: requestedPlaybackSongId,
+    });
+    if (song === null || resolvedSongIndex === null) {
       finishBackgroundHandoff(handoffToken);
       rollbackRequestedPlaybackSong(handoffToken, rollbackPlaybackSongId);
+      replayActiveSessionEventsAfterFailedHandoff();
       timing.finish("score unavailable");
       return false;
     }
@@ -1338,7 +1346,7 @@ export function useExperimentalInput({
     stopPreviewPlayback();
     foregroundPlayback.handleStopForegroundPlayback();
 
-    return startExperimentalPlaybackForSong(songIndex, song, {
+    return startExperimentalPlaybackForSong(resolvedSongIndex, song, {
       handoffToken,
       initialGroupIndex,
       initialSeekMs,
@@ -1617,13 +1625,26 @@ export function useExperimentalInput({
         return false;
       }
 
+      const acceptedSongIndex = resolveActivePlaybackSongIndex({
+        librarySongs: librarySongsRef.current,
+        songId: options.requestedPlaybackSongId,
+      });
+      if (acceptedSongIndex === null) {
+        void stopBackgroundPlayback(response.sessionId);
+        finishBackgroundHandoff(options.handoffToken);
+        rollbackRequestedPlaybackSong(options.handoffToken, options.rollbackPlaybackSongId);
+        replayActiveSessionEventsAfterFailedHandoff();
+        options.timing.finish("score unavailable");
+        return false;
+      }
+
       activeBackgroundSessionIdRef.current = response.sessionId;
       backgroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
         song,
         songId: options.requestedPlaybackSongId,
       };
-      setSelectedSongIndex(songIndex);
+      setSelectedSongIndex(acceptedSongIndex);
       experimentalPlaybackControllerRef.current = createBackgroundPlaybackController(
         response.sessionId,
       );
@@ -1647,7 +1668,7 @@ export function useExperimentalInput({
       );
       options.timing.mark("player state installed");
       flushPendingBackgroundPlaybackEvents(response.sessionId);
-      warmNextLikelyExperimentalSong(songIndex);
+      warmNextLikelyExperimentalSong(acceptedSongIndex);
       options.timing.finish("started");
       return true;
     } catch (error) {
@@ -1738,6 +1759,7 @@ export function useExperimentalInput({
     experimentalPlaybackControllerRef.current = null;
     backgroundPlaybackContextRef.current = null;
     activeBackgroundSessionIdRef.current = null;
+    setExperimentalPlaybackState("finished");
 
     const currentLibrarySongs = librarySongsRef.current;
     const songIndex = resolveActivePlaybackSongIndex({
@@ -1754,7 +1776,7 @@ export function useExperimentalInput({
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : peekNextQueueItemAfterCurrent(currentLibrarySongs.length);
+        : peekNextQueueItemAfterCurrent(songIndex, currentLibrarySongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
@@ -1776,12 +1798,7 @@ export function useExperimentalInput({
       appendLog(
         formatText(text.logs.repeatOneTriggered, { songName: song.name }),
       );
-      void startExperimentalPlaybackWithPreflight(songIndex).then((started) => {
-        if (!started) {
-          setExperimentalPlaybackState("finished");
-          appendLog(text.logs.experimentalPlaybackFinished);
-        }
-      });
+      void startExperimentalPlaybackWithPreflight(songIndex);
       return;
     }
 
@@ -1801,25 +1818,25 @@ export function useExperimentalInput({
         finishDecision.nextSongIndex,
       ).then((started) => {
         if (!started) {
-          setExperimentalPlaybackState("finished");
-          appendLog(text.logs.experimentalPlaybackFinished);
           return;
         }
 
         if (queuedItem === null) {
-          startQueuePlayback(finishDecision.nextSongIndex);
+          const songs = librarySongsRef.current;
+          const nextSongIndex = resolveActivePlaybackSongIndex({ librarySongs: songs, songId: nextSong?.id ?? null });
+          const previousSongIndex = resolveActivePlaybackSongIndex({ librarySongs: songs, songId });
+          if (nextSongIndex !== null) startQueuePlayback(nextSongIndex, previousSongIndex);
           return;
         }
 
         consumeQueuedItemAfterCurrent(
           queuedItem.id,
-          currentLibrarySongs.length,
+          librarySongsRef.current.length,
         );
       });
       return;
     }
 
-    setExperimentalPlaybackState("finished");
     appendLog(text.logs.experimentalPlaybackFinished);
   }
 
@@ -1885,7 +1902,7 @@ export function useExperimentalInput({
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : peekNextQueueItemAfterCurrent(currentLibrarySongs.length);
+        : peekNextQueueItemAfterCurrent(currentSongIndex, currentLibrarySongs.length);
     const nextSongIndex =
       queuedItem?.songIndex ??
       getPlaybackOrderNextSongIndex({
@@ -1913,11 +1930,16 @@ export function useExperimentalInput({
     }
 
     if (payload.type === "finished") {
-      const context = backgroundPlaybackContextRef.current;
-
-      if (context?.sessionId === payload.sessionId) {
+      // Let the accepted start commit its queue update before handling completion.
+      window.setTimeout(() => {
+        const context = backgroundPlaybackContextRef.current;
+        if (context?.sessionId !== payload.sessionId) return;
+        if (isBackgroundHandoffPendingRef.current) {
+          handleBackgroundPlaybackEvent(payload);
+          return;
+        }
         handleExperimentalPlaybackFinished(context.songId, context.song);
-      }
+      }, 0);
       return;
     }
 

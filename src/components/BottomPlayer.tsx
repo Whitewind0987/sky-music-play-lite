@@ -359,7 +359,7 @@ export function BottomPlayer({
           disabled:
             playbackState === "paused"
               ? !canResume
-              : !canPlay || isCurrentSongLoading,
+              : !canPlay,
           icon: <PlayIcon />,
           label: playbackState === "paused" ? text.resume : text.play,
           onClick: playbackState === "paused" ? onResume : onPlay,

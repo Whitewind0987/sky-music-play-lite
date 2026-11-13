@@ -29,11 +29,23 @@ export function createReplacementPlaybackQueue(
     .map(createQueueItem);
 }
 
-export function replacePlaybackQueueWithCurrent(
+export function setPlaybackQueueCurrent(
+  queueItems: PlaybackQueueItem[],
   songIndex: number,
+  previousSongIndex: number | null,
   createQueueItem: (songIndex: number) => PlaybackQueueItem,
 ) {
-  return [createQueueItem(songIndex)];
+  const current = queueItems.find((item) => item.songIndex === songIndex);
+  const remaining = queueItems.filter(
+    (item, index) =>
+      item.songIndex !== songIndex &&
+      (index !== 0 || item.songIndex !== previousSongIndex),
+  );
+
+  if (current && current === queueItems[0] && remaining.length === queueItems.length - 1) {
+    return queueItems;
+  }
+  return [current ?? createQueueItem(songIndex), ...remaining];
 }
 
 export function addSongToPlaybackQueue(
@@ -50,17 +62,15 @@ export function playSongNextInPlaybackQueue(
   queueItems: PlaybackQueueItem[],
   songIndex: number,
   createQueueItem: (songIndex: number) => PlaybackQueueItem,
+  afterSongIndex: number | null = null,
 ) {
   if (queueItems.some((item) => item.songIndex === songIndex)) {
     return queueItems;
   }
 
-  const item = createQueueItem(songIndex);
-  const [currentItem, ...futureItems] = queueItems;
-
-  return currentItem
-    ? [currentItem, item, ...futureItems]
-    : [item, ...futureItems];
+  const currentIndex = queueItems.findIndex((item) => item.songIndex === afterSongIndex);
+  const insertAt = afterSongIndex === null ? 1 : currentIndex + 1;
+  return [...queueItems.slice(0, insertAt), createQueueItem(songIndex), ...queueItems.slice(insertAt)];
 }
 
 export function removeSongIndicesFromPlaybackQueue(
@@ -150,18 +160,9 @@ export function usePlaybackQueue({
     showNotice?.(message);
   }
 
-  function startQueuePlayback(songIndex: number) {
-    const item = createQueueItem(songIndex);
-    const remainingItems = queueItemsRef.current
-      .slice(1)
-      .filter((queueItem) => queueItem.songIndex !== songIndex);
-
-    setQueueItemsAndRef([item, ...remainingItems]);
-  }
-
-  function replaceQueueWithCurrent(songIndex: number) {
+  function startQueuePlayback(songIndex: number, previousSongIndex: number | null) {
     setQueueItemsAndRef(
-      replacePlaybackQueueWithCurrent(songIndex, createQueueItem),
+      setPlaybackQueueCurrent(queueItemsRef.current, songIndex, previousSongIndex, createQueueItem),
     );
   }
 
@@ -175,26 +176,27 @@ export function usePlaybackQueue({
     );
   }
 
-  function playNext(songIndex: number) {
-    const nextItems = playSongNextInPlaybackQueue(
-      queueItemsRef.current,
-      songIndex,
-      createQueueItem,
-    );
+  function playNext(songIndex: number, afterSongIndex: number | null, isIdle: boolean) {
+    if (!librarySongsRef.current[songIndex]) return;
+    const nextItems = isIdle
+      ? addSongToPlaybackQueue(queueItemsRef.current, songIndex, createQueueItem)
+      : playSongNextInPlaybackQueue(queueItemsRef.current, songIndex, createQueueItem, afterSongIndex);
     if (nextItems === queueItemsRef.current) {
-      logAlreadyQueued(songIndex);
-      return;
+      if (!isIdle) logAlreadyQueued(songIndex);
+    } else {
+      setQueueItemsAndRef(nextItems);
+      appendLog(
+        formatText(text.queuePlayNextAdded, {
+          songName: getSongName(songIndex),
+        }),
+      );
     }
 
-    setQueueItemsAndRef(nextItems);
-    appendLog(
-      formatText(text.queuePlayNextAdded, {
-        songName: getSongName(songIndex),
-      }),
-    );
+    return nextItems.find((item) => item.songIndex === songIndex);
   }
 
   function addToQueue(songIndex: number) {
+    if (!librarySongsRef.current[songIndex]) return;
     const nextItems = addSongToPlaybackQueue(
       queueItemsRef.current,
       songIndex,
@@ -255,19 +257,22 @@ export function usePlaybackQueue({
     }
   }
 
-  function peekNextQueueItemAfterCurrent(songCount: number) {
-    const currentItems = queueItemsRef.current;
-    const currentItem = currentItems.find(
-      (item) => item.songIndex >= 0 && item.songIndex < songCount,
-    );
-    const nextItemIndex = currentItems.findIndex(
-      (item, index) =>
-        index > 0 && item.songIndex >= 0 && item.songIndex < songCount,
-    );
+  function getFirstQueueItem() {
+    const songs = librarySongsRef.current;
+    return queueItemsRef.current.find((item) => songs[item.songIndex]) ?? null;
+  }
 
-    return currentItem && nextItemIndex >= 0
-      ? currentItems[nextItemIndex]
-      : null;
+  function getValidQueueItems() {
+    return getValidQueueItemsFromItem(getFirstQueueItem()?.id ?? "", librarySongsRef.current.length);
+  }
+
+  function peekNextQueueItemAfterCurrent(currentSongIndex: number, songCount: number) {
+    const firstItem = getFirstQueueItem();
+    if (firstItem?.songIndex !== currentSongIndex) {
+      return firstItem;
+    }
+    const decision = resolveNextQueueForCurrent(currentSongIndex, songCount);
+    return decision.status === "next" ? decision.nextItem : null;
   }
 
   function resolveNextQueueForCurrent(
@@ -301,81 +306,25 @@ export function usePlaybackQueue({
     songCount: number,
   ) {
     const currentItems = queueItemsRef.current;
-    const currentItem = currentItems.find(
-      (item) => item.songIndex >= 0 && item.songIndex < songCount,
-    );
-
-    if (!currentItem) {
-      if (currentItems.length > 0) {
-        setQueueItemsAndRef([]);
-      }
-
-      return null;
+    const remainingItems = getValidQueueItemsFromItem(queueItemId, songCount);
+    if (remainingItems.length > 0 && remainingItems.length !== currentItems.length) {
+      setQueueItemsAndRef(remainingItems);
     }
 
-    const nextItemIndex = currentItems.findIndex(
-      (item) =>
-        item.id === queueItemId &&
-        item.songIndex >= 0 &&
-        item.songIndex < songCount,
-    );
-
-    if (nextItemIndex === -1) {
-      return null;
-    }
-
-    const nextItem = currentItems[nextItemIndex];
-    const itemsAfterNext = currentItems
-      .slice(nextItemIndex + 1)
-      .filter(
-        (item) => item.songIndex >= 0 && item.songIndex < songCount,
-      );
-
-    setQueueItemsAndRef([nextItem, ...itemsAfterNext]);
-
-    return nextItem;
-  }
-
-  function consumeNextQueueItemAfterCurrent(songCount: number) {
-    const currentItems = queueItemsRef.current;
-    const currentItem = currentItems.find(
-      (item) => item.songIndex >= 0 && item.songIndex < songCount,
-    );
-    const nextItem = peekNextQueueItemAfterCurrent(songCount);
-
-    if (!currentItem) {
-      if (currentItems.length > 0) {
-        setQueueItemsAndRef([]);
-      }
-
-      return null;
-    }
-
-    if (!nextItem) {
-      const nextItems =
-        currentItems.length === 1 ? currentItems : [currentItem];
-
-      if (nextItems.length !== currentItems.length) {
-        setQueueItemsAndRef(nextItems);
-      }
-
-      return null;
-    }
-
-    return consumeQueuedItemAfterCurrent(nextItem.id, songCount);
+    return remainingItems[0] ?? null;
   }
 
   return {
     addToQueue,
     clearQueue,
     consumeQueuedItemAfterCurrent,
-    consumeNextQueueItemAfterCurrent,
+    getFirstQueueItem,
+    getValidQueueItems,
     getValidQueueItemsFromItem,
     getQueueItemCount,
     peekNextQueueItemAfterCurrent,
     playNext,
     queueItems,
-    replaceQueueWithCurrent,
     replaceQueueWithSongIndices,
     resolveNextQueueForCurrent,
     removeSongIndex,

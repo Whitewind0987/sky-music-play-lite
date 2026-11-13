@@ -4,7 +4,7 @@ import {
   createReplacementPlaybackQueue,
   playSongNextInPlaybackQueue,
   removeSongIndicesFromPlaybackQueue,
-  replacePlaybackQueueWithCurrent,
+  setPlaybackQueueCurrent,
 } from "./usePlaybackQueue";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 
@@ -160,12 +160,20 @@ describe("createReplacementPlaybackQueue", () => {
 });
 
 describe("individual queue operations", () => {
-  it("keeps individual Play replacing the queue with the current song", () => {
-    expect(
-      replacePlaybackQueueWithCurrent(2, createQueueItem).map(
-        (item) => item.songIndex,
-      ),
-    ).toEqual([2]);
+  it("moves a queued song to current while keeping the other pending songs in order", () => {
+    const queue = [0, 1, 2, 3].map((index) => createQueueItem(index));
+
+    expect(setPlaybackQueueCurrent(queue, 2, 0, createQueueItem)).toEqual([
+      queue[2], queue[1], queue[3],
+    ]);
+  });
+
+  it("preserves the old head when it is still pending", () => {
+    const queue = [createQueueItem(0), createQueueItem(1)];
+
+    expect(setPlaybackQueueCurrent(queue, 2, null, createQueueItem)).toEqual([
+      createQueueItem(2), ...queue,
+    ]);
   });
 
   it("keeps Add to Queue appending without replacing existing items", () => {
