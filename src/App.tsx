@@ -1166,6 +1166,7 @@ function App() {
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
         onNext={playbackCoordinator.handleNextPlayback}
+        onVisualizationClose={playerScoreVisualization.close}
         onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
         onManualStep={playbackOutput.onManualStep}
