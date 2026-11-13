@@ -17,7 +17,7 @@ import {
   SkipForward,
   StepForward,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MultiSelectCheckbox, MultiSelectToolbar } from "./MultiSelectToolbar";
 import type { MultiSelectState } from "../hooks/useMultiSelect";
 import type { LibraryCategoryId } from "./AppShell";
@@ -98,6 +98,7 @@ type LibraryPanelProps = {
   onExportPlaylistToFolder: (playlistId: string) => void;
   onArchiveLibraryToFolders: () => void;
   onMoveLocalSong: (songId: LibrarySongId, group: LocalLibraryGroup) => void;
+  onMoveSelectedSongs?: (group: LocalLibraryGroup) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
@@ -1434,6 +1435,7 @@ export function LibraryPanel({
   onExportPlaylistToFolder,
   onArchiveLibraryToFolders,
   onMoveLocalSong,
+  onMoveSelectedSongs,
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
@@ -1525,6 +1527,27 @@ export function LibraryPanel({
   const isLocalImports = selectedCategory === "local-imports";
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
+
+  // 批量移动分类的目标组：只有这两个分类支持互相移动。
+  // 「本地导入 → 已转换」只对 V2 曲谱有效，所以还要求选中集合里
+  // 至少有一首可移动的曲谱，否则按钮点了没有任何效果。
+  const batchMoveTarget = useMemo<LocalLibraryGroup | null>(() => {
+    if (isLocalImports) {
+      return items.some(item =>
+        getLocalLibraryMoveTarget(item.librarySong) === "converted"
+          && multiSelect.isSelected(item.librarySong.id))
+        ? "converted"
+        : null;
+    }
+    if (selectedCategory === "converted") {
+      return items.some(item =>
+        item.librarySong.source === "local-import"
+          && multiSelect.isSelected(item.librarySong.id))
+        ? "imported"
+        : null;
+    }
+    return null;
+  }, [isLocalImports, selectedCategory, items, multiSelect]);
   const emptyState = text.categoryEmptyStates[selectedCategory];
   const listEmptyState = getLibraryEmptyState({
     hasSearchQuery,
@@ -1686,6 +1709,8 @@ export function LibraryPanel({
           onDeleteLocalSongs={onDeleteLocalSongs}
           onAddSongsToPlaylist={onAddSongsToPlaylist}
           onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
+          moveTargetGroup={batchMoveTarget}
+          onMoveSelectedSongs={onMoveSelectedSongs}
         />
         {isLocalImports && importDisabled ? (
           <p className="library-import-hint" id="library-import-disabled-reason">

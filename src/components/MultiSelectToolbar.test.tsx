@@ -131,4 +131,69 @@ describe("MultiSelectToolbar", () => {
     );
     expect(html).toContain("从歌单移除");
   });
+
+  it("moveTargetGroup 为 null 时不渲染移动按钮", () => {
+    const html = renderToStaticMarkup(
+      <MultiSelectToolbar
+        multiSelect={multiSelectState()}
+        playlists={[]}
+        text={uiText["zh-CN"].library}
+        visibleSongIds={["a", "b"]}
+        selectedPlaylistId={null}
+        isViewingPlaylist={false}
+        moveTargetGroup={null}
+      />,
+    );
+    expect(html).not.toContain("移至已转换");
+    expect(html).not.toContain("移至本地导入");
+  });
+
+  it("目标为 converted 时渲染「移至已转换」", () => {
+    const html = renderToStaticMarkup(
+      <MultiSelectToolbar
+        multiSelect={multiSelectState()}
+        playlists={[]}
+        text={uiText["zh-CN"].library}
+        visibleSongIds={["a", "b"]}
+        selectedPlaylistId={null}
+        isViewingPlaylist={false}
+        moveTargetGroup="converted"
+      />,
+    );
+    expect(html).toContain("移至已转换");
+    expect(html).not.toContain("移至本地导入");
+  });
+
+  it("目标为 imported 时渲染「移至本地导入」", () => {
+    const html = renderToStaticMarkup(
+      <MultiSelectToolbar
+        multiSelect={multiSelectState()}
+        playlists={[]}
+        text={uiText["zh-CN"].library}
+        visibleSongIds={["a", "b"]}
+        selectedPlaylistId={null}
+        isViewingPlaylist={false}
+        moveTargetGroup="imported"
+      />,
+    );
+    expect(html).toContain("移至本地导入");
+    expect(html).not.toContain("移至已转换");
+  });
+
+  it("未选中时移动按钮为禁用状态", () => {
+    const html = renderToStaticMarkup(
+      <MultiSelectToolbar
+        multiSelect={multiSelectState({ selected: new Set(), count: 0 })}
+        playlists={[]}
+        text={uiText["zh-CN"].library}
+        visibleSongIds={[]}
+        selectedPlaylistId={null}
+        isViewingPlaylist={false}
+        moveTargetGroup="converted"
+      />,
+    );
+    // 按钮仍渲染但禁用
+    expect(html).toContain("移至已转换");
+    expect(html).toContain("disabled");
+  });
 });

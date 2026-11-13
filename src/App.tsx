@@ -824,6 +824,12 @@ function App() {
             void scoreLibrary.handleArchiveLibraryToFolders();
           }}
           onMoveLocalSong={scoreLibrary.handleMoveLocalSong}
+          onMoveSelectedSongs={(group) =>
+            scoreLibrary.handleMoveLocalSongs(
+              [...multiSelect.selected],
+              group,
+            )
+          }
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}

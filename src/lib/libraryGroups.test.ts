@@ -8,7 +8,7 @@ import type { LibrarySongListItem, LocalLibrarySong, UserPlaylist } from "../typ
 import type { Song } from "../types/score";
 import { createLibrarySong, filterSongsByQuery, removeSongFromAllCollections } from "./libraryCollections";
 import { getLibraryCategoryItems, getLibrarySongCategory, getLocalLibraryMoveTarget, moveLocalLibrarySong } from "./libraryGroups";
-import { moveLibrarySortingMembership, reconcileSortingMembership, sortLibraryItems } from "./librarySorting";
+import { moveLibrarySortingMembership, moveLibrarySortingMembershipBatch, reconcileSortingMembership, sortLibraryItems } from "./librarySorting";
 import { deleteLocalSongWithScoreFile } from "./localSongDeletion";
 import { PlaybackContextTransactionStore } from "./playbackContextTransaction";
 import { resolvePlaylistSongIndices } from "./playlistPlayback";
@@ -121,6 +121,68 @@ describe("virtual local library groups", () => {
   it("appends moved songs after the destination's unsaved custom order", () => {
     const items = asItems([makeSong("a"), makeSong("b", true), makeSong("c", true)]);
     expect(moveLibrarySortingMembership({}, items, "a", "converted").converted.customOrder).toEqual(["b", "c", "a"]);
+  });
+
+  it("moves a batch of songs to the destination category in one update", () => {
+    const items = asItems([
+      makeSong("a"), makeSong("b"), makeSong("c", true), makeSong("d", true),
+    ]);
+    const preferences = {
+      "local-imports": { mode: "custom" as const, customOrder: ["a", "b"] },
+      converted: { mode: "custom" as const, customOrder: ["c", "d"] },
+    };
+
+    const next = moveLibrarySortingMembershipBatch(preferences, items, ["a", "b"], "converted");
+
+    // 整批从源分类摘除，按传入顺序追加到目标分类末尾
+    expect(next["local-imports"].customOrder).toEqual([]);
+    expect(next.converted.customOrder).toEqual(["c", "d", "a", "b"]);
+  });
+
+  it("batch move back to local imports keeps the destination order", () => {
+    const items = asItems([
+      makeSong("a"), makeSong("b"), makeSong("c", true), makeSong("d", true),
+    ]);
+    const preferences = {
+      "local-imports": { mode: "custom" as const, customOrder: ["a"] },
+      converted: { mode: "custom" as const, customOrder: ["c", "d"] },
+    };
+
+    const next = moveLibrarySortingMembershipBatch(preferences, items, ["d", "c"], "local-imports");
+
+    expect(next.converted.customOrder).toEqual([]);
+    // b 属于 local-imports 但未列入 customOrder，sortLibraryItems 把它追加在
+    // 已列项之后——与单首版 moveLibrarySortingMembership 的行为一致。
+    expect(next["local-imports"].customOrder).toEqual(["a", "b", "d", "c"]);
+  });
+
+  it("batch move ignores songs already in the destination and unknown ids", () => {
+    const items = asItems([makeSong("a"), makeSong("b", true)]);
+    const preferences = {
+      "local-imports": { mode: "custom" as const, customOrder: ["a"] },
+      converted: { mode: "custom" as const, customOrder: ["b"] },
+    };
+
+    // a 已在目标?否。b 在目标分类。unknown 不存在。
+    const next = moveLibrarySortingMembershipBatch(
+      preferences, items, ["a", "b", "unknown"], "converted",
+    );
+
+    expect(next["local-imports"].customOrder).toEqual([]);
+    expect(next.converted.customOrder).toEqual(["b", "a"]);
+  });
+
+  it("batch move returns the same preferences when nothing can move", () => {
+    const items = asItems([makeSong("a", true)]);
+    const preferences = {
+      "local-imports": { mode: "custom" as const, customOrder: [] },
+      converted: { mode: "custom" as const, customOrder: ["a"] },
+    };
+
+    // a 已在 converted，没有可移动项
+    expect(
+      moveLibrarySortingMembershipBatch(preferences, items, ["a"], "converted"),
+    ).toBe(preferences);
   });
 
   it("exports a converted score with its original storage ID", async () => {

@@ -216,3 +216,61 @@ export function moveLibrarySortingMembership(
     },
   };
 }
+
+/**
+ * 批量版的 moveLibrarySortingMembership。
+ *
+ * 不能循环调用单首版：单首版按 libraryGroup 判断源分类，而组在整批移动
+ * 完成前不会更新，第二首开始就会归类错误。这里一次性处理整批。
+ *
+ * 追加到目标分类末尾的顺序与传入的 songIds 顺序一致。
+ */
+export function moveLibrarySortingMembershipBatch(
+  preferences: LibrarySortingPreferences,
+  allItems: readonly LibrarySongListItem[],
+  songIds: readonly string[],
+  destination: "local-imports" | "converted",
+) {
+  const idSet = new Set(songIds);
+  const movable = allItems.filter(item =>
+    idSet.has(item.librarySong.id) &&
+    item.librarySong.source === "local-import" &&
+    getLibrarySongCategory(item.librarySong) !== destination,
+  );
+
+  if (movable.length === 0) return preferences;
+
+  const movableIds = new Set(movable.map(item => item.librarySong.id));
+  const target = preferences[destination];
+  const destinationIds = sortLibraryItems(
+    allItems.filter(item => getLibrarySongCategory(item.librarySong) === destination),
+    "custom", target?.customOrder,
+  ).map(item => item.librarySong.id);
+
+  // 从各自的源分类里摘除（源可能是 local-imports 或 converted，按实际组算）
+  const bySource = new Map<"local-imports" | "converted", Set<string>>();
+  for (const item of movable) {
+    const source = getLibrarySongCategory(item.librarySong);
+    if (source !== "local-imports" && source !== "converted") continue;
+    if (!bySource.has(source)) bySource.set(source, new Set());
+    bySource.get(source)!.add(item.librarySong.id);
+  }
+
+  const nextPreferences: LibrarySortingPreferences = { ...preferences };
+  for (const [source, ids] of bySource) {
+    const sourcePreference = preferences[source];
+    if (sourcePreference) {
+      nextPreferences[source] = {
+        ...sourcePreference,
+        customOrder: sourcePreference.customOrder.filter(id => !ids.has(id)),
+      };
+    }
+  }
+
+  nextPreferences[destination] = {
+    mode: target?.mode ?? "custom",
+    customOrder: [...destinationIds.filter(id => !movableIds.has(id)), ...songIds.filter(id => movableIds.has(id))],
+  };
+
+  return JSON.stringify(nextPreferences) === JSON.stringify(preferences) ? preferences : nextPreferences;
+}

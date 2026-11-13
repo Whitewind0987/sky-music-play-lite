@@ -1077,6 +1077,31 @@ export function useScoreLibrary({
     setLocalLibrarySongs(nextSongs);
   }
 
+  // 批量移动分类（多选工具栏）。
+  // moveLocalLibrarySong 会拒绝非法移动（私有副本、非 V2 去已转换），
+  // 所以这里只收集真正发生变化的曲谱，排序层同步整批更新一次。
+  function handleMoveLocalSongs(songIds: LibrarySongId[], group: LocalLibraryGroup) {
+    const idSet = new Set(songIds);
+    if (idSet.size === 0) return;
+
+    let changed = false;
+    const nextSongs = localLibrarySongsRef.current.map(song => {
+      if (!idSet.has(song.id)) return song;
+      const moved = moveLocalLibrarySong([song], song.id, group);
+      if (moved[0] !== song) changed = true;
+      return moved[0] ?? song;
+    });
+
+    if (!changed) return;
+
+    const destination = group === "converted" ? "converted" : "local-imports";
+    librarySorting.moveSongsToCategory([...idSet], destination);
+    localLibrarySongsRef.current = nextSongs;
+    const byId = new Map(nextSongs.map(song => [song.id, song]));
+    librarySongsRef.current = librarySongsRef.current.map(song => byId.get(song.id) ?? song);
+    setLocalLibrarySongs(nextSongs);
+  }
+
   function handleToggleLikedSong(songIndex: number) {
     const librarySong = librarySongsRef.current[songIndex];
 
@@ -2212,6 +2237,7 @@ export function useScoreLibrary({
     handleExportPlaylistToFolder,
     handleArchiveLibraryToFolders,
     handleMoveLocalSong,
+    handleMoveLocalSongs,
     handleImportScoreFiles,
     handleLibraryCategoryChange,
     handleLocateSelectedSong,
