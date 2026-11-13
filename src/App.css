@@ -5671,6 +5671,10 @@ button {
   flex: 0 0 auto;
 }
 
+.library-song-row.is-multi-select {
+  user-select: none;
+}
+
 .library-song-row.is-multi-select .library-row-play {
   visibility: hidden;
 }

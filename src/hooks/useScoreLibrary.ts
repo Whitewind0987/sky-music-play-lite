@@ -27,6 +27,7 @@ import {
   type ImportFailure,
 } from "../lib/importErrors";
 import {
+  addLikedSongs,
   addSongToPlaylist,
   createPlaylist,
   enrichLocalSongFormatVersion,
@@ -707,10 +708,15 @@ export function useScoreLibrary({
     );
   }
 
-  function handleRemoveFromLiked(songId: LibrarySongId) {
-    setLikedSongs((currentLikedSongs) =>
-      currentLikedSongs.filter((entry) => entry.songId !== songId),
-    );
+  function handleAddSongsToLiked(songIds: LibrarySongId[]) {
+    const selected = new Set(songIds);
+    const validIds = librarySongsRef.current.filter(song => selected.has(song.id)).map(song => song.id);
+    setLikedSongs(current => addLikedSongs(current, validIds));
+  }
+
+  function handleRemoveSongsFromLiked(songIds: LibrarySongId[]) {
+    const selected = new Set(songIds);
+    setLikedSongs(current => current.filter(entry => !selected.has(entry.songId)));
   }
 
   function handleCreatePlaylist(
@@ -1509,7 +1515,8 @@ export function useScoreLibrary({
     handleImportScoreFiles,
     handleLibraryCategoryChange,
     handleLocateSelectedSong,
-    handleRemoveFromLiked,
+    handleAddSongsToLiked,
+    handleRemoveSongsFromLiked,
     handleRenamePlaylist,
     handleSaveRecordedSong,
     handleSelectImportedSong,

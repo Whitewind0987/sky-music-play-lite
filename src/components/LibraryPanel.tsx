@@ -97,7 +97,11 @@ type LibraryPanelProps = {
   onDeleteLocalSong: (songIndex: number) => void;
   onExportLocalSong: (songId: LibrarySongId) => void;
   onMoveLocalSong: (songId: LibrarySongId, group: LocalLibraryGroup) => void;
+  hasSelectionToMoveToImports?: boolean;
   convertibleSelectionCount?: number;
+  likedSongs?: readonly { songId: LibrarySongId }[];
+  onAddSongsToLiked?: (songIds: LibrarySongId[]) => void;
+  onRemoveSongsFromLiked?: (songIds: LibrarySongId[]) => void;
   onMoveSelectedSongs?: (group: LocalLibraryGroup) => LibrarySongId[];
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
@@ -968,6 +972,24 @@ function LibrarySongTable({
   const reordering = useLibraryRowReorder(
     items, sorting, `${selectedCategory}:${selectedPlaylist?.id ?? ""}`, text.sorting.moved, rowNumberStart,
   );
+  const dragSelection = useRef<{
+    anchorIndex: number;
+    lastIndex: number;
+    initialSelection: LibrarySongId[];
+    dragged: boolean;
+  } | null>(null);
+  useEffect(() => {
+    const resetDrag = () => { dragSelection.current = null; };
+    resetDrag();
+    window.addEventListener("pointerdown", resetDrag, true);
+    window.addEventListener("pointercancel", resetDrag);
+    window.addEventListener("blur", resetDrag);
+    return () => {
+      window.removeEventListener("pointerdown", resetDrag, true);
+      window.removeEventListener("pointercancel", resetDrag);
+      window.removeEventListener("blur", resetDrag);
+    };
+  }, [multiSelect.enabled, selectedCategory, selectedPlaylist?.id]);
   const rowRefs = useRef(new Map<LibrarySongId, HTMLDivElement>());
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     songId: LibrarySongId; x: number; y: number;
@@ -1135,6 +1157,39 @@ function LibrarySongTable({
                 event.stopPropagation();
                 setContextMenuPosition({ songId: librarySong.id, x: event.clientX, y: event.clientY });
                 onOpenActionMenu(librarySong.id);
+              }}
+              onPointerDown={(event) => {
+                if (!multiSelect.enabled || event.pointerType !== "mouse" || event.button !== 0 ||
+                    !(event.target instanceof Element) ||
+                    event.target.closest("button, input:not(.library-multi-select-checkbox), a, [role='menuitem']")) return;
+                dragSelection.current = {
+                  anchorIndex: displayIndex,
+                  lastIndex: displayIndex,
+                  initialSelection: [...multiSelect.selected],
+                  dragged: false,
+                };
+              }}
+              onPointerEnter={(event) => {
+                const drag = dragSelection.current;
+                if (!multiSelect.enabled || !drag || event.pointerType !== "mouse" || event.buttons !== 1 ||
+                    drag.lastIndex === displayIndex) return;
+
+                const first = Math.min(drag.anchorIndex, displayIndex);
+                const last = Math.max(drag.anchorIndex, displayIndex);
+                const rangeIds = items.slice(first, last + 1).map(entry => entry.librarySong.id);
+                multiSelect.selectAll([...drag.initialSelection, ...rangeIds]);
+                drag.lastIndex = displayIndex;
+                drag.dragged = true;
+              }}
+              onClickCapture={(event) => {
+                if (event.detail === 0) return;
+
+                const wasDrag = dragSelection.current?.dragged;
+                dragSelection.current = null;
+                if (wasDrag) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }
               }}
               onClick={activateRow}
               onKeyDown={(event) => {
@@ -1393,6 +1448,10 @@ export function LibraryPanel({
   onMoveLocalSong,
   onMoveSelectedSongs,
   convertibleSelectionCount = 0,
+  hasSelectionToMoveToImports = false,
+  likedSongs = [],
+  onAddSongsToLiked,
+  onRemoveSongsFromLiked,
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
@@ -1486,14 +1545,12 @@ export function LibraryPanel({
       return convertibleSelectionCount > 0 ? "converted" : null;
     }
     if (selectedCategory === "converted") {
-      return items.some(item =>
-        item.librarySong.source === "local-import"
-          && multiSelect.isSelected(item.librarySong.id))
-        ? "imported"
-        : null;
+      return hasSelectionToMoveToImports ? "imported" : null;
     }
     return null;
-  }, [isLocalImports, selectedCategory, items, multiSelect, convertibleSelectionCount]);
+  }, [isLocalImports, selectedCategory, hasSelectionToMoveToImports, convertibleSelectionCount]);
+  const likedIds = new Set(likedSongs.map(entry => entry.songId));
+  const canAddToLiked = [...multiSelect.selected].some(id => !likedIds.has(id));
   const emptyState = text.categoryEmptyStates[selectedCategory];
   const listEmptyState = getLibraryEmptyState({
     hasSearchQuery,
@@ -1644,6 +1701,8 @@ export function LibraryPanel({
           visibleSongIds={items.map((item) => item.librarySong.id)}
           selectedPlaylistId={selectedPlaylistId}
           isViewingPlaylist={isPlaylists}
+          onAddSongsToLiked={selectedCategory !== "liked" && canAddToLiked ? onAddSongsToLiked : undefined}
+          onRemoveSongsFromLiked={selectedCategory === "liked" ? onRemoveSongsFromLiked : undefined}
           showDeleteSelected={showDeleteSelected}
           onDeleteLocalSongs={showDeleteSelected ? onDeleteLocalSongs : undefined}
           onOpenAddToPlaylist={onAddSongsToPlaylist && onCreatePlaylistWithSongs

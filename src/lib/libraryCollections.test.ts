@@ -7,6 +7,7 @@ import type {
 } from "../types/library";
 import type { Song } from "../types/score";
 import {
+  addLikedSongs,
   addSongToPlaylist,
   createLibrarySong,
   createLocalSongMetadata,
@@ -516,4 +517,12 @@ describe("playlists", () => {
       ["song-3"],
     ]);
   });
+});
+
+it("adds a mixed selection to liked songs without toggling or duplicating existing likes", () => {
+  const original = { songId: "existing", likedAt: 1 };
+  const next = addLikedSongs([original], ["existing", "new", "new"]);
+  expect(next.map(entry => entry.songId)).toEqual(["existing", "new"]);
+  expect(next[0]).toBe(original);
+  expect(addLikedSongs(next, ["existing", "new"])).toBe(next);
 });

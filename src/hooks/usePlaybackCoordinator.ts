@@ -295,11 +295,16 @@ export function usePlaybackCoordinator({
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
+    handleRemoveSongsFromLiked([songId]);
+  }
+
+  function handleRemoveSongsFromLiked(songIds: LibrarySongId[]) {
+    const selectedSongId = scoreLibrary.selectedSongId;
     const shouldClear =
       scoreLibrary.selectedLibraryCategory === "liked" &&
-      scoreLibrary.selectedSongId === songId;
+      selectedSongId !== null && songIds.includes(selectedSongId);
 
-    scoreLibrary.handleRemoveFromLiked(songId);
+    scoreLibrary.handleRemoveSongsFromLiked(songIds);
 
     if (shouldClear) {
       clearCurrentPlaybackSelection();
@@ -716,6 +721,7 @@ export function usePlaybackCoordinator({
     handleQueueClear,
     handleQueueItemRemove,
     handleRemoveFromLiked,
+    handleRemoveSongsFromLiked,
     handleRemoveSongFromPlaylist,
     handleRemoveSongsFromPlaylist,
     handleStopPlayback,

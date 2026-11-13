@@ -815,6 +815,9 @@ function App() {
           onExportLocalSong={(songId) => {
             void scoreLibrary.handleExportLocalSong(songId);
           }}
+          hasSelectionToMoveToImports={multiSelect.count > 0 && scoreLibrary.localLibrarySongs.some(
+            song => multiSelect.selected.has(song.id) && getLocalLibraryMoveTarget(song) === "imported",
+          )}
           convertibleSelectionCount={multiSelect.count === 0 ? 0 : scoreLibrary.localLibrarySongs.filter(
             song => multiSelect.selected.has(song.id) && getLocalLibraryMoveTarget(song) === "converted",
           ).length}
@@ -834,6 +837,9 @@ function App() {
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={handlePlaySongNext}
           onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}
+          likedSongs={scoreLibrary.likedSongs}
+          onAddSongsToLiked={scoreLibrary.handleAddSongsToLiked}
+          onRemoveSongsFromLiked={playbackCoordinator.handleRemoveSongsFromLiked}
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
           }

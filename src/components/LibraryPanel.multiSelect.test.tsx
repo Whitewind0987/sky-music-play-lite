@@ -149,6 +149,18 @@ describe("LibraryPanel 多选入口", () => {
     }
   });
 
+  it("keeps the move-to-imports action when search hides the selected score", () => {
+    const html = renderToStaticMarkup(createElement(LibraryPanel, props({
+      selectedCategory: "converted",
+      hasSearchQuery: true,
+      searchQuery: "no match",
+      items: [],
+      hasSelectionToMoveToImports: true,
+      multiSelect: { ...props().multiSelect, enabled: true, selected: new Set(["hidden"]), count: 1 },
+    })));
+    expect(html).toContain(uiText["zh-CN"].library.moveToLocalImports);
+  });
+
   it("多选开启时行首出现勾选框", () => {
     const html = renderToStaticMarkup(
       createElement(

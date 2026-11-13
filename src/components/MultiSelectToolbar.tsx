@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { Heart, HeartOff } from "lucide-react";
 import { useRef, useState } from "react";
 import { formatText } from "../lib/formatText";
 import { runSingleFlightDelete } from "../lib/deleteConfirmationFlow";
@@ -18,6 +19,8 @@ type MultiSelectToolbarProps = {
   isViewingPlaylist: boolean;
   showDeleteSelected?: boolean;
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
+  onAddSongsToLiked?: (songIds: LibrarySongId[]) => void;
+  onRemoveSongsFromLiked?: (songIds: LibrarySongId[]) => void;
   onOpenAddToPlaylist?: (songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   /**
@@ -37,6 +40,8 @@ export function MultiSelectToolbar({
   isViewingPlaylist,
   showDeleteSelected = false,
   onDeleteLocalSongs,
+  onAddSongsToLiked,
+  onRemoveSongsFromLiked,
   onOpenAddToPlaylist,
   onRemoveSongsFromPlaylist,
   moveTargetGroup = null,
@@ -153,6 +158,28 @@ export function MultiSelectToolbar({
         >
           {text.multiSelectAddToPlaylist}
         </button>
+        {onAddSongsToLiked || onRemoveSongsFromLiked ? (
+          <button
+            type="button"
+            className="library-multi-select-control"
+            disabled={count === 0 || isDeleting}
+            onClick={() => {
+              if (onRemoveSongsFromLiked) {
+                onRemoveSongsFromLiked(selectedIds);
+                multiSelect.deselect(selectedIds);
+              } else {
+                onAddSongsToLiked?.(selectedIds);
+              }
+            }}
+          >
+            {onRemoveSongsFromLiked ? (
+              <HeartOff className="library-title-icon" aria-hidden="true" />
+            ) : (
+              <Heart className="library-title-icon" aria-hidden="true" />
+            )}
+            {onRemoveSongsFromLiked ? text.unlikeAction : text.multiSelectAddToLiked}
+          </button>
+        ) : null}
         {isViewingPlaylist && selectedPlaylistId ? (
           <button
             type="button"

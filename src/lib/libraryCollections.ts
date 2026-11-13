@@ -265,6 +265,15 @@ export function isSongLiked(
   return likedSongs.some((entry) => entry.songId === songId);
 }
 
+export function addLikedSongs(likedSongs: LikedSongEntry[], songIds: readonly LibrarySongId[]) {
+  const existing = new Set(likedSongs.map(entry => entry.songId));
+  const likedAt = Date.now();
+  const additions = [...new Set(songIds)]
+    .filter(songId => !existing.has(songId))
+    .map(songId => ({ songId, likedAt }));
+  return additions.length ? [...likedSongs, ...additions] : likedSongs;
+}
+
 export function toggleLikedSong(
   likedSongs: LikedSongEntry[],
   songId: LibrarySongId,
@@ -273,7 +282,7 @@ export function toggleLikedSong(
     return likedSongs.filter((entry) => entry.songId !== songId);
   }
 
-  return [...likedSongs, { likedAt: Date.now(), songId }];
+  return addLikedSongs(likedSongs, [songId]);
 }
 
 export function createPlaylist(name: string): UserPlaylist {
