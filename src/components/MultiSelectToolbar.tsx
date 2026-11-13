@@ -1,0 +1,235 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
+import { Heart, HeartOff } from "lucide-react";
+import { useRef, useState } from "react";
+import { formatText } from "../lib/formatText";
+import { runSingleFlightDelete } from "../lib/deleteConfirmationFlow";
+import type { LibrarySongId, LocalLibraryGroup } from "../types/library";
+import type { MultiSelectState } from "../hooks/useMultiSelect";
+import type { UiText } from "../i18n/uiText";
+import { ConfirmDialog } from "./ConfirmDialog";
+
+type MultiSelectToolbarProps = {
+  multiSelect: MultiSelectState;
+  text: UiText["library"];
+  visibleSongIds: LibrarySongId[];
+  selectedPlaylistId: string | null;
+  /** 「从歌单移除」只对“当前正打开某个歌单”有意义；切到其它分类时它不该出现。 */
+  isViewingPlaylist: boolean;
+  showDeleteSelected?: boolean;
+  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
+  onAddSongsToLiked?: (songIds: LibrarySongId[]) => void;
+  onRemoveSongsFromLiked?: (songIds: LibrarySongId[]) => void;
+  onOpenAddToPlaylist?: (songIds: LibrarySongId[]) => void;
+  onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
+  /**
+   * 批量移动分类的目标组；null 表示当前分类不支持移动，按钮不渲染。
+   * 由父组件按当前分类与选中曲谱的可移动性计算。
+   */
+  moveTargetGroup?: LocalLibraryGroup | null;
+  convertibleSelectionCount?: number;
+  onMoveSelectedSongs?: (group: LocalLibraryGroup) => LibrarySongId[];
+};
+
+export function MultiSelectToolbar({
+  multiSelect,
+  text,
+  visibleSongIds,
+  selectedPlaylistId,
+  isViewingPlaylist,
+  showDeleteSelected = false,
+  onDeleteLocalSongs,
+  onAddSongsToLiked,
+  onRemoveSongsFromLiked,
+  onOpenAddToPlaylist,
+  onRemoveSongsFromPlaylist,
+  moveTargetGroup = null,
+  convertibleSelectionCount = 0,
+  onMoveSelectedSongs,
+}: MultiSelectToolbarProps) {
+  const { count, enabled } = multiSelect;
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteInProgress = useRef(false);
+
+  if (!enabled) {
+    return null;
+  }
+
+  const selectedIds = Array.from(multiSelect.selected);
+
+  const handleDelete = () => {
+    if (!showDeleteSelected || !onDeleteLocalSongs || count === 0) {
+      return;
+    }
+    setIsConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!showDeleteSelected || !onDeleteLocalSongs || count === 0) return;
+
+    await runSingleFlightDelete(deleteInProgress, setIsDeleting, async () => {
+      const resolvedIds = await onDeleteLocalSongs(selectedIds);
+      multiSelect.deselect(resolvedIds);
+      setIsConfirmOpen(false);
+      return true;
+    });
+  };
+
+  const handleRemoveFromPlaylist = () => {
+    // 只有正打开某个歌单时才有“从哪个歌单移除”的语义。
+    if (!isViewingPlaylist || !selectedPlaylistId || count === 0) {
+      return;
+    }
+    onRemoveSongsFromPlaylist?.(selectedPlaylistId, selectedIds);
+    multiSelect.clear();
+  };
+
+  const handleMoveSelected = () => {
+    if (!moveTargetGroup || count === 0) {
+      return;
+    }
+    const movedIds = onMoveSelectedSongs?.(moveTargetGroup);
+    if (movedIds?.length) multiSelect.deselect(movedIds);
+  };
+
+  const showMoveToConverted = moveTargetGroup === "converted" && convertibleSelectionCount > 0;
+  const remainingCount = count - convertibleSelectionCount;
+
+  return (
+    <>
+      <div
+        className="library-multi-select-bar"
+        role="toolbar"
+        aria-label={text.multiSelectMode}
+      >
+        <span className="library-multi-select-count">
+          {text.multiSelectSelectedCount.replace("{count}", String(count))}
+        </span>
+        <button
+          type="button"
+          className="library-multi-select-control"
+          disabled={isDeleting}
+          onClick={() => multiSelect.selectAll(visibleSongIds)}
+        >
+          {text.multiSelectSelectAll}
+        </button>
+        <button
+          type="button"
+          className="library-multi-select-control"
+          disabled={count === 0 || isDeleting}
+          onClick={() => multiSelect.clear()}
+        >
+          {text.multiSelectClear}
+        </button>
+        {showMoveToConverted || moveTargetGroup === "imported" ? (
+          <button
+            type="button"
+            className="library-multi-select-control"
+            disabled={count === 0 || isDeleting}
+            onClick={handleMoveSelected}
+          >
+            {showMoveToConverted
+              ? formatText(text.moveSelectedToConverted, { count: String(convertibleSelectionCount) })
+              : text.moveToLocalImports}
+          </button>
+        ) : null}
+        {showMoveToConverted && remainingCount > 0 ? (
+          <span className="library-sort-hint">
+            {formatText(text.moveSelectedKeepV1, { count: String(remainingCount) })}
+          </span>
+        ) : null}
+        {showDeleteSelected ? (
+          <button
+            type="button"
+            className="library-multi-select-control library-multi-select-delete is-danger"
+            disabled={count === 0 || isDeleting || !onDeleteLocalSongs}
+            onClick={handleDelete}
+          >
+            {text.multiSelectDeleteSelected}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="library-multi-select-control"
+          disabled={count === 0 || isDeleting || !onOpenAddToPlaylist}
+          onClick={() => onOpenAddToPlaylist?.(selectedIds)}
+        >
+          {text.multiSelectAddToPlaylist}
+        </button>
+        {onAddSongsToLiked || onRemoveSongsFromLiked ? (
+          <button
+            type="button"
+            className="library-multi-select-control"
+            disabled={count === 0 || isDeleting}
+            onClick={() => {
+              if (onRemoveSongsFromLiked) {
+                onRemoveSongsFromLiked(selectedIds);
+                multiSelect.deselect(selectedIds);
+              } else {
+                onAddSongsToLiked?.(selectedIds);
+              }
+            }}
+          >
+            {onRemoveSongsFromLiked ? (
+              <HeartOff className="library-title-icon" aria-hidden="true" />
+            ) : (
+              <Heart className="library-title-icon" aria-hidden="true" />
+            )}
+            {onRemoveSongsFromLiked ? text.unlikeAction : text.multiSelectAddToLiked}
+          </button>
+        ) : null}
+        {isViewingPlaylist && selectedPlaylistId ? (
+          <button
+            type="button"
+            className="library-multi-select-control"
+            disabled={count === 0 || isDeleting}
+            onClick={handleRemoveFromPlaylist}
+          >
+            {text.multiSelectRemoveFromPlaylist}
+          </button>
+        ) : null}
+      </div>
+
+      {showDeleteSelected ? (
+        <ConfirmDialog
+          cancelLabel={text.multiSelectCancel}
+          confirmLabel={text.multiSelectDeleteSelected}
+          description={text.multiSelectDeleteConfirm.replace(
+            "{count}",
+            String(count),
+          )}
+          onCancel={() => setIsConfirmOpen(false)}
+          onConfirm={() => { void confirmDelete(); }}
+          isConfirming={isDeleting}
+          open={isConfirmOpen}
+          title={text.multiSelectDeleteTitle}
+          variant="danger"
+        />
+      ) : null}
+    </>
+  );
+}
+
+export function MultiSelectCheckbox({
+  checked,
+  label,
+  onToggle,
+}: {
+  checked: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <input
+      type="checkbox"
+      className="library-multi-select-checkbox"
+      checked={checked}
+      aria-label={label}
+      tabIndex={-1}
+      onClick={(event) => event.stopPropagation()}
+      onChange={onToggle}
+    />
+  );
+}

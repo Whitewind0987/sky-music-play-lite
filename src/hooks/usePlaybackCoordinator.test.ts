@@ -36,7 +36,11 @@ function createSong(id: string): LocalLibrarySong {
   };
 }
 
-function createPreviewHarness(initialQueue: number[] = [], initialSelection: number | null = null) {
+function createPreviewHarness(
+  initialQueue: number[] = [],
+  initialSelection: number | null = null,
+  playlistId?: string,
+) {
   type CoordinatorOptions = Parameters<typeof usePlaybackCoordinator>[0];
   const text = uiText["en-US"];
   const librarySongs = ["A", "B", "C", "D"].map(createSong);
@@ -47,6 +51,8 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     songIndex,
   }));
   const appendLog = vi.fn();
+  const deleteScore = vi.fn(async (_songId: string) => true);
+  const removeSongsFromPlaylist = vi.fn();
   let selectedSongIndex = initialSelection;
   let playbackSongIndex: number | null = null;
   const resolveSongForPlayback = vi.fn(async (songIndex: number): Promise<Song | null> => ({
@@ -85,6 +91,7 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     });
     const experimentalInput = {
       experimentalInputEnabled: false,
+      getActiveManualPlaybackSongId: () => null,
       getActiveForegroundPlaybackSongId: () => null,
       getActiveTargetWindowPlaybackSongId: () => null,
       manualPlaybackState: "idle",
@@ -101,11 +108,23 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
       get currentPlaybackLibrarySong() {
         return playbackSongIndex === null ? null : librarySongs[playbackSongIndex];
       },
+      handleDeleteLocalSong: async (
+        songIndex: number,
+        onDeleted: (index: number, id: string) => void,
+      ) => {
+        const songId = librarySongs[songIndex].id;
+        if (!await deleteScore(songId)) return false;
+        onDeleted(songIndex, songId);
+        librarySongs.splice(songIndex, 1);
+        return true;
+      },
+      handleRemoveSongsFromPlaylist: removeSongsFromPlaylist,
       isSongLoading: () => false,
       librarySongs,
       librarySongsRef,
       get playbackSongIndex() { return playbackSongIndex; },
-      selectedLibraryCategory: "local-imports",
+      selectedLibraryCategory: playlistId ? "playlists" : "local-imports",
+      selectedPlaylistId: playlistId ?? null,
       get selectedSongId() {
         return selectedSongIndex === null ? null : librarySongs[selectedSongIndex].id;
       },
@@ -120,10 +139,14 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     } as unknown as CoordinatorOptions["scoreLibrary"];
     const coordinator = usePlaybackCoordinator({
       appendLog, experimentalInput, playbackOrder, playbackOutput, playbackQueue, scoreLibrary, text,
+      getActivePreviewPlaybackSongId: previewPlayback.getActivePreviewPlaybackSongId,
     });
     return {
       appendLog,
       coordinator,
+      deleteScore,
+      removeSongsFromPlaylist,
+      scoreLibrary,
       onPlay,
       playbackOrder,
       playbackOutput,
@@ -159,6 +182,40 @@ describe("playback queue entry points", () => {
     vi.stubGlobal("window", globalThis);
     return createPreviewHarness(queue, selected);
   }
+
+  it("clears playback selection only when the active playlist loses the selected song", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", globalThis);
+    const app = createPreviewHarness([0, 1, 2], 0, "playlist");
+    await app.coordinator.handlePlayLibraryItem(app.visibleLibraryItems[0]);
+    const queue = app.queueIds();
+
+    app.coordinator.handleRemoveSongsFromPlaylist("other", ["A"]);
+    app.coordinator.handleRemoveSongsFromPlaylist("playlist", ["B", "C"]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("A");
+    expect(app.scoreLibrary.selectedSongId).toBe("A");
+
+    app.coordinator.handleRemoveSongsFromPlaylist("playlist", ["A", "D"]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBeNull();
+    expect(app.scoreLibrary.selectedSongId).toBeNull();
+    expect(app.queueIds()).toEqual(queue);
+    expect(app.removeSongsFromPlaylist.mock.calls).toEqual([
+      ["other", ["A"]], ["playlist", ["B", "C"]], ["playlist", ["A", "D"]],
+    ]);
+  });
+
+  it("reports successful deletions, skips duplicate submissions, and retries the failed ID", async () => {
+    const app = setup();
+    app.deleteScore.mockResolvedValueOnce(false);
+    const first = app.coordinator.handleDeleteLocalSongs(["A", "B", "missing"]);
+
+    await expect(app.coordinator.handleDeleteLocalSongs(["A"])).resolves.toEqual([]);
+    await expect(first).resolves.toEqual(["B", "missing"]);
+    expect(app.deleteScore.mock.calls).toEqual([["A"], ["B"]]);
+
+    await expect(app.coordinator.handleDeleteLocalSongs(["A"])).resolves.toEqual(["A"]);
+    expect(app.deleteScore.mock.calls).toEqual([["A"], ["B"], ["A"]]);
+  });
 
   it("plays a queue without a selected score and restarts the same head after Stop", async () => {
     const app = setup([0, 1, 2]);
@@ -746,4 +803,27 @@ describe("pending playback coordination", () => {
     expect(contextStore.getPendingContext()).toBeNull();
     expect(contextStore.commit(transactionC)).toBe(false);
   });
+});
+
+it("remaps the queue and context during batch deletion and only stops for the active score", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("window", globalThis);
+  try {
+    const app = createPreviewHarness([0, 1, 2, 3]);
+    await app.coordinator.handlePlayLibraryItem(app.visibleLibraryItems[1]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("B");
+
+    await app.coordinator.handleDeleteLocalSongs(["A", "C"]);
+    expect(app.queueIds()).toEqual(["B", "D"]);
+    expect(app.playbackOrder.activePlaybackContextRef.current?.songIds).toEqual(["B", "D"]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("B");
+
+    await app.coordinator.handleDeleteLocalSongs(["B"]);
+    expect(app.queueIds()).toEqual(["D"]);
+    expect(app.playbackOrder.activePlaybackContextRef.current).toBeNull();
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBeNull();
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

@@ -30,6 +30,7 @@ type UsePlaybackCoordinatorOptions = {
   appendLog: (entry: string) => void;
   onManualNextDecision?: (details: Record<string, unknown>) => void;
   experimentalInput: ExperimentalInputController;
+  getActivePreviewPlaybackSongId: () => LibrarySongId | null;
   playbackOrder: PlaybackOrderController;
   playbackOutput: PlaybackOutputController;
   playbackQueue: PlaybackQueueController;
@@ -41,6 +42,7 @@ export function usePlaybackCoordinator({
   appendLog,
   onManualNextDecision,
   experimentalInput,
+  getActivePreviewPlaybackSongId,
   playbackOrder,
   playbackOutput,
   playbackQueue,
@@ -54,6 +56,7 @@ export function usePlaybackCoordinator({
     previousSongId: LibrarySongId | null;
     isQueuePriority: boolean;
   } | null>(null);
+  const batchDeleteInProgressRef = useRef(false);
   const [isStarting, setIsStarting] = useState(false);
   const firstQueueItem = playbackQueue.getFirstQueueItem();
   const currentOrSelectedLibrarySong =
@@ -292,11 +295,16 @@ export function usePlaybackCoordinator({
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
+    handleRemoveSongsFromLiked([songId]);
+  }
+
+  function handleRemoveSongsFromLiked(songIds: LibrarySongId[]) {
+    const selectedSongId = scoreLibrary.selectedSongId;
     const shouldClear =
       scoreLibrary.selectedLibraryCategory === "liked" &&
-      scoreLibrary.selectedSongId === songId;
+      selectedSongId !== null && songIds.includes(selectedSongId);
 
-    scoreLibrary.handleRemoveFromLiked(songId);
+    scoreLibrary.handleRemoveSongsFromLiked(songIds);
 
     if (shouldClear) {
       clearCurrentPlaybackSelection();
@@ -307,12 +315,17 @@ export function usePlaybackCoordinator({
     playlistId: string,
     songId: LibrarySongId,
   ) {
+    handleRemoveSongsFromPlaylist(playlistId, [songId]);
+  }
+
+  function handleRemoveSongsFromPlaylist(playlistId: string, songIds: LibrarySongId[]) {
+    const selectedSongId = scoreLibrary.selectedSongId;
     const shouldClear =
       scoreLibrary.selectedLibraryCategory === "playlists" &&
       scoreLibrary.selectedPlaylistId === playlistId &&
-      scoreLibrary.selectedSongId === songId;
+      selectedSongId !== null && songIds.includes(selectedSongId);
 
-    scoreLibrary.handleRemoveSongFromPlaylist(playlistId, songId);
+    scoreLibrary.handleRemoveSongsFromPlaylist(playlistId, songIds);
 
     if (shouldClear) {
       clearCurrentPlaybackSelection();
@@ -601,14 +614,50 @@ export function usePlaybackCoordinator({
   ) {
     return scoreLibrary.handleDeleteLocalSong(
       songIndex,
-      (deletedSongIndex, deletedSongId) => {
-        playbackQueue.removeSongIndex(deletedSongIndex);
-        playbackOrder.removeSongFromPlaybackContext(deletedSongId);
-      },
+      (_index, deletedSongId) => synchronizeDeletedSong(deletedSongId),
       {
         stopPlaybackBeforeDelete: options.stopPlaybackBeforeDelete,
       },
     );
+  }
+
+  function synchronizeDeletedSong(songId: LibrarySongId) {
+    const songIndex = findSongIndex(songId);
+    if (songIndex >= 0) playbackQueue.removeSongIndex(songIndex);
+    playbackOrder.removeSongFromPlaybackContext(songId);
+  }
+
+  async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
+    if (batchDeleteInProgressRef.current) return [];
+    batchDeleteInProgressRef.current = true;
+    const resolvedIds: LibrarySongId[] = [];
+
+    try {
+      for (const songId of new Set(songIds)) {
+        const songIndex = findSongIndex(songId);
+        if (scoreLibrary.librarySongsRef.current[songIndex]?.source !== "local-import") {
+          resolvedIds.push(songId);
+          continue;
+        }
+
+        const deleted = await scoreLibrary.handleDeleteLocalSong(songIndex, (_index, deletedSongId) => {
+          if (
+            pendingStartRef.current?.songId === deletedSongId ||
+            getActivePreviewPlaybackSongId() === deletedSongId ||
+            experimentalInput.getActiveForegroundPlaybackSongId() === deletedSongId ||
+            experimentalInput.getActiveManualPlaybackSongId() === deletedSongId ||
+            experimentalInput.getActiveTargetWindowPlaybackSongId() === deletedSongId
+          ) {
+            handleStopPlayback();
+          }
+          synchronizeDeletedSong(deletedSongId);
+        });
+        if (deleted) resolvedIds.push(songId);
+      }
+      return resolvedIds;
+    } finally {
+      batchDeleteInProgressRef.current = false;
+    }
   }
 
   function getPlaybackContextOptions(item: LibrarySongListItem) {
@@ -663,6 +712,7 @@ export function usePlaybackCoordinator({
     handleAddSongToQueue,
     handleBottomPlayerPlay,
     handleDeleteLocalSong,
+    handleDeleteLocalSongs,
     handleNextPlayback,
     handlePlayLibraryItem,
     handlePlayAllPlaylist,
@@ -671,7 +721,9 @@ export function usePlaybackCoordinator({
     handleQueueClear,
     handleQueueItemRemove,
     handleRemoveFromLiked,
+    handleRemoveSongsFromLiked,
     handleRemoveSongFromPlaylist,
+    handleRemoveSongsFromPlaylist,
     handleStopPlayback,
     handleToggleLikedSong,
     isCurrentSongLoading,

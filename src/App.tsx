@@ -20,6 +20,7 @@ import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
+import { useMultiSelect } from "./hooks/useMultiSelect";
 import {
   getV1ToV2UpgradePreferenceReadiness,
   LibraryPanel,
@@ -68,6 +69,7 @@ import {
 } from "./lib/exitConfirmationFlow";
 import { formatText } from "./lib/formatText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
+import { getLocalLibraryMoveTarget } from "./lib/libraryGroups";
 import { getLibrarySongName } from "./lib/libraryCollections";
 import {
   synchronizeRemovedLibrarySongsWithPlayback,
@@ -376,6 +378,7 @@ function App() {
   const playbackCoordinator = usePlaybackCoordinator({
     appendLog,
     experimentalInput,
+    getActivePreviewPlaybackSongId: previewPlayback.getActivePreviewPlaybackSongId,
     onManualNextDecision: (details) =>
       appFileLogger.appendDetailedLog({
         details,
@@ -388,24 +391,30 @@ function App() {
     scoreLibrary,
     text,
   });
+  const isLocalSongDeleteBlocked = shouldBlockLocalSongDeletion({
+    isBackgroundHandoffPending: experimentalInput.isBackgroundHandoffPending,
+    isForegroundStartPending: experimentalInput.isForegroundStartPending,
+    isImportedScoreReconciliationInProgress:
+      appPersistence.isImportedScoreReconciliationInProgress,
+  });
   const libraryDialogs = useLibraryDialogs({
     librarySongs: scoreLibrary.librarySongs,
     onDeleteLocalSong: playbackCoordinator.handleDeleteLocalSong,
     onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
     onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
     playlists: scoreLibrary.playlists,
-    isLocalSongDeleteBlocked: shouldBlockLocalSongDeletion({
-      isBackgroundHandoffPending: experimentalInput.isBackgroundHandoffPending,
-      isForegroundStartPending: experimentalInput.isForegroundStartPending,
-      isImportedScoreReconciliationInProgress:
-        appPersistence.isImportedScoreReconciliationInProgress,
-    }),
+    isLocalSongDeleteBlocked,
     selectedSongId: scoreLibrary.selectedSongId,
     text: text.library,
   });
   const [queueOpen, setQueueOpen] = useState(false);
   const [isLibrarySearchToolbarVisible, setIsLibrarySearchToolbarVisible] =
     useState(true);
+  const multiSelect = useMultiSelect(JSON.stringify([
+    scoreLibrary.selectedLibraryCategory,
+    scoreLibrary.selectedLibraryCategory === "playlists" ? scoreLibrary.selectedPlaylistId : null,
+  ]));
+
   const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
     useState(false);
   const isAnyPlaybackActive =
@@ -796,15 +805,29 @@ function App() {
           items={scoreLibrary.pagedVisibleLibraryItems}
           sorting={scoreLibrary.sortingControls}
           locateScoreRequest={scoreLibrary.locateScoreRequest}
+          multiSelect={multiSelect}
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={handleAddSongToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
+          onCreatePlaylistWithSongs={scoreLibrary.handleCreatePlaylistWithSongs}
           onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
           onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
           onExportLocalSong={(songId) => {
             void scoreLibrary.handleExportLocalSong(songId);
           }}
+          hasSelectionToMoveToImports={multiSelect.count > 0 && scoreLibrary.localLibrarySongs.some(
+            song => multiSelect.selected.has(song.id) && getLocalLibraryMoveTarget(song) === "imported",
+          )}
+          convertibleSelectionCount={multiSelect.count === 0 ? 0 : scoreLibrary.localLibrarySongs.filter(
+            song => multiSelect.selected.has(song.id) && getLocalLibraryMoveTarget(song) === "converted",
+          ).length}
           onMoveLocalSong={scoreLibrary.handleMoveLocalSong}
+          onMoveSelectedSongs={(group) =>
+            scoreLibrary.handleMoveLocalSongs(
+              [...multiSelect.selected],
+              group,
+            )
+          }
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
@@ -814,9 +837,17 @@ function App() {
           onPlaySong={playbackCoordinator.handlePlayLibraryItem}
           onPlaySongNext={handlePlaySongNext}
           onRemoveFromLiked={playbackCoordinator.handleRemoveFromLiked}
+          likedSongs={scoreLibrary.likedSongs}
+          onAddSongsToLiked={scoreLibrary.handleAddSongsToLiked}
+          onRemoveSongsFromLiked={playbackCoordinator.handleRemoveSongsFromLiked}
           onRemoveSongFromPlaylist={
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
+          onDeleteLocalSongs={
+            isLocalSongDeleteBlocked ? undefined : playbackCoordinator.handleDeleteLocalSongs
+          }
+          onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
+          onRemoveSongsFromPlaylist={playbackCoordinator.handleRemoveSongsFromPlaylist}
           onResolveUpgradeSource={scoreLibrary.preloadSong}
           onUpgradeSourceLoadFailed={(item) =>
             scoreLibrary.reportUpgradeSourceLoadFailure(
@@ -1047,6 +1078,8 @@ function App() {
         open={isAppNoticeOpen}
         onOpenChange={setIsAppNoticeOpen}
       />
+
+
 
       {isDraggingScoreFiles ? (
         <div

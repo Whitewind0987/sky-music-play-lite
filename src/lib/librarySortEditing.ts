@@ -1,3 +1,6 @@
+import type { MultiSelectState } from "../hooks/useMultiSelect";
+import type { LibrarySortingControls } from "../types/librarySorting";
+
 type EditAction =
   | { type: "toggle"; scope: string | null; canEdit: boolean }
   | { type: "exit" };
@@ -13,4 +16,24 @@ export function isLibrarySortEditActive(
   editingScope: string | null, scope: string | null, canEdit: boolean,
 ) {
   return canEdit && scope !== null && editingScope === scope;
+}
+
+export function getLibraryEditModeActions(
+  multiSelect: Pick<MultiSelectState, "enabled" | "clear" | "setEnabled">,
+  sorting: Pick<LibrarySortingControls, "isEditing" | "onToggleEditing">,
+) {
+  return {
+    toggleMultiSelect() {
+      if (multiSelect.enabled) multiSelect.clear();
+      else if (sorting.isEditing) sorting.onToggleEditing();
+      multiSelect.setEnabled(!multiSelect.enabled);
+    },
+    toggleSorting() {
+      if (!sorting.isEditing && multiSelect.enabled) {
+        multiSelect.clear();
+        multiSelect.setEnabled(false);
+      }
+      sorting.onToggleEditing();
+    },
+  };
 }

@@ -13,7 +13,7 @@ import type { LibraryCategoryId } from "../components/AppShell";
 import { useLibrarySorting } from "./useLibrarySorting";
 import { getLibraryPageItems, getLibrarySongPage } from "../lib/libraryPagination";
 import { supportsAdditionSort } from "../lib/librarySorting";
-import { getLibraryCategoryItems, getLibrarySongCategory, moveLocalLibrarySong } from "../lib/libraryGroups";
+import { getLibraryCategoryItems, getLibrarySongCategory, moveLocalLibrarySong, moveLocalLibrarySongs } from "../lib/libraryGroups";
 import type { LibrarySortingControls } from "../types/librarySorting";
 import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
@@ -27,6 +27,7 @@ import {
   type ImportFailure,
 } from "../lib/importErrors";
 import {
+  addLikedSongs,
   addSongToPlaylist,
   createPlaylist,
   enrichLocalSongFormatVersion,
@@ -672,10 +673,27 @@ export function useScoreLibrary({
     const nextSongs = moveLocalLibrarySong(localLibrarySongsRef.current, songId, group);
     if (nextSongs === localLibrarySongsRef.current) return;
     librarySorting.moveSongToCategory(songId, group === "converted" ? "converted" : "local-imports");
+    applyLocalSongGroupChanges(nextSongs);
+  }
+
+  function applyLocalSongGroupChanges(nextSongs: LocalLibrarySong[]) {
     localLibrarySongsRef.current = nextSongs;
     const byId = new Map(nextSongs.map(song => [song.id, song]));
     librarySongsRef.current = librarySongsRef.current.map(song => byId.get(song.id) ?? song);
     setLocalLibrarySongs(nextSongs);
+  }
+
+  function handleMoveLocalSongs(songIds: LibrarySongId[], group: LocalLibraryGroup) {
+    const { songs: nextSongs, movedSongIds } = moveLocalLibrarySongs(
+      localLibrarySongsRef.current, songIds, group,
+    );
+    if (movedSongIds.length === 0) return movedSongIds;
+
+    librarySorting.moveSongsToCategory(
+      movedSongIds, group === "converted" ? "converted" : "local-imports",
+    );
+    applyLocalSongGroupChanges(nextSongs);
+    return movedSongIds;
   }
 
   function handleToggleLikedSong(songIndex: number) {
@@ -690,10 +708,15 @@ export function useScoreLibrary({
     );
   }
 
-  function handleRemoveFromLiked(songId: LibrarySongId) {
-    setLikedSongs((currentLikedSongs) =>
-      currentLikedSongs.filter((entry) => entry.songId !== songId),
-    );
+  function handleAddSongsToLiked(songIds: LibrarySongId[]) {
+    const selected = new Set(songIds);
+    const validIds = librarySongsRef.current.filter(song => selected.has(song.id)).map(song => song.id);
+    setLikedSongs(current => addLikedSongs(current, validIds));
+  }
+
+  function handleRemoveSongsFromLiked(songIds: LibrarySongId[]) {
+    const selected = new Set(songIds);
+    setLikedSongs(current => current.filter(entry => !selected.has(entry.songId)));
   }
 
   function handleCreatePlaylist(
@@ -802,27 +825,22 @@ export function useScoreLibrary({
       return;
     }
 
-    const playlist = addSongToPlaylist(
+    handleCreatePlaylistWithSongs([librarySong.id], playlistName);
+  }
+
+  function handleCreatePlaylistWithSongs(songIds: LibrarySongId[], playlistName: string) {
+    const availableIds = new Set(librarySongsRef.current.map(song => song.id));
+    const validIds = songIds.filter(id => availableIds.has(id));
+    if (validIds.length === 0) return;
+
+    const playlist = validIds.reduce(
+      addSongToPlaylist,
       createPlaylist(playlistName.trim() || text.library.defaultPlaylistName),
-      librarySong.id,
     );
 
     setPlaylists((currentPlaylists) => [...currentPlaylists, playlist]);
     setSelectedPlaylistId(playlist.id);
     setSelectedLibraryCategory("playlists");
-  }
-
-  function handleRemoveSongFromPlaylist(
-    playlistId: string,
-    songId: LibrarySongId,
-  ) {
-    setPlaylists((currentPlaylists) =>
-      currentPlaylists.map((playlist) =>
-        playlist.id === playlistId
-          ? removeSongFromPlaylist(playlist, songId)
-          : playlist,
-      ),
-    );
   }
 
   async function handleDeleteLocalSong(
@@ -857,24 +875,22 @@ export function useScoreLibrary({
         migrationFallbackSongsRef.current = nextFallbackSongs;
         setMigrationFallbackSongs(nextFallbackSongs);
         const removedCollections = removeSongFromAllCollections({
-          likedSongs,
-          playlists,
+          likedSongs: likedSongsRef.current,
+          playlists: playlistsRef.current,
           songId: librarySong.id,
         });
+        likedSongsRef.current = removedCollections.likedSongs;
+        playlistsRef.current = removedCollections.playlists;
         setLikedSongs(removedCollections.likedSongs);
         setPlaylists(removedCollections.playlists);
-        setLocalLibrarySongs((currentSongs) => {
-          const nextSongs = currentSongs.filter(
-            (currentSong) => currentSong.id !== librarySong.id,
-          );
-
-          localLibrarySongsRef.current = nextSongs;
-          return nextSongs;
-        });
-        if (selectedSongId === librarySong.id) {
+        const keepSong = (song: LibrarySong) => song.id !== librarySong.id;
+        librarySongsRef.current = librarySongsRef.current.filter(keepSong);
+        localLibrarySongsRef.current = localLibrarySongsRef.current.filter(keepSong);
+        setLocalLibrarySongs(localLibrarySongsRef.current);
+        if (selectedSongIdRef.current === librarySong.id) {
           updateSelectedSongId(null);
         }
-        if (playbackSongId === librarySong.id) {
+        if (playbackSongIdRef.current === librarySong.id) {
           updatePlaybackSongId(null);
         }
       },
@@ -882,6 +898,50 @@ export function useScoreLibrary({
       songIndex,
       stopPlaybackBeforeDelete: options.stopPlaybackBeforeDelete,
     });
+  }
+
+
+  function handleAddSongsToPlaylist(
+    playlistId: string,
+    songIds: LibrarySongId[],
+  ) {
+    const availableIds = new Set(librarySongsRef.current.map(song => song.id));
+    const ids = [...new Set(songIds)].filter(id => availableIds.has(id));
+    if (ids.length === 0) {
+      return;
+    }
+
+    setPlaylists((currentPlaylists) =>
+      currentPlaylists.map((currentPlaylist) => {
+        if (currentPlaylist.id !== playlistId) {
+          return currentPlaylist;
+        }
+        return ids.reduce(addSongToPlaylist, currentPlaylist);
+      }),
+    );
+  }
+
+  function handleRemoveSongsFromPlaylist(
+    playlistId: string,
+    songIds: LibrarySongId[],
+  ) {
+    const ids = Array.from(new Set(songIds));
+    if (ids.length === 0) {
+      return;
+    }
+
+    setPlaylists((currentPlaylists) =>
+      currentPlaylists.map((currentPlaylist) => {
+        if (currentPlaylist.id !== playlistId) {
+          return currentPlaylist;
+        }
+        let next = currentPlaylist;
+        for (const songId of ids) {
+          next = removeSongFromPlaylist(next, songId);
+        }
+        return next;
+      }),
+    );
   }
 
   async function handleUpgradeSongToV2(
@@ -1442,17 +1502,21 @@ export function useScoreLibrary({
     applyScoreLibrary,
     currentSelectedSong,
     handleAddSongToPlaylist,
+    handleAddSongsToPlaylist,
+    handleRemoveSongsFromPlaylist,
     handleCreatePlaylist,
     handleCreatePlaylistWithSong,
+    handleCreatePlaylistWithSongs,
     handleDeleteLocalSong,
     handleDeletePlaylist,
     handleExportLocalSong,
     handleMoveLocalSong,
+    handleMoveLocalSongs,
     handleImportScoreFiles,
     handleLibraryCategoryChange,
     handleLocateSelectedSong,
-    handleRemoveFromLiked,
-    handleRemoveSongFromPlaylist,
+    handleAddSongsToLiked,
+    handleRemoveSongsFromLiked,
     handleRenamePlaylist,
     handleSaveRecordedSong,
     handleSelectImportedSong,

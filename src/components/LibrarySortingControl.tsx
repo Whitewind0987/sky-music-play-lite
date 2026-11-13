@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ArrowDownUp, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import type { UiText } from "../i18n/uiText";
 import { librarySortModes, type LibrarySortingControls } from "../types/librarySorting";
 
@@ -10,20 +10,10 @@ export function LibrarySortingControl({ sorting, disabled, text }: {
 }) {
   return (
     <>
-    {sorting.mode === "custom" ? (
-      <button className="library-sort-edit-button" type="button"
-        disabled={disabled || !sorting.canEdit}
-        aria-pressed={sorting.isEditing}
-        title={!disabled && !sorting.canEdit ? text.searchDisabled : undefined}
-        onClick={sorting.onToggleEditing}>
-        {sorting.isEditing ? text.done : text.editOrder}
-      </button>
-    ) : null}
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button className="library-sort-trigger" type="button" disabled={disabled}
           aria-label={`${text.label}: ${text.modes[sorting.mode]}`}>
-          <ArrowDownUp aria-hidden="true" />
           <span>{text.modes[sorting.mode]}</span>
           <ChevronDown aria-hidden="true" />
         </button>
@@ -50,6 +40,15 @@ export function LibrarySortingControl({ sorting, disabled, text }: {
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+    {sorting.mode === "custom" ? (
+      <button className="library-sort-edit-button" type="button"
+        disabled={disabled || !sorting.canEdit}
+        aria-pressed={sorting.isEditing}
+        title={!disabled && !sorting.canEdit ? text.searchDisabled : undefined}
+        onClick={sorting.onToggleEditing}>
+        {sorting.isEditing ? text.done : text.editOrder}
+      </button>
+    ) : null}
     </>
   );
 }
