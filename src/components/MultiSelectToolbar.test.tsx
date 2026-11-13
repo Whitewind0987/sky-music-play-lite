@@ -16,6 +16,7 @@ function multiSelectState(overrides: Partial<MultiSelectState> = {}): MultiSelec
     isSelected: (songId) => songId === "a" || songId === "b",
     toggle: () => {},
     selectAll: () => {},
+    deselect: () => {},
     clear: () => {},
     setEnabled: () => {},
     ...overrides,

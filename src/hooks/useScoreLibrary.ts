@@ -828,19 +828,6 @@ export function useScoreLibrary({
     setSelectedLibraryCategory("playlists");
   }
 
-  function handleRemoveSongFromPlaylist(
-    playlistId: string,
-    songId: LibrarySongId,
-  ) {
-    setPlaylists((currentPlaylists) =>
-      currentPlaylists.map((playlist) =>
-        playlist.id === playlistId
-          ? removeSongFromPlaylist(playlist, songId)
-          : playlist,
-      ),
-    );
-  }
-
   async function handleDeleteLocalSong(
     songIndex: number,
     onDeleted?: (deletedSongIndex: number, deletedSongId: LibrarySongId) => void,
@@ -1518,7 +1505,6 @@ export function useScoreLibrary({
     handleLibraryCategoryChange,
     handleLocateSelectedSong,
     handleRemoveFromLiked,
-    handleRemoveSongFromPlaylist,
     handleRenamePlaylist,
     handleSaveRecordedSong,
     handleSelectImportedSong,

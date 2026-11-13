@@ -409,7 +409,10 @@ function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [isLibrarySearchToolbarVisible, setIsLibrarySearchToolbarVisible] =
     useState(true);
-  const multiSelect = useMultiSelect();
+  const multiSelect = useMultiSelect(JSON.stringify([
+    scoreLibrary.selectedLibraryCategory,
+    scoreLibrary.selectedLibraryCategory === "playlists" ? scoreLibrary.selectedPlaylistId : null,
+  ]));
 
   const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
     useState(false);
@@ -833,7 +836,7 @@ function App() {
             isLocalSongDeleteBlocked ? undefined : playbackCoordinator.handleDeleteLocalSongs
           }
           onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
-          onRemoveSongsFromPlaylist={scoreLibrary.handleRemoveSongsFromPlaylist}
+          onRemoveSongsFromPlaylist={playbackCoordinator.handleRemoveSongsFromPlaylist}
           onResolveUpgradeSource={scoreLibrary.preloadSong}
           onUpgradeSourceLoadFailed={(item) =>
             scoreLibrary.reportUpgradeSourceLoadFailure(

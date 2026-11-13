@@ -1288,7 +1288,8 @@ button {
 }
 
 .library-sort-trigger,
-.library-sort-edit-button {
+.library-sort-edit-button,
+.library-multi-select-control {
   flex: 0 0 auto;
   max-width: min(200px, 100%);
   min-width: 0;
@@ -1324,25 +1325,30 @@ button {
 }
 
 .library-sort-trigger:hover:not(:disabled),
-.library-sort-edit-button:hover:not(:disabled) {
+.library-sort-edit-button:hover:not(:disabled),
+.library-multi-select-control:hover:not(:disabled) {
   background: #f1f3f5;
 }
 
 .library-sort-trigger:focus-visible,
 .library-sort-edit-button:focus-visible,
-.library-reorder-handle:focus-visible {
+.library-multi-select-control:focus-visible,
+.library-reorder-handle:focus-visible,
+.library-multi-select-checkbox:focus-visible {
   outline: 2px solid rgba(var(--app-primary-rgb), 0.6);
   outline-offset: 2px;
 }
 
 .library-sort-trigger:disabled,
 .library-sort-edit-button:disabled,
+.library-multi-select-control:disabled,
 .library-action-menu button:disabled {
   color: #9aa5b1;
   cursor: not-allowed;
 }
 
-.library-sort-edit-button[aria-pressed="true"] {
+.library-sort-edit-button[aria-pressed="true"],
+.library-multi-select-control[aria-pressed="true"] {
   border-color: var(--app-primary);
   color: var(--app-primary-hover);
   background: rgba(var(--app-primary-rgb), 0.08);
@@ -1618,12 +1624,15 @@ button {
   outline-offset: -2px;
 }
 
-.library-song-row.is-selected {
+.library-song-row.is-selected,
+.library-song-row.is-multi-selected {
   background: rgba(var(--app-primary-rgb), 0.08);
 }
 
 .library-song-row.is-selected:hover,
-.library-song-row.is-selected:focus-visible {
+.library-song-row.is-selected:focus-visible,
+.library-song-row.is-multi-selected:hover,
+.library-song-row.is-multi-selected:focus-visible {
   background: rgba(var(--app-primary-rgb), 0.11);
 }
 
@@ -2195,9 +2204,13 @@ button {
   font-weight: 700;
 }
 
+.score-upgrade-checkbox-field input,
+.library-multi-select-checkbox {
+  accent-color: var(--app-primary);
+}
+
 .score-upgrade-checkbox-field input {
   margin: 2px 0 0;
-  accent-color: var(--app-primary);
 }
 
 .score-upgrade-checkbox-field small {
@@ -2374,13 +2387,17 @@ button {
   outline: none;
 }
 
-.confirm-dialog-primary.is-danger {
+.confirm-dialog-primary.is-danger,
+.library-multi-select-delete.is-danger:not(:disabled) {
+  color: var(--app-primary-contrast);
   border-color: #b91c1c;
   background: #dc2626;
 }
 
 .confirm-dialog-primary.is-danger:hover,
-.confirm-dialog-primary.is-danger:focus-visible {
+.confirm-dialog-primary.is-danger:focus-visible,
+.library-multi-select-delete.is-danger:hover:not(:disabled),
+.library-multi-select-delete.is-danger:focus-visible:not(:disabled) {
   background: #b91c1c;
 }
 
@@ -5620,143 +5637,32 @@ button {
   }
 }
 
-
-/* ---------- 多选模式 ---------- */
-.library-multi-select-toggle {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: transparent;
-  color: inherit;
-  border-radius: 999px;
-  padding: 6px 14px;
-  font: inherit;
-  font-size: 0.92em;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.library-multi-select-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.library-multi-select-toggle.is-active {
-  background: var(--accent, #7cc7ff);
-  border-color: var(--accent, #7cc7ff);
-  color: #10131a;
-  font-weight: 600;
-}
-
 .library-multi-select-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  margin: 0 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .library-multi-select-count {
+  font-size: 14px;
   font-weight: 600;
-  opacity: 0.9;
 }
 
-.library-multi-select-action {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: inherit;
-  border-radius: 8px;
-  padding: 5px 12px;
-  font: inherit;
-  font-size: 0.9em;
-  cursor: pointer;
-}
-
-.library-multi-select-action:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.library-multi-select-action:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.library-multi-select-action.is-danger {
-  border-color: rgba(255, 120, 120, 0.55);
-  color: #ff9a9a;
-}
-
-.library-multi-select-action.is-danger:hover:not(:disabled) {
-  background: rgba(255, 90, 90, 0.16);
-}
-
-.library-multi-select-playlist {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: inherit;
-  border-radius: 8px;
-  padding: 5px 10px;
-  font: inherit;
-  font-size: 0.9em;
-  cursor: pointer;
-}
-
-.library-song-row.is-multi-select {
-  cursor: default;
-}
-
-.library-song-row.is-multi-selected {
-  background: rgba(124, 199, 255, 0.14);
-}
-
-/* 勾选框绝对定位叠在序号列上，不占用 grid 列位，避免破坏表格布局 */
 .library-multi-select-checkbox {
   position: absolute;
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
-  z-index: 2;
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   margin: 0;
-  padding: 0;
-  border: 1px solid #7a8794;
-  border-radius: 5px;
-  background: #ffffff;
-  color: #1f2933;
   cursor: pointer;
 }
 
-.library-multi-select-checkbox:focus-visible {
-  outline: 2px solid #667085;
-  outline-offset: 1px;
+.library-song-title > .library-playback-indicator {
+  flex: 0 0 auto;
 }
 
-/* 多选模式下隐藏序号与播放按钮，勾选框独占序号位。
-   用 :hover 变体提高特异性，确保悬停时播放按钮不会盖住勾选框。 */
-.library-song-row.is-multi-select .library-song-number,
-.library-song-row.is-multi-select:hover .library-song-number,
-.library-song-row.is-multi-select .library-row-play,
-.library-song-row.is-multi-select:hover .library-row-play,
-.library-song-row.is-multi-select .library-song-index:focus-within .library-row-play {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.library-multi-select-checkbox.is-checked {
-  background: var(--accent, #7cc7ff);
-  border-color: var(--accent, #7cc7ff);
-  color: #10131a;
-}
-
-.library-multi-select-checkbox svg {
-  width: 13px;
-  height: 13px;
+.library-song-row.is-multi-select .library-row-play {
+  visibility: hidden;
 }

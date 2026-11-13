@@ -310,12 +310,17 @@ export function usePlaybackCoordinator({
     playlistId: string,
     songId: LibrarySongId,
   ) {
+    handleRemoveSongsFromPlaylist(playlistId, [songId]);
+  }
+
+  function handleRemoveSongsFromPlaylist(playlistId: string, songIds: LibrarySongId[]) {
+    const selectedSongId = scoreLibrary.selectedSongId;
     const shouldClear =
       scoreLibrary.selectedLibraryCategory === "playlists" &&
       scoreLibrary.selectedPlaylistId === playlistId &&
-      scoreLibrary.selectedSongId === songId;
+      selectedSongId !== null && songIds.includes(selectedSongId);
 
-    scoreLibrary.handleRemoveSongFromPlaylist(playlistId, songId);
+    scoreLibrary.handleRemoveSongsFromPlaylist(playlistId, songIds);
 
     if (shouldClear) {
       clearCurrentPlaybackSelection();
@@ -618,17 +623,19 @@ export function usePlaybackCoordinator({
   }
 
   async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
-    if (batchDeleteInProgressRef.current) return;
+    if (batchDeleteInProgressRef.current) return [];
     batchDeleteInProgressRef.current = true;
+    const resolvedIds: LibrarySongId[] = [];
 
     try {
       for (const songId of new Set(songIds)) {
         const songIndex = findSongIndex(songId);
         if (scoreLibrary.librarySongsRef.current[songIndex]?.source !== "local-import") {
+          resolvedIds.push(songId);
           continue;
         }
 
-        await scoreLibrary.handleDeleteLocalSong(songIndex, (_index, deletedSongId) => {
+        const deleted = await scoreLibrary.handleDeleteLocalSong(songIndex, (_index, deletedSongId) => {
           if (
             pendingStartRef.current?.songId === deletedSongId ||
             getActivePreviewPlaybackSongId() === deletedSongId ||
@@ -640,7 +647,9 @@ export function usePlaybackCoordinator({
           }
           synchronizeDeletedSong(deletedSongId);
         });
+        if (deleted) resolvedIds.push(songId);
       }
+      return resolvedIds;
     } finally {
       batchDeleteInProgressRef.current = false;
     }
@@ -708,6 +717,7 @@ export function usePlaybackCoordinator({
     handleQueueItemRemove,
     handleRemoveFromLiked,
     handleRemoveSongFromPlaylist,
+    handleRemoveSongsFromPlaylist,
     handleStopPlayback,
     handleToggleLikedSong,
     isCurrentSongLoading,

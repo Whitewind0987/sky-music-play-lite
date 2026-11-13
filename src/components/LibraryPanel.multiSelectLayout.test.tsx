@@ -99,7 +99,7 @@ function makeProps(enabled: boolean, selectedIds: string[] = []) {
       count: selected.size,
       isSelected: (id: string) => selected.has(id),
       toggle: noOp,
-      selectAll: noOp,
+      selectAll: noOp, deselect: noOp,
       clear: noOp,
       setEnabled: noOp,
     },

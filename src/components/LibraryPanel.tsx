@@ -107,7 +107,7 @@ type LibraryPanelProps = {
   onRemoveFromLiked: (songId: LibrarySongId) => void;
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   multiSelect: MultiSelectState;
-  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => void;
+  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
   onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRenamePlaylist: (playlistId: string) => void;
@@ -1095,6 +1095,20 @@ function LibrarySongTable({
           );
           const rowNumber = String(displayIndex + rowNumberStart).padStart(2, "0");
 
+          const playbackIndicatorIcon = playbackIndicator ? (
+            <span
+              className="library-playback-indicator"
+              role="img"
+              aria-label={text.playbackIndicators[playbackIndicator]}
+              title={text.playbackIndicators[playbackIndicator]}
+            >
+              <PlaybackIcon aria-hidden="true" focusable="false" />
+            </span>
+          ) : null;
+          const activateRow = () => {
+            if (multiSelect.enabled) multiSelect.toggle(librarySong.id);
+            else onSelectSong(songIndex);
+          };
           return (
             <div
               className={`library-song-row${isSelected ? " is-selected" : ""}${
@@ -1123,19 +1137,14 @@ function LibrarySongTable({
               tabIndex={0}
               aria-haspopup="menu"
               aria-expanded={openActionMenuSongId === librarySong.id}
+              aria-pressed={multiSelect.enabled ? multiSelect.isSelected(librarySong.id) : undefined}
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 setContextMenuPosition({ songId: librarySong.id, x: event.clientX, y: event.clientY });
                 onOpenActionMenu(librarySong.id);
               }}
-              onClick={() => {
-                if (multiSelect.enabled) {
-                  multiSelect.toggle(librarySong.id);
-                  return;
-                }
-                onSelectSong(songIndex);
-              }}
+              onClick={activateRow}
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
                 if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
@@ -1148,7 +1157,7 @@ function LibrarySongTable({
                 }
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  onSelectSong(songIndex);
+                  activateRow();
                 }
               }}
             >
@@ -1157,21 +1166,11 @@ function LibrarySongTable({
                   <MultiSelectCheckbox
                     checked={multiSelect.isSelected(librarySong.id)}
                     label={songName}
+                    onToggle={activateRow}
                   />
                 ) : null}
                 <span className="library-song-number">
-                  {playbackIndicator ? (
-                    <span
-                      className="library-playback-indicator"
-                      role="img"
-                      aria-label={text.playbackIndicators[playbackIndicator]}
-                      title={text.playbackIndicators[playbackIndicator]}
-                    >
-                      <PlaybackIcon aria-hidden="true" focusable="false" />
-                    </span>
-                  ) : (
-                    rowNumber
-                  )}
+                  {multiSelect.enabled ? null : playbackIndicatorIcon ?? rowNumber}
                 </span>
                 <button
                   className="library-row-play"
@@ -1197,6 +1196,7 @@ function LibrarySongTable({
                 </button>
               </span>
               <span className="library-song-title">
+                {multiSelect.enabled ? playbackIndicatorIcon : null}
                 {sorting.isEditing ? (
                   <button type="button" className="library-reorder-handle"
                     disabled={!sorting.canReorder}
@@ -1603,7 +1603,7 @@ export function LibraryPanel({
           </label>
           <div className="library-content-actions">
             <button
-              className={`library-multi-select-toggle${multiSelect.enabled ? " is-active" : ""}`}
+              className="library-multi-select-control"
               type="button"
               aria-pressed={multiSelect.enabled}
               aria-label={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
@@ -1637,6 +1637,7 @@ export function LibraryPanel({
           <p className="library-sort-hint">{text.sorting.likedTime}</p>
         ) : null}
         <MultiSelectToolbar
+          key={JSON.stringify([selectedCategory, isPlaylists ? selectedPlaylistId : null])}
           multiSelect={multiSelect}
           playlists={playlists}
           text={text}

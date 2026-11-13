@@ -93,7 +93,7 @@ function props(overrides: Partial<ComponentProps<typeof LibraryPanel>> = {}) {
       count: 0,
       isSelected: () => false,
       toggle: noOp,
-      selectAll: noOp,
+      selectAll: noOp, deselect: noOp,
       clear: noOp,
       setEnabled: noOp,
     },
@@ -118,7 +118,7 @@ describe("LibraryPanel 多选入口", () => {
             count: 1,
             isSelected: () => true,
             toggle: noOp,
-            selectAll: noOp,
+            selectAll: noOp, deselect: noOp,
             clear: noOp,
             setEnabled: noOp,
           },
@@ -140,7 +140,7 @@ describe("LibraryPanel 多选入口", () => {
             count: 0,
             isSelected: () => false,
             toggle: noOp,
-            selectAll: noOp,
+            selectAll: noOp, deselect: noOp,
             clear: noOp,
             setEnabled: noOp,
           },
@@ -148,6 +148,7 @@ describe("LibraryPanel 多选入口", () => {
       ),
     );
     expect(html).toContain("library-multi-select-checkbox");
-    expect(html).toContain('role="checkbox"');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('aria-pressed="false"');
   });
 });

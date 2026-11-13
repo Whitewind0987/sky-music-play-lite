@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { Check } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { runSingleFlightDelete } from "../lib/deleteConfirmationFlow";
 import type { LibrarySongId, LocalLibraryGroup, UserPlaylist } from "../types/library";
 import type { MultiSelectState } from "../hooks/useMultiSelect";
 import type { UiText } from "../i18n/uiText";
@@ -16,7 +16,7 @@ type MultiSelectToolbarProps = {
   selectedPlaylistId: string | null;
   /** 「从歌单移除」只对“当前正打开某个歌单”有意义；切到其它分类时它不该出现。 */
   isViewingPlaylist: boolean;
-  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => void;
+  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
   onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   /**
@@ -42,6 +42,8 @@ export function MultiSelectToolbar({
 }: MultiSelectToolbarProps) {
   const { count, enabled } = multiSelect;
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteInProgress = useRef(false);
 
   if (!enabled) {
     return null;
@@ -56,10 +58,15 @@ export function MultiSelectToolbar({
     setIsConfirmOpen(true);
   };
 
-  const confirmDelete = () => {
-    setIsConfirmOpen(false);
-    onDeleteLocalSongs?.(selectedIds);
-    multiSelect.clear();
+  const confirmDelete = async () => {
+    if (!onDeleteLocalSongs || count === 0) return;
+
+    await runSingleFlightDelete(deleteInProgress, setIsDeleting, async () => {
+      const resolvedIds = await onDeleteLocalSongs(selectedIds);
+      multiSelect.deselect(resolvedIds);
+      setIsConfirmOpen(false);
+      return true;
+    });
   };
 
   const handleRemoveFromPlaylist = () => {
@@ -91,15 +98,16 @@ export function MultiSelectToolbar({
         </span>
         <button
           type="button"
-          className="library-multi-select-action"
+          className="library-multi-select-control"
+          disabled={isDeleting}
           onClick={() => multiSelect.selectAll(visibleSongIds)}
         >
           {text.multiSelectSelectAll}
         </button>
         <button
           type="button"
-          className="library-multi-select-action"
-          disabled={count === 0}
+          className="library-multi-select-control"
+          disabled={count === 0 || isDeleting}
           onClick={() => multiSelect.clear()}
         >
           {text.multiSelectClear}
@@ -107,8 +115,8 @@ export function MultiSelectToolbar({
         {moveTargetGroup ? (
           <button
             type="button"
-            className="library-multi-select-action"
-            disabled={count === 0}
+            className="library-multi-select-control"
+            disabled={count === 0 || isDeleting}
             onClick={handleMoveSelected}
           >
             {moveTargetGroup === "converted"
@@ -118,8 +126,8 @@ export function MultiSelectToolbar({
         ) : null}
         <button
           type="button"
-          className="library-multi-select-action is-danger"
-          disabled={count === 0 || !onDeleteLocalSongs}
+          className="library-multi-select-control library-multi-select-delete is-danger"
+          disabled={count === 0 || isDeleting || !onDeleteLocalSongs}
           onClick={handleDelete}
         >
           {text.multiSelectDeleteSelected}
@@ -127,7 +135,8 @@ export function MultiSelectToolbar({
         {playlists.length > 0 ? (
           <>
             <select
-              className="library-multi-select-playlist"
+              className="library-multi-select-control"
+              disabled={count === 0 || isDeleting}
               value=""
               aria-label={text.multiSelectAddToPlaylist}
               onChange={(event) => {
@@ -150,8 +159,8 @@ export function MultiSelectToolbar({
             {isViewingPlaylist && selectedPlaylistId ? (
               <button
                 type="button"
-                className="library-multi-select-action"
-                disabled={count === 0}
+                className="library-multi-select-control"
+                disabled={count === 0 || isDeleting}
                 onClick={handleRemoveFromPlaylist}
               >
                 {text.multiSelectRemoveFromPlaylist}
@@ -169,7 +178,8 @@ export function MultiSelectToolbar({
           String(count),
         )}
         onCancel={() => setIsConfirmOpen(false)}
-        onConfirm={confirmDelete}
+        onConfirm={() => { void confirmDelete(); }}
+        isConfirming={isDeleting}
         open={isConfirmOpen}
         title={text.multiSelectDeleteTitle}
         variant="danger"
@@ -181,20 +191,21 @@ export function MultiSelectToolbar({
 export function MultiSelectCheckbox({
   checked,
   label,
+  onToggle,
 }: {
   checked: boolean;
   label: string;
+  onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={`library-multi-select-checkbox${checked ? " is-checked" : ""}`}
-      role="checkbox"
-      aria-checked={checked}
+    <input
+      type="checkbox"
+      className="library-multi-select-checkbox"
+      checked={checked}
       aria-label={label}
       tabIndex={-1}
-    >
-      {checked ? <Check aria-hidden="true" focusable="false" /> : null}
-    </button>
+      onClick={(event) => event.stopPropagation()}
+      onChange={onToggle}
+    />
   );
 }
