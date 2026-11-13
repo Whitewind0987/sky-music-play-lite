@@ -818,9 +818,17 @@ export function useScoreLibrary({
       return;
     }
 
-    const playlist = addSongToPlaylist(
+    handleCreatePlaylistWithSongs([librarySong.id], playlistName);
+  }
+
+  function handleCreatePlaylistWithSongs(songIds: LibrarySongId[], playlistName: string) {
+    const availableIds = new Set(librarySongsRef.current.map(song => song.id));
+    const validIds = songIds.filter(id => availableIds.has(id));
+    if (validIds.length === 0) return;
+
+    const playlist = validIds.reduce(
+      addSongToPlaylist,
       createPlaylist(playlistName.trim() || text.library.defaultPlaylistName),
-      librarySong.id,
     );
 
     setPlaylists((currentPlaylists) => [...currentPlaylists, playlist]);
@@ -890,7 +898,8 @@ export function useScoreLibrary({
     playlistId: string,
     songIds: LibrarySongId[],
   ) {
-    const ids = Array.from(new Set(songIds));
+    const availableIds = new Set(librarySongsRef.current.map(song => song.id));
+    const ids = [...new Set(songIds)].filter(id => availableIds.has(id));
     if (ids.length === 0) {
       return;
     }
@@ -900,13 +909,7 @@ export function useScoreLibrary({
         if (currentPlaylist.id !== playlistId) {
           return currentPlaylist;
         }
-        let next = currentPlaylist;
-        for (const songId of ids) {
-          if (!next.songIds.includes(songId)) {
-            next = addSongToPlaylist(next, songId);
-          }
-        }
-        return next;
+        return ids.reduce(addSongToPlaylist, currentPlaylist);
       }),
     );
   }
@@ -1496,6 +1499,7 @@ export function useScoreLibrary({
     handleRemoveSongsFromPlaylist,
     handleCreatePlaylist,
     handleCreatePlaylistWithSong,
+    handleCreatePlaylistWithSongs,
     handleDeleteLocalSong,
     handleDeletePlaylist,
     handleExportLocalSong,

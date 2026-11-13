@@ -10,7 +10,7 @@ import { uiText } from "../i18n/uiText";
 import { createLibrarySong } from "../lib/libraryCollections";
 import { createDefaultV1ToV2UpgradePreferences } from "../lib/v1ToV2UpgradePreferences";
 import type { LibrarySortingControls } from "../types/librarySorting";
-import { isLibrarySortEditActive, librarySortEditReducer } from "../lib/librarySortEditing";
+import { getLibraryEditModeActions, isLibrarySortEditActive, librarySortEditReducer } from "../lib/librarySortEditing";
 
 type Props = ComponentProps<typeof LibraryPanel>;
 const noOp = () => {};
@@ -102,7 +102,8 @@ describe("library sort editing and toolbar markup", () => {
     const onToggleEditing = () => { scope = librarySortEditReducer(scope, { type: "toggle", scope: "local-imports", canEdit: true }); };
     for (const expected of ["local-imports", null, "local-imports"]) {
       const tree = LibrarySortingControl({ sorting: controls({ onToggleEditing, onReorder }), disabled: false, text: uiText["zh-CN"].library.sorting });
-      const editButton = tree.props.children[0];
+      const editButton = tree.props.children.find((child: { props?: { className?: string } } | null) =>
+        child?.props?.className === "library-sort-edit-button");
       editButton.props.onClick();
       expect(scope).toBe(expected);
     }
@@ -128,20 +129,57 @@ describe("library sort editing and toolbar markup", () => {
     expect(items.map(item => item.songIndex)).toEqual([42, 41]);
   });
 
-  it("keeps the right-side actions together and places sorting directly before import", () => {
+  it("exits custom sorting before entering multi-select", () => {
+    const calls: string[] = [];
+    const actions = getLibraryEditModeActions({
+      enabled: false,
+      clear: () => calls.push("clear"),
+      setEnabled: enabled => calls.push(`multi-select:${enabled}`),
+    }, {
+      isEditing: true,
+      onToggleEditing: () => calls.push("exit sorting"),
+    });
+
+    actions.toggleMultiSelect();
+
+    expect(calls).toEqual(["exit sorting", "multi-select:true"]);
+  });
+
+  it("clears and exits multi-select before entering custom sorting", () => {
+    const calls: string[] = [];
+    const actions = getLibraryEditModeActions({
+      enabled: true,
+      clear: () => calls.push("clear"),
+      setEnabled: enabled => calls.push(`multi-select:${enabled}`),
+    }, {
+      isEditing: false,
+      onToggleEditing: () => calls.push("enter sorting"),
+    });
+
+    actions.toggleSorting();
+
+    expect(calls).toEqual(["clear", "multi-select:false", "enter sorting"]);
+  });
+
+  it("places multi-select after search and keeps the right-side controls grouped", () => {
     const html = render();
+    const left = html.indexOf('class="library-search-actions"');
     const search = html.indexOf('class="library-search"');
+    const multi = html.indexOf('class="library-multi-select-control"');
     const group = html.indexOf('class="library-content-actions"');
-    const edit = html.indexOf('class="library-sort-edit-button"');
     const sort = html.indexOf('class="library-sort-trigger"');
+    const edit = html.indexOf('class="library-sort-edit-button"');
     const importArea = html.indexOf('class="library-import-area"');
-    expect(search).toBeLessThan(group);
-    expect(group).toBeLessThan(edit);
-    expect(edit).toBeLessThan(sort);
-    expect(sort).toBeLessThan(importArea);
-    // The only item between the trigger button and import is the dropdown's
-    // screen-reader anchor, if Radix emits one; there is no separate toolbar child.
-    expect(html.slice(group, importArea)).not.toContain("</div>");
+    expect(left).toBeGreaterThan(-1);
+    expect(left).toBeLessThan(search);
+    expect(search).toBeLessThan(multi);
+    expect(multi).toBeLessThan(group);
+    expect(group).toBeLessThan(sort);
+    expect(sort).toBeLessThan(edit);
+    expect(edit).toBeLessThan(importArea);
+    expect(html.slice(group, importArea)).toContain('class="library-sort-group"');
+    expect(html).toContain("lucide-list-checks");
+    expect(html.slice(importArea)).toContain("lucide-plus");
   });
 
   it("keeps the same action group in categories without an import button", () => {

@@ -28,7 +28,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState({ enabled: false })}
-        playlists={[]}
         text={uiText["zh-CN"].library}
         visibleSongIds={[]}
         selectedPlaylistId={null}
@@ -42,7 +41,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={[]}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
@@ -55,26 +53,18 @@ describe("MultiSelectToolbar", () => {
     expect(html).toContain("清空选择");
   });
 
-  it("有歌单时提供加入歌单下拉", () => {
+  it("没有歌单时也提供加入歌单弹窗入口", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={[
-          {
-            id: "p1",
-            name: "我的本地组",
-            songIds: [],
-            createdAt: 0,
-            updatedAt: 0,
-          },
-        ]}
+        onOpenAddToPlaylist={() => {}}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
         isViewingPlaylist={false}
       />,
     );
-    expect(html).toContain("我的本地组");
+    expect(html).not.toContain("<select");
     expect(html).toContain("加入歌单");
   });
 
@@ -82,7 +72,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={[]}
         text={uiText["en-US"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
@@ -93,21 +82,10 @@ describe("MultiSelectToolbar", () => {
     expect(html).toContain("Delete selected");
   });
 
-  const playlistFixture = [
-    {
-      id: "p1",
-      name: "我的本地组",
-      songIds: [],
-      createdAt: 0,
-      updatedAt: 0,
-    },
-  ];
-
   it("不在歌单分类时不显示「从歌单移除」（即使选中过歌单）", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={playlistFixture}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId="p1"
@@ -115,7 +93,6 @@ describe("MultiSelectToolbar", () => {
       />,
     );
     expect(html).not.toContain("从歌单移除");
-    // 加入歌单仍然可用
     expect(html).toContain("加入歌单");
   });
 
@@ -123,7 +100,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={playlistFixture}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId="p1"
@@ -137,7 +113,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={[]}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
@@ -153,7 +128,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={[]}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
@@ -169,7 +143,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
-        playlists={[]}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
@@ -185,7 +158,6 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState({ selected: new Set(), count: 0 })}
-        playlists={[]}
         text={uiText["zh-CN"].library}
         visibleSongIds={[]}
         selectedPlaylistId={null}

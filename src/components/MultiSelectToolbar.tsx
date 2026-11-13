@@ -3,21 +3,20 @@
 
 import { useRef, useState } from "react";
 import { runSingleFlightDelete } from "../lib/deleteConfirmationFlow";
-import type { LibrarySongId, LocalLibraryGroup, UserPlaylist } from "../types/library";
+import type { LibrarySongId, LocalLibraryGroup } from "../types/library";
 import type { MultiSelectState } from "../hooks/useMultiSelect";
 import type { UiText } from "../i18n/uiText";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 type MultiSelectToolbarProps = {
   multiSelect: MultiSelectState;
-  playlists: UserPlaylist[];
   text: UiText["library"];
   visibleSongIds: LibrarySongId[];
   selectedPlaylistId: string | null;
   /** 「从歌单移除」只对“当前正打开某个歌单”有意义；切到其它分类时它不该出现。 */
   isViewingPlaylist: boolean;
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
-  onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
+  onOpenAddToPlaylist?: (songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   /**
    * 批量移动分类的目标组；null 表示当前分类不支持移动，按钮不渲染。
@@ -29,13 +28,12 @@ type MultiSelectToolbarProps = {
 
 export function MultiSelectToolbar({
   multiSelect,
-  playlists,
   text,
   visibleSongIds,
   selectedPlaylistId,
   isViewingPlaylist,
   onDeleteLocalSongs,
-  onAddSongsToPlaylist,
+  onOpenAddToPlaylist,
   onRemoveSongsFromPlaylist,
   moveTargetGroup = null,
   onMoveSelectedSongs,
@@ -132,41 +130,23 @@ export function MultiSelectToolbar({
         >
           {text.multiSelectDeleteSelected}
         </button>
-        {playlists.length > 0 ? (
-          <>
-            <select
-              className="library-multi-select-control"
-              disabled={count === 0 || isDeleting}
-              value=""
-              aria-label={text.multiSelectAddToPlaylist}
-              onChange={(event) => {
-                const playlistId = event.currentTarget.value;
-                event.currentTarget.value = "";
-                if (!playlistId) {
-                  return;
-                }
-                onAddSongsToPlaylist?.(playlistId, selectedIds);
-                multiSelect.clear();
-              }}
-            >
-              <option value="">{text.multiSelectAddToPlaylist}</option>
-              {playlists.map((playlist) => (
-                <option key={playlist.id} value={playlist.id}>
-                  {playlist.name}
-                </option>
-              ))}
-            </select>
-            {isViewingPlaylist && selectedPlaylistId ? (
-              <button
-                type="button"
-                className="library-multi-select-control"
-                disabled={count === 0 || isDeleting}
-                onClick={handleRemoveFromPlaylist}
-              >
-                {text.multiSelectRemoveFromPlaylist}
-              </button>
-            ) : null}
-          </>
+        <button
+          type="button"
+          className="library-multi-select-control"
+          disabled={count === 0 || isDeleting || !onOpenAddToPlaylist}
+          onClick={() => onOpenAddToPlaylist?.(selectedIds)}
+        >
+          {text.multiSelectAddToPlaylist}
+        </button>
+        {isViewingPlaylist && selectedPlaylistId ? (
+          <button
+            type="button"
+            className="library-multi-select-control"
+            disabled={count === 0 || isDeleting}
+            onClick={handleRemoveFromPlaylist}
+          >
+            {text.multiSelectRemoveFromPlaylist}
+          </button>
         ) : null}
       </div>
 

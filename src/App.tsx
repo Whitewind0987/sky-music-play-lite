@@ -808,6 +808,7 @@ function App() {
           onAddSongToPlaylist={scoreLibrary.handleAddSongToPlaylist}
           onAddToQueue={handleAddSongToQueue}
           onCreatePlaylistWithSong={scoreLibrary.handleCreatePlaylistWithSong}
+          onCreatePlaylistWithSongs={scoreLibrary.handleCreatePlaylistWithSongs}
           onCreatePlaylistRequest={() => setIsCreatingPlaylistFromSidebar(true)}
           onDeleteLocalSong={libraryDialogs.requestDeleteLocalSong}
           onExportLocalSong={(songId) => {

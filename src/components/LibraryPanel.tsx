@@ -9,6 +9,7 @@ import {
   Heart,
   GripVertical,
   Hourglass,
+  ListChecks,
   ListPlus,
   MoreHorizontal,
   Play,
@@ -25,6 +26,7 @@ import { getLocalLibraryMoveTarget } from "../lib/libraryGroups";
 import { CreatePlaylistDialog } from "./CreatePlaylistDialog";
 import { useLibraryToolbarVisibility } from "../hooks/useLibraryToolbarVisibility";
 import { useLibraryRowReorder } from "../hooks/useLibraryRowReorder";
+import { getLibraryEditModeActions } from "../lib/librarySortEditing";
 import { LibrarySortingControl } from "./LibrarySortingControl";
 import type { LibrarySortingControls } from "../types/librarySorting";
 import { UpgradeScoreToV2Dialog } from "./UpgradeScoreToV2Dialog";
@@ -108,6 +110,7 @@ type LibraryPanelProps = {
   onRemoveSongFromPlaylist: (playlistId: string, songId: LibrarySongId) => void;
   multiSelect: MultiSelectState;
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
+  onCreatePlaylistWithSongs?: (songIds: LibrarySongId[], playlistName: string) => void;
   onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRenamePlaylist: (playlistId: string) => void;
@@ -490,6 +493,7 @@ function LibraryImportArea({
         className={`library-import-button${importDisabled ? " is-disabled" : ""}`}
         aria-disabled={importDisabled}
       >
+        <LibraryPlusIcon />
         <span>{text.importTitle}</span>
         <input
           accept=".json,.txt"
@@ -608,17 +612,16 @@ function PlaylistHeader({
 }
 
 function AddToPlaylistPopup({
-  item,
-  onAddSongToPlaylist,
+  onAdd,
   onClose,
   onCreatePlaylist,
   playlists,
   text,
 }: Pick<
   LibraryPanelProps,
-  "onAddSongToPlaylist" | "playlists" | "text"
+  "playlists" | "text"
 > & {
-  item: LibrarySongListItem;
+  onAdd: (playlistId: string) => void;
   onClose: () => void;
   onCreatePlaylist: () => void;
 }) {
@@ -664,19 +667,7 @@ function AddToPlaylistPopup({
                     className="library-collect-row"
                     key={playlist.id}
                     type="button"
-                    onClick={() => {
-                      const result = onAddSongToPlaylist(
-                        playlist.id,
-                        item.songIndex,
-                      );
-
-                      if (
-                        result.status === "added" ||
-                        result.status === "duplicate"
-                      ) {
-                        onClose();
-                      }
-                    }}
+                    onClick={() => onAdd(playlist.id)}
                   >
                     <span>{playlist.name}</span>
                     <small>
@@ -1412,6 +1403,7 @@ export function LibraryPanel({
   onRemoveSongFromPlaylist,
   onDeleteLocalSongs,
   onAddSongsToPlaylist,
+  onCreatePlaylistWithSongs,
   onRemoveSongsFromPlaylist,
   multiSelect,
   onResolveUpgradeSource,
@@ -1440,10 +1432,16 @@ export function LibraryPanel({
   const searchToolbarRef = useRef<HTMLDivElement | null>(null);
   const [showLocateButton, setShowLocateButton] = useState(false);
   const locateHideTimerRef = useRef<number | null>(null);
-  const [collectingSongItem, setCollectingSongItem] =
-    useState<LibrarySongListItem | null>(null);
-  const [creatingPlaylistForItem, setCreatingPlaylistForItem] =
-    useState<LibrarySongListItem | null>(null);
+  const selectionScope = JSON.stringify([selectedCategory, selectedCategory === "playlists" ? selectedPlaylistId : null]);
+  const [playlistTarget, setPlaylistTarget] = useState<
+    { item: LibrarySongListItem } | { songIds: LibrarySongId[]; scope: string } | null
+  >(null);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  if (playlistTarget && "songIds" in playlistTarget &&
+      (playlistTarget.scope !== selectionScope || !multiSelect.enabled)) {
+    setPlaylistTarget(null);
+    setIsCreatingPlaylist(false);
+  }
   const [upgradeDialogState, setUpgradeDialogState] = useState<{
     item: LibrarySongListItem;
     sourceSong: Song;
@@ -1453,7 +1451,12 @@ export function LibraryPanel({
     useState<LibrarySongId | null>(null);
   useLibraryToolbarVisibility(searchToolbarRef, onSearchToolbarVisibilityChange);
 
-  // 快捷键：Ctrl+Shift+M 切换多选模式
+  const { toggleMultiSelect, toggleSorting } = useMemo(
+    () => getLibraryEditModeActions(multiSelect, sorting),
+    [multiSelect, sorting],
+  );
+
+  // Ctrl+Shift+M
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -1462,15 +1465,12 @@ export function LibraryPanel({
         (event.key === "M" || event.key === "m")
       ) {
         event.preventDefault();
-        if (multiSelect.enabled) {
-          multiSelect.clear();
-        }
-        multiSelect.setEnabled(!multiSelect.enabled);
+        if (!event.repeat) toggleMultiSelect();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [multiSelect]);
+  }, [toggleMultiSelect]);
   const isLocalImports = selectedCategory === "local-imports";
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
@@ -1530,8 +1530,8 @@ export function LibraryPanel({
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setCollectingSongItem(null);
-        setCreatingPlaylistForItem(null);
+        setPlaylistTarget(null);
+        setIsCreatingPlaylist(false);
         setOpenActionMenuSongId(null);
       }
     }
@@ -1592,32 +1592,34 @@ export function LibraryPanel({
     <section ref={panelRef} className="library-panel" aria-label={text.aria}>
       <div className="library-content">
         <div ref={searchToolbarRef} className="library-content-header">
-          <label className="library-search">
-            <span className="sr-only">{text.searchPlaceholder}</span>
-            <input
-              type="search"
-              value={searchQuery}
-              placeholder={text.searchPlaceholder}
-              onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
-            />
-          </label>
-          <div className="library-content-actions">
+          <div className="library-search-actions">
+            <label className="library-search">
+              <span className="sr-only">{text.searchPlaceholder}</span>
+              <input
+                type="search"
+                value={searchQuery}
+                placeholder={text.searchPlaceholder}
+                onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
+              />
+            </label>
             <button
               className="library-multi-select-control"
               type="button"
               aria-pressed={multiSelect.enabled}
-              aria-label={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
-              title={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
-              onClick={() => {
-                if (multiSelect.enabled) {
-                  multiSelect.clear();
-                }
-                multiSelect.setEnabled(!multiSelect.enabled);
-              }}
+              onClick={toggleMultiSelect}
             >
+              <ListChecks className="library-title-icon" aria-hidden="true" />
               {multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
             </button>
-            <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
+          </div>
+          <div className="library-content-actions">
+            <div className="library-sort-group">
+              <LibrarySortingControl
+                sorting={{ ...sorting, onToggleEditing: toggleSorting }}
+                disabled={isPlaylists && !selectedPlaylist}
+                text={text.sorting}
+              />
+            </div>
             {isLocalImports ? (
               <LibraryImportArea
                 importDisabled={importDisabled}
@@ -1637,15 +1639,16 @@ export function LibraryPanel({
           <p className="library-sort-hint">{text.sorting.likedTime}</p>
         ) : null}
         <MultiSelectToolbar
-          key={JSON.stringify([selectedCategory, isPlaylists ? selectedPlaylistId : null])}
+          key={selectionScope}
           multiSelect={multiSelect}
-          playlists={playlists}
           text={text}
           visibleSongIds={items.map((item) => item.librarySong.id)}
           selectedPlaylistId={selectedPlaylistId}
           isViewingPlaylist={isPlaylists}
           onDeleteLocalSongs={onDeleteLocalSongs}
-          onAddSongsToPlaylist={onAddSongsToPlaylist}
+          onOpenAddToPlaylist={onAddSongsToPlaylist && onCreatePlaylistWithSongs
+            ? (songIds) => setPlaylistTarget({ songIds, scope: selectionScope })
+            : undefined}
           onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
           moveTargetGroup={batchMoveTarget}
           onMoveSelectedSongs={onMoveSelectedSongs}
@@ -1720,7 +1723,7 @@ export function LibraryPanel({
             onOpenActionMenu={(songId) => setOpenActionMenuSongId(songId)}
             onOpenCollectDialog={(item) => {
               setOpenActionMenuSongId(null);
-              setCollectingSongItem(item);
+              setPlaylistTarget({ item });
             }}
             onPlaySong={onPlaySong}
             onPlaySongNext={onPlaySongNext}
@@ -1761,26 +1764,39 @@ export function LibraryPanel({
           <LibraryLocateIcon />
         </button>
       ) : null}
-      {collectingSongItem ? (
+      {playlistTarget ? (
         <AddToPlaylistPopup
-          item={collectingSongItem}
-          onAddSongToPlaylist={onAddSongToPlaylist}
-          onClose={() => setCollectingSongItem(null)}
-          onCreatePlaylist={() => setCreatingPlaylistForItem(collectingSongItem)}
+          onAdd={(playlistId) => {
+            if ("item" in playlistTarget) {
+              const result = onAddSongToPlaylist(playlistId, playlistTarget.item.songIndex);
+              if (result.status === "missing") return;
+            } else {
+              onAddSongsToPlaylist?.(playlistId, playlistTarget.songIds);
+              multiSelect.deselect(playlistTarget.songIds);
+            }
+            setPlaylistTarget(null);
+          }}
+          onClose={() => {
+            setPlaylistTarget(null);
+            setIsCreatingPlaylist(false);
+          }}
+          onCreatePlaylist={() => setIsCreatingPlaylist(true)}
           playlists={playlists}
           text={text}
         />
       ) : null}
-      {creatingPlaylistForItem ? (
+      {playlistTarget && isCreatingPlaylist ? (
         <CreatePlaylistDialog
-          onClose={() => setCreatingPlaylistForItem(null)}
+          onClose={() => setIsCreatingPlaylist(false)}
           onCreate={(playlistName) => {
-            onCreatePlaylistWithSong(
-              creatingPlaylistForItem.songIndex,
-              playlistName,
-            );
-            setCreatingPlaylistForItem(null);
-            setCollectingSongItem(null);
+            if ("item" in playlistTarget) {
+              onCreatePlaylistWithSong(playlistTarget.item.songIndex, playlistName);
+            } else {
+              onCreatePlaylistWithSongs?.(playlistTarget.songIds, playlistName);
+              multiSelect.deselect(playlistTarget.songIds);
+            }
+            setIsCreatingPlaylist(false);
+            setPlaylistTarget(null);
           }}
           text={text}
         />
