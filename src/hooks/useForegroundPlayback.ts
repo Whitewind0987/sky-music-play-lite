@@ -39,8 +39,8 @@ import type {
 } from "./usePlaybackPlanPreparation";
 
 type UseForegroundPlaybackOptions = {
+  advanceQueuePlayback: (queueItemId: string, previousSongId: LibrarySongId | null) => void;
   appendLog: (message: string) => void;
-  consumeQueuedItemAfterCurrent: (queueItemId: string, songCount: number) => PlaybackQueueItem | null;
   currentSong: LibrarySong | null;
   experimentalInputEnabled: boolean;
   getOrPreparePlaybackPlan: (options: {
@@ -58,14 +58,14 @@ type UseForegroundPlaybackOptions = {
   isShuffleEnabled: boolean;
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onBeforeStart: () => void;
-  peekNextQueueItemAfterCurrent: (songCount: number) => PlaybackQueueItem | null;
+  peekNextQueueItemAfterCurrent: (currentSongIndex: number, songCount: number) => PlaybackQueueItem | null;
   playbackMode: PlaybackMode;
   playbackSpeed: PlaybackSpeed;
   resolveSongForPlayback: (songIndex: number) => Promise<Song | null>;
   resolveSongForWarmPreparation: (songIndex: number) => Promise<Song | null>;
   selectedSongIndex: number | null;
   setSelectedSongIndex: (songIndex: number | null) => void;
-  startQueuePlayback: (songIndex: number) => void;
+  startQueuePlayback: (songIndex: number, previousSongIndex: number | null) => void;
   text: UiText;
 };
 
@@ -79,8 +79,8 @@ const COUNTDOWN_START_SECONDS = 3;
 export const FOREGROUND_KEY_HOLD_MS = 40;
 
 export function useForegroundPlayback({
+  advanceQueuePlayback,
   appendLog,
-  consumeQueuedItemAfterCurrent,
   currentSong,
   experimentalInputEnabled,
   getOrPreparePlaybackPlan,
@@ -268,7 +268,7 @@ export function useForegroundPlayback({
   }
 
   function handleStopForegroundPlayback() {
-    if (!canStopForegroundPlayback && activeForegroundSessionIdRef.current === null) {
+    if (!canStopForegroundPlayback && !isForegroundStartPendingRef.current && activeForegroundSessionIdRef.current === null) {
       return;
     }
 
@@ -416,8 +416,15 @@ export function useForegroundPlayback({
     }
 
     const song = handoffResult.song;
+    const resolvedSongIndex = resolveActivePlaybackSongIndex({
+      librarySongs: librarySongsRef.current,
+      songId: foregroundSongId,
+    });
+    if (resolvedSongIndex === null) {
+      setForegroundStartPending(false);
+      return false;
+    }
 
-    setSelectedSongIndex(songIndex);
     if (song.songNotes.length === 0) {
       setForegroundStartPending(false);
       resetForegroundPlayback("finished");
@@ -428,7 +435,7 @@ export function useForegroundPlayback({
     const preparation = getOrPreparePlaybackPlan({
       priority: "direct",
       resolvedSong: song,
-      songIndex,
+      songIndex: resolvedSongIndex,
     });
     const countdown = withCountdown
       ? startCountdown(requestToken)
@@ -464,7 +471,7 @@ export function useForegroundPlayback({
       requestToken,
       retryCount: 0,
       songId: foregroundSongId,
-      songIndex,
+      songIndex: resolvedSongIndex,
     });
   }
 
@@ -503,6 +510,16 @@ export function useForegroundPlayback({
         return false;
       }
 
+      const acceptedSongIndex = resolveActivePlaybackSongIndex({
+        librarySongs: librarySongsRef.current,
+        songId,
+      });
+      if (acceptedSongIndex === null) {
+        void stopForegroundPlaybackSession(response.sessionId).catch(() => {});
+        setForegroundStartPending(false);
+        resetForegroundPlayback("stopped");
+        return false;
+      }
       activeForegroundSessionIdRef.current = response.sessionId;
       foregroundPlaybackContextRef.current = {
         sessionId: response.sessionId,
@@ -510,6 +527,7 @@ export function useForegroundPlayback({
         songId,
       };
       setForegroundStartPending(false);
+      setSelectedSongIndex(acceptedSongIndex);
       setForegroundPlaybackState("playing");
       setForegroundPlaybackProgress({
         currentMs: Math.min(initialSeekMs ?? 0, response.totalMs),
@@ -525,7 +543,7 @@ export function useForegroundPlayback({
         }),
       );
       flushPendingForegroundPlaybackEvents(response.sessionId);
-      warmLikelyForegroundSong(songIndex);
+      warmLikelyForegroundSong(acceptedSongIndex);
       return true;
     } catch (error) {
       if (foregroundRequestTokenRef.current !== requestToken) {
@@ -628,15 +646,17 @@ export function useForegroundPlayback({
     }
 
     if (payload.type === "finished") {
-      if (completedForegroundSessionIdsRef.current.has(payload.sessionId)) {
-        return;
-      }
-      completedForegroundSessionIdsRef.current.add(payload.sessionId);
-      const context = foregroundPlaybackContextRef.current;
-      if (context?.sessionId === payload.sessionId) {
+      // Let the accepted start commit its queue update before handling completion.
+      window.setTimeout(() => {
+        const context = foregroundPlaybackContextRef.current;
+        if (context?.sessionId !== payload.sessionId ||
+            completedForegroundSessionIdsRef.current.has(payload.sessionId)) {
+          return;
+        }
+        completedForegroundSessionIdsRef.current.add(payload.sessionId);
         resetForegroundPlayback("finished");
         handleForegroundPlaybackFinished(context.songId, context.song);
-      }
+      }, 0);
     }
   }
 
@@ -659,7 +679,7 @@ export function useForegroundPlayback({
     const queuedItem =
       playbackModeRef.current === "repeat-one"
         ? null
-        : peekNextQueueItemAfterCurrent(currentLibrarySongs.length);
+        : peekNextQueueItemAfterCurrent(songIndex, currentLibrarySongs.length);
     const playbackOrderNextSongIndex =
       queuedItem === null && playbackModeRef.current === "repeat-all"
         ? getPlaybackOrderNextSongIndex({
@@ -679,13 +699,7 @@ export function useForegroundPlayback({
 
     if (finishDecision.type === "repeat-current") {
       appendLog(formatText(text.logs.repeatOneTriggered, { songName: song.name }));
-      void startForegroundPlaybackForSong(songIndex, {
-        withCountdown: false,
-      }).then((started) => {
-        if (!started) {
-          setForegroundPlaybackState("finished");
-        }
-      });
+      void startForegroundPlaybackForSong(songIndex, { withCountdown: false });
       return;
     }
 
@@ -703,14 +717,15 @@ export function useForegroundPlayback({
         withCountdown: false,
       }).then((started) => {
         if (!started) {
-          setForegroundPlaybackState("finished");
-          appendLog(text.logs.foregroundPlaybackFinished);
           return;
         }
         if (queuedItem) {
-          consumeQueuedItemAfterCurrent(queuedItem.id, currentLibrarySongs.length);
+          advanceQueuePlayback(queuedItem.id, songId);
         } else {
-          startQueuePlayback(finishDecision.nextSongIndex);
+          const songs = librarySongsRef.current;
+          const nextSongIndex = resolveActivePlaybackSongIndex({ librarySongs: songs, songId: nextSong?.id ?? null });
+          const previousSongIndex = resolveActivePlaybackSongIndex({ librarySongs: songs, songId });
+          if (nextSongIndex !== null) startQueuePlayback(nextSongIndex, previousSongIndex);
         }
       });
       return;
@@ -727,7 +742,7 @@ export function useForegroundPlayback({
   }
 
   function warmLikelyForegroundSong(currentSongIndex: number) {
-    const queuedItem = peekNextQueueItemAfterCurrent(librarySongsRef.current.length);
+    const queuedItem = peekNextQueueItemAfterCurrent(currentSongIndex, librarySongsRef.current.length);
     const nextSongIndex = queuedItem?.songIndex ?? getPlaybackOrderNextSongIndex({
         currentSongIndex,
         isShuffleEnabled: isShuffleEnabledRef.current,

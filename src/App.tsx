@@ -215,9 +215,8 @@ function App() {
     scoreLibrary.setSelectedSongIndex(songIndex);
   }
   const previewPlayback = usePreviewPlayback({
+    advanceQueuePlayback: playbackQueue.advanceQueuePlayback,
     appendLog,
-    consumeNextQueueItemAfterCurrent:
-      playbackQueue.consumeNextQueueItemAfterCurrent,
     currentSelectedSong: scoreLibrary.currentSelectedSong,
     getPlaybackOrderNextSongIndex: (options) =>
       playbackOrder.getNextPlaybackOrderSongIndex({
@@ -225,6 +224,7 @@ function App() {
         librarySongs: scoreLibrary.librarySongs,
       }),
     librarySongsRef: scoreLibrary.librarySongsRef,
+    peekNextQueueItemAfterCurrent: playbackQueue.peekNextQueueItemAfterCurrent,
     resolveSongForPlayback: scoreLibrary.resolveSongForPlayback,
     selectedSongIndex: scoreLibrary.selectedSongIndex,
     setSelectedSongIndex: handlePlaybackSongIndexChange,
@@ -232,11 +232,8 @@ function App() {
     text,
   });
   const experimentalInput = useExperimentalInput({
+    advanceQueuePlayback: playbackQueue.advanceQueuePlayback,
     appendLog,
-    consumeNextQueueItemAfterCurrent:
-      playbackQueue.consumeNextQueueItemAfterCurrent,
-    consumeQueuedItemAfterCurrent:
-      playbackQueue.consumeQueuedItemAfterCurrent,
     currentSong: scoreLibrary.currentSelectedSong,
     currentPlaybackSongIndex: scoreLibrary.playbackSongIndex,
     getPlaybackOrderNextSongIndex: (options) =>
@@ -279,12 +276,16 @@ function App() {
   }
 
   function handleAddSongToQueue(songIndex: number) {
-    playbackQueue.addToQueue(songIndex);
+    void playbackCoordinator.handleAddSongToQueue(
+      songIndex, !scoreLibrary.getIsScoreUpgradeInProgress(),
+    );
     warmPlaybackPlan(songIndex);
   }
 
   function handlePlaySongNext(songIndex: number) {
-    playbackQueue.playNext(songIndex);
+    void playbackCoordinator.handlePlaySongNext(
+      songIndex, !scoreLibrary.getIsScoreUpgradeInProgress(),
+    );
     warmPlaybackPlan(songIndex);
   }
   const appPersistence = useAppPersistence({
@@ -348,6 +349,7 @@ function App() {
   ]);
   const playbackOutput = usePlaybackOutput({
     experimentalInput,
+    hasQueuedSong: playbackQueue.getFirstQueueItem() !== null,
     previewPlayback,
     text: text.bottomPlayer,
   });
@@ -491,8 +493,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    stopPreviewRef.current = playbackOutput.onStop;
-  }, [playbackOutput.onStop]);
+    stopPreviewRef.current = playbackCoordinator.handleStopPlayback;
+  }, [playbackCoordinator.handleStopPlayback]);
 
   useEffect(() => {
     fileLogContextRef.current = {
@@ -559,16 +561,13 @@ function App() {
               return;
             }
 
-            if (
-              playbackOutput.canPlay &&
-              !playbackCoordinator.isCurrentSongLoading
-            ) {
+            if (playbackCoordinator.canPlay) {
               void playbackCoordinator.handleBottomPlayerPlay();
             }
           },
         });
       },
-      stop: playbackOutput.onStop,
+      stop: playbackCoordinator.handleStopPlayback,
     });
   });
 
@@ -1181,9 +1180,9 @@ function App() {
       />
       <BottomPlayer
         canManualStep={playbackOutput.canManualStep}
-        canPlay={playbackOutput.canPlay}
+        canPlay={playbackCoordinator.canPlay}
         canSeek={playbackOutput.canSeek}
-        canStop={playbackOutput.canStop}
+        canStop={playbackCoordinator.canStop}
         canOpenVisualization={playerScoreVisualization.canOpen}
         currentSong={scoreLibrary.currentPlaybackSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
@@ -1194,6 +1193,7 @@ function App() {
         noteIntervalDelayMs={playbackOutput.noteIntervalDelayMs}
         onNoteIntervalDelayChange={playbackOutput.onNoteIntervalDelayChange}
         onNext={playbackCoordinator.handleNextPlayback}
+        onVisualizationClose={playerScoreVisualization.close}
         onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
         onManualStep={playbackOutput.onManualStep}
@@ -1223,7 +1223,7 @@ function App() {
           playbackOutput.onSeek(timeMs);
         }}
         onShuffleToggle={playbackOutput.onShuffleToggle}
-        onStop={playbackOutput.onStop}
+        onStop={playbackCoordinator.handleStopPlayback}
         outputModeLabel={playbackOutput.outputModeLabel}
         playbackMode={playbackOutput.playbackMode}
         playbackState={playbackOutput.playbackState}

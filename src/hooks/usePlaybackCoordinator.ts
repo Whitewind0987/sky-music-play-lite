@@ -1,13 +1,14 @@
+import { useRef, useState } from "react";
 import type { UiText } from "../i18n/uiText";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
 import { resolveManualNextCurrentSong } from "../lib/manualNextPlayback";
-import { runPlaybackContextTransaction } from "../lib/playbackContextTransaction";
-import { getQueueSongIds } from "../lib/playbackQueueDecision";
 import {
-  resolvePlaylistSongIndices,
-  startPlaylistPlaybackQueue,
-} from "../lib/playlistPlayback";
+  runPlaybackContextTransaction,
+  type PlaybackContextTransaction,
+} from "../lib/playbackContextTransaction";
+import { getQueueSongIds } from "../lib/playbackQueueDecision";
+import { resolvePlaylistSongIndices } from "../lib/playlistPlayback";
 import type { LibrarySongId, LibrarySongListItem } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 import type { useExperimentalInput } from "./useExperimentalInput";
@@ -47,6 +48,14 @@ export function usePlaybackCoordinator({
   text,
 }: UsePlaybackCoordinatorOptions) {
   const currentPlaybackLibrarySong = scoreLibrary.currentPlaybackLibrarySong;
+  const pendingStartRef = useRef<{
+    transaction: PlaybackContextTransaction;
+    songId: LibrarySongId;
+    previousSongId: LibrarySongId | null;
+    isQueuePriority: boolean;
+  } | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const firstQueueItem = playbackQueue.getFirstQueueItem();
   const currentOrSelectedLibrarySong =
     currentPlaybackLibrarySong ??
     (scoreLibrary.selectedSongIndex === null
@@ -55,6 +64,9 @@ export function usePlaybackCoordinator({
   const isCurrentSongLoading =
     currentOrSelectedLibrarySong !== null &&
     scoreLibrary.isSongLoading(currentOrSelectedLibrarySong.id);
+  const canPlay =
+    playbackOutput.canPlay && !isStarting &&
+    ((playbackOutput.canStartQueue && firstQueueItem !== null) || !isCurrentSongLoading);
 
   async function ensureTargetWindowReadyForPlayback() {
     if (
@@ -69,36 +81,82 @@ export function usePlaybackCoordinator({
     return (await experimentalInput.ensureTargetWindowAvailableForPlayback()) !== null;
   }
 
-  async function handlePlayLibraryItem(item: LibrarySongListItem) {
-    if (isAcceptedStartOutputMode(playbackOutput.mode)) {
-      const transaction = playbackOrder.beginPlaybackContext(
-        getPlaybackContextOptions(item),
-      );
-      const transactionResult = await runPlaybackContextTransaction({
-        commit: playbackOrder.commitPlaybackContext,
+  async function startWithContext(
+    songId: LibrarySongId,
+    transaction: PlaybackContextTransaction,
+    onStarted: (songIndex: number) => void,
+    isQueuePriority = false,
+  ) {
+    const previousSongId = getPreviousSongId();
+    const request = { transaction, songId, previousSongId, isQueuePriority };
+    pendingStartRef.current = request;
+    setIsStarting(true);
+    let didStart = false;
+    try {
+      const result = await runPlaybackContextTransaction({
+        commit: () => {
+          const songIndex = findSongIndex(songId);
+          if (pendingStartRef.current !== request || songIndex < 0) {
+            playbackOrder.rollbackPlaybackContext(transaction);
+            return false;
+          }
+          if (!playbackOrder.commitPlaybackContext(transaction)) {
+            return false;
+          }
+          onStarted(songIndex);
+          return true;
+        },
         rollback: playbackOrder.rollbackPlaybackContext,
-        start: async () =>
-          (await ensureTargetWindowReadyForPlayback()) &&
-          (await startOutputSong(item.songIndex)),
+        start: async () => {
+          if (
+            !(await ensureTargetWindowReadyForPlayback()) ||
+            pendingStartRef.current !== request ||
+            playbackOrder.getPendingPlaybackContextSongId() !== songId
+          ) {
+            return false;
+          }
+          const songIndex = findSongIndex(songId);
+          return songIndex >= 0 && await playbackOutput.onPlaySong(songIndex);
+        },
         transaction,
       });
-
-      if (transactionResult !== "started") {
-        return;
+      didStart = result === "started";
+      return didStart;
+    } finally {
+      if (pendingStartRef.current === request) {
+        pendingStartRef.current = null;
+        setIsStarting(false);
+        if (!didStart && request.isQueuePriority) {
+          restorePriorityPlaybackSong(request.previousSongId);
+        }
       }
-    } else {
-      if (!(await ensureTargetWindowReadyForPlayback())) {
-        return;
-      }
-      setPlaybackContextForLibraryItem(item);
     }
+  }
 
-    scoreLibrary.setSelectedSongId(item.librarySong.id);
-    playbackQueue.replaceQueueWithCurrent(item.songIndex);
+  function findSongIndex(songId: LibrarySongId) {
+    return scoreLibrary.librarySongsRef.current.findIndex((song) => song.id === songId);
+  }
 
-    if (!isAcceptedStartOutputMode(playbackOutput.mode)) {
-      void startOutputSong(item.songIndex);
-    }
+  function getPreviousSongId() {
+    return pendingStartRef.current
+      ? pendingStartRef.current.previousSongId
+      : scoreLibrary.currentPlaybackLibrarySong?.id ?? null;
+  }
+
+  async function handlePlayLibraryItem(item: LibrarySongListItem) {
+    const songId = item.librarySong.id;
+    const previousSongId = getPreviousSongId();
+    await startWithContext(
+      songId,
+      playbackOrder.beginPlaybackContext(getPlaybackContextOptions(item)),
+      (songIndex) => {
+        scoreLibrary.setSelectedSongId(songId);
+        playbackQueue.startQueuePlayback(
+          songIndex,
+          previousSongId === null ? null : findSongIndex(previousSongId),
+        );
+      },
+    );
   }
 
   async function handlePlayAllPlaylist() {
@@ -125,57 +183,112 @@ export function usePlaybackCoordinator({
       songIds: playlistSongIds,
       source: "playlist",
     });
-    const didStart = await startPlaylistPlaybackQueue({
-      replaceQueue: playbackQueue.replaceQueueWithSongIndices,
-      songIndices,
-      startFirstSong: async (songIndex) =>
-        (await runPlaybackContextTransaction({
-          commit: playbackOrder.commitPlaybackContext,
-          rollback: playbackOrder.rollbackPlaybackContext,
-          start: async () =>
-            (await ensureTargetWindowReadyForPlayback()) &&
-            (await startOutputSong(songIndex)),
-          transaction,
-        })) === "started",
-    });
-
-    if (didStart) {
+    await startWithContext(firstSong.id, transaction, () => {
+      playbackQueue.replaceQueueWithSongIndices(
+        resolvePlaylistSongIndices(playlistSongIds, scoreLibrary.librarySongsRef.current),
+      );
       scoreLibrary.setSelectedSongId(firstSong.id);
-    }
+    });
   }
 
-  async function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+  async function startQueueItem(
+    queueItem: PlaybackQueueItem,
+    behavior: "resume" | "jump",
+  ) {
     const songs = scoreLibrary.librarySongsRef.current;
     const queueContextItems = playbackQueue.getValidQueueItemsFromItem(
       queueItem.id,
       songs.length,
     );
     const queueContextSongIds = getQueueSongIds(queueContextItems, songs);
-    const currentSongId = songs[queueItem.songIndex]?.id;
-    if (!currentSongId || queueContextSongIds[0] !== currentSongId) {
+    const currentSongId = queueContextSongIds[0];
+    if (!currentSongId) {
       return;
     }
 
-    const transaction = playbackOrder.beginPlaybackContextValue({
-      currentSongId,
-      songIds: queueContextSongIds,
-      source: "queue",
+    const resumesCurrentSong = behavior === "resume" && (
+      scoreLibrary.currentPlaybackLibrarySong?.id === currentSongId ||
+      playbackOrder.getCommittedPlaybackContextSongId() === currentSongId
+    );
+    const existingTransaction = resumesCurrentSong
+      ? playbackOrder.beginCurrentSongTransaction(currentSongId)
+      : null;
+    const transaction = existingTransaction ?? playbackOrder.beginPlaybackContextValue({
+      currentSongId, songIds: queueContextSongIds, source: "queue",
     });
-    const transactionResult = await runPlaybackContextTransaction({
-      commit: playbackOrder.commitPlaybackContext,
-      rollback: playbackOrder.rollbackPlaybackContext,
-      start: async () =>
-        (await ensureTargetWindowReadyForPlayback()) &&
-        (await startOutputSong(queueItem.songIndex)),
-      transaction,
+    await startWithContext(currentSongId, transaction, () => {
+      scoreLibrary.setSelectedSongId(currentSongId);
+      playbackQueue.consumeQueuedItemAfterCurrent(
+        queueItem.id, scoreLibrary.librarySongsRef.current.length,
+      );
     });
+  }
 
-    if (transactionResult !== "started") {
+  function handlePlayQueueItem(queueItem: PlaybackQueueItem) {
+    return startQueueItem(queueItem, "jump");
+  }
+
+  async function startQueueWhenIdle() {
+    if (!playbackOutput.canStartQueue || pendingStartRef.current !== null) {
       return;
     }
+    const firstItem = playbackQueue.getFirstQueueItem();
+    if (firstItem) {
+      await startQueueItem(firstItem, "resume");
+    }
+  }
 
-    scoreLibrary.handleSelectImportedSong(queueItem.songIndex);
-    playbackQueue.consumeQueuedItemAfterCurrent(queueItem.id, songs.length);
+  function handleAddSongToQueue(songIndex: number, allowStart = true) {
+    playbackQueue.addToQueue(songIndex);
+    if (allowStart) return startQueueWhenIdle();
+  }
+
+  function handlePlaySongNext(songIndex: number, allowStart = true) {
+    const songs = scoreLibrary.librarySongsRef.current;
+    const songId = songs[songIndex]?.id;
+    if (!songId) return;
+
+    const pendingStart = pendingStartRef.current;
+    const canPrioritize = pendingStart
+      ? pendingStart.isQueuePriority
+      : playbackOutput.canStartQueue;
+    if (allowStart && canPrioritize) {
+      if (pendingStart?.songId === songId) return;
+      if (pendingStart) {
+        // Cancel the old output request while retaining its original playback identity.
+        playbackOutput.onStop();
+        restorePriorityPlaybackSong(pendingStart.previousSongId);
+      }
+
+      const songIds = getQueueSongIds(playbackQueue.getValidQueueItems(), songs);
+      const transaction = playbackOrder.beginPlaybackContextValue({
+        currentSongId: songId,
+        songIds: [songId, ...songIds.filter((id) => id !== songId)],
+        source: "queue",
+      });
+      // Promote against the live queue only after the output accepts the start.
+      return startWithContext(songId, transaction, (acceptedSongIndex) => {
+        playbackQueue.startQueuePlayback(acceptedSongIndex, null);
+        scoreLibrary.setSelectedSongId(songId);
+        syncQueuePlaybackOrder(songId);
+      }, true);
+    }
+
+    const afterSongIndex = pendingStart
+      ? findSongIndex(pendingStart.songId)
+      : scoreLibrary.playbackSongIndex;
+    const reordered = playbackQueue.playNext(songIndex, afterSongIndex);
+    const currentSongId = afterSongIndex === null ? null : songs[afterSongIndex]?.id;
+    if (reordered && !pendingStart && currentSongId) {
+      syncQueuePlaybackOrder(currentSongId);
+    }
+  }
+
+  function syncQueuePlaybackOrder(currentSongId: LibrarySongId) {
+    const songIds = getQueueSongIds(
+      playbackQueue.getValidQueueItems(), scoreLibrary.librarySongsRef.current,
+    );
+    playbackOrder.updateQueuePlaybackOrder(currentSongId, songIds);
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
@@ -186,7 +299,7 @@ export function usePlaybackCoordinator({
     scoreLibrary.handleRemoveFromLiked(songId);
 
     if (shouldClear) {
-      clearCurrentSelectionAfterRemoval();
+      clearCurrentPlaybackSelection();
     }
   }
 
@@ -202,7 +315,7 @@ export function usePlaybackCoordinator({
     scoreLibrary.handleRemoveSongFromPlaylist(playlistId, songId);
 
     if (shouldClear) {
-      clearCurrentSelectionAfterRemoval();
+      clearCurrentPlaybackSelection();
     }
   }
 
@@ -221,15 +334,12 @@ export function usePlaybackCoordinator({
     scoreLibrary.handleToggleLikedSong(songIndex);
 
     if (shouldClear) {
-      clearCurrentSelectionAfterRemoval();
+      clearCurrentPlaybackSelection();
     }
   }
 
   async function handleNextPlayback() {
-    if (!(await ensureTargetWindowReadyForPlayback())) {
-      return;
-    }
-
+    const startAtRequest = pendingStartRef.current;
     const songs = scoreLibrary.librarySongsRef.current;
     const activeForegroundSongId =
       experimentalInput.getActiveForegroundPlaybackSongId();
@@ -238,6 +348,7 @@ export function usePlaybackCoordinator({
     const pendingPlaybackContextSongId =
       playbackOrder.getPendingPlaybackContextSongId();
     const effectivePlaybackContextSongId =
+      scoreLibrary.currentPlaybackLibrarySong?.id ??
       playbackOrder.getCurrentPlaybackContextSongId();
     const currentSongResolution = resolveManualNextCurrentSong({
       activeForegroundSongId,
@@ -259,8 +370,12 @@ export function usePlaybackCoordinator({
             currentSongIndex,
             songs.length,
           );
-    const queuedItem =
-      queueDecision.status === "next" ? queueDecision.nextItem : null;
+    const queuedItem = queueDecision.status === "next"
+      ? queueDecision.nextItem
+      : queueDecision.status === "current-not-in-queue" ||
+          queueDecision.status === "current-unavailable"
+        ? playbackQueue.getFirstQueueItem()
+        : null;
 
     const playbackOrderDecision =
       queuedItem !== null
@@ -283,10 +398,9 @@ export function usePlaybackCoordinator({
       (playbackOrderDecision?.status === "next"
         ? playbackOrderDecision.songIndex
         : null);
-    const queueContextSongIds =
-      queueDecision.status === "next"
-        ? getQueueSongIds(queueDecision.remainingItems, songs)
-        : [];
+    const queueContextSongIds = queuedItem
+      ? getQueueSongIds(playbackQueue.getValidQueueItemsFromItem(queuedItem.id, songs.length), songs)
+      : [];
     onManualNextDecision?.({
       outputMode: playbackOutput.mode,
       activeForegroundSongId,
@@ -339,16 +453,19 @@ export function usePlaybackCoordinator({
       queueCandidateSongIndex: queuedItem?.songIndex ?? null,
     });
 
-    if (
-      currentSongResolution.status === "context-unavailable" ||
-      playbackOrderDecision?.status === "context-unavailable"
-    ) {
+    if (playbackOrderDecision?.status === "context-unavailable") {
       return;
     }
 
     if (nextSongIndex === null) {
+      if (
+        !(await ensureTargetWindowReadyForPlayback()) ||
+        pendingStartRef.current !== startAtRequest
+      ) {
+        return;
+      }
       playbackOrder.clearPlaybackContext();
-      playbackOutput.onStop();
+      handleStopPlayback();
       appendLog(text.logs.manualNextUnavailable);
       return;
     }
@@ -374,28 +491,36 @@ export function usePlaybackCoordinator({
     if (!transaction) {
       return;
     }
-    const transactionResult = await runPlaybackContextTransaction({
-      commit: playbackOrder.commitPlaybackContext,
-      rollback: playbackOrder.rollbackPlaybackContext,
-      start: () => startOutputSong(nextSongIndex),
-      transaction,
+    await startWithContext(nextSongId, transaction, (songIndex) => {
+      if (queuedItem) {
+        if (startAtRequest) {
+          playbackQueue.consumeQueuedItemAfterCurrent(
+            queuedItem.id,
+            scoreLibrary.librarySongsRef.current.length,
+          );
+        } else {
+          const previousSongId = currentSongResolution.status === "resolved"
+            ? currentSongResolution.songId
+            : null;
+          playbackQueue.advanceQueuePlayback(queuedItem.id, previousSongId);
+          syncQueuePlaybackOrder(nextSongId);
+        }
+      } else {
+        const previousSongIndex = currentSongResolution.status === "resolved"
+          ? findSongIndex(currentSongResolution.songId)
+          : null;
+        playbackQueue.startQueuePlayback(songIndex, previousSongIndex);
+      }
     });
-
-    if (transactionResult !== "started") {
-      return;
-    }
-
-    if (queuedItem) {
-      playbackQueue.consumeQueuedItemAfterCurrent(queuedItem.id, songs.length);
-    } else if (queueDecision.status === "current-not-in-queue") {
-      playbackQueue.replaceQueueWithCurrent(nextSongIndex);
-    } else {
-      playbackQueue.startQueuePlayback(nextSongIndex);
-    }
   }
 
   async function handleBottomPlayerPlay() {
-    if (!(await ensureTargetWindowReadyForPlayback())) {
+    if (pendingStartRef.current !== null) {
+      return;
+    }
+
+    if (playbackOutput.playbackState === "paused") {
+      playbackOutput.onResume();
       return;
     }
 
@@ -403,7 +528,18 @@ export function usePlaybackCoordinator({
       playbackOutput.manualState === "active" ||
       playbackOutput.manualState === "tail"
     ) {
-      await playbackOutput.onPlay();
+      if (await ensureTargetWindowReadyForPlayback()) {
+        await playbackOutput.onPlay();
+      }
+      return;
+    }
+
+    if (!playbackOutput.canPlay) {
+      return;
+    }
+
+    if (playbackQueue.getFirstQueueItem()) {
+      await startQueueWhenIdle();
       return;
     }
 
@@ -420,59 +556,41 @@ export function usePlaybackCoordinator({
     );
 
     if (!selectedVisibleItem) {
-      clearCurrentSelectionAfterRemoval();
+      clearCurrentPlaybackSelection();
       appendLog(text.logs.selectedSongNotInCurrentView);
       return;
     }
 
-    setPlaybackContextForLibraryItem(selectedVisibleItem);
-    const didStart = await startOutputSong(selectedVisibleItem.songIndex);
-
-    if (didStart) {
-      playbackQueue.replaceQueueWithCurrent(selectedVisibleItem.songIndex);
-    }
+    await handlePlayLibraryItem(selectedVisibleItem);
   }
 
   function handleQueueItemRemove(queueItemId: string) {
-    const removedItem = playbackQueue.queueItems.find(
+    const queueItems = playbackQueue.getValidQueueItems();
+    const removedItem = queueItems.find(
       (queueItem) => queueItem.id === queueItemId,
     );
-    const isRemovingCurrentItem = playbackQueue.queueItems[0]?.id === queueItemId;
-    const isRemovingOnlyQueueItem = playbackQueue.queueItems.length === 1;
+    const isRemovingCurrentItem = queueItems[0]?.id === queueItemId;
+    const isRemovingOnlyQueueItem = queueItems.length === 1;
 
     playbackQueue.removeQueueItem(queueItemId);
 
+    const pendingSongId = pendingStartRef.current?.songId;
+    const isRemovingPendingStart = pendingSongId && removedItem &&
+      scoreLibrary.librarySongsRef.current[removedItem.songIndex]?.id === pendingSongId;
     if (removedItem && isRemovingCurrentItem && isRemovingOnlyQueueItem) {
       clearCurrentPlaybackSelection();
+    } else if (isRemovingPendingStart) {
+      handleStopPlayback();
     }
   }
 
   function handleQueueClear() {
-    const hadQueueItems = playbackQueue.queueItems.length > 0;
+    const hadQueueItems = playbackQueue.getQueueItemCount() > 0;
 
     playbackQueue.clearQueue();
 
-    if (hadQueueItems) {
+    if (hadQueueItems || pendingStartRef.current?.isQueuePriority) {
       clearCurrentPlaybackSelection();
-    }
-  }
-
-  async function startPlaybackFromSongIndex(
-    songIndex: number,
-    { skipTargetWindowGuard = false }: { skipTargetWindowGuard?: boolean } = {},
-  ) {
-    if (
-      !skipTargetWindowGuard &&
-      !(await ensureTargetWindowReadyForPlayback())
-    ) {
-      return;
-    }
-
-    const shouldStartQueue = canStartQueueForCurrentOutput();
-    const didStart = await startOutputSong(songIndex);
-
-    if (didStart && shouldStartQueue) {
-      playbackQueue.startQueuePlayback(songIndex);
     }
   }
 
@@ -523,9 +641,6 @@ export function usePlaybackCoordinator({
     }
   }
 
-  function setPlaybackContextForLibraryItem(item: LibrarySongListItem) {
-    playbackOrder.setPlaybackContext(getPlaybackContextOptions(item));
-  }
 
   function getPlaybackContextOptions(item: LibrarySongListItem) {
     return {
@@ -546,35 +661,37 @@ export function usePlaybackCoordinator({
       : scoreLibrary.visibleLibraryItems;
   }
 
-  function clearCurrentSelectionAfterRemoval() {
-    playbackOutput.onStop();
-    playbackOrder.clearPlaybackContext();
-    playbackQueue.clearQueue();
-    scoreLibrary.setSelectedSongId(null);
-  }
-
   function clearCurrentPlaybackSelection() {
-    playbackOutput.onStop();
+    handleStopPlayback();
     playbackOrder.clearPlaybackContext();
+    scoreLibrary.setPlaybackSongId(null);
     scoreLibrary.setSelectedSongId(null);
   }
 
-  function canStartQueueForCurrentOutput() {
-    return (
-      playbackOutput.mode !== "experimental-target-window" ||
-      experimentalInput.selectedWindowHwnd !== null
-    );
+  function handleStopPlayback() {
+    const pendingStart = pendingStartRef.current;
+    if (pendingStart) {
+      pendingStartRef.current = null;
+      playbackOrder.rollbackPlaybackContext(pendingStart.transaction);
+      setIsStarting(false);
+    }
+    playbackOutput.onStop();
+    if (pendingStart?.isQueuePriority) {
+      restorePriorityPlaybackSong(pendingStart.previousSongId);
+    }
   }
 
-  async function startOutputSong(songIndex: number) {
-    const result = await playbackOutput.onPlaySong(songIndex);
-
-    return result !== false;
+  function restorePriorityPlaybackSong(songId: LibrarySongId | null) {
+    if (playbackOutput.mode === "experimental-target-window") {
+      scoreLibrary.setPlaybackSongId(songId !== null && findSongIndex(songId) >= 0 ? songId : null);
+    }
   }
 
   return {
+    canPlay,
+    canStop: playbackOutput.canStop || isStarting,
     clearCurrentPlaybackSelection,
-    clearCurrentSelectionAfterRemoval,
+    handleAddSongToQueue,
     handleBottomPlayerPlay,
     handleDeleteLocalSong,
     handleDeleteLocalSongs,
@@ -582,21 +699,15 @@ export function usePlaybackCoordinator({
     handlePlayLibraryItem,
     handlePlayAllPlaylist,
     handlePlayQueueItem,
+    handlePlaySongNext,
     handleQueueClear,
     handleQueueItemRemove,
     handleRemoveFromLiked,
     handleRemoveSongFromPlaylist,
+    handleStopPlayback,
     handleToggleLikedSong,
     isCurrentSongLoading,
-    startPlaybackFromSongIndex,
   };
-}
-
-function isAcceptedStartOutputMode(mode: PlaybackOutputController["mode"]) {
-  return (
-    mode === "experimental-target-window" ||
-    mode === "experimental-foreground"
-  );
 }
 
 export function shouldSkipTargetWindowEnumerationBeforePlayback({

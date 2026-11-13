@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { LibrarySongId, LocalLibrarySong } from "../types/library";
 import { usePlaybackCoordinator } from "./usePlaybackCoordinator";
@@ -68,6 +73,7 @@ function buildCoordinator(playingSongId: LibrarySongId | null = null) {
     ),
   };
   const playbackQueue = {
+    getFirstQueueItem: () => null,
     removeSongIndex: (songIndex: number) => removedQueueSongIndices.push(songIndex),
   };
   const playbackOrder = {
@@ -75,19 +81,33 @@ function buildCoordinator(playingSongId: LibrarySongId | null = null) {
       removedPlaybackContextSongIds.push(songId),
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const coordinator = usePlaybackCoordinator({
-    appendLog: () => {},
-    experimentalInput: {} as never,
-    playbackOrder: playbackOrder as never,
-    playbackOutput: {} as never,
-    playbackQueue: playbackQueue as never,
-    scoreLibrary: scoreLibrary as never,
-    text: { logs: {} } as never,
-  });
+  // The coordinator uses hooks internally, so it has to run inside a React
+  // dispatcher. The server renderer provides one without needing a DOM.
+  let coordinator: ReturnType<typeof usePlaybackCoordinator> | null = null;
+
+  function mount() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    coordinator = usePlaybackCoordinator({
+      appendLog: () => {},
+      experimentalInput: {} as never,
+      playbackOrder: playbackOrder as never,
+      playbackOutput: {} as never,
+      playbackQueue: playbackQueue as never,
+      scoreLibrary: scoreLibrary as never,
+      text: { logs: {} } as never,
+    });
+    return null;
+  }
+
+  renderToStaticMarkup(
+    createElement(function Harness() {
+      mount();
+      return null;
+    }),
+  );
 
   return {
-    coordinator,
+    coordinator: coordinator!,
     scoreLibrary,
     removedQueueSongIndices,
     removedPlaybackContextSongIds,
@@ -111,7 +131,6 @@ describe("handlePlaybackCoordinator.handleDeleteLocalSongs (批量删除播放�
     expect(scoreLibrary.handleDeleteLocalSong).toHaveBeenCalledTimes(2);
     expect(deleteCalls.map((call) => call.songId)).toEqual(["a", "c"]);
     expect(deleteCalls.every((call) => call.hasOnDeleted)).toBe(true);
-
     // 没有正在播放的曲谱被删，因此不打断播放。
     expect(deleteCalls.every((call) => call.stopPlaybackBeforeDelete)).toBe(false);
 
@@ -142,7 +161,22 @@ describe("handlePlaybackCoordinator.handleDeleteLocalSongs (批量删除播放�
   });
 
   it("跳过内置曲谱（非 local-import）,不触发删除与队列清理", async () => {
-    const librarySongs: Array<LocalLibrarySong | { id: string; source: "built-in"; importedAt: number; song: { name: string; bpm: number; bitsPerPage: number; isComposed: boolean; pitchLevel: number; songNotes: never[] } }> = [
+    const librarySongs: Array<
+      | LocalLibrarySong
+      | {
+          id: string;
+          source: "built-in";
+          importedAt: number;
+          song: {
+            name: string;
+            bpm: number;
+            bitsPerPage: number;
+            isComposed: boolean;
+            pitchLevel: number;
+            songNotes: never[];
+          };
+        }
+    > = [
       createLocalSong("local-1", 0),
       {
         id: "builtin-1",
@@ -170,7 +204,10 @@ describe("handlePlaybackCoordinator.handleDeleteLocalSongs (批量删除播放�
       playbackSongIdRef: { current: null },
       isSongLoading: () => false,
       handleDeleteLocalSong: vi.fn(
-        async (songIndex: number, onDeleted?: (i: number, id: LibrarySongId) => void) => {
+        async (
+          songIndex: number,
+          onDeleted?: (i: number, id: LibrarySongId) => void,
+        ) => {
           const song = librarySongs[songIndex];
           deletes.push(song.id);
           onDeleted?.(songIndex, song.id);
@@ -178,24 +215,38 @@ describe("handlePlaybackCoordinator.handleDeleteLocalSongs (批量删除播放�
         },
       ),
     };
-    const playbackQueue = { removeSongIndex: (i: number) => removedQueueSongIndices.push(i) };
+    const playbackQueue = {
+      getFirstQueueItem: () => null,
+      removeSongIndex: (i: number) => removedQueueSongIndices.push(i),
+    };
     const playbackOrder = {
       removeSongFromPlaybackContext: (id: LibrarySongId) =>
         removedPlaybackContextSongIds.push(id),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const coordinator = usePlaybackCoordinator({
-      appendLog: () => {},
-      experimentalInput: {} as never,
-      playbackOrder: playbackOrder as never,
-      playbackOutput: {} as never,
-      playbackQueue: playbackQueue as never,
-      scoreLibrary: scoreLibrary as never,
-      text: { logs: {} } as never,
-    });
+    let coordinator: ReturnType<typeof usePlaybackCoordinator> | null = null;
 
-    await coordinator.handleDeleteLocalSongs(["local-1", "builtin-1", "local-2"]);
+    function mount() {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      coordinator = usePlaybackCoordinator({
+        appendLog: () => {},
+        experimentalInput: {} as never,
+        playbackOrder: playbackOrder as never,
+        playbackOutput: {} as never,
+        playbackQueue: playbackQueue as never,
+        scoreLibrary: scoreLibrary as never,
+        text: { logs: {} } as never,
+      });
+      return null;
+    }
+    renderToStaticMarkup(
+      createElement(function Harness() {
+        mount();
+        return null;
+      }),
+    );
+
+    await coordinator!.handleDeleteLocalSongs(["local-1", "builtin-1", "local-2"]);
 
     expect(deletes).toEqual(["local-1", "local-2"]);
     expect(removedQueueSongIndices).toEqual([0, 2]);

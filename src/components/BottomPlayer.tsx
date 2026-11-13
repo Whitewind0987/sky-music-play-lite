@@ -58,6 +58,7 @@ type BottomPlayerProps = {
   noteIntervalDelayMs: NoteIntervalDelayMs;
   onNoteIntervalDelayChange: (noteIntervalDelayMs: NoteIntervalDelayMs) => void;
   onNext: () => void;
+  onVisualizationClose: () => void;
   onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
@@ -230,6 +231,7 @@ export function BottomPlayer({
   noteIntervalDelayMs,
   onNoteIntervalDelayChange,
   onNext,
+  onVisualizationClose,
   onVisualizationOpen,
   onPlayQueueItem,
   onPause,
@@ -345,7 +347,7 @@ export function BottomPlayer({
     : manualState === "idle"
       ? text.states[playbackState]
       : text.manualStates[manualState];
-  const isVisualizationTrigger = canOpenVisualization && !isVisualizationOpen;
+  const isVisualizationTrigger = canOpenVisualization || isVisualizationOpen;
   const canResume = playbackState === "paused";
   const primaryAction =
     playbackState === "playing"
@@ -359,7 +361,7 @@ export function BottomPlayer({
           disabled:
             playbackState === "paused"
               ? !canResume
-              : !canPlay || isCurrentSongLoading,
+              : !canPlay,
           icon: <PlayIcon />,
           label: playbackState === "paused" ? text.resume : text.play,
           onClick: playbackState === "paused" ? onResume : onPlay,
@@ -483,29 +485,34 @@ export function BottomPlayer({
     onSeek(clampProgressTime(nextTimeMs, totalProgressMs));
   }
 
+  function toggleVisualization() {
+    if (isVisualizationOpen) {
+      onVisualizationClose();
+    } else if (canOpenVisualization) {
+      onVisualizationOpen();
+    }
+  }
+
   function handleVisualizationTriggerKeyDown(
     event: ReactKeyboardEvent<HTMLDivElement>,
   ) {
     if (
-      !canOpenVisualization ||
+      !isVisualizationTrigger ||
       (event.key !== "Enter" && event.key !== " ")
     ) {
       return;
     }
 
     event.preventDefault();
-    onVisualizationOpen();
+    if (!event.repeat) toggleVisualization();
   }
 
   function handlePlayerBodyClick(event: ReactMouseEvent<HTMLDivElement>) {
-    if (!canOpenVisualization || isVisualizationOpen) {
-      return;
-    }
-
     const target = event.target;
 
     if (
       !(target instanceof Element) ||
+      !event.currentTarget.contains(target) ||
       target.closest(
         '[data-player-control-zone], button, input, [role="slider"]',
       ) !== null
@@ -513,7 +520,7 @@ export function BottomPlayer({
       return;
     }
 
-    onVisualizationOpen();
+    toggleVisualization();
   }
 
   useEffect(() => {
@@ -639,7 +646,8 @@ export function BottomPlayer({
             isVisualizationTrigger ? " is-visualization-trigger" : ""
           }`}
           aria-disabled={!isVisualizationTrigger}
-          aria-label={text.expandVisualization}
+          aria-expanded={isVisualizationOpen}
+          aria-label={isVisualizationOpen ? text.collapseVisualization : text.expandVisualization}
           role="button"
           tabIndex={isVisualizationTrigger ? 0 : -1}
           onKeyDown={handleVisualizationTriggerKeyDown}

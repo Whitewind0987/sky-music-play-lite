@@ -157,6 +157,25 @@ export class PlaybackContextTransactionStore {
     }
   }
 
+  updateQueuePlaybackOrder(currentSongId: string, queueSongIds: string[]): void {
+    const context = this.committedContext;
+    if (this.activeTransaction || context?.source !== "queue") {
+      return;
+    }
+
+    const currentPosition = context.songIds.indexOf(currentSongId);
+    const pendingSongIds = new Set(queueSongIds);
+    const playedSongIds = context.songIds.slice(0, Math.max(currentPosition, 0))
+      .filter((songId) => !pendingSongIds.has(songId));
+    this.committedContext = {
+      ...context,
+      currentSongId,
+      songIds: [...new Set([
+        ...playedSongIds, currentSongId, ...queueSongIds, ...context.songIds,
+      ])],
+    };
+  }
+
   removeSong(songId: string): void {
     this.committedContext = removeSongFromActivePlaybackContext(
       this.committedContext,

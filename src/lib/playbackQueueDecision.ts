@@ -13,7 +13,7 @@ export type QueueNextDecision =
   | { status: "empty" };
 
 function isValidQueueItem(item: PlaybackQueueItem, songCount: number) {
-  return item.songIndex >= 0 && item.songIndex < songCount;
+  return Number.isInteger(item.songIndex) && item.songIndex >= 0 && item.songIndex < songCount;
 }
 
 export function resolveNextQueueItemForCurrent({
