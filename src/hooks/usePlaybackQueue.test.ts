@@ -195,4 +195,25 @@ describe("individual queue operations", () => {
 
     expect(result.map((item) => item.songIndex)).toEqual([0, 1, 2]);
   });
+
+  it("reuses the queued item and deduplicates the target when moving it", () => {
+    const [a, b, c, d] = [0, 1, 2, 3].map((index) => createQueueItem(index));
+    const queue = [a, b, c, d, createQueueItem(2, "duplicate")];
+
+    expect(playSongNextInPlaybackQueue(queue, 2, createQueueItem, 0)).toEqual([a, c, b, d]);
+  });
+
+  it("keeps the same array when the requested song is current or already next", () => {
+    const queue = [0, 1, 2].map((index) => createQueueItem(index));
+
+    expect(playSongNextInPlaybackQueue(queue, 0, createQueueItem, 0)).toBe(queue);
+    expect(playSongNextInPlaybackQueue(queue, 1, createQueueItem, 0)).toBe(queue);
+  });
+
+  it("promotes a queued song to the head if the current song is outside the queue", () => {
+    const [a, b] = [0, 1].map((index) => createQueueItem(index));
+
+    expect(playSongNextInPlaybackQueue([a, b], 1, createQueueItem, 2)).toEqual([b, a]);
+    expect(playSongNextInPlaybackQueue([a, b], 2, createQueueItem, 2)).toEqual([a, b]);
+  });
 });

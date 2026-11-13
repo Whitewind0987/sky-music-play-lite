@@ -31,8 +31,8 @@ import {
 import type { Song } from "../types/score";
 
 type UsePreviewPlaybackOptions = {
+  advanceQueuePlayback: (queueItemId: string, previousSongId: LibrarySongId | null) => void;
   appendLog: (entry: string) => void;
-  consumeQueuedItemAfterCurrent: (queueItemId: string, songCount: number) => void;
   peekNextQueueItemAfterCurrent: (
     currentSongIndex: number,
     songCount: number,
@@ -52,8 +52,8 @@ type UsePreviewPlaybackOptions = {
 };
 
 export function usePreviewPlayback({
+  advanceQueuePlayback,
   appendLog,
-  consumeQueuedItemAfterCurrent,
   peekNextQueueItemAfterCurrent,
   currentSelectedSong,
   getPlaybackOrderNextSongIndex,
@@ -330,7 +330,7 @@ export function usePreviewPlayback({
               onStarted: (nextSongIndex) => {
                 const songs = librarySongsRef.current;
                 if (queuedItem) {
-                  consumeQueuedItemAfterCurrent(queuedItem.id, songs.length);
+                  advanceQueuePlayback(queuedItem.id, completedSongId);
                 } else {
                   const previousSongIndex = resolveActivePlaybackSongIndex({
                     librarySongs: songs,

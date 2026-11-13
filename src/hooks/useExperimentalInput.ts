@@ -98,11 +98,8 @@ type SelectedWindowSnapshot = NonNullable<
 >["selectedWindowSnapshot"];
 
 type UseExperimentalInputOptions = {
+  advanceQueuePlayback: (queueItemId: string, previousSongId: LibrarySongId | null) => void;
   appendLog: (message: string) => void;
-  consumeQueuedItemAfterCurrent: (
-    queueItemId: string,
-    songCount: number,
-  ) => PlaybackQueueItem | null;
   currentSong: LibrarySong | null;
   currentPlaybackSongIndex: number | null;
   getPlaybackOrderNextSongIndex: (options: {
@@ -145,8 +142,8 @@ type BackgroundHandoffTiming = {
 };
 
 export function useExperimentalInput({
+  advanceQueuePlayback,
   appendLog,
-  consumeQueuedItemAfterCurrent,
   currentSong,
   currentPlaybackSongIndex,
   getPlaybackOrderNextSongIndex,
@@ -323,6 +320,7 @@ export function useExperimentalInput({
     experimentalPlaybackState === "playing" ||
     experimentalPlaybackState === "paused";
   const foregroundPlayback = useForegroundPlayback({
+    advanceQueuePlayback,
     appendLog,
     currentSong,
     experimentalInputEnabled,
@@ -345,7 +343,6 @@ export function useExperimentalInput({
     setSelectedSongIndex,
     startQueuePlayback,
     text,
-    consumeQueuedItemAfterCurrent,
     peekNextQueueItemAfterCurrent,
   });
   const hasUnsafePlaybackTransition =
@@ -1829,10 +1826,7 @@ export function useExperimentalInput({
           return;
         }
 
-        consumeQueuedItemAfterCurrent(
-          queuedItem.id,
-          librarySongsRef.current.length,
-        );
+        advanceQueuePlayback(queuedItem.id, songId);
       });
       return;
     }

@@ -66,8 +66,8 @@ function createPreviewHarness(initialQueue: number[] = [], initialSelection: num
     const playbackOrder = usePlaybackOrder();
     const currentSelectedSong = selectedSongIndex === null ? null : librarySongs[selectedSongIndex];
     const previewPlayback = usePreviewPlayback({
+      advanceQueuePlayback: playbackQueue.advanceQueuePlayback,
       appendLog,
-      consumeQueuedItemAfterCurrent: playbackQueue.consumeQueuedItemAfterCurrent,
       currentSelectedSong,
       getPlaybackOrderNextSongIndex: (options) => playbackOrder.getNextPlaybackOrderSongIndex({
         ...options, librarySongs,
@@ -194,20 +194,158 @@ describe("playback queue entry points", () => {
 
   it("prioritizes an already queued song when idle without duplicating it", async () => {
     const app = setup([0, 1, 2]);
+    const [a, b, c] = app.queueItems();
     await app.coordinator.handlePlaySongNext(1);
 
     expect(app.resolveSongForPlayback.mock.calls).toEqual([[1]]);
     expect(app.queueIds()).toEqual(["B", "A", "C"]);
+    expect(app.queueItems()).toEqual([b, a, c]);
     expect(app.playbackOrder.activePlaybackContextRef.current?.songIds).toEqual(["B", "A", "C"]);
   });
 
-  it("preserves queue order if the idle Play Next request fails to start", async () => {
-    const app = setup([0, 1, 2]);
+  it("only inserts an unqueued priority song after its start succeeds", async () => {
+    const app = setup([0, 1]);
+    const pendingSong = deferredSong(app, 2);
+    const start = app.coordinator.handlePlaySongNext(2);
+    await pendingSong.started;
+    expect(app.queueIds()).toEqual(["A", "B"]);
+    await app.coordinator.handleAddSongToQueue(3);
+
+    pendingSong.resolve();
+    await start;
+    expect(app.queueIds()).toEqual(["C", "A", "B", "D"]);
+    expect(app.playbackOrder.activePlaybackContextRef.current?.songIds).toEqual(["C", "A", "B", "D"]);
+  });
+
+  it.each([1, 2])("restores the queue and context when idle Play Next for index %i fails", async (index) => {
+    const app = setup([0, 1]);
+    await app.coordinator.handleBottomPlayerPlay();
+    app.coordinator.handleStopPlayback();
+    const originalItems = app.queueItems();
+    const originalContext = app.playbackOrder.activePlaybackContextRef.current;
+    app.resolveSongForPlayback.mockResolvedValueOnce(null);
+    await app.coordinator.handlePlaySongNext(index);
+
+    expect(app.resolveSongForPlayback.mock.calls).toEqual([[0], [index]]);
+    expect(app.queueItems()).toEqual(originalItems);
+    expect(app.playbackOrder.activePlaybackContextRef.current).toBe(originalContext);
+  });
+
+  it("moves an existing song after the current one and uses that order for auto-advance", async () => {
+    const app = setup([0, 1, 2, 3]);
+    const [a, b, c, d] = app.queueItems();
+    await app.coordinator.handleBottomPlayerPlay();
+    app.playbackOutput.canStartQueue = false;
+    app.playbackOutput.playbackState = "playing";
+    await app.coordinator.handlePlaySongNext(2);
+    const logCount = app.appendLog.mock.calls.length;
+    await app.coordinator.handlePlaySongNext(2);
+
+    expect(app.queueItems()).toEqual([a, c, b, d]);
+    expect(app.appendLog).toHaveBeenCalledTimes(logCount);
+    expect(app.playbackOrder.activePlaybackContextRef.current?.songIds).toEqual(["A", "C", "B", "D"]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("A");
+
+    await vi.runAllTimersAsync();
+    expect(app.resolveSongForPlayback.mock.calls).toEqual([[0], [2], [1], [3]]);
+    expect(app.queueItems()).toEqual([d]);
+  });
+
+  function deferredSong(app: ReturnType<typeof setup>, songIndex: number) {
+    let finishLoading!: (song: Song | null) => void;
+    let signalStarted!: () => void;
+    const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+    app.resolveSongForPlayback.mockImplementationOnce(() => new Promise((resolve) => {
+      finishLoading = resolve;
+      signalStarted();
+    }));
+    return {
+      started,
+      resolve: () => finishLoading({
+        ...createSong(app.visibleLibraryItems[songIndex].librarySong.id).metadata,
+        songNotes: [{ key: "A", time: 50 }],
+      }),
+    };
+  }
+
+  it("coalesces repeated priority requests and only commits the most recent song", async () => {
+    const app = setup([0, 1]);
+    const pendingC = deferredSong(app, 2);
+    const startC = app.coordinator.handlePlaySongNext(2);
+    await pendingC.started;
+    await app.coordinator.handlePlaySongNext(2);
+    app.playbackOutput.canStartQueue = false;
+    const pendingD = deferredSong(app, 3);
+    const startD = app.coordinator.handlePlaySongNext(3);
+    await pendingD.started;
+
+    pendingD.resolve();
+    await startD;
+    pendingC.resolve();
+    await startC;
+
+    expect(app.resolveSongForPlayback.mock.calls).toEqual([[2], [3]]);
+    expect(app.queueIds()).toEqual(["D", "A", "B"]);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBe("D");
+    expect(app.playbackOrder.getCommittedPlaybackContextSongId()).toBe("D");
+  });
+
+  it("keeps the original context when a newer priority fails and the older one resolves late", async () => {
+    const app = setup([0, 1]);
+    await app.coordinator.handleBottomPlayerPlay();
+    app.coordinator.handleStopPlayback();
+    const originalContext = app.playbackOrder.activePlaybackContextRef.current;
+    const pendingC = deferredSong(app, 2);
+    const startC = app.coordinator.handlePlaySongNext(2);
+    await pendingC.started;
+
     app.resolveSongForPlayback.mockResolvedValueOnce(null);
     await app.coordinator.handlePlaySongNext(1);
+    pendingC.resolve();
+    await startC;
 
-    expect(app.resolveSongForPlayback.mock.calls).toEqual([[1]]);
-    expect(app.queueIds()).toEqual(["A", "B", "C"]);
+    expect(app.resolveSongForPlayback.mock.calls).toEqual([[0], [2], [1]]);
+    expect(app.queueIds()).toEqual(["A", "B"]);
+    expect(app.playbackOrder.activePlaybackContextRef.current).toBe(originalContext);
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBeNull();
+  });
+
+  it("keeps concurrent queue edits and ignores an idle priority start cancelled by Stop", async () => {
+    const app = setup([0, 1]);
+    await app.coordinator.handleBottomPlayerPlay();
+    app.coordinator.handleStopPlayback();
+    const pendingC = deferredSong(app, 2);
+    const startC = app.coordinator.handlePlaySongNext(2);
+    await pendingC.started;
+    await app.coordinator.handleAddSongToQueue(3);
+    app.coordinator.handleStopPlayback();
+    pendingC.resolve();
+    await startC;
+
+    expect(app.queueIds()).toEqual(["A", "B", "D"]);
+    expect(app.playbackOrder.getCommittedPlaybackContextSongId()).toBe("A");
+    expect(app.previewPlayback.getActivePreviewPlaybackSongId()).toBeNull();
+    await app.coordinator.handleBottomPlayerPlay();
+    await vi.runAllTimersAsync();
+    expect(app.resolveSongForPlayback.mock.calls).toEqual([[0], [2], [0], [1], [3]]);
+    expect(app.queueIds()).toEqual(["D"]);
+  });
+
+  it("keeps the reprioritized song when automatic advancement is already loading", async () => {
+    const app = setup([0, 1, 2, 3]);
+    await app.coordinator.handleBottomPlayerPlay();
+    app.playbackOutput.canStartQueue = false;
+    const pendingB = deferredSong(app, 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    await pendingB.started;
+
+    await app.coordinator.handlePlaySongNext(2);
+    expect(app.queueIds()).toEqual(["A", "C", "B", "D"]);
+    pendingB.resolve();
+    await vi.runAllTimersAsync();
+
+    expect(app.resolveSongForPlayback.mock.calls).toEqual([[0], [1], [2], [3]]);
+    expect(app.queueIds()).toEqual(["D"]);
   });
 
   it("plays directly from the library and keeps the previous pending songs", async () => {

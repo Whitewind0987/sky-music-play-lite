@@ -52,6 +52,7 @@ export function usePlaybackCoordinator({
     transaction: PlaybackContextTransaction;
     songId: LibrarySongId;
     previousSongId: LibrarySongId | null;
+    isQueuePriority: boolean;
   } | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const firstQueueItem = playbackQueue.getFirstQueueItem();
@@ -84,11 +85,13 @@ export function usePlaybackCoordinator({
     songId: LibrarySongId,
     transaction: PlaybackContextTransaction,
     onStarted: (songIndex: number) => void,
+    isQueuePriority = false,
   ) {
     const previousSongId = getPreviousSongId();
-    const request = { transaction, songId, previousSongId };
+    const request = { transaction, songId, previousSongId, isQueuePriority };
     pendingStartRef.current = request;
     setIsStarting(true);
+    let didStart = false;
     try {
       const result = await runPlaybackContextTransaction({
         commit: () => {
@@ -117,11 +120,15 @@ export function usePlaybackCoordinator({
         },
         transaction,
       });
-      return result === "started";
+      didStart = result === "started";
+      return didStart;
     } finally {
       if (pendingStartRef.current === request) {
         pendingStartRef.current = null;
         setIsStarting(false);
+        if (!didStart && request.isQueuePriority) {
+          restorePriorityPlaybackSong(request.previousSongId);
+        }
       }
     }
   }
@@ -186,7 +193,7 @@ export function usePlaybackCoordinator({
 
   async function startQueueItem(
     queueItem: PlaybackQueueItem,
-    behavior: "resume" | "jump" | "prioritize",
+    behavior: "resume" | "jump",
   ) {
     const songs = scoreLibrary.librarySongsRef.current;
     const queueContextItems = playbackQueue.getValidQueueItemsFromItem(
@@ -199,13 +206,6 @@ export function usePlaybackCoordinator({
       return;
     }
 
-    const songIds = behavior === "prioritize"
-      ? [
-          currentSongId,
-          ...getQueueSongIds(playbackQueue.getValidQueueItems(), songs)
-            .filter((id) => id !== currentSongId),
-        ]
-      : queueContextSongIds;
     const resumesCurrentSong = behavior === "resume" && (
       scoreLibrary.currentPlaybackLibrarySong?.id === currentSongId ||
       playbackOrder.getCommittedPlaybackContextSongId() === currentSongId
@@ -214,17 +214,13 @@ export function usePlaybackCoordinator({
       ? playbackOrder.beginCurrentSongTransaction(currentSongId)
       : null;
     const transaction = existingTransaction ?? playbackOrder.beginPlaybackContextValue({
-      currentSongId, songIds, source: "queue",
+      currentSongId, songIds: queueContextSongIds, source: "queue",
     });
-    await startWithContext(currentSongId, transaction, (songIndex) => {
+    await startWithContext(currentSongId, transaction, () => {
       scoreLibrary.setSelectedSongId(currentSongId);
-      if (behavior === "prioritize") {
-        playbackQueue.startQueuePlayback(songIndex, null);
-      } else {
-        playbackQueue.consumeQueuedItemAfterCurrent(
-          queueItem.id, scoreLibrary.librarySongsRef.current.length,
-        );
-      }
+      playbackQueue.consumeQueuedItemAfterCurrent(
+        queueItem.id, scoreLibrary.librarySongsRef.current.length,
+      );
     });
   }
 
@@ -248,15 +244,51 @@ export function usePlaybackCoordinator({
   }
 
   function handlePlaySongNext(songIndex: number, allowStart = true) {
-    const pendingSongId = pendingStartRef.current?.songId;
-    const prioritize = playbackOutput.canStartQueue && !pendingSongId;
-    const afterSongIndex = pendingSongId
-      ? findSongIndex(pendingSongId)
-      : scoreLibrary.playbackSongIndex;
-    const queueItem = playbackQueue.playNext(songIndex, afterSongIndex, prioritize);
-    if (allowStart && prioritize && queueItem) {
-      return startQueueItem(queueItem, "prioritize");
+    const songs = scoreLibrary.librarySongsRef.current;
+    const songId = songs[songIndex]?.id;
+    if (!songId) return;
+
+    const pendingStart = pendingStartRef.current;
+    const canPrioritize = pendingStart
+      ? pendingStart.isQueuePriority
+      : playbackOutput.canStartQueue;
+    if (allowStart && canPrioritize) {
+      if (pendingStart?.songId === songId) return;
+      if (pendingStart) {
+        // Cancel the old output request while retaining its original playback identity.
+        playbackOutput.onStop();
+        restorePriorityPlaybackSong(pendingStart.previousSongId);
+      }
+
+      const songIds = getQueueSongIds(playbackQueue.getValidQueueItems(), songs);
+      const transaction = playbackOrder.beginPlaybackContextValue({
+        currentSongId: songId,
+        songIds: [songId, ...songIds.filter((id) => id !== songId)],
+        source: "queue",
+      });
+      // Promote against the live queue only after the output accepts the start.
+      return startWithContext(songId, transaction, (acceptedSongIndex) => {
+        playbackQueue.startQueuePlayback(acceptedSongIndex, null);
+        scoreLibrary.setSelectedSongId(songId);
+        syncQueuePlaybackOrder(songId);
+      }, true);
     }
+
+    const afterSongIndex = pendingStart
+      ? findSongIndex(pendingStart.songId)
+      : scoreLibrary.playbackSongIndex;
+    const reordered = playbackQueue.playNext(songIndex, afterSongIndex);
+    const currentSongId = afterSongIndex === null ? null : songs[afterSongIndex]?.id;
+    if (reordered && !pendingStart && currentSongId) {
+      syncQueuePlaybackOrder(currentSongId);
+    }
+  }
+
+  function syncQueuePlaybackOrder(currentSongId: LibrarySongId) {
+    const songIds = getQueueSongIds(
+      playbackQueue.getValidQueueItems(), scoreLibrary.librarySongsRef.current,
+    );
+    playbackOrder.updateQueuePlaybackOrder(currentSongId, songIds);
   }
 
   function handleRemoveFromLiked(songId: LibrarySongId) {
@@ -461,10 +493,18 @@ export function usePlaybackCoordinator({
     }
     await startWithContext(nextSongId, transaction, (songIndex) => {
       if (queuedItem) {
-        playbackQueue.consumeQueuedItemAfterCurrent(
-          queuedItem.id,
-          scoreLibrary.librarySongsRef.current.length,
-        );
+        if (startAtRequest) {
+          playbackQueue.consumeQueuedItemAfterCurrent(
+            queuedItem.id,
+            scoreLibrary.librarySongsRef.current.length,
+          );
+        } else {
+          const previousSongId = currentSongResolution.status === "resolved"
+            ? currentSongResolution.songId
+            : null;
+          playbackQueue.advanceQueuePlayback(queuedItem.id, previousSongId);
+          syncQueuePlaybackOrder(nextSongId);
+        }
       } else {
         const previousSongIndex = currentSongResolution.status === "resolved"
           ? findSongIndex(currentSongResolution.songId)
@@ -549,7 +589,7 @@ export function usePlaybackCoordinator({
 
     playbackQueue.clearQueue();
 
-    if (hadQueueItems) {
+    if (hadQueueItems || pendingStartRef.current?.isQueuePriority) {
       clearCurrentPlaybackSelection();
     }
   }
@@ -605,6 +645,15 @@ export function usePlaybackCoordinator({
       setIsStarting(false);
     }
     playbackOutput.onStop();
+    if (pendingStart?.isQueuePriority) {
+      restorePriorityPlaybackSong(pendingStart.previousSongId);
+    }
+  }
+
+  function restorePriorityPlaybackSong(songId: LibrarySongId | null) {
+    if (playbackOutput.mode === "experimental-target-window") {
+      scoreLibrary.setPlaybackSongId(songId !== null && findSongIndex(songId) >= 0 ? songId : null);
+    }
   }
 
   return {

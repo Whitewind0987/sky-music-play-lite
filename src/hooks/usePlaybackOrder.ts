@@ -136,6 +136,11 @@ export function usePlaybackOrder() {
     syncContextRef();
   }
 
+  function updateQueuePlaybackOrder(currentSongId: LibrarySongId, songIds: LibrarySongId[]) {
+    transactionStoreRef.current!.updateQueuePlaybackOrder(currentSongId, songIds);
+    syncContextRef();
+  }
+
   function getCurrentPlaybackContextSongId() {
     return transactionStoreRef.current!.getCurrentSongId();
   }
@@ -193,6 +198,7 @@ export function usePlaybackOrder() {
     removeSongFromPlaybackContext,
     rollbackPlaybackContext,
     setPlaybackContext,
+    updateQueuePlaybackOrder,
   };
 }
 

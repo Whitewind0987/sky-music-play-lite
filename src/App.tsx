@@ -214,8 +214,8 @@ function App() {
     scoreLibrary.setSelectedSongIndex(songIndex);
   }
   const previewPlayback = usePreviewPlayback({
+    advanceQueuePlayback: playbackQueue.advanceQueuePlayback,
     appendLog,
-    consumeQueuedItemAfterCurrent: playbackQueue.consumeQueuedItemAfterCurrent,
     currentSelectedSong: scoreLibrary.currentSelectedSong,
     getPlaybackOrderNextSongIndex: (options) =>
       playbackOrder.getNextPlaybackOrderSongIndex({
@@ -231,9 +231,8 @@ function App() {
     text,
   });
   const experimentalInput = useExperimentalInput({
+    advanceQueuePlayback: playbackQueue.advanceQueuePlayback,
     appendLog,
-    consumeQueuedItemAfterCurrent:
-      playbackQueue.consumeQueuedItemAfterCurrent,
     currentSong: scoreLibrary.currentSelectedSong,
     currentPlaybackSongIndex: scoreLibrary.playbackSongIndex,
     getPlaybackOrderNextSongIndex: (options) =>

@@ -39,8 +39,8 @@ import type {
 } from "./usePlaybackPlanPreparation";
 
 type UseForegroundPlaybackOptions = {
+  advanceQueuePlayback: (queueItemId: string, previousSongId: LibrarySongId | null) => void;
   appendLog: (message: string) => void;
-  consumeQueuedItemAfterCurrent: (queueItemId: string, songCount: number) => PlaybackQueueItem | null;
   currentSong: LibrarySong | null;
   experimentalInputEnabled: boolean;
   getOrPreparePlaybackPlan: (options: {
@@ -79,8 +79,8 @@ const COUNTDOWN_START_SECONDS = 3;
 export const FOREGROUND_KEY_HOLD_MS = 40;
 
 export function useForegroundPlayback({
+  advanceQueuePlayback,
   appendLog,
-  consumeQueuedItemAfterCurrent,
   currentSong,
   experimentalInputEnabled,
   getOrPreparePlaybackPlan,
@@ -720,7 +720,7 @@ export function useForegroundPlayback({
           return;
         }
         if (queuedItem) {
-          consumeQueuedItemAfterCurrent(queuedItem.id, librarySongsRef.current.length);
+          advanceQueuePlayback(queuedItem.id, songId);
         } else {
           const songs = librarySongsRef.current;
           const nextSongIndex = resolveActivePlaybackSongIndex({ librarySongs: songs, songId: nextSong?.id ?? null });

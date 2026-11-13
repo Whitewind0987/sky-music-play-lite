@@ -6,7 +6,7 @@ import {
   getValidQueueItemsFrom,
   resolveNextQueueItemForCurrent,
 } from "../lib/playbackQueueDecision";
-import type { LibrarySong } from "../types/library";
+import type { LibrarySong, LibrarySongId } from "../types/library";
 import type { PlaybackQueueItem } from "../types/playbackQueue";
 
 type UsePlaybackQueueOptions = {
@@ -64,13 +64,29 @@ export function playSongNextInPlaybackQueue(
   createQueueItem: (songIndex: number) => PlaybackQueueItem,
   afterSongIndex: number | null = null,
 ) {
-  if (queueItems.some((item) => item.songIndex === songIndex)) {
+  const currentIndex = afterSongIndex === null
+    ? 0
+    : queueItems.findIndex((item) => item.songIndex === afterSongIndex);
+  if (songIndex === afterSongIndex || queueItems[currentIndex]?.songIndex === songIndex) {
     return queueItems;
   }
 
-  const currentIndex = queueItems.findIndex((item) => item.songIndex === afterSongIndex);
-  const insertAt = afterSongIndex === null ? 1 : currentIndex + 1;
-  return [...queueItems.slice(0, insertAt), createQueueItem(songIndex), ...queueItems.slice(insertAt)];
+  const existingItem = queueItems.find((item) => item.songIndex === songIndex);
+  const remainingItems = queueItems.filter((item) => item.songIndex !== songIndex);
+  const currentItem = queueItems[currentIndex];
+  const insertAt = currentItem ? remainingItems.indexOf(currentItem) + 1 : 0;
+  if (
+    existingItem && queueItems[insertAt] === existingItem &&
+    remainingItems.length === queueItems.length - 1
+  ) {
+    return queueItems;
+  }
+
+  return [
+    ...remainingItems.slice(0, insertAt),
+    existingItem ?? createQueueItem(songIndex),
+    ...remainingItems.slice(insertAt),
+  ];
 }
 
 export function removeSongIndicesFromPlaybackQueue(
@@ -176,23 +192,22 @@ export function usePlaybackQueue({
     );
   }
 
-  function playNext(songIndex: number, afterSongIndex: number | null, isIdle: boolean) {
-    if (!librarySongsRef.current[songIndex]) return;
-    const nextItems = isIdle
-      ? addSongToPlaybackQueue(queueItemsRef.current, songIndex, createQueueItem)
-      : playSongNextInPlaybackQueue(queueItemsRef.current, songIndex, createQueueItem, afterSongIndex);
+  function playNext(songIndex: number, afterSongIndex: number | null) {
+    if (!librarySongsRef.current[songIndex]) return false;
+    const nextItems = playSongNextInPlaybackQueue(
+      queueItemsRef.current, songIndex, createQueueItem, afterSongIndex,
+    );
     if (nextItems === queueItemsRef.current) {
-      if (!isIdle) logAlreadyQueued(songIndex);
-    } else {
-      setQueueItemsAndRef(nextItems);
-      appendLog(
-        formatText(text.queuePlayNextAdded, {
-          songName: getSongName(songIndex),
-        }),
-      );
+      return false;
     }
 
-    return nextItems.find((item) => item.songIndex === songIndex);
+    setQueueItemsAndRef(nextItems);
+    appendLog(
+      formatText(text.queuePlayNextAdded, {
+        songName: getSongName(songIndex),
+      }),
+    );
+    return true;
   }
 
   function addToQueue(songIndex: number) {
@@ -314,8 +329,20 @@ export function usePlaybackQueue({
     return remainingItems[0] ?? null;
   }
 
+  function advanceQueuePlayback(queueItemId: string, previousSongId: LibrarySongId | null) {
+    const songs = librarySongsRef.current;
+    const nextItem = getValidQueueItemsFromItem(queueItemId, songs.length)[0];
+    if (nextItem) {
+      const previousSongIndex = songs.findIndex((song) => song.id === previousSongId);
+      // A Play Next edit may have moved another pending item ahead of this start.
+      // Keep that item pending when promoting the song the output accepted.
+      startQueuePlayback(nextItem.songIndex, previousSongIndex);
+    }
+  }
+
   return {
     addToQueue,
+    advanceQueuePlayback,
     clearQueue,
     consumeQueuedItemAfterCurrent,
     getFirstQueueItem,
