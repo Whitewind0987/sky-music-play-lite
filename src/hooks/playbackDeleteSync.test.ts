@@ -22,7 +22,7 @@ function createLocalSong(id: string, index: number): LocalLibrarySong {
 }
 
 // 轻量 controller 替身：只记录 handleDeleteLocalSongs 需要的协作点调用。
-function buildCoordinator() {
+function buildCoordinator(playingSongId: LibrarySongId | null = null) {
   const librarySongs: LocalLibrarySong[] = [
     createLocalSong("a", 0),
     createLocalSong("b", 1),
@@ -44,6 +44,7 @@ function buildCoordinator() {
     librarySongs,
     selectedSongIndex: null,
     currentPlaybackLibrarySong: null,
+    playbackSongIdRef: { current: playingSongId },
     isSongLoading: () => false,
     handleDeleteLocalSong: vi.fn(
       async (
@@ -110,12 +111,34 @@ describe("handlePlaybackCoordinator.handleDeleteLocalSongs (批量删除播放�
     expect(scoreLibrary.handleDeleteLocalSong).toHaveBeenCalledTimes(2);
     expect(deleteCalls.map((call) => call.songId)).toEqual(["a", "c"]);
     expect(deleteCalls.every((call) => call.hasOnDeleted)).toBe(true);
-    expect(deleteCalls.every((call) => call.stopPlaybackBeforeDelete)).toBe(true);
+
+    // 没有正在播放的曲谱被删，因此不打断播放。
+    expect(deleteCalls.every((call) => call.stopPlaybackBeforeDelete)).toBe(false);
 
     // 队列清理按原始 songIndex 收集（0 和 2）
     expect(removedQueueSongIndices).toEqual([0, 2]);
     // 播放上下文按 songId 清除
     expect(removedPlaybackContextSongIds).toEqual(["a", "c"]);
+  });
+
+  it("正在播放的曲谱在删除列表里时才停止播放", async () => {
+    const { coordinator, deleteCalls } = buildCoordinator("a");
+
+    await coordinator.handleDeleteLocalSongs(["a", "c"]);
+
+    expect(deleteCalls.map((call) => call.stopPlaybackBeforeDelete)).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it("播放的是其它曲谱时不打断当前播放", async () => {
+    const { coordinator, deleteCalls } = buildCoordinator("b");
+
+    await coordinator.handleDeleteLocalSongs(["a", "c"]);
+
+    // 正在播放的 b 不在删除列表里，因此两次删除都不该停播。
+    expect(deleteCalls.every((call) => call.stopPlaybackBeforeDelete)).toBe(false);
   });
 
   it("跳过内置曲谱（非 local-import）,不触发删除与队列清理", async () => {
@@ -144,6 +167,7 @@ describe("handlePlaybackCoordinator.handleDeleteLocalSongs (批量删除播放�
       librarySongs,
       selectedSongIndex: null,
       currentPlaybackLibrarySong: null,
+      playbackSongIdRef: { current: null },
       isSongLoading: () => false,
       handleDeleteLocalSong: vi.fn(
         async (songIndex: number, onDeleted?: (i: number, id: LibrarySongId) => void) => {

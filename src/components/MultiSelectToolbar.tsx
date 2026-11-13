@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { Check } from "lucide-react";
-import { useState } from "react";
 import type { LibrarySongId, UserPlaylist } from "../types/library";
 import type { MultiSelectState } from "../hooks/useMultiSelect";
 import type { UiText } from "../i18n/uiText";
-import { ConfirmDialog } from "./ConfirmDialog";
 
 type MultiSelectToolbarProps = {
   multiSelect: MultiSelectState;
@@ -33,7 +31,6 @@ export function MultiSelectToolbar({
   onRemoveSongsFromPlaylist,
 }: MultiSelectToolbarProps) {
   const { count, enabled } = multiSelect;
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   if (!enabled) {
     return null;
@@ -45,13 +42,9 @@ export function MultiSelectToolbar({
     if (count === 0) {
       return;
     }
-    setIsConfirmOpen(true);
-  };
-
-  const confirmDelete = () => {
-    setIsConfirmOpen(false);
+    // 删除确认由全局对话框统一处理（与单曲删除共用同一套安全检查）。
+    // 这里不清空选择：真正的删除发生后再清，否则用户点「取消」会丢失选择。
     onDeleteLocalSongs?.(selectedIds);
-    multiSelect.clear();
   };
 
   const handleRemoveFromPlaylist = () => {
@@ -132,20 +125,6 @@ export function MultiSelectToolbar({
           </>
         ) : null}
       </div>
-
-      <ConfirmDialog
-        cancelLabel={text.multiSelectCancel}
-        confirmLabel={text.multiSelectDeleteSelected}
-        description={text.multiSelectDeleteConfirm.replace(
-          "{count}",
-          String(count),
-        )}
-        onCancel={() => setIsConfirmOpen(false)}
-        onConfirm={confirmDelete}
-        open={isConfirmOpen}
-        title={text.multiSelectDeleteTitle}
-        variant="danger"
-      />
     </>
   );
 }

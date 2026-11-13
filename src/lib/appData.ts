@@ -639,6 +639,7 @@ function sanitizeV3Library(
           importedAt: number;
           libraryGroup?: LocalLibrarySong["libraryGroup"];
           rawMetadata: unknown;
+          sourceSongId?: string;
         }>
       >((nextCandidates, rawLibrarySong) => {
         if (
@@ -658,6 +659,11 @@ function sanitizeV3Library(
           rawLibrarySong.libraryGroup === "imported" ||
           rawLibrarySong.libraryGroup === "playlist-copy"
             ? { libraryGroup: rawLibrarySong.libraryGroup } : {}),
+          // 歌单私有副本要记住源自哪首原曲：重启后仍能识别
+          // 「同一首原曲重复加入歌单」，否则重启一次就能绕过检测。
+          ...(typeof rawLibrarySong.sourceSongId === "string" &&
+          isValidLocalSongId(rawLibrarySong.sourceSongId)
+            ? { sourceSongId: rawLibrarySong.sourceSongId } : {}),
           rawMetadata: rawLibrarySong.metadata,
         });
 
@@ -692,6 +698,7 @@ function sanitizeV3Library(
         id: candidate.id,
         importedAt: candidate.importedAt,
         ...(candidate.libraryGroup === undefined ? {} : { libraryGroup: candidate.libraryGroup }),
+        ...(candidate.sourceSongId === undefined ? {} : { sourceSongId: candidate.sourceSongId }),
         metadata,
         source: "local-import",
       });

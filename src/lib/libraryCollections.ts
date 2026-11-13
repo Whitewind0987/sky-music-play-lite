@@ -288,8 +288,23 @@ export function createPlaylistCopyOfLocalSong(
     importedAt: now,
     libraryGroup: "playlist-copy",
     metadata: { ...source.metadata },
+    // 记住源自哪首原曲：歌单保存的是副本 ID，靠它才能识别「同一首原曲重复加入」。
+    sourceSongId: source.id,
     source: "local-import",
   };
+}
+
+/**
+ * 取某个曲谱的「原始身份」：私有副本用其来源曲谱 ID，其余用自身 ID。
+ *
+ * 判断「同一首歌是否已在歌单中」必须用这个值——
+ * 歌单保存的是副本 ID，直接比较副本 ID 会漏判。
+ */
+export function getSourceSongId(song: LibrarySong): LibrarySongId {
+  return song.source === "local-import" && song.libraryGroup === "playlist-copy" &&
+      song.sourceSongId
+    ? song.sourceSongId
+    : song.id;
 }
 
 export function createPlaylist(name: string): UserPlaylist {

@@ -387,9 +387,16 @@ function App() {
     scoreLibrary,
     text,
   });
+  const multiSelect = useMultiSelect();
   const libraryDialogs = useLibraryDialogs({
     librarySongs: scoreLibrary.librarySongs,
     onDeleteLocalSong: playbackCoordinator.handleDeleteLocalSong,
+    onDeleteLocalSongs: async (songIds) => {
+      await playbackCoordinator.handleDeleteLocalSongs(songIds);
+      // 删除确实执行后才清空选择；用户点「取消」时选择保持不变。
+      multiSelect.clear();
+      return true;
+    },
     onDeletePlaylist: scoreLibrary.handleDeletePlaylist,
     onRenamePlaylist: scoreLibrary.handleRenamePlaylist,
     playlists: scoreLibrary.playlists,
@@ -405,7 +412,6 @@ function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [isLibrarySearchToolbarVisible, setIsLibrarySearchToolbarVisible] =
     useState(true);
-  const multiSelect = useMultiSelect();
 
   const [isCreatingPlaylistFromSidebar, setIsCreatingPlaylistFromSidebar] =
     useState(false);
@@ -832,7 +838,8 @@ function App() {
             playbackCoordinator.handleRemoveSongFromPlaylist
           }
           onDeleteLocalSongs={(songIds) => {
-            void playbackCoordinator.handleDeleteLocalSongs(songIds);
+            // 批量删除与单曲删除走同一套保护：受限状态拦截 + 删除互斥 + 确认弹窗。
+            libraryDialogs.requestDeleteLocalSongs(songIds);
           }}
           onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
           onRemoveSongsFromPlaylist={scoreLibrary.handleRemoveSongsFromPlaylist}

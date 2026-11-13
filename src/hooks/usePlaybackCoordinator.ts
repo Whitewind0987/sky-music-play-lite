@@ -496,6 +496,12 @@ export function usePlaybackCoordinator({
   async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
     const removedSongIds = Array.from(new Set(songIds));
 
+    // 只有「正在播放的曲谱本身在删除列表里」才需要停止播放。
+    // 删别的曲谱时强行停播会把用户的当前播放打断，属于误伤。
+    const playingSongId = scoreLibrary.playbackSongIdRef.current;
+    const shouldStopPlayback =
+      playingSongId !== null && removedSongIds.includes(playingSongId);
+
     for (const songId of removedSongIds) {
       const songIndex = scoreLibrary.librarySongsRef.current.findIndex(
         (librarySong) => librarySong.id === songId,
@@ -512,7 +518,7 @@ export function usePlaybackCoordinator({
       }
 
       await handleDeleteLocalSong(songIndex, songId, {
-        stopPlaybackBeforeDelete: true,
+        stopPlaybackBeforeDelete: shouldStopPlayback,
       });
     }
   }

@@ -363,28 +363,58 @@ export type ArchiveReport = {
   writtenFiles: ArchivedScoreFile[];
 };
 
-export function archiveScoresIntoFolders(
+/**
+ * 把曲谱导出到「导出区」（exported-scores）下的指定目录。
+ *
+ * 与自动镜像区分开：
+ * * 自动镜像写「曲谱分类」—— 由清单管理，每次同步都会重建；
+ * * 这个写「exported-scores」—— 用户主动保存的导出内容，同步不会碰它。
+ */
+export function exportScoresIntoExportedFolder(
+  folderName: string,
   entries: ArchiveScoreEntry[],
-  emptyFolders: string[] = [],
 ): Promise<ArchiveReport> {
-  return invoke<ArchiveReport>("archive_scores_into_folders", {
-    emptyFolders,
+  return invoke<ArchiveReport>("export_scores_into_exported_folder", {
     entries,
+    folderName,
   });
 }
 
 /**
- * 全量同步镜像：先清空归档根目录，再按当前歌单/分类重建。
+ * 全量同步镜像：按当前歌单/分类重建「曲谱分类」下的镜像内容。
  * 用于「本地文件夹自动镜像软件内歌单」。
+ *
+ * @param preserveSongIds 本轮读取失败、需要保留旧镜像的曲谱 ID。
+ *   这些曲谱对应的旧文件不会被清理，避免一次临时读取故障就丢镜像。
  */
 export function syncScoreMirrorToDisk(
   entries: ArchiveScoreEntry[],
   emptyFolders: string[] = [],
+  preserveSongIds: string[] = [],
 ): Promise<ArchiveReport> {
   return invoke<ArchiveReport>("sync_score_mirror", {
     entries,
     emptyFolders,
+    preserveSongIds,
   });
+}
+
+/**
+ * 旧格式镜像的一次性迁移。
+ *
+ * 旧版本把镜像直接写进「曲谱分类」下的目录（文件名是「标题.txt」），
+ * 新版本改用清单管理 + 文件名带 ID 后缀。首次运行时调用本命令，
+ * 只删除「能解析为合法曲谱 JSON 的 .txt 文件」，用户自建的文件保留。
+ */
+export type MirrorMigrationReport = {
+  migrated: boolean;
+  preservedFiles: string[];
+  removedEmptyDirectories: number;
+  removedLegacyFiles: number;
+};
+
+export function migrateLegacyScoreMirror(): Promise<MirrorMigrationReport> {
+  return invoke<MirrorMigrationReport>("migrate_legacy_score_mirror");
 }
 
 export function clearScoreArchiveDirectory(): Promise<number> {

@@ -1487,6 +1487,23 @@ export function LibraryPanel({
     useState<LibrarySongId | null>(null);
   useLibraryToolbarVisibility(searchToolbarRef, onSearchToolbarVisibilityChange);
 
+  // 切换分类或歌单时清空多选。
+  //
+  // 选中的曲谱可能不在当前页面可见（来自上一个分类），批量删除时用户
+  // 无法确认到底删了哪些。切页即清空，保证「看到的选中项」永远等于
+  // 「将被删除的曲谱」。
+  const multiSelectScopeRef = useRef<string>("");
+  const multiSelectScope = `${selectedCategory}:${selectedPlaylistId ?? ""}`;
+
+  useEffect(() => {
+    if (multiSelectScopeRef.current === multiSelectScope) {
+      return;
+    }
+
+    multiSelectScopeRef.current = multiSelectScope;
+    multiSelect.clear();
+  }, [multiSelect, multiSelectScope]);
+
   // 快捷键：Ctrl+Shift+M 切换多选模式
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1605,47 +1622,49 @@ export function LibraryPanel({
     <section ref={panelRef} className="library-panel" aria-label={text.aria}>
       <div className="library-content">
         <div ref={searchToolbarRef} className="library-content-header">
-          <label className="library-search">
-            <span className="sr-only">{text.searchPlaceholder}</span>
-            <input
-              type="search"
-              value={searchQuery}
-              placeholder={text.searchPlaceholder}
-              onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
-            />
-          </label>
-          <div className="library-content-actions">
-            <button
-              className={`library-multi-select-toggle${multiSelect.enabled ? " is-active" : ""}`}
-              type="button"
-              aria-pressed={multiSelect.enabled}
-              aria-label={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
-              title={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
-              onClick={() => {
-                if (multiSelect.enabled) {
-                  multiSelect.clear();
-                }
-                multiSelect.setEnabled(!multiSelect.enabled);
-              }}
-            >
-              {multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
-            </button>
-            <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
-            <button
-              type="button"
-              className="library-archive-button"
-              title={text.archiveToFolders}
-              onClick={onArchiveLibraryToFolders}
-            >
-              {text.archiveToFolders}
-            </button>
-            {isLocalImports ? (
-              <LibraryImportArea
-                importDisabled={importDisabled}
-                onImportFiles={onImportFiles}
-                text={text}
+          <div className="library-content-header-inner">
+            <label className="library-search">
+              <span className="sr-only">{text.searchPlaceholder}</span>
+              <input
+                type="search"
+                value={searchQuery}
+                placeholder={text.searchPlaceholder}
+                onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
               />
-            ) : null}
+            </label>
+            <div className="library-content-actions">
+              <button
+                className={`library-multi-select-toggle${multiSelect.enabled ? " is-active" : ""}`}
+                type="button"
+                aria-pressed={multiSelect.enabled}
+                aria-label={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
+                title={multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
+                onClick={() => {
+                  if (multiSelect.enabled) {
+                    multiSelect.clear();
+                  }
+                  multiSelect.setEnabled(!multiSelect.enabled);
+                }}
+              >
+                {multiSelect.enabled ? text.multiSelectExit : text.multiSelectMode}
+              </button>
+              <LibrarySortingControl sorting={sorting} disabled={isPlaylists && !selectedPlaylist} text={text.sorting} />
+              <button
+                type="button"
+                className="library-archive-button"
+                title={text.archiveToFolders}
+                onClick={onArchiveLibraryToFolders}
+              >
+                {text.archiveToFolders}
+              </button>
+              {isLocalImports ? (
+                <LibraryImportArea
+                  importDisabled={importDisabled}
+                  onImportFiles={onImportFiles}
+                  text={text}
+                />
+              ) : null}
+            </div>
           </div>
         </div>
         {sorting.mode === "custom" && !sorting.canEdit && (!isPlaylists || selectedPlaylist) ? (

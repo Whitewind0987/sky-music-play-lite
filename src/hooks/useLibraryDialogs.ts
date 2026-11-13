@@ -24,6 +24,10 @@ type PendingDeleteConfirmation =
       songIndex: number;
       songName: string;
       type: "local-song";
+    }
+  | {
+      songIds: LibrarySongId[];
+      type: "local-songs";
     };
 
 type PendingRenamePlaylist = {
@@ -39,6 +43,7 @@ type UseLibraryDialogsOptions = {
     songId: LibrarySongId,
     options: { stopPlaybackBeforeDelete: boolean },
   ) => Promise<boolean>;
+  onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<boolean>;
   onDeletePlaylist: (playlistId: string) => void;
   onRenamePlaylist: (playlistId: string, nextName: string) => void;
   playlists: UserPlaylist[];
@@ -50,6 +55,7 @@ export function useLibraryDialogs({
   isLocalSongDeleteBlocked = false,
   librarySongs,
   onDeleteLocalSong,
+  onDeleteLocalSongs,
   onDeletePlaylist,
   onRenamePlaylist,
   playlists,
@@ -142,6 +148,50 @@ export function useLibraryDialogs({
     });
   }
 
+  /**
+   * 批量删除请求入口。
+   *
+   * 与单曲删除走完全相同的安全检查：
+   * ① 受限状态（后台交接 / 前台启动 / 导入重concile 中）一律拒绝；
+   * ② 删除进行中不允许再发起（单次互斥）；
+   * ③ 只能删除真正存在于曲库中的本地导入曲谱。
+   */
+  function requestDeleteLocalSongs(songIds: LibrarySongId[]) {
+    if (
+      shouldBlockLibraryDeleteRequest({
+        isLocalSongDeleteBlocked,
+        requestType: "local-song",
+      }) ||
+      !canCloseDeleteConfirmation(isDeleteInProgressRef)
+    ) {
+      return;
+    }
+
+    const ids = Array.from(new Set(songIds));
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    // 只允许批量删除曲库里真实存在的本地导入曲谱。
+    const deletableIds = ids.filter((songId) => {
+      const librarySong = librarySongs.find(
+        (candidate) => candidate.id === songId,
+      );
+
+      return librarySong?.source === "local-import";
+    });
+
+    if (deletableIds.length === 0) {
+      return;
+    }
+
+    setPendingDeleteConfirmation({
+      songIds: deletableIds,
+      type: "local-songs",
+    });
+  }
+
   async function confirmDelete() {
     if (pendingDeleteConfirmation === null) {
       return;
@@ -159,6 +209,28 @@ export function useLibraryDialogs({
         requestType: "local-song",
       })
     ) {
+      return;
+    }
+
+    if (pendingDeleteConfirmation.type === "local-songs") {
+      const { songIds } = pendingDeleteConfirmation;
+
+      const deleteResult = await runSingleFlightDelete(
+        isDeleteInProgressRef,
+        setIsDeleteInProgress,
+        async () => {
+          if (!onDeleteLocalSongs) {
+            return false;
+          }
+
+          return onDeleteLocalSongs(songIds);
+        },
+      );
+
+      if (deleteResult === "success") {
+        setPendingDeleteConfirmation(null);
+      }
+
       return;
     }
 
@@ -212,13 +284,20 @@ export function useLibraryDialogs({
         ? formatText(text.deletePlaylistConfirm, {
             playlistName: pendingDeleteConfirmation.playlistName,
           })
-        : formatText(text.deleteLocalSongConfirm, {
-            songName: pendingDeleteConfirmation.songName,
-          });
+        : pendingDeleteConfirmation.type === "local-songs"
+          ? text.multiSelectDeleteConfirm.replace(
+              "{count}",
+              String(pendingDeleteConfirmation.songIds.length),
+            )
+          : formatText(text.deleteLocalSongConfirm, {
+              songName: pendingDeleteConfirmation.songName,
+            });
   const deleteDialogTitle =
     pendingDeleteConfirmation?.type === "playlist"
       ? text.deletePlaylist
-      : text.deleteLocalSong;
+      : pendingDeleteConfirmation?.type === "local-songs"
+        ? text.multiSelectDeleteTitle
+        : text.deleteLocalSong;
 
   return {
     cancelDelete,
@@ -232,6 +311,7 @@ export function useLibraryDialogs({
     isDeleteInProgress,
     pendingRenamePlaylist,
     requestDeleteLocalSong,
+    requestDeleteLocalSongs,
     requestDeletePlaylist,
     requestRenamePlaylist,
   };

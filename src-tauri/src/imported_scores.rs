@@ -20,6 +20,29 @@ const MAX_SCORE_ID_LENGTH: usize = 128;
 const MAX_SCORE_TITLE_SEGMENT_CHARS: usize = 64;
 const MAX_EXPLICIT_NOTE_DURATION_MS: f64 = 60000.0;
 
+/// 镜像清单文件名。位于镜像根目录内，记录该目录下的文件与子目录由程序创建，
+/// 从而让同步只清理「自己管理的内容」，绝不误删用户自建的目录或文件。
+const MIRROR_MANIFEST_FILE_NAME: &str = ".sky-music-play-lite-mirror.json";
+/// 清单格式版本，便于将来演进。
+const MIRROR_MANIFEST_VERSION: u32 = 1;
+
+/// 镜像清单：记录程序创建的文件与子目录（相对镜像根目录的路径）。
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MirrorManifest {
+    version: u32,
+    /// 程序创建的文件（相对根目录）。
+    #[serde(default)]
+    files: Vec<String>,
+    /// 程序创建的子目录（相对根目录）。
+    #[serde(default)]
+    directories: Vec<String>,
+    /// 每个文件对应的曲谱 ID。用于「本轮读取失败时保留该曲谱的旧镜像」，
+    /// 避免一次临时读取故障就把已有镜像删掉。
+    #[serde(default)]
+    file_song_ids: Vec<String>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportedScoreFileMetadata {
@@ -230,41 +253,37 @@ pub fn export_playlist_scores_to_folder(
     })
 }
 
-/// 按「分类/歌单 → 文件夹」归档曲谱：把传入的曲谱内容写成实体文件。
-/// 每个条目携带 songId、显示名和完整曲谱 JSON，无论来源是内置还是本地导入，
-/// 都重新落一份自己的文件，实现「歌单文件夹内自带独立乐谱」。
-/// `empty_folders` 用于**没有曲谱的歌单**：照样建出对应文件夹，保持歌单与文件夹一一对应。
+
+/// 把曲谱内容写入「导出区」（exported-scores）下的指定目录。
+///
+/// 与「自动镜像」区分开：
+/// * 自动镜像（sync_score_mirror）写「曲谱分类」，由清单管理，会被同步清理；
+/// * 手动导出写「exported-scores」，是用户主动保存的内容，同步不会碰它。
+///
+/// 曲谱内容由前端提供，因此内置曲谱、本地导入曲谱、歌单私有副本
+/// 都能导出（不再受「源文件必须在 imported-scores 里」的限制）。
 #[tauri::command]
-pub fn archive_scores_into_folders(
-    empty_folders: Vec<String>,
+pub fn export_scores_into_exported_folder(
+    folder_name: String,
     entries: Vec<ArchiveScoreEntry>,
 ) -> Result<ArchiveReport, String> {
-    let root = current_exe_score_archive_directory()?;
+    let exported_root = current_exe_exported_scores_directory()?;
 
-    ensure_archive_root_directory(&root)?;
+    ensure_exported_scores_directory_at(&exported_root)?;
+
+    let folder_segment = sanitize_exported_score_title(&folder_name);
+    let playlist_directory = ensure_unique_playlist_folder(&exported_root, &folder_segment)?;
 
     let mut written = Vec::new();
     let mut failures = Vec::new();
 
-    // 先建出空歌单对应的文件夹（不写文件，只建目录）
-    for folder in &empty_folders {
-        let folder_segment = sanitize_exported_score_title(folder);
-        let directory = root.join(&folder_segment);
-
-        if let Err(error) = ensure_exported_scores_directory_at(&directory) {
-            failures.push(format!("{}/（空文件夹）: {}", folder, error));
-        }
-    }
-
-    for entry in entries {
-        match write_archive_score_file(&root, &entry) {
-            Ok(path) => {
-                written.push(ArchivedScoreFile {
-                    folder: entry.folder,
-                    path: display_path(&path),
-                    title: entry.title,
-                });
-            }
+    for entry in &entries {
+        match write_exported_score_file(&playlist_directory, entry) {
+            Ok(path) => written.push(ArchivedScoreFile {
+                folder: entry.folder.clone(),
+                path: display_path(&path),
+                title: entry.title.clone(),
+            }),
             Err(error) => failures.push(format!(
                 "{}/{} ({}): {}",
                 entry.folder, entry.title, entry.song_id, error
@@ -274,9 +293,38 @@ pub fn archive_scores_into_folders(
 
     Ok(ArchiveReport {
         failures,
-        root_path: display_path(&root),
+        root_path: display_path(&exported_root),
         written_files: written,
     })
+}
+
+/// 在导出目录里写一个曲谱文件，文件名带 ID 后缀以免同名互相覆盖。
+fn write_exported_score_file(
+    directory: &Path,
+    entry: &ArchiveScoreEntry,
+) -> Result<PathBuf, String> {
+    ensure_exported_scores_directory_at(directory)?;
+
+    let title_segment = sanitize_exported_score_title(&entry.title);
+    let file_name = archive_score_file_name(&title_segment, &entry.song_id);
+    let file_path = directory.join(&file_name);
+
+    let content = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&Value::Array(vec![entry.song.clone()])).map_err(|error| {
+            format!("Failed to serialize exported score {}: {}", entry.song_id, error)
+        })?
+    );
+
+    fs::write(&file_path, content.as_bytes()).map_err(|error| {
+        format!(
+            "Failed to write exported score at {}: {}",
+            file_path.display(),
+            error
+        )
+    })?;
+
+    Ok(file_path)
 }
 
 /// 重命名后的歌单：把旧的分类归档文件夹改名为新名字，保持「歌单 ↔ 文件夹」一致。
@@ -405,42 +453,6 @@ pub fn clear_score_archive_directory() -> Result<usize, String> {
     Ok(removed)
 }
 
-fn write_archive_score_file(root: &Path, entry: &ArchiveScoreEntry) -> Result<PathBuf, String> {
-    let folder_segment = sanitize_exported_score_title(&entry.folder);
-    let title_segment = sanitize_exported_score_title(&entry.title);
-    let directory = root.join(&folder_segment);
-
-    ensure_exported_scores_directory_at(&directory)?;
-
-    let file_path = directory.join(format!("{}.txt", title_segment));
-
-    // 同名曲谱（如同一首歌的多个版本）追加序号，避免互相覆盖。
-    let mut target = file_path.clone();
-    for sequence in 1_u32.. {
-        if !path_exists_without_following(&target)? {
-            break;
-        }
-        target = directory.join(format!("{} ({}).txt", title_segment, sequence));
-    }
-
-    let content = format!(
-        "{}\n",
-        serde_json::to_string_pretty(&Value::Array(vec![entry.song.clone()])).map_err(|error| {
-            format!("Failed to serialize archived score {}: {}", entry.song_id, error)
-        })?
-    );
-
-    fs::write(&target, content.as_bytes()).map_err(|error| {
-        format!(
-            "Failed to write archived score at {}: {}",
-            target.display(),
-            error
-        )
-    })?;
-
-    Ok(target)
-}
-
 fn ensure_archive_root_directory(root: &Path) -> Result<(), String> {
     fs::create_dir_all(root).map_err(|error| {
         format!(
@@ -456,6 +468,10 @@ fn current_exe_score_archive_directory() -> Result<PathBuf, String> {
 }
 
 /// 删除某个歌单/分类对应的归档文件夹。
+///
+/// 「曲谱分类」是自动镜像区：目录里可能混有用户自己放进去的文件。
+/// 因此这里只删除**镜像清单登记过的文件**，以及删除后已变空的目录，
+/// 目录内用户自建的文件一律保留。
 #[tauri::command]
 pub fn delete_archive_folder(folder_name: String) -> Result<bool, String> {
     let root = current_exe_score_archive_directory()?;
@@ -493,24 +509,327 @@ pub fn delete_archive_folder(folder_name: String) -> Result<bool, String> {
         ));
     }
 
-    fs::remove_dir_all(&canonical_candidate).map_err(|error| {
+    let manifest = read_mirror_manifest(&root);
+    let folder_prefix = format!("{}/", folder_segment.replace('\\', "/"));
+
+    let mut removed_any = false;
+
+    // 只删除清单登记在该目录下的文件。
+    for relative in &manifest.files {
+        let normalized = relative.replace('\\', "/");
+        if !normalized.starts_with(&folder_prefix) {
+            continue;
+        }
+
+        let Some(path) = resolve_manifest_path(&root, relative) else {
+            continue;
+        };
+
+        if !path_exists_without_following(&path).unwrap_or(false) {
+            continue;
+        }
+
+        if let Err(error) = fs::remove_file(&path) {
+            return Err(format!(
+                "Failed to delete archive file at {}: {}",
+                path.display(),
+                error
+            ));
+        }
+
+        removed_any = true;
+    }
+
+    // 目录内已经没有内容时才移除目录本身；否则保留（里面还有用户的文件）。
+    let remaining = fs::read_dir(&canonical_candidate)
+        .map(|entries| entries.flatten().count())
+        .unwrap_or(0);
+
+    if remaining == 0 {
+        if let Err(error) = fs::remove_dir(&canonical_candidate) {
+            return Err(format!(
+                "Failed to delete archive folder at {}: {}",
+                canonical_candidate.display(),
+                error
+            ));
+        }
+
+        removed_any = true;
+    }
+
+    Ok(removed_any)
+}
+
+/// 读取镜像清单。清单缺失或损坏时返回空清单（表示「没有任何已登记内容」），
+/// 这样最坏情况只是不清理旧内容，而不会误删用户文件。
+fn read_mirror_manifest(root: &Path) -> MirrorManifest {
+    let manifest_path = root.join(MIRROR_MANIFEST_FILE_NAME);
+
+    let empty = || MirrorManifest {
+        version: MIRROR_MANIFEST_VERSION,
+        files: Vec::new(),
+        directories: Vec::new(),
+        file_song_ids: Vec::new(),
+    };
+
+    let Ok(raw) = fs::read_to_string(&manifest_path) else {
+        return empty();
+    };
+
+    match serde_json::from_str::<MirrorManifest>(&raw) {
+        Ok(manifest) => manifest,
+        Err(_) => empty(),
+    }
+}
+
+/// 写回镜像清单。写入失败不阻断同步主体，仅返回错误供调用方记录。
+fn write_mirror_manifest(root: &Path, manifest: &MirrorManifest) -> Result<(), String> {
+    let manifest_path = root.join(MIRROR_MANIFEST_FILE_NAME);
+    let serialized = serde_json::to_string_pretty(manifest)
+        .map_err(|error| format!("Failed to serialize mirror manifest: {}", error))?;
+
+    fs::write(&manifest_path, serialized.as_bytes()).map_err(|error| {
         format!(
-            "Failed to delete archive folder at {}: {}",
-            canonical_candidate.display(),
+            "Failed to write mirror manifest at {}: {}",
+            manifest_path.display(),
+            error
+        )
+    })
+}
+
+/// 解析清单中的相对路径，并确保它没有逃出镜像根目录。
+/// 返回 `None` 表示该条目非法（越界或为空），调用方应跳过而不是删除。
+fn resolve_manifest_path(root: &Path, relative: &str) -> Option<PathBuf> {
+    if relative.is_empty() {
+        return None;
+    }
+
+    // 拒绝绝对路径与任何父目录跳转，确保清单无法指向根目录之外。
+    let mut candidate = root.to_path_buf();
+    for segment in relative.split('/') {
+        if segment.is_empty() || segment == "." || segment == ".." {
+            return None;
+        }
+        candidate.push(segment);
+    }
+
+    Some(candidate)
+}
+
+/// 按清单清理镜像目录中「由程序创建」的文件与子目录。
+///
+/// 只处理清单里登记过的相对路径，因此用户自行创建的文件或目录一律保留。
+/// 目录按深度倒序删除，保证先删子目录再删父目录。
+fn cleanup_manifest_entries(root: &Path, manifest: &MirrorManifest) -> Vec<String> {
+    let mut failures = Vec::new();
+
+    // 先删文件。
+    for relative in &manifest.files {
+        let Some(path) = resolve_manifest_path(root, relative) else {
+            continue;
+        };
+
+        if !path_exists_without_following(&path).unwrap_or(false) {
+            continue;
+        }
+
+        if let Err(error) = fs::remove_file(&path) {
+            failures.push(format!("清理文件 {} 失败: {}", path.display(), error));
+        }
+    }
+
+    // 再删目录（深度倒序，保证子目录先于父目录被删）。
+    let mut directories: Vec<(usize, &String)> = manifest
+        .directories
+        .iter()
+        .map(|relative| (relative.split('/').count(), relative))
+        .collect();
+    directories.sort_by(|left, right| right.0.cmp(&left.0));
+
+    for (_, relative) in directories {
+        let Some(path) = resolve_manifest_path(root, relative) else {
+            continue;
+        };
+
+        if !path_exists_without_following(&path).unwrap_or(false) {
+            continue;
+        }
+
+        if !path.is_dir() {
+            continue;
+        }
+
+        // 只删空目录：目录里可能还有用户自己放的文件，
+        // 递归删除会把它们一起带走。
+        let remaining = fs::read_dir(&path)
+            .map(|entries| entries.flatten().count())
+            .unwrap_or(0);
+
+        if remaining > 0 {
+            continue;
+        }
+
+        if let Err(error) = fs::remove_dir(&path) {
+            failures.push(format!("清理目录 {} 失败: {}", path.display(), error));
+        }
+    }
+
+    failures
+}
+
+
+/// 旧格式镜像迁移报告。
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorMigrationReport {
+    /// 删除的旧格式曲谱文件数。
+    pub removed_legacy_files: usize,
+    /// 删除的空目录数。
+    pub removed_empty_directories: usize,
+    /// 因无法解析而保留的文件（很可能是用户自己放的文件）。
+    pub preserved_files: Vec<String>,
+    /// 本次是否真的执行了迁移。
+    pub migrated: bool,
+}
+
+/// 判断某个文件是否是「程序生成的旧格式镜像曲谱」。
+///
+/// 判据：扩展名是 .txt，且内容能解析为合法的曲谱 JSON。
+/// 用户自己放进去的其它文件（说明文档、图片、随手记的 txt）都解析不出来，
+/// 因此会被保留。
+fn is_legacy_mirror_score_file(file_path: &Path) -> bool {
+    if file_path.extension().and_then(|value| value.to_str()) != Some("txt") {
+        return false;
+    }
+
+    // 新格式文件名带 ID 后缀，不属于旧格式。
+    let Some(stem) = file_path.file_stem().and_then(|value| value.to_str()) else {
+        return false;
+    };
+
+    if stem.contains(CANONICAL_FILE_NAME_SEPARATOR) {
+        return false;
+    }
+
+    // 内容必须是合法曲谱。
+    read_one_song_from_file(file_path).is_ok()
+}
+
+/// 一次性迁移旧格式的镜像目录。
+///
+/// 旧版本把镜像直接写进「曲谱分类」下的目录，文件名是「标题.txt」，
+/// 没有清单记录。新版本改用清单管理，并在文件名里加入 ID 后缀。
+///
+/// 迁移策略：
+/// ① 只删除「能解析为合法曲谱 JSON 的 .txt 文件」—— 用户自己放的文件一律保留；
+/// ② 删除后变空的目录一并移除；
+/// ③ 迁移完成后写入一份清单，标记这些目录已由程序接管。
+///
+/// 该命令是幂等的：迁移过一次之后再次调用不会有任何改动。
+#[tauri::command]
+pub fn migrate_legacy_score_mirror() -> Result<MirrorMigrationReport, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    let mut report = MirrorMigrationReport {
+        migrated: false,
+        ..MirrorMigrationReport::default()
+    };
+
+    if !root.is_dir() {
+        return Ok(report);
+    }
+
+    // 已有清单说明已经迁移过（或已经是新版），不再处理。
+    if root.join(MIRROR_MANIFEST_FILE_NAME).exists() {
+        return Ok(report);
+    }
+
+    let read_dir = fs::read_dir(&root).map_err(|error| {
+        format!(
+            "Failed to read score archive root {}: {}",
+            root.display(),
             error
         )
     })?;
 
-    Ok(true)
+    let mut directories: Vec<PathBuf> = Vec::new();
+
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+
+        if !path.is_dir() {
+            continue;
+        }
+
+        directories.push(path);
+    }
+
+    for directory in directories {
+        let Ok(children) = fs::read_dir(&directory) else {
+            continue;
+        };
+
+        for child in children.flatten() {
+            let path = child.path();
+
+            if !path.is_file() {
+                continue;
+            }
+
+            if is_legacy_mirror_score_file(&path) {
+                if let Err(error) = fs::remove_file(&path) {
+                    report
+                        .preserved_files
+                        .push(format!("{} ({})", path.display(), error));
+                } else {
+                    report.removed_legacy_files += 1;
+                }
+            } else {
+                // 不是程序生成的旧镜像文件：保留。
+                report.preserved_files.push(path.display().to_string());
+            }
+        }
+
+        // 目录变空才移除；还留着用户文件就保留。
+        let remaining = fs::read_dir(&directory)
+            .map(|entries| entries.flatten().count())
+            .unwrap_or(0);
+
+        if remaining == 0 {
+            if fs::remove_dir(&directory).is_ok() {
+                report.removed_empty_directories += 1;
+            }
+        }
+    }
+
+    report.migrated = report.removed_legacy_files > 0;
+
+    // 写一份空清单，标记迁移已完成：之后的同步只管理自己登记的内容。
+    let manifest = MirrorManifest {
+        version: MIRROR_MANIFEST_VERSION,
+        files: Vec::new(),
+        directories: Vec::new(),
+        file_song_ids: Vec::new(),
+    };
+
+    if let Err(error) = write_mirror_manifest(&root, &manifest) {
+        report.preserved_files.push(error);
+    }
+
+    Ok(report)
 }
 
-/// 全量同步镜像：先清空归档根目录，再按当前歌单/分类重建。
-/// 这是「本地文件夹自动镜像软件内歌单」的实现——每次同步后，
-/// 文件夹内容与软件内的歌单结构严格一致，不会残留、不会重复堆积。
+/// 全量同步镜像：按当前歌单/分类重建「曲谱分类」下的镜像内容。
+///
+/// 安全约定：
+/// ① 只删除清单登记过的内容，用户自建的目录与文件一律保留；
+/// ② 先写新内容、成功后再删旧内容，写入失败不会丢失已有镜像；
+/// ③ 文件名带曲谱 ID 后缀，同名曲谱不会互相覆盖。
 #[tauri::command]
 pub fn sync_score_mirror(
     empty_folders: Vec<String>,
     entries: Vec<ArchiveScoreEntry>,
+    preserve_song_ids: Vec<String>,
 ) -> Result<ArchiveReport, String> {
     let root = current_exe_score_archive_directory()?;
 
@@ -518,63 +837,159 @@ pub fn sync_score_mirror(
 
     let mut failures = Vec::new();
 
-    // 1) 清空旧的镜像目录（只删根目录下的子目录，不碰根目录本身）
-    if let Ok(canonical_root) = fs::canonicalize(&root) {
-        if let Ok(read_dir) = fs::read_dir(&canonical_root) {
-            for entry in read_dir.flatten() {
-                let path = entry.path();
-                if !path.is_dir() {
-                    continue;
-                }
-                if let Ok(canonical_child) = fs::canonicalize(&path) {
-                    if canonical_child.parent() == Some(canonical_root.as_path()) {
-                        if let Err(error) = fs::remove_dir_all(&canonical_child) {
-                            failures.push(format!(
-                                "清理旧目录 {} 失败: {}",
-                                canonical_child.display(),
-                                error
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // 1) 读取上一轮清单：它定义了「哪些内容归程序管」。
+    let previous_manifest = read_mirror_manifest(&root);
 
-    // 2) 先建出空歌单/空分类对应的文件夹（只建目录，不写文件）
+    // 2) 计算本轮要写入的内容（文件名已含唯一 ID），先写盘。
+    let mut written = Vec::new();
+    let mut written_keys = std::collections::BTreeSet::new();
+    let mut next_manifest = MirrorManifest {
+        version: MIRROR_MANIFEST_VERSION,
+        files: Vec::new(),
+        directories: Vec::new(),
+        file_song_ids: Vec::new(),
+    };
+    let mut next_directories = std::collections::BTreeSet::new();
+
+    // 空歌单/空分类也要建目录（只建目录，不写文件）。
     for folder in &empty_folders {
         let folder_segment = sanitize_exported_score_title(folder);
         let directory = root.join(&folder_segment);
 
         if let Err(error) = ensure_exported_scores_directory_at(&directory) {
             failures.push(format!("{}/（空文件夹）: {}", folder, error));
+            continue;
         }
+
+        next_directories.insert(folder_segment);
     }
 
-    // 3) 按传入条目重建：entries 里的 folder 就是目标目录名
-    //    去重规则：同一个文件夹内，同一首曲谱只写一份；
-    //    不同歌单文件夹之间，同一首歌各自拥有独立文件（这是允许的）。
-    let mut written = Vec::new();
-    let mut written_keys = std::collections::BTreeSet::new();
-
-    for entry in entries {
+    // 按传入条目重建：entries 里的 folder 就是目标目录名。
+    // 去重规则：同一个文件夹内，同一首曲谱只写一份；
+    // 不同歌单文件夹之间，同一首歌各自拥有独立文件（这是允许的）。
+    for entry in &entries {
         let dedupe_key = format!("{}\u{1}{}", entry.folder, entry.song_id);
 
         if !written_keys.insert(dedupe_key) {
-            continue;  // 同一文件夹内重复的曲谱，跳过
+            continue; // 同一文件夹内重复的曲谱，跳过
         }
 
-        match write_archive_score_file_overwrite(&root, &entry) {
-            Ok(path) => written.push(ArchivedScoreFile {
-                folder: entry.folder,
-                path: display_path(&path),
-                title: entry.title,
-            }),
+        let folder_segment = sanitize_exported_score_title(&entry.folder);
+
+        match write_archive_score_file_overwrite(&root, entry) {
+            Ok(path) => {
+                // 记录相对路径与曲谱 ID，供下次同步时精确清理 / 保留。
+                if let Ok(relative) = path.strip_prefix(&root) {
+                    if let Some(relative) = relative.to_str() {
+                        next_manifest.files.push(relative.replace('\\', "/"));
+                        next_manifest.file_song_ids.push(entry.song_id.clone());
+                    }
+                }
+
+                next_directories.insert(folder_segment);
+
+                written.push(ArchivedScoreFile {
+                    folder: entry.folder.clone(),
+                    path: display_path(&path),
+                    title: entry.title.clone(),
+                });
+            }
             Err(error) => failures.push(format!(
                 "{}/{} ({}): {}",
                 entry.folder, entry.title, entry.song_id, error
             )),
         }
+    }
+
+    next_manifest.directories = next_directories.into_iter().collect();
+
+    // 3) 新内容已全部写入成功后，才清理上一轮登记的旧内容。
+    //    顺序很关键：先写后删，写入失败时旧镜像仍然完好。
+    //
+    //    清理集 = 上一轮清单 − 本轮清单：
+    //    只有「上一轮有、这一轮没有重新写入」的路径才需要删除。
+    //    上一轮和这一轮都有的文件路径相同（本轮已覆盖更新），
+    //    若也一并删除就会把刚写好的内容删掉。
+    //
+    //    本轮读取失败的曲谱（preserve_song_ids）对应的旧文件要保留：
+    //    一次临时读取故障不应该让磁盘镜像与曲库状态不一致。
+    let preserved: std::collections::BTreeSet<&String> =
+        preserve_song_ids.iter().collect();
+    // 被保留的文件：既不删文件，也不删它所在的目录。
+    // 目录删除用的是 remove_dir_all（递归），若不排除就会连带删掉保留文件。
+    let preserved_files: Vec<&String> = previous_manifest
+        .files
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            previous_manifest
+                .file_song_ids
+                .get(*index)
+                .map(|song_id| preserved.contains(song_id))
+                .unwrap_or(false)
+        })
+        .map(|(_, relative)| relative)
+        .collect();
+
+    let preserved_directories: std::collections::BTreeSet<String> =
+        preserved_files
+            .iter()
+            .filter_map(|relative| {
+                relative
+                    .split('/')
+                    .next()
+                    .map(|segment| segment.to_string())
+            })
+            .collect();
+
+    // 本轮已经写入的路径集合：这些路径不需要清理。
+    let current_files: std::collections::BTreeSet<&String> =
+        next_manifest.files.iter().collect();
+    let current_directories: std::collections::BTreeSet<&String> =
+        next_manifest.directories.iter().collect();
+
+    let cleanup_manifest = MirrorManifest {
+        version: previous_manifest.version,
+        files: previous_manifest
+            .files
+            .iter()
+            .enumerate()
+            .filter(|(index, relative)| {
+                // 本轮已写入 → 不删
+                if current_files.contains(relative) {
+                    return false;
+                }
+                // 被 preserve → 不删
+                previous_manifest
+                    .file_song_ids
+                    .get(*index)
+                    .map(|song_id| !preserved.contains(song_id))
+                    .unwrap_or(true)
+            })
+            .map(|(_, relative)| relative.clone())
+            .collect(),
+        directories: previous_manifest
+            .directories
+            .iter()
+            .filter(|directory| {
+                // 本轮仍在使用 → 不删
+                if current_directories.contains(*directory) {
+                    return false;
+                }
+                // 含被保留文件的目录 → 不删
+                !preserved_directories.contains(*directory)
+            })
+            .cloned()
+            .collect(),
+        file_song_ids: Vec::new(),
+    };
+    let mut cleanup_failures = cleanup_manifest_entries(&root, &cleanup_manifest);
+    failures.append(&mut cleanup_failures);
+
+    // 4) 写回新清单。即便清理有失败，也已经写入了新的清单内容，
+    //    下轮同步不会再重复清理这些路径。
+    if let Err(error) = write_mirror_manifest(&root, &next_manifest) {
+        failures.push(error);
     }
 
     Ok(ArchiveReport {
@@ -585,7 +1000,9 @@ pub fn sync_score_mirror(
 }
 
 /// 写入归档文件，**同名直接覆盖**（用于镜像同步，避免重复堆积）。
-/// 调用方已保证同一文件夹内同一曲谱只调用一次，所以这里直接覆盖即可。
+///
+/// 文件名由「曲谱标题 + 曲谱 ID 后缀」组成：标题保证可读，ID 保证唯一且稳定，
+/// 因此不同曲谱即使同名也不会写到同一路径。
 fn write_archive_score_file_overwrite(
     root: &Path,
     entry: &ArchiveScoreEntry,
@@ -596,7 +1013,7 @@ fn write_archive_score_file_overwrite(
 
     ensure_exported_scores_directory_at(&directory)?;
 
-    let file_path = directory.join(format!("{}.txt", title_segment));
+    let file_path = directory.join(archive_score_file_name(&title_segment, &entry.song_id));
 
     let content = format!(
         "{}\n",
@@ -616,8 +1033,53 @@ fn write_archive_score_file_overwrite(
     Ok(file_path)
 }
 
+/// 生成镜像文件名：`标题__<ID 片段>.txt`。
+///
+/// ID 片段由曲谱 ID 稳定派生，同一曲谱每次同步得到相同文件名（可覆盖、可去重），
+/// 不同曲谱即使标题相同也会得到不同文件名（不会互相覆盖）。
+fn archive_score_file_name(title_segment: &str, song_id: &str) -> String {
+    let id_suffix = stable_song_id_suffix(song_id);
+
+    format!(
+        "{}{}{}.{}",
+        title_segment,
+        CANONICAL_FILE_NAME_SEPARATOR,
+        id_suffix,
+        CANONICAL_IMPORTED_SCORE_FILE_EXTENSION
+    )
+}
+
+/// 从曲谱 ID 派生一个短且稳定的文件名词片段。
+///
+/// 只使用字母数字与短横线，避免非法字符；长度固定，跨次同步保持一致。
+fn stable_song_id_suffix(song_id: &str) -> String {
+    // FNV-1a 64bit，跨平台稳定（不依赖平台相关的 hasher）。
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in song_id.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+
+    let digest = format!("{:016x}", hash);
+
+    // 带上 ID 的可读前缀，便于人工排查同名冲突。
+    let readable: String = song_id
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric() || *character == '-')
+        .take(12)
+        .collect();
+
+    if readable.is_empty() {
+        digest
+    } else {
+        format!("{}-{}", readable.to_ascii_lowercase(), &digest[..8])
+    }
+}
+
 /// 删除歌单对应的导出文件夹（含其中所有乐谱）。
 /// 只允许删除 exported-scores 根目录下的直接子目录，杜绝路径穿越。
+///
+/// 只删除**与歌单名精确对应**的那一个目录；带序号的历史目录保留。
 #[tauri::command]
 pub fn delete_playlist_export_folder(playlist_name: String) -> Result<bool, String> {
     let exported_root = current_exe_exported_scores_directory()?;
@@ -637,13 +1099,10 @@ pub fn delete_playlist_export_folder(playlist_name: String) -> Result<bool, Stri
 
     let mut removed_any = false;
 
-    // 主文件夹，以及历史上因重名追加过序号的 "名字 (1)"、"名字 (2)"……
-    let mut candidates = vec![exported_root.join(&folder_name)];
-    for sequence in 1_u32..100 {
-        candidates.push(exported_root.join(format!("{} ({})", folder_name, sequence)));
-    }
-
-    for candidate in candidates {
+    // 只处理与歌单名精确匹配的主目录。
+    // 历史上因重名追加过序号的 "名字 (1)"、"名字 (2)"…… 属于用户可能主动
+    // 保存过的导出内容，一律保留，不随歌单删除而清理。
+    for candidate in [exported_root.join(&folder_name)] {
         if !path_exists_without_following(&candidate)? {
             continue;
         }
@@ -4119,5 +4578,150 @@ mod tests {
         );
         assert!(!test_dir.path.join("Linked__local-1.txt.tmp").exists());
         assert!(!test_dir.path.join("Linked__local-1.txt.bak").exists());
+    }
+
+    // ---- 镜像清单：只清理程序自己管理的内容 ----
+
+    fn sample_entry(folder: &str, song_id: &str, title: &str) -> ArchiveScoreEntry {
+        ArchiveScoreEntry {
+            folder: folder.to_string(),
+            song: sample_song(title),
+            song_id: song_id.to_string(),
+            title: title.to_string(),
+        }
+    }
+
+    #[test]
+    fn mirror_cleanup_keeps_user_created_files_and_directories() {
+        let test_dir = unique_test_dir("mirror_keeps_user_content");
+        let root = test_dir.path.join("archive-root");
+        fs::create_dir_all(&root).unwrap();
+
+        // 用户自己建的目录与文件
+        let user_dir = root.join("我的收藏");
+        fs::create_dir_all(&user_dir).unwrap();
+        let user_file = user_dir.join("note.txt");
+        fs::write(&user_file, "user content").unwrap();
+        let loose_user_file = root.join("readme.md");
+        fs::write(&loose_user_file, "user content").unwrap();
+
+        // 第一轮：写入程序自己的内容并登记清单
+        let entry = sample_entry("歌单A", "local-1", "曲谱一");
+        let path = write_archive_score_file_overwrite(&root, &entry).unwrap();
+        let relative = path.strip_prefix(&root).unwrap().to_str().unwrap().replace('\\', "/");
+
+        let manifest = MirrorManifest {
+            version: MIRROR_MANIFEST_VERSION,
+            files: vec![relative],
+            directories: vec!["歌单A".to_string()],
+            file_song_ids: vec!["local-1".to_string()],
+        };
+        write_mirror_manifest(&root, &manifest).unwrap();
+
+        assert!(root.join("歌单A").exists());
+
+        // 第二轮：按清单清理
+        let previous_manifest = read_mirror_manifest(&root);
+        let failures = cleanup_manifest_entries(&root, &previous_manifest);
+        assert!(failures.is_empty(), "清理不应失败: {:?}", failures);
+
+        assert!(!root.join("歌单A").exists(), "程序自己的旧目录应被清理");
+        assert!(user_dir.exists(), "用户目录必须保留");
+        assert!(user_file.exists(), "用户文件必须保留");
+        assert!(loose_user_file.exists(), "用户的散落文件必须保留");
+    }
+
+    #[test]
+    fn mirror_manifest_is_written_and_read_back() {
+        let test_dir = unique_test_dir("manifest_roundtrip");
+        let root = test_dir.path.join("archive-root");
+        fs::create_dir_all(&root).unwrap();
+
+        let manifest = MirrorManifest {
+            version: MIRROR_MANIFEST_VERSION,
+            files: vec!["歌单A/曲谱一__local-1-abcd1234.txt".to_string()],
+            directories: vec!["歌单A".to_string()],
+            file_song_ids: vec!["local-1".to_string()],
+        };
+        write_mirror_manifest(&root, &manifest).unwrap();
+
+        let read_back = read_mirror_manifest(&root);
+        assert_eq!(read_back.files, manifest.files);
+        assert_eq!(read_back.directories, manifest.directories);
+        assert_eq!(read_back.version, MIRROR_MANIFEST_VERSION);
+    }
+
+    #[test]
+    fn missing_or_corrupt_manifest_yields_empty_manifest() {
+        let test_dir = unique_test_dir("manifest_missing");
+        let root = test_dir.path.join("archive-root");
+        fs::create_dir_all(&root).unwrap();
+
+        // 清单缺失 → 空清单（不会清理任何东西）
+        let missing = read_mirror_manifest(&root);
+        assert!(missing.files.is_empty());
+        assert!(missing.directories.is_empty());
+
+        // 清单损坏 → 空清单（不会清理任何东西）
+        fs::write(root.join(MIRROR_MANIFEST_FILE_NAME), "{ not json").unwrap();
+        let corrupt = read_mirror_manifest(&root);
+        assert!(corrupt.files.is_empty());
+        assert!(corrupt.directories.is_empty());
+    }
+
+    #[test]
+    fn manifest_paths_cannot_escape_the_root() {
+        let test_dir = unique_test_dir("manifest_escape");
+        let root = test_dir.path.join("archive-root");
+        fs::create_dir_all(&root).unwrap();
+
+        assert!(resolve_manifest_path(&root, "../outside.txt").is_none());
+        assert!(resolve_manifest_path(&root, "a/../../outside.txt").is_none());
+        assert!(resolve_manifest_path(&root, "").is_none());
+        assert!(resolve_manifest_path(&root, ".").is_none());
+        assert!(resolve_manifest_path(&root, "歌单A/曲谱.txt").is_some());
+    }
+
+    #[test]
+    fn same_title_songs_get_distinct_file_names() {
+        let test_dir = unique_test_dir("mirror_same_title");
+        let root = test_dir.path.join("archive-root");
+        fs::create_dir_all(&root).unwrap();
+
+        let first = write_archive_score_file_overwrite(
+            &root,
+            &sample_entry("歌单A", "local-1", "同名曲谱"),
+        )
+        .unwrap();
+        let second = write_archive_score_file_overwrite(
+            &root,
+            &sample_entry("歌单A", "local-2", "同名曲谱"),
+        )
+        .unwrap();
+
+        // 同名但不同 ID → 不同路径，互不覆盖
+        assert_ne!(first, second);
+        assert!(first.exists());
+        assert!(second.exists());
+
+        // 同一 ID 重复写入 → 同一路径（稳定，可覆盖）
+        let again = write_archive_score_file_overwrite(
+            &root,
+            &sample_entry("歌单A", "local-1", "同名曲谱"),
+        )
+        .unwrap();
+        assert_eq!(first, again);
+    }
+
+    #[test]
+    fn stable_song_id_suffix_is_deterministic_and_distinct() {
+        let first = stable_song_id_suffix("local-1");
+        let second = stable_song_id_suffix("local-2");
+
+        assert_eq!(first, stable_song_id_suffix("local-1"));
+        assert_ne!(first, second);
+        assert!(first
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-'));
     }
 }

@@ -43,6 +43,13 @@ export type LocalLibrarySong = {
   importedAt: number;
   libraryGroup?: LocalLibraryGroup;
   metadata: LocalSongMetadata;
+  /**
+   * 歌单私有副本的来源曲谱 ID。
+   *
+   * 歌单里保存的是副本 ID，用它判断「同一首原曲是否已在歌单中」会失效，
+   * 因此副本必须记住自己源自哪首原曲。
+   */
+  sourceSongId?: LibrarySongId;
   source: "local-import";
 };
 

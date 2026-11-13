@@ -36,6 +36,10 @@ export function getLibraryCategoryItems(
 
 export function getLocalLibraryMoveTarget(song: LibrarySong): LocalLibraryGroup | null {
   if (song.source !== "local-import") return null;
+  // 歌单私有副本归所属歌单管理，生命周期与普通本地曲谱不同：
+  // 允许改分类会让它脱离「私有副本」身份，之后既不会被列表展示，
+  // 也不会被副本清理逻辑识别，从而变成无人管理的孤儿文件。
+  if (song.libraryGroup === "playlist-copy") return null;
   if (song.libraryGroup === "converted") return "imported";
   return getLibrarySongFormatVersion(song) === 2 ? "converted" : null;
 }
@@ -47,6 +51,8 @@ export function moveLocalLibrarySong(
 ) {
   const song = songs.find(candidate => candidate.id === songId);
   if (!song || (song.libraryGroup ?? "imported") === group) return songs;
+  // 私有副本不允许改分类，否则它会脱离副本清理机制。
+  if (song.libraryGroup === "playlist-copy") return songs;
   if (group === "converted" && getLibrarySongFormatVersion(song) !== 2) return songs;
   return songs.map(candidate => candidate === song ? { ...candidate, libraryGroup: group } : candidate);
 }

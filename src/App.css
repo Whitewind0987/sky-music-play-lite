@@ -998,11 +998,13 @@ button {
 }
 
 .app-layout {
+  --app-layout-pad-block: 16px;
+  --app-layout-pad-inline: 18px;
   min-width: 0;
   min-height: 0;
   flex: 1;
   display: grid;
-  padding: 16px 18px;
+  padding: var(--app-layout-pad-block) var(--app-layout-pad-inline);
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
   grid-template-areas:
     "score keyboard"
@@ -1242,7 +1244,24 @@ button {
   gap: 12px;
 }
 
+/* 曲谱列表滚动时，工具栏行始终固定在可视区顶部。
+   外层负责吸顶与背景铺满，内层保持原有的 flex 布局不变。
+   变量与 .app-layout 的 padding 对齐，保证任意断点下都不错位。 */
 .library-content-header {
+  position: sticky;
+  /* 抵消滚动容器的 padding-top，让工具栏贴住可视区顶部而非 padding 内缘 */
+  top: calc(-1 * var(--app-layout-pad-block, 16px));
+  z-index: 20;
+  /* 负 margin + 等量 padding：背景铺满整个滚动宽度且不透出下方的行 */
+  margin: calc(-1 * var(--app-layout-pad-block, 16px))
+    calc(-1 * var(--app-layout-pad-inline, 18px)) 0;
+  padding: var(--app-layout-pad-block, 16px)
+    var(--app-layout-pad-inline, 18px) 6px;
+  background: #fcfcfd;
+  box-shadow: 0 6px 10px -8px rgba(15, 23, 42, 0.14);
+}
+
+.library-content-header-inner {
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
@@ -5336,7 +5355,9 @@ button {
   }
 
   .app-layout {
-    padding: 10px 10px 10px;
+    --app-layout-pad-block: 10px;
+    --app-layout-pad-inline: 10px;
+    padding: var(--app-layout-pad-block) var(--app-layout-pad-inline);
     grid-template-columns: 1fr;
     grid-template-areas:
       "score"
@@ -5556,7 +5577,7 @@ button {
     font-size: 18px;
   }
 
-  .library-content-header {
+  .library-content-header-inner {
     gap: 8px;
   }
 

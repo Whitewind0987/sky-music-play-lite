@@ -4,11 +4,17 @@ import {
   addSongToPlaylist,
   createPlaylist,
   createPlaylistCopyOfLocalSong,
+  getSourceSongId,
   isSongLiked,
   removeSongFromAllCollections,
   removeSongFromPlaylist,
 } from "./libraryCollections";
-import { getLibraryCategoryItems, isPlaylistCopySong } from "./libraryGroups";
+import {
+  getLibraryCategoryItems,
+  getLocalLibraryMoveTarget,
+  isPlaylistCopySong,
+  moveLocalLibrarySong,
+} from "./libraryGroups";
 
 function createLocalSong(id: string, name = id): LocalLibrarySong {
   return {
@@ -91,5 +97,61 @@ describe("playlist copy decoupling", () => {
     ]);
     expect(isPlaylistCopySong(copy)).toBe(true);
     expect(isPlaylistCopySong(normalSong)).toBe(false);
+  });
+});
+
+describe("副本身份识别（重复加入检测）", () => {
+  it("副本记住自己源自哪首原曲", () => {
+    const source = createLocalSong("local-source");
+    const copy = createPlaylistCopyOfLocalSong(source);
+
+    expect(copy.sourceSongId).toBe(source.id);
+    expect(getSourceSongId(copy)).toBe(source.id);
+  });
+
+  it("普通曲谱的原曲身份就是自身", () => {
+    const normal = createLocalSong("local-normal");
+
+    expect(getSourceSongId(normal)).toBe(normal.id);
+  });
+
+  it("同一原曲的两个副本拥有相同的原曲身份（可识别为重复）", () => {
+    const source = createLocalSong("local-source");
+    const copyA = createPlaylistCopyOfLocalSong(source);
+    const copyB = createPlaylistCopyOfLocalSong(source);
+
+    expect(getSourceSongId(copyA)).toBe(getSourceSongId(copyB));
+    expect(copyA.id).not.toBe(copyB.id);
+  });
+});
+
+describe("私有副本的分类移动规则", () => {
+  it("私有副本不允许改分类（否则会脱离副本清理机制）", () => {
+    const source = createLocalSong("local-source");
+    const copy = createPlaylistCopyOfLocalSong(source);
+
+    expect(getLocalLibraryMoveTarget(copy)).toBeNull();
+  });
+
+  it("私有副本无法被 moveLocalLibrarySong 移动", () => {
+    const source = createLocalSong("local-source");
+    const copy = createPlaylistCopyOfLocalSong(source);
+    const songs = [source, copy];
+
+    const next = moveLocalLibrarySong(songs, copy.id, "converted");
+
+    expect(next[1].libraryGroup).toBe("playlist-copy");
+  });
+
+  it("V2 普通曲谱仍可移至已转换", () => {
+    const v2Song: LocalLibrarySong = {
+      ...createLocalSong("local-v2"),
+      metadata: {
+        ...createLocalSong("local-v2").metadata,
+        formatVersion: 2,
+      },
+    };
+
+    expect(getLocalLibraryMoveTarget(v2Song)).toBe("converted");
   });
 });
