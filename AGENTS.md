@@ -2,6 +2,16 @@
 
 This file defines the working rules for Codex and other AI agents in this project. Follow these rules before changing code.
 
+## Highest Priority: Keep Changes and Tests Proportional
+
+This is the highest-priority project rule for deciding how much code and testing to add. Apply it on every turn, including follow-up fixes. It takes precedence over general guidance elsewhere in this file about adding coverage or strengthening validation. Follow the user's explicit coverage requirements and any specific checks this file requires.
+
+- Keep the implementation focused on the requested behavior and concrete failure modes. Avoid speculative guards, fallback paths, abstractions, and test infrastructure.
+- Start with existing coverage and the smallest relevant validation. When existing tests exercise the changed behavior, run those tests. Update an existing expectation when the requested behavior changes it.
+- Add a regression test only when the user requests it, a specific project rule requires it, or a concrete regression would otherwise go undetected. For a small change with a coverage gap, prefer one focused case through the existing entry point. Each additional case should cover a distinct failure that matters to the task.
+- Reuse existing fixtures and helpers. Avoid testing the same behavior at multiple layers, enumerating equivalent input combinations, or building a test harness whose cost outweighs the change it verifies.
+- High-risk changes may warrant stronger targeted validation. Choose checks that address the actual risk and keep any new test code to the minimum needed to catch it.
+
 ## Fixed Stack
 
 SkyMusicPlay Lite must use this stack:

@@ -1,5 +1,5 @@
 import type { UiText } from "../i18n/uiText";
-import { resolveManualPlaybackOutputPolicy } from "../lib/manualPlaybackState";
+import { isManualPlaybackEngaged, resolveManualPlaybackOutputPolicy } from "../lib/manualPlaybackState";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
 import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
@@ -23,6 +23,7 @@ export type PlaybackOutputMode =
 
 type UsePlaybackOutputOptions = {
   experimentalInput: ExperimentalInputApi;
+  hasQueuedSong: boolean;
   previewPlayback: PreviewPlaybackApi;
   text: UiText["bottomPlayer"];
 };
@@ -30,6 +31,7 @@ type UsePlaybackOutputOptions = {
 export type PlaybackOutput = {
   canManualStep: boolean;
   canPlay: boolean;
+  canStartQueue: boolean;
   canSeek: boolean;
   canStop: boolean;
   isRealInputOutput: boolean;
@@ -43,7 +45,7 @@ export type PlaybackOutput = {
   onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
   onManualStep: () => void;
   onPlay: () => void;
-  onPlaySong: (songIndex: number) => void | Promise<boolean>;
+  onPlaySong: (songIndex: number) => Promise<boolean>;
   onPlaybackSpeedChange: (playbackSpeed: PlaybackSpeed) => void;
   onRepeatModeCycle: () => void;
   onResume: () => void;
@@ -63,6 +65,7 @@ export type PlaybackOutput = {
 type AutomaticPlaybackOutput = Omit<
   PlaybackOutput,
   | "canManualStep"
+  | "canStartQueue"
   | "onManualStepHoldBegin"
   | "onManualStepHoldEnd"
   | "onManualStep"
@@ -74,6 +77,7 @@ type AutomaticPlaybackOutput = Omit<
 
 export function usePlaybackOutput({
   experimentalInput,
+  hasQueuedSong,
   previewPlayback,
   text,
 }: UsePlaybackOutputOptions): PlaybackOutput {
@@ -99,7 +103,8 @@ export function usePlaybackOutput({
       canSeek,
       canStop:
         previewPlayback.playbackState === "playing" ||
-        previewPlayback.playbackState === "paused",
+        previewPlayback.playbackState === "paused" ||
+        previewPlayback.isPreviewStartPending,
       isRealInputOutput: false,
       mode: "preview",
       onPause: previewPlayback.handlePausePreview,
@@ -158,9 +163,13 @@ export function usePlaybackOutput({
     };
   }
 
+  const canStartQueue = !automaticOutput.canStop &&
+    (automaticOutput.playbackState === "idle" || automaticOutput.playbackState === "finished") &&
+    !isManualPlaybackEngaged(experimentalInput.manualPlaybackState) &&
+    !experimentalInput.isPlaybackOwnershipTransitionPending;
   const manualPolicy = resolveManualPlaybackOutputPolicy({
     automaticCanPlay:
-      automaticOutput.canPlay &&
+      (automaticOutput.canPlay || (hasQueuedSong && canStartQueue)) &&
       !experimentalInput.isPlaybackOwnershipTransitionPending,
     automaticCanSeek: automaticOutput.canSeek,
     automaticCanStop:
@@ -184,6 +193,7 @@ export function usePlaybackOutput({
     ...automaticOutput,
     canManualStep: manualPolicy.canManualStep,
     canPlay: manualPolicy.canPlay,
+    canStartQueue,
     canSeek: manualPolicy.canSeek,
     canStop: manualPolicy.canStop,
     manualState: experimentalInput.manualPlaybackState,
