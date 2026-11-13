@@ -22,7 +22,8 @@ const song = createLibrarySong({
 function controls(overrides: Partial<LibrarySortingControls> = {}): LibrarySortingControls {
   return {
     mode: "custom", supportsAdded: true, canEdit: true, isEditing: false, canReorder: false,
-    onToggleEditing: noOp, onModeChange: noOp, onReorder: noOp, ...overrides,
+    onToggleEditing: noOp, onModeChange: noOp, onReorder: noOp,
+    ...overrides,
   };
 }
 
@@ -43,6 +44,11 @@ function props(overrides: Partial<Props> = {}): Props {
     onImportFiles: noOp, onLocateSelectedSong: noOp, onPaginationNotice: noOp,
     onPrepareSong: noOp, onPlaySong: noOp, onPlayAll: noOp, onPlaySongNext: noOp,
     onRemoveFromLiked: noOp, onRemoveSongFromPlaylist: noOp, onRenamePlaylist: noOp,
+    multiSelect: {
+      enabled: false, selected: new Set(), count: 0,
+      isSelected: () => false, toggle: noOp, selectAll: noOp, clear: noOp,
+      setEnabled: noOp,
+    },
     onResolveUpgradeSource: async () => null, onUpgradeSourceLoadFailed: noOp,
     onSearchQueryChange: noOp, onSelectSong: noOp, onToggleLiked: noOp, onUpgradeBlocked: noOp,
     onUpgradeSongToV2: async () => ({ status: "failed", message: "unused" }),

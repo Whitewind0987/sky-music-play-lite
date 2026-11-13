@@ -884,6 +884,76 @@ export function useScoreLibrary({
     });
   }
 
+
+  async function handleDeleteLocalSongs(songIds: LibrarySongId[]) {
+    const ids = Array.from(new Set(songIds));
+    if (ids.length === 0) {
+      return;
+    }
+
+    // 只有本地导入的曲谱可以被删除；内置曲谱随应用分发，不在此处处理。
+    for (const songId of ids) {
+      const songIndex = librarySongsRef.current.findIndex(
+        (librarySong) => librarySong.id === songId,
+      );
+      if (songIndex < 0) {
+        continue;
+      }
+      if (librarySongsRef.current[songIndex].source !== "local-import") {
+        continue;
+      }
+      await handleDeleteLocalSong(songIndex);
+    }
+  }
+
+  function handleAddSongsToPlaylist(
+    playlistId: string,
+    songIds: LibrarySongId[],
+  ) {
+    const ids = Array.from(new Set(songIds));
+    if (ids.length === 0) {
+      return;
+    }
+
+    setPlaylists((currentPlaylists) =>
+      currentPlaylists.map((currentPlaylist) => {
+        if (currentPlaylist.id !== playlistId) {
+          return currentPlaylist;
+        }
+        let next = currentPlaylist;
+        for (const songId of ids) {
+          if (!next.songIds.includes(songId)) {
+            next = addSongToPlaylist(next, songId);
+          }
+        }
+        return next;
+      }),
+    );
+  }
+
+  function handleRemoveSongsFromPlaylist(
+    playlistId: string,
+    songIds: LibrarySongId[],
+  ) {
+    const ids = Array.from(new Set(songIds));
+    if (ids.length === 0) {
+      return;
+    }
+
+    setPlaylists((currentPlaylists) =>
+      currentPlaylists.map((currentPlaylist) => {
+        if (currentPlaylist.id !== playlistId) {
+          return currentPlaylist;
+        }
+        let next = currentPlaylist;
+        for (const songId of ids) {
+          next = removeSongFromPlaylist(next, songId);
+        }
+        return next;
+      }),
+    );
+  }
+
   async function handleUpgradeSongToV2(
     sourceSongId: LibrarySongId,
     conversionOptions: V1ToV2ConversionOptions,
@@ -1442,6 +1512,9 @@ export function useScoreLibrary({
     applyScoreLibrary,
     currentSelectedSong,
     handleAddSongToPlaylist,
+    handleDeleteLocalSongs,
+    handleAddSongsToPlaylist,
+    handleRemoveSongsFromPlaylist,
     handleCreatePlaylist,
     handleCreatePlaylistWithSong,
     handleDeleteLocalSong,
