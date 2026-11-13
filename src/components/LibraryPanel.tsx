@@ -97,7 +97,8 @@ type LibraryPanelProps = {
   onDeleteLocalSong: (songIndex: number) => void;
   onExportLocalSong: (songId: LibrarySongId) => void;
   onMoveLocalSong: (songId: LibrarySongId, group: LocalLibraryGroup) => void;
-  onMoveSelectedSongs?: (group: LocalLibraryGroup) => void;
+  convertibleSelectionCount?: number;
+  onMoveSelectedSongs?: (group: LocalLibraryGroup) => LibrarySongId[];
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
@@ -1391,6 +1392,7 @@ export function LibraryPanel({
   onExportLocalSong,
   onMoveLocalSong,
   onMoveSelectedSongs,
+  convertibleSelectionCount = 0,
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
@@ -1472,6 +1474,7 @@ export function LibraryPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleMultiSelect]);
   const isLocalImports = selectedCategory === "local-imports";
+  const showDeleteSelected = isLocalImports || selectedCategory === "converted";
   const isPlaylists = selectedCategory === "playlists";
   const isBuiltIn = selectedCategory === "built-in";
 
@@ -1480,11 +1483,7 @@ export function LibraryPanel({
   // 至少有一首可移动的曲谱，否则按钮点了没有任何效果。
   const batchMoveTarget = useMemo<LocalLibraryGroup | null>(() => {
     if (isLocalImports) {
-      return items.some(item =>
-        getLocalLibraryMoveTarget(item.librarySong) === "converted"
-          && multiSelect.isSelected(item.librarySong.id))
-        ? "converted"
-        : null;
+      return convertibleSelectionCount > 0 ? "converted" : null;
     }
     if (selectedCategory === "converted") {
       return items.some(item =>
@@ -1494,7 +1493,7 @@ export function LibraryPanel({
         : null;
     }
     return null;
-  }, [isLocalImports, selectedCategory, items, multiSelect]);
+  }, [isLocalImports, selectedCategory, items, multiSelect, convertibleSelectionCount]);
   const emptyState = text.categoryEmptyStates[selectedCategory];
   const listEmptyState = getLibraryEmptyState({
     hasSearchQuery,
@@ -1645,12 +1644,14 @@ export function LibraryPanel({
           visibleSongIds={items.map((item) => item.librarySong.id)}
           selectedPlaylistId={selectedPlaylistId}
           isViewingPlaylist={isPlaylists}
-          onDeleteLocalSongs={onDeleteLocalSongs}
+          showDeleteSelected={showDeleteSelected}
+          onDeleteLocalSongs={showDeleteSelected ? onDeleteLocalSongs : undefined}
           onOpenAddToPlaylist={onAddSongsToPlaylist && onCreatePlaylistWithSongs
             ? (songIds) => setPlaylistTarget({ songIds, scope: selectionScope })
             : undefined}
           onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
           moveTargetGroup={batchMoveTarget}
+          convertibleSelectionCount={convertibleSelectionCount}
           onMoveSelectedSongs={onMoveSelectedSongs}
         />
         {isLocalImports && importDisabled ? (

@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import * as toolbar from "./MultiSelectToolbar";
 import { LibraryPanel } from "./LibraryPanel";
 import { uiText } from "../i18n/uiText";
 import { createLibrarySong } from "../lib/libraryCollections";
@@ -107,26 +108,45 @@ describe("LibraryPanel 多选入口", () => {
     expect(html).toContain("多选");
   });
 
-  it("多选开启时渲染批量操作条", () => {
-    const html = renderToStaticMarkup(
-      createElement(
-        LibraryPanel,
-        props({
-          multiSelect: {
-            enabled: true,
-            selected: new Set(["x"]),
-            count: 1,
-            isSelected: () => true,
-            toggle: noOp,
-            selectAll: noOp, deselect: noOp,
-            clear: noOp,
-            setEnabled: noOp,
-          },
-        }),
-      ),
-    );
-    expect(html).toContain("已选 1 首");
-    expect(html).toContain("删除所选");
+  it("exposes local deletion only in local categories and routes playlist removal separately", () => {
+    const renderToolbar = vi.spyOn(toolbar, "MultiSelectToolbar");
+    const onDeleteLocalSongs = vi.fn(async () => ["x"]);
+    const onRemoveSongsFromPlaylist = vi.fn();
+    const playlist = { id: "p1", name: "Playlist", songIds: ["x"], createdAt: 0, updatedAt: 0 };
+    const multiSelect = {
+      ...props().multiSelect,
+      enabled: true,
+      selected: new Set(["x"]),
+      count: 1,
+    };
+
+    try {
+      for (const category of ["local-imports", "converted", "playlists", "liked", "built-in"] as const) {
+        const isPlaylist = category === "playlists";
+        const canDelete = category === "local-imports" || category === "converted";
+        const html = renderToStaticMarkup(createElement(LibraryPanel, props({
+          selectedCategory: category,
+          selectedPlaylist: isPlaylist ? playlist : null,
+          selectedPlaylistId: isPlaylist ? playlist.id : null,
+          playlists: [playlist],
+          multiSelect,
+          onDeleteLocalSongs,
+          onRemoveSongsFromPlaylist,
+        })));
+
+        expect(html.includes("删除所选")).toBe(canDelete);
+        expect(html.includes("从歌单移除")).toBe(isPlaylist);
+        const [toolbarProps] = renderToolbar.mock.lastCall!;
+        expect(toolbarProps.onDeleteLocalSongs).toBe(canDelete ? onDeleteLocalSongs : undefined);
+        if (isPlaylist) {
+          toolbarProps.onRemoveSongsFromPlaylist?.(playlist.id, [...toolbarProps.multiSelect.selected]);
+        }
+      }
+      expect(onRemoveSongsFromPlaylist).toHaveBeenCalledExactlyOnceWith("p1", ["x"]);
+      expect(onDeleteLocalSongs).not.toHaveBeenCalled();
+    } finally {
+      renderToolbar.mockRestore();
+    }
   });
 
   it("多选开启时行首出现勾选框", () => {

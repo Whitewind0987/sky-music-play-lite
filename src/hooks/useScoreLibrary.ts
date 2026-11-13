@@ -686,12 +686,13 @@ export function useScoreLibrary({
     const { songs: nextSongs, movedSongIds } = moveLocalLibrarySongs(
       localLibrarySongsRef.current, songIds, group,
     );
-    if (movedSongIds.length === 0) return;
+    if (movedSongIds.length === 0) return movedSongIds;
 
     librarySorting.moveSongsToCategory(
       movedSongIds, group === "converted" ? "converted" : "local-imports",
     );
     applyLocalSongGroupChanges(nextSongs);
+    return movedSongIds;
   }
 
   function handleToggleLikedSong(songIndex: number) {

@@ -69,6 +69,7 @@ import {
 } from "./lib/exitConfirmationFlow";
 import { formatText } from "./lib/formatText";
 import { shouldBlockLocalSongDeletion } from "./lib/libraryDeletionBlocking";
+import { getLocalLibraryMoveTarget } from "./lib/libraryGroups";
 import { getLibrarySongName } from "./lib/libraryCollections";
 import {
   synchronizeRemovedLibrarySongsWithPlayback,
@@ -814,6 +815,9 @@ function App() {
           onExportLocalSong={(songId) => {
             void scoreLibrary.handleExportLocalSong(songId);
           }}
+          convertibleSelectionCount={multiSelect.count === 0 ? 0 : scoreLibrary.localLibrarySongs.filter(
+            song => multiSelect.selected.has(song.id) && getLocalLibraryMoveTarget(song) === "converted",
+          ).length}
           onMoveLocalSong={scoreLibrary.handleMoveLocalSong}
           onMoveSelectedSongs={(group) =>
             scoreLibrary.handleMoveLocalSongs(

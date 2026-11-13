@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { useRef, useState } from "react";
+import { formatText } from "../lib/formatText";
 import { runSingleFlightDelete } from "../lib/deleteConfirmationFlow";
 import type { LibrarySongId, LocalLibraryGroup } from "../types/library";
 import type { MultiSelectState } from "../hooks/useMultiSelect";
@@ -15,6 +16,7 @@ type MultiSelectToolbarProps = {
   selectedPlaylistId: string | null;
   /** 「从歌单移除」只对“当前正打开某个歌单”有意义；切到其它分类时它不该出现。 */
   isViewingPlaylist: boolean;
+  showDeleteSelected?: boolean;
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => Promise<LibrarySongId[]>;
   onOpenAddToPlaylist?: (songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
@@ -23,7 +25,8 @@ type MultiSelectToolbarProps = {
    * 由父组件按当前分类与选中曲谱的可移动性计算。
    */
   moveTargetGroup?: LocalLibraryGroup | null;
-  onMoveSelectedSongs?: (group: LocalLibraryGroup) => void;
+  convertibleSelectionCount?: number;
+  onMoveSelectedSongs?: (group: LocalLibraryGroup) => LibrarySongId[];
 };
 
 export function MultiSelectToolbar({
@@ -32,10 +35,12 @@ export function MultiSelectToolbar({
   visibleSongIds,
   selectedPlaylistId,
   isViewingPlaylist,
+  showDeleteSelected = false,
   onDeleteLocalSongs,
   onOpenAddToPlaylist,
   onRemoveSongsFromPlaylist,
   moveTargetGroup = null,
+  convertibleSelectionCount = 0,
   onMoveSelectedSongs,
 }: MultiSelectToolbarProps) {
   const { count, enabled } = multiSelect;
@@ -50,14 +55,14 @@ export function MultiSelectToolbar({
   const selectedIds = Array.from(multiSelect.selected);
 
   const handleDelete = () => {
-    if (count === 0) {
+    if (!showDeleteSelected || !onDeleteLocalSongs || count === 0) {
       return;
     }
     setIsConfirmOpen(true);
   };
 
   const confirmDelete = async () => {
-    if (!onDeleteLocalSongs || count === 0) return;
+    if (!showDeleteSelected || !onDeleteLocalSongs || count === 0) return;
 
     await runSingleFlightDelete(deleteInProgress, setIsDeleting, async () => {
       const resolvedIds = await onDeleteLocalSongs(selectedIds);
@@ -80,9 +85,12 @@ export function MultiSelectToolbar({
     if (!moveTargetGroup || count === 0) {
       return;
     }
-    onMoveSelectedSongs?.(moveTargetGroup);
-    multiSelect.clear();
+    const movedIds = onMoveSelectedSongs?.(moveTargetGroup);
+    if (movedIds?.length) multiSelect.deselect(movedIds);
   };
+
+  const showMoveToConverted = moveTargetGroup === "converted" && convertibleSelectionCount > 0;
+  const remainingCount = count - convertibleSelectionCount;
 
   return (
     <>
@@ -110,26 +118,33 @@ export function MultiSelectToolbar({
         >
           {text.multiSelectClear}
         </button>
-        {moveTargetGroup ? (
+        {showMoveToConverted || moveTargetGroup === "imported" ? (
           <button
             type="button"
             className="library-multi-select-control"
             disabled={count === 0 || isDeleting}
             onClick={handleMoveSelected}
           >
-            {moveTargetGroup === "converted"
-              ? text.moveToConverted
+            {showMoveToConverted
+              ? formatText(text.moveSelectedToConverted, { count: String(convertibleSelectionCount) })
               : text.moveToLocalImports}
           </button>
         ) : null}
-        <button
-          type="button"
-          className="library-multi-select-control library-multi-select-delete is-danger"
-          disabled={count === 0 || isDeleting || !onDeleteLocalSongs}
-          onClick={handleDelete}
-        >
-          {text.multiSelectDeleteSelected}
-        </button>
+        {showMoveToConverted && remainingCount > 0 ? (
+          <span className="library-sort-hint">
+            {formatText(text.moveSelectedKeepV1, { count: String(remainingCount) })}
+          </span>
+        ) : null}
+        {showDeleteSelected ? (
+          <button
+            type="button"
+            className="library-multi-select-control library-multi-select-delete is-danger"
+            disabled={count === 0 || isDeleting || !onDeleteLocalSongs}
+            onClick={handleDelete}
+          >
+            {text.multiSelectDeleteSelected}
+          </button>
+        ) : null}
         <button
           type="button"
           className="library-multi-select-control"
@@ -150,20 +165,22 @@ export function MultiSelectToolbar({
         ) : null}
       </div>
 
-      <ConfirmDialog
-        cancelLabel={text.multiSelectCancel}
-        confirmLabel={text.multiSelectDeleteSelected}
-        description={text.multiSelectDeleteConfirm.replace(
-          "{count}",
-          String(count),
-        )}
-        onCancel={() => setIsConfirmOpen(false)}
-        onConfirm={() => { void confirmDelete(); }}
-        isConfirming={isDeleting}
-        open={isConfirmOpen}
-        title={text.multiSelectDeleteTitle}
-        variant="danger"
-      />
+      {showDeleteSelected ? (
+        <ConfirmDialog
+          cancelLabel={text.multiSelectCancel}
+          confirmLabel={text.multiSelectDeleteSelected}
+          description={text.multiSelectDeleteConfirm.replace(
+            "{count}",
+            String(count),
+          )}
+          onCancel={() => setIsConfirmOpen(false)}
+          onConfirm={() => { void confirmDelete(); }}
+          isConfirming={isDeleting}
+          open={isConfirmOpen}
+          title={text.multiSelectDeleteTitle}
+          variant="danger"
+        />
+      ) : null}
     </>
   );
 }

@@ -1492,8 +1492,6 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e4e7ec;
 }
 
 .playlist-detail-main {

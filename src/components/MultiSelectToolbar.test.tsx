@@ -40,6 +40,7 @@ describe("MultiSelectToolbar", () => {
   it("显示已选数量与批量操作按钮", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
+        showDeleteSelected
         multiSelect={multiSelectState()}
         text={uiText["zh-CN"].library}
         visibleSongIds={["a", "b"]}
@@ -72,6 +73,7 @@ describe("MultiSelectToolbar", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
         multiSelect={multiSelectState()}
+        showDeleteSelected
         text={uiText["en-US"].library}
         visibleSongIds={["a", "b"]}
         selectedPlaylistId={null}
@@ -133,9 +135,11 @@ describe("MultiSelectToolbar", () => {
         selectedPlaylistId={null}
         isViewingPlaylist={false}
         moveTargetGroup="converted"
+        convertibleSelectionCount={1}
       />,
     );
-    expect(html).toContain("移至已转换");
+    expect(html).toContain("移至已转换（1 首）");
+    expect(html).toContain("1 首 V1 曲谱将留在本地导入");
     expect(html).not.toContain("移至本地导入");
   });
 
@@ -154,10 +158,10 @@ describe("MultiSelectToolbar", () => {
     expect(html).not.toContain("移至已转换");
   });
 
-  it("未选中时移动按钮为禁用状态", () => {
+  it("没有可移动的 V2 时隐藏移动按钮", () => {
     const html = renderToStaticMarkup(
       <MultiSelectToolbar
-        multiSelect={multiSelectState({ selected: new Set(), count: 0 })}
+        multiSelect={multiSelectState()}
         text={uiText["zh-CN"].library}
         visibleSongIds={[]}
         selectedPlaylistId={null}
@@ -165,8 +169,6 @@ describe("MultiSelectToolbar", () => {
         moveTargetGroup="converted"
       />,
     );
-    // 按钮仍渲染但禁用
-    expect(html).toContain("移至已转换");
-    expect(html).toContain("disabled");
+    expect(html).not.toContain("移至已转换");
   });
 });
