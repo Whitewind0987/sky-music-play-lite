@@ -35,8 +35,22 @@ export function getLocalLibraryMoveTarget(song: LibrarySong): LocalLibraryGroup 
 export function moveLocalLibrarySong(
   songs: LocalLibrarySong[], songId: LibrarySongId, group: LocalLibraryGroup,
 ) {
-  const song = songs.find(candidate => candidate.id === songId);
-  if (!song || (song.libraryGroup ?? "imported") === group) return songs;
-  if (group === "converted" && getLibrarySongFormatVersion(song) !== 2) return songs;
-  return songs.map(candidate => candidate === song ? { ...candidate, libraryGroup: group } : candidate);
+  return moveLocalLibrarySongs(songs, [songId], group).songs;
+}
+
+export function moveLocalLibrarySongs(
+  songs: LocalLibrarySong[], songIds: readonly LibrarySongId[], group: LocalLibraryGroup,
+) {
+  const selected = new Set(songIds);
+  const moved = new Set<LibrarySongId>();
+  const nextSongs = songs.map(song => {
+    if (!selected.has(song.id) || getLocalLibraryMoveTarget(song) !== group) return song;
+    moved.add(song.id);
+    return { ...song, libraryGroup: group };
+  });
+
+  return {
+    songs: moved.size === 0 ? songs : nextSongs,
+    movedSongIds: [...selected].filter(id => moved.has(id)),
+  };
 }

@@ -10,6 +10,7 @@ import {
   reorderSongIds, reorderPlaylistSongs, sanitizeLibrarySorting, sortLibraryItems, supportsAdditionSort,
   updateLibrarySortMode,
   moveLibrarySortingMembership,
+  moveLibrarySortingMembershipBatch,
 } from "../lib/librarySorting";
 import { isLibrarySortEditActive, librarySortEditReducer } from "../lib/librarySortEditing";
 
@@ -100,8 +101,16 @@ export function useLibrarySorting({
     setOrderRevision(revision => revision + 1);
   }
 
+  function moveSongsToCategory(songIds: readonly string[], destination: "local-imports" | "converted") {
+    if (songIds.length === 0) return;
+    dispatchEditing({ type: "exit" });
+    setPreferences(current => moveLibrarySortingMembershipBatch(current, allItems, songIds, destination));
+    setOrderRevision(revision => revision + 1);
+  }
+
   return {
     preferences, orderRevision, mode, canEdit, isEditing, canReorder, toggleEditing,
-    sortedItems, applyPreferences, setMode, reorder, sortForScope, moveSongToCategory,
+    sortedItems, applyPreferences, setMode, reorder, sortForScope,
+    moveSongToCategory, moveSongsToCategory,
   };
 }

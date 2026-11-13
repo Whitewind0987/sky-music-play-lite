@@ -13,7 +13,7 @@ import type { LibraryCategoryId } from "../components/AppShell";
 import { useLibrarySorting } from "./useLibrarySorting";
 import { getLibraryPageItems, getLibrarySongPage } from "../lib/libraryPagination";
 import { supportsAdditionSort } from "../lib/librarySorting";
-import { getLibraryCategoryItems, getLibrarySongCategory, moveLocalLibrarySong } from "../lib/libraryGroups";
+import { getLibraryCategoryItems, getLibrarySongCategory, moveLocalLibrarySong, moveLocalLibrarySongs } from "../lib/libraryGroups";
 import type { LibrarySortingControls } from "../types/librarySorting";
 import type { UiText } from "../i18n/uiText";
 import { loadBuiltInScoreById } from "../lib/builtinScoreLoader";
@@ -672,10 +672,26 @@ export function useScoreLibrary({
     const nextSongs = moveLocalLibrarySong(localLibrarySongsRef.current, songId, group);
     if (nextSongs === localLibrarySongsRef.current) return;
     librarySorting.moveSongToCategory(songId, group === "converted" ? "converted" : "local-imports");
+    applyLocalSongGroupChanges(nextSongs);
+  }
+
+  function applyLocalSongGroupChanges(nextSongs: LocalLibrarySong[]) {
     localLibrarySongsRef.current = nextSongs;
     const byId = new Map(nextSongs.map(song => [song.id, song]));
     librarySongsRef.current = librarySongsRef.current.map(song => byId.get(song.id) ?? song);
     setLocalLibrarySongs(nextSongs);
+  }
+
+  function handleMoveLocalSongs(songIds: LibrarySongId[], group: LocalLibraryGroup) {
+    const { songs: nextSongs, movedSongIds } = moveLocalLibrarySongs(
+      localLibrarySongsRef.current, songIds, group,
+    );
+    if (movedSongIds.length === 0) return;
+
+    librarySorting.moveSongsToCategory(
+      movedSongIds, group === "converted" ? "converted" : "local-imports",
+    );
+    applyLocalSongGroupChanges(nextSongs);
   }
 
   function handleToggleLikedSong(songIndex: number) {
@@ -1497,6 +1513,7 @@ export function useScoreLibrary({
     handleDeletePlaylist,
     handleExportLocalSong,
     handleMoveLocalSong,
+    handleMoveLocalSongs,
     handleImportScoreFiles,
     handleLibraryCategoryChange,
     handleLocateSelectedSong,

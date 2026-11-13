@@ -216,3 +216,34 @@ export function moveLibrarySortingMembership(
     },
   };
 }
+
+export function moveLibrarySortingMembershipBatch(
+  preferences: LibrarySortingPreferences,
+  allItems: readonly LibrarySongListItem[],
+  songIds: readonly string[],
+  destination: "local-imports" | "converted",
+) {
+  const source = destination === "converted" ? "local-imports" : "converted";
+  const sourceIds = new Set(allItems
+    .filter(item => getLibrarySongCategory(item.librarySong) === source)
+    .map(item => item.librarySong.id));
+  const movedIds = new Set(songIds.filter(id => sourceIds.has(id)));
+  if (movedIds.size === 0) return preferences;
+
+  const target = preferences[destination];
+  const destinationIds = sortLibraryItems(
+    allItems.filter(item => getLibrarySongCategory(item.librarySong) === destination),
+    "custom", target?.customOrder,
+  ).map(item => item.librarySong.id);
+  return {
+    ...preferences,
+    ...(preferences[source] ? { [source]: {
+      ...preferences[source],
+      customOrder: preferences[source].customOrder.filter(id => !movedIds.has(id)),
+    } } : {}),
+    [destination]: {
+      mode: target?.mode ?? "custom",
+      customOrder: [...destinationIds, ...movedIds],
+    },
+  };
+}

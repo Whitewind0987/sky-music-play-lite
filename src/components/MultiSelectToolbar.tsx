@@ -3,7 +3,7 @@
 
 import { Check } from "lucide-react";
 import { useState } from "react";
-import type { LibrarySongId, UserPlaylist } from "../types/library";
+import type { LibrarySongId, LocalLibraryGroup, UserPlaylist } from "../types/library";
 import type { MultiSelectState } from "../hooks/useMultiSelect";
 import type { UiText } from "../i18n/uiText";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -19,6 +19,12 @@ type MultiSelectToolbarProps = {
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => void;
   onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
+  /**
+   * 批量移动分类的目标组；null 表示当前分类不支持移动，按钮不渲染。
+   * 由父组件按当前分类与选中曲谱的可移动性计算。
+   */
+  moveTargetGroup?: LocalLibraryGroup | null;
+  onMoveSelectedSongs?: (group: LocalLibraryGroup) => void;
 };
 
 export function MultiSelectToolbar({
@@ -31,6 +37,8 @@ export function MultiSelectToolbar({
   onDeleteLocalSongs,
   onAddSongsToPlaylist,
   onRemoveSongsFromPlaylist,
+  moveTargetGroup = null,
+  onMoveSelectedSongs,
 }: MultiSelectToolbarProps) {
   const { count, enabled } = multiSelect;
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -63,6 +71,14 @@ export function MultiSelectToolbar({
     multiSelect.clear();
   };
 
+  const handleMoveSelected = () => {
+    if (!moveTargetGroup || count === 0) {
+      return;
+    }
+    onMoveSelectedSongs?.(moveTargetGroup);
+    multiSelect.clear();
+  };
+
   return (
     <>
       <div
@@ -88,6 +104,18 @@ export function MultiSelectToolbar({
         >
           {text.multiSelectClear}
         </button>
+        {moveTargetGroup ? (
+          <button
+            type="button"
+            className="library-multi-select-action"
+            disabled={count === 0}
+            onClick={handleMoveSelected}
+          >
+            {moveTargetGroup === "converted"
+              ? text.moveToConverted
+              : text.moveToLocalImports}
+          </button>
+        ) : null}
         <button
           type="button"
           className="library-multi-select-action is-danger"
