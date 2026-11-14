@@ -4838,12 +4838,14 @@ button {
 
 .bottom-player-volume-popup {
   position: absolute;
-  bottom: 100%;
+  /* Keep the hover area continuous across the gap above the speaker. */
+  bottom: calc(100% - 1px);
   left: 50%;
-  z-index: 5;
+  /* The timeline crosses this area and must sit below the visible popup. */
+  z-index: 7;
   visibility: hidden;
   transform: translateX(-50%);
-  padding-bottom: 5px;
+  padding-bottom: 6px;
 }
 
 .bottom-player-volume:hover .bottom-player-volume-popup,
