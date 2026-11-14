@@ -12,6 +12,7 @@ import {
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
 import { createPreviewInstrumentAudio } from "../lib/previewInstrumentAudio";
+import { createPreviewPianoArticulation } from "../lib/previewPianoArticulation";
 import { defaultPreviewVolume, normalizePreviewVolume, type PreviewAudioPreferences } from "../lib/previewAudioPreferences";
 import type { PreviewInstrument } from "../lib/previewInstrumentSamples";
 import {
@@ -235,6 +236,7 @@ export function usePreviewPlayback({
       }
 
       const notes = song.songNotes;
+      const pianoArticulation = song.formatVersion === 2 ? undefined : createPreviewPianoArticulation(notes);
       const currentTimingOptions = {
         noteIntervalDelayMs: noteIntervalDelayMsRef.current,
         playbackSpeed: playbackSpeedRef.current,
@@ -266,7 +268,10 @@ export function usePreviewPlayback({
         notes,
         (noteGroup) => {
           if (!previewAudioRef.current.muted && audioOutputAllowedRef.current) {
-            instrumentAudioRef.current?.playGroup(noteGroup, playbackSpeedRef.current);
+            instrumentAudioRef.current?.playGroup(noteGroup, playbackSpeedRef.current, pianoArticulation?.(
+              noteGroup[0].time,
+              { playbackSpeed: playbackSpeedRef.current, noteIntervalDelayMs: noteIntervalDelayMsRef.current },
+            ));
           }
           activeKeyEntriesRef.current = applyNoteGroupToPreviewActiveKeys(
             activeKeyEntriesRef.current,

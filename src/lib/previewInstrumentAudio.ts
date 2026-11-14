@@ -80,16 +80,17 @@ export function createPreviewInstrumentAudio() {
     voice.source.stop(end);
   }
 
-  function playGroup(notes: Note[], speed: number) {
+  function playGroup(notes: Note[], speed: number, v1Articulation?: { holdMs: number; releaseSeconds: number }) {
     const audio = context;
     const buffers = banks.get(selected);
     if (audio?.state !== "running" || !buffers || !master) return;
     const instrument = previewInstrumentSamples[selected];
+    const adaptive = selected === "piano" ? v1Articulation : undefined;
 
     const durations = new Map<string, number>();
     for (const note of notes) {
       const key = getPreviewKeyName(note.key);
-      const duration = isValidExplicitDuration(note.duration) ? note.duration : 0;
+      const duration = !adaptive && isValidExplicitDuration(note.duration) ? note.duration : 0;
       durations.set(key, Math.max(durations.get(key) ?? 0, duration));
     }
 
@@ -115,15 +116,10 @@ export function createPreviewInstrumentAudio() {
       const gain = audio.createGain();
       source.buffer = buffer;
       source.playbackRate.value = sample.rate;
-      if (sample.loopEndFrame !== undefined) {
-        source.loop = true;
-        source.loopStart = 1;
-        source.loopEnd = sample.loopEndFrame / 44100;
-      }
       source.connect(gain);
       gain.connect(master);
       gain.gain.setValueAtTime(0, now);
-      const holdSeconds = (duration || instrument.implicitHoldMs) / speed / 1000;
+      const holdSeconds = (adaptive?.holdMs ?? (duration || instrument.implicitHoldMs) / speed) / 1000;
       gain.gain.linearRampToValueAtTime(instrument.gain, now + Math.min(instrument.attackSeconds, holdSeconds));
       const voice = {
         key,
@@ -131,7 +127,8 @@ export function createPreviewInstrumentAudio() {
         source,
         gain,
         peakGain: instrument.gain,
-        releaseSeconds: duration > 0 ? instrument.explicitReleaseSeconds : instrument.implicitReleaseSeconds,
+        releaseSeconds: adaptive?.releaseSeconds ??
+          (duration > 0 ? instrument.explicitReleaseSeconds : instrument.implicitReleaseSeconds),
         releaseAt: now + holdSeconds,
         stopAt: now,
         speed,

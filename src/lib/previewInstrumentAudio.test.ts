@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPreviewInstrumentAudio } from "./previewInstrumentAudio";
+import { createPreviewPianoArticulation } from "./previewPianoArticulation";
 
 function mockAudio() {
   const voices: ReturnType<typeof createSource>[] = [];
@@ -58,6 +59,38 @@ function mockAudio() {
 
 describe("offline preview piano", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("uses effective group gaps for V1 piano without moving attacks or changing V2 fallback", async () => {
+    const notes = [
+      { key: "Key0", time: 0 }, { key: "Key1", time: 0 }, { key: "Key0", time: 80 },
+      { key: "Key2", time: 380 }, { key: "Key3", time: 1180 }, { key: "Key4", time: 3780 },
+      { key: "Key5", time: Number.NaN },
+    ];
+    const policy = createPreviewPianoArticulation(notes);
+    const timing = { playbackSpeed: 1, noteIntervalDelayMs: 0 };
+    const holds = [0, 80, 380, 1180, 3780].map(time => Math.round(policy(time, timing).holdMs));
+    expect(holds).toEqual([66, 246, 656, 780, 780]);
+    const faster = { playbackSpeed: 2, noteIntervalDelayMs: -50 };
+    expect(policy(0, faster).holdMs).toBe(45);
+    expect(policy(0, { ...timing, noteIntervalDelayMs: 100 }).holdMs).toBeCloseTo(147.6);
+    expect(createPreviewPianoArticulation([])(0, timing).holdMs).toBeCloseTo(344.4);
+
+    const { context, voices } = mockAudio();
+    const audio = createPreviewInstrumentAudio();
+    await audio.prepare();
+    const articulation = policy(0, timing);
+    audio.playGroup(notes.slice(0, 2), 1, articulation);
+    expect(voices.map(voice => voice.start.mock.lastCall)).toEqual([[10], [10]]);
+    context.currentTime = 10.08;
+    audio.playGroup([notes[2]], 1, policy(80, timing));
+    expect(voices[0].stop).toHaveBeenLastCalledWith(10.08 + 0.045);
+    expect(voices[1].stop).toHaveBeenCalledTimes(1);
+    expect(voices[2].start).toHaveBeenCalledWith(10.08);
+    audio.stop();
+    context.currentTime = 11;
+    audio.playGroup([notes[0]], 1);
+    expect(voices[3].stop.mock.lastCall?.[0]).toBeCloseTo(11.38);
+  });
 
   it("maps all logical keys to local samples and starts a chord on one audio clock tick", async () => {
     const { voices, fetchSample } = mockAudio();
@@ -135,23 +168,17 @@ describe("offline preview piano", () => {
     const audio = createPreviewInstrumentAudio();
     audio.selectInstrument("violin");
     await audio.prepare();
-    const violinRoots = new Map([
-      ["C4.wav", 60], ["E4.wav", 64], ["G4.wav", 67], ["A4.wav", 69],
-      ["C5.wav", 72], ["E5.wav", 76], ["G5.wav", 79], ["A5.wav", 81], ["C6.wav", 84],
-    ]);
-    const notes = Array.from({ length: 15 }, (_, index) => ({
+    const pitches = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
+    const notes = pitches.map((_, index) => ({
       key: `Key${index}`, time: 0, duration: 6000,
     }));
     audio.playGroup(notes, 2);
     expect(fetchSample.mock.calls.flat()).toEqual(
-      Array.from(violinRoots.keys(), file => `/audio/vsco-violin/${file}`),
+      pitches.map(pitch => `/audio/iowa-violin/${pitch}.wav`),
     );
-    expect(voices.map(({ buffer, playbackRate }) =>
-      Math.round(violinRoots.get(String(buffer))! + 12 * Math.log2(playbackRate.value)),
-    )).toEqual([60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84]);
-    expect(voices[0]).toMatchObject({ loop: true, loopStart: 1, loopEnd: 119840 / 44100 });
+    expect(voices.map(({ buffer }) => buffer)).toEqual(pitches.map(pitch => `${pitch}.wav`));
+    expect(voices.every(({ loop, playbackRate }) => !loop && playbackRate.value === 1)).toBe(true);
     expect(voices[0].stop).toHaveBeenCalledWith(13.28);
-    expect(voices[0].playbackRate.value).toBeCloseTo(2 ** (-0.2 / 12), 8);
 
     audio.selectInstrument("guitar");
     expect(voices[0].stop).toHaveBeenLastCalledWith(10.015);
@@ -167,7 +194,7 @@ describe("offline preview piano", () => {
     expect(guitarVoices.every(({ loop, playbackRate }) => !loop && playbackRate.value === 1)).toBe(true);
     audio.selectInstrument("violin");
     await audio.prepare();
-    expect(fetchSample).toHaveBeenCalledTimes(24);
+    expect(fetchSample).toHaveBeenCalledTimes(30);
   });
 
   it("ramps the shared gain for active voices and restores volume after mute and bank changes", async () => {
