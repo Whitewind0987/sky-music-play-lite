@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { UiText } from "../i18n/uiText";
 import { isManualPlaybackEngaged, resolveManualPlaybackOutputPolicy } from "../lib/manualPlaybackState";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
@@ -81,6 +82,12 @@ export function usePlaybackOutput({
   previewPlayback,
   text,
 }: UsePlaybackOutputOptions): PlaybackOutput {
+  const { setPianoOutputAllowed } = previewPlayback;
+  const isPreviewOutput = !experimentalInput.experimentalInputEnabled;
+  useEffect(() => {
+    setPianoOutputAllowed(isPreviewOutput);
+  }, [isPreviewOutput, setPianoOutputAllowed]);
+
   const sharedControls = {
     isShuffleEnabled: previewPlayback.isShuffleEnabled,
     noteIntervalDelayMs: previewPlayback.noteIntervalDelayMs,
@@ -94,7 +101,7 @@ export function usePlaybackOutput({
 
   let automaticOutput: AutomaticPlaybackOutput;
 
-  if (!experimentalInput.experimentalInputEnabled) {
+  if (isPreviewOutput) {
     const canSeek = isSeekablePlaybackState(previewPlayback.playbackState);
 
     automaticOutput = {

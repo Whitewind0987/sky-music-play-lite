@@ -1192,6 +1192,7 @@ function App() {
         canOpenVisualization={playerScoreVisualization.canOpen}
         currentSong={scoreLibrary.currentPlaybackSong}
         isCurrentSongLoading={playbackCoordinator.isCurrentSongLoading}
+        isPianoEnabled={previewPlayback.isPianoEnabled}
         isRealInputOutput={playbackOutput.isRealInputOutput}
         isShuffleEnabled={playbackOutput.isShuffleEnabled}
         isVisualizationOpen={playerScoreVisualization.isOpen}
@@ -1202,6 +1203,7 @@ function App() {
         onVisualizationClose={playerScoreVisualization.close}
         onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
+        onPianoToggle={previewPlayback.handlePianoToggle}
         onManualStep={playbackOutput.onManualStep}
         onManualStepHoldBegin={playbackOutput.onManualStepHoldBegin}
         onManualStepHoldEnd={playbackOutput.onManualStepHoldEnd}

@@ -24,7 +24,7 @@ function findDiv(node: ReactNode, className: string): PlayerElement | undefined 
   return findDiv(element.props.children, className);
 }
 
-function renderPlayer(isOpen: boolean, canOpen = true) {
+function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<PlayerProps> = {}) {
   const onVisualizationOpen = vi.fn();
   const onVisualizationClose = vi.fn();
   const text = uiText["en-US"].bottomPlayer;
@@ -37,6 +37,7 @@ function renderPlayer(isOpen: boolean, canOpen = true) {
     canStop: false,
     currentSong: null,
     isCurrentSongLoading: false,
+    isPianoEnabled: false,
     isRealInputOutput: false,
     isShuffleEnabled: false,
     isVisualizationOpen: isOpen,
@@ -48,6 +49,7 @@ function renderPlayer(isOpen: boolean, canOpen = true) {
     onNext: noop,
     onNoteIntervalDelayChange: noop,
     onPause: noop,
+    onPianoToggle: noop,
     onPlay: noop,
     onPlaybackSpeedChange: noop,
     onPlayQueueItem: noop,
@@ -71,6 +73,7 @@ function renderPlayer(isOpen: boolean, canOpen = true) {
     queueOpen: false,
     songs: [],
     text,
+    ...overrides,
   };
   const tree = BottomPlayer(props);
   return {
@@ -79,8 +82,23 @@ function renderPlayer(isOpen: boolean, canOpen = true) {
     onVisualizationOpen,
     onVisualizationClose,
     text,
+    tree,
   };
 }
+
+it("shows the piano toggle only for preview output and announces its state", () => {
+  const onPianoToggle = vi.fn();
+  const findToggle = (props: Partial<PlayerProps>) =>
+    findDiv(renderPlayer(false, true, props).tree, "bottom-player-piano-button");
+  const muted = findToggle({ onPianoToggle });
+  expect(muted?.props).toMatchObject({ "aria-label": "Enable piano audio", "aria-pressed": false });
+  expect(muted?.props.onClick).toBe(onPianoToggle);
+  expect(findToggle({ isPianoEnabled: true })?.props).toMatchObject({
+    "aria-label": "Disable piano audio",
+    "aria-pressed": true,
+  });
+  expect(findToggle({ isRealInputOutput: true })).toBeUndefined();
+});
 
 describe("bottom player visualization toggle", () => {
   afterEach(() => vi.unstubAllGlobals());

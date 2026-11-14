@@ -1,4 +1,4 @@
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, Volume2, VolumeX } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -51,6 +51,7 @@ type BottomPlayerProps = {
   canOpenVisualization: boolean;
   currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
+  isPianoEnabled: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
   isVisualizationOpen: boolean;
@@ -62,6 +63,7 @@ type BottomPlayerProps = {
   onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
+  onPianoToggle: () => void;
   onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
   onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
   onManualStep: () => void;
@@ -224,6 +226,7 @@ export function BottomPlayer({
   canOpenVisualization,
   currentSong,
   isCurrentSongLoading,
+  isPianoEnabled,
   isShuffleEnabled,
   isRealInputOutput,
   isVisualizationOpen,
@@ -235,6 +238,7 @@ export function BottomPlayer({
   onVisualizationOpen,
   onPlayQueueItem,
   onPause,
+  onPianoToggle,
   onManualStepHoldBegin,
   onManualStepHoldEnd,
   onManualStep,
@@ -259,6 +263,8 @@ export function BottomPlayer({
   songs,
   text,
 }: BottomPlayerProps) {
+  const pianoLabel = isPianoEnabled ? text.disablePianoAudio : text.enablePianoAudio;
+  const PianoIcon = isPianoEnabled ? Volume2 : VolumeX;
   const progressTrackRef = useRef<HTMLDivElement | null>(null);
   const dragPreviewClearFrameRef = useRef<number | null>(null);
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -834,6 +840,19 @@ export function BottomPlayer({
                 />
               </div>
             </div>
+
+            {!isRealInputOutput && (
+              <button
+                className={`player-icon-button player-icon-button-secondary player-icon-button-toggle bottom-player-piano-button${isPianoEnabled ? " is-active" : ""}`}
+                type="button"
+                aria-label={pianoLabel}
+                aria-pressed={isPianoEnabled}
+                title={pianoLabel}
+                onClick={onPianoToggle}
+              >
+                <PianoIcon className="player-icon" aria-hidden="true" focusable="false" />
+              </button>
+            )}
 
             <button
               className={`player-icon-button player-icon-button-secondary bottom-player-queue-button${
