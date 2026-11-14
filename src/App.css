@@ -4516,7 +4516,7 @@ button {
   min-width: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(auto, 1fr);
   align-items: center;
   gap: clamp(16px, 2.4vw, 32px);
 }
@@ -4817,7 +4817,7 @@ button {
 }
 
 .bottom-player-actions {
-  min-width: 0;
+  min-width: max-content;
   display: grid;
   justify-items: start;
   gap: 2px;
@@ -5500,7 +5500,6 @@ button {
   }
 
   .bottom-player-body {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     gap: 12px;
   }
 
@@ -5608,6 +5607,20 @@ button {
 }
 
 @media (max-width: 600px) {
+  .app-shell {
+    --bottom-player-height: 132px;
+  }
+
+  .bottom-player-body {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 6px 12px;
+  }
+
+  .bottom-player-actions {
+    grid-column: 1 / -1;
+  }
+
   .settings-grid .setting-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
