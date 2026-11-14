@@ -1,6 +1,7 @@
 mod app_data;
 mod app_log;
 mod app_window;
+mod custom_instruments;
 mod experimental_input;
 mod imported_scores;
 mod score_recording;
@@ -244,6 +245,11 @@ pub fn run() {
             resume_background_playback,
             resume_foreground_playback,
             app_data::save_app_data,
+            custom_instruments::list_custom_instruments,
+            custom_instruments::import_custom_instrument,
+            custom_instruments::read_custom_instrument_sample,
+            custom_instruments::rename_custom_instrument,
+            custom_instruments::delete_custom_instrument,
             seek_background_playback,
             seek_foreground_playback,
             send_foreground_key_group,

@@ -2634,6 +2634,7 @@ button {
   border-radius: 6px;
   color: #1f2933;
   background: #ffffff;
+  font: inherit;
 }
 
 .library-create-playlist-field input:focus-visible {
@@ -5757,4 +5758,114 @@ button {
 
 .library-song-row.is-multi-select .library-row-play {
   visibility: hidden;
+}
+
+.custom-instrument-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  gap: 16px;
+}
+
+.custom-instrument-form,
+.custom-instrument-list,
+.custom-instrument-mapping {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-instrument-form h4,
+.custom-instrument-form p,
+.custom-instrument-list {
+  margin: 0;
+}
+
+.custom-instrument-form h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-instrument-form h4 svg {
+  color: var(--app-primary);
+}
+
+.custom-instrument-list {
+  padding: 0 0 12px;
+  list-style: none;
+  border-bottom: 1px solid #e1e6ec;
+}
+
+.custom-instrument-list li,
+.custom-instrument-list form,
+.custom-instrument-pickers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.custom-instrument-list li > span {
+  flex: 1 1 100px;
+  overflow-wrap: anywhere;
+  display: grid;
+  gap: 2px;
+}
+
+.custom-instrument-list small {
+  color: #52616f;
+}
+
+.custom-instrument-list li,
+.custom-instrument-row {
+  padding: 6px 8px;
+  border: 1px solid #e1e6ec;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.custom-instrument-list input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.custom-instrument-choice {
+  width: 100%;
+  max-width: 100%;
+  justify-content: space-between;
+}
+
+.custom-instrument-choice-menu {
+  min-width: min(var(--radix-dropdown-menu-trigger-width), var(--radix-dropdown-menu-content-available-width));
+  max-width: var(--radix-dropdown-menu-content-available-width);
+}
+
+.custom-instrument-row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) minmax(0, 6rem) auto;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.custom-instrument-status {
+  color: #52616f;
+  overflow-wrap: anywhere;
+}
+
+.custom-instrument-status[data-mapped="true"] {
+  color: var(--app-primary-hover);
+}
+
+.custom-instrument-dialog .confirm-dialog-actions button:disabled,
+.custom-instrument-list form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.custom-instrument-menu-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

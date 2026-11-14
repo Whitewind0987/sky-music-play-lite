@@ -15,6 +15,9 @@ import { createPreviewInstrumentAudio } from "../lib/previewInstrumentAudio";
 import { createPreviewV1Articulation } from "../lib/previewV1Articulation";
 import { defaultPreviewVolume, normalizePreviewVolume, type PreviewAudioPreferences } from "../lib/previewAudioPreferences";
 import type { PreviewInstrument } from "../lib/previewInstrumentSamples";
+import type { CustomInstrument } from "../lib/customInstruments";
+import { listCustomInstruments } from "../lib/tauriApi";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   applyNoteGroupToPreviewActiveKeys,
   getNextPreviewExpiryMs,
@@ -74,7 +77,46 @@ export function usePreviewPlayback({
   const [previewAudio, setPreviewAudio] = useState<PreviewAudioPreferences>({ volume: defaultPreviewVolume, muted: true });
   const previewAudioRef = useRef(previewAudio);
   const isPreviewAudioEnabled = !previewAudio.muted;
-  const [previewInstrument, setPreviewInstrument] = useState<PreviewInstrument>("piano");
+  const [previewInstrument, setPreviewInstrument] = useState<string>("piano");
+  const [customInstruments, setCustomCatalog] = useState<CustomInstrument[] | null>(null);
+  const customCatalogRef = useRef<CustomInstrument[] | null>(null);
+  const [customInstrumentError, setCustomInstrumentError] = useState<string | null>(null);
+
+  function setCustomInstruments(instruments: CustomInstrument[]) {
+    customCatalogRef.current = instruments;
+    setCustomCatalog(instruments);
+  }
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    void listCustomInstruments().then(instruments => {
+      if (active) setCustomInstruments(instruments);
+    }).catch(error => {
+      if (active) setCustomInstrumentError(String(error));
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!customInstruments) return;
+    const id = previewAudioRef.current.instrumentId;
+    if (!id || id === "piano" || id === "violin" || id === "guitar") return;
+    const instrument = customInstruments.find(item => item.id === id);
+    if (instrument) {
+      const audio = instrumentAudioRef.current ??= createPreviewInstrumentAudio();
+      audio.selectInstrument(instrument);
+      setPreviewInstrument(id);
+      if (!previewAudioRef.current.muted && audioOutputAllowedRef.current) void audio.prepare();
+    } else {
+      const preferences = { ...previewAudioRef.current, instrumentId: "piano" };
+      previewAudioRef.current = preferences;
+      setPreviewAudio(preferences);
+      instrumentAudioRef.current?.selectInstrument("piano");
+      setPreviewInstrument("piano");
+      if (!preferences.muted && audioOutputAllowedRef.current) void instrumentAudioRef.current?.prepare();
+    }
+  }, [customInstruments]);
   const pendingRequestRef = useRef<object | null>(null);
   const activeKeyEntriesRef = useRef<PreviewActiveKeyEntry[]>([]);
   const activeKeyPruneTimerRef = useRef<number | null>(null);
@@ -553,7 +595,16 @@ export function usePreviewPlayback({
     setPlaybackSpeed(nextPlaybackSpeed);
     instrumentAudioRef.current?.updateSpeed(nextPlaybackSpeed);
     playbackControllerRef.current?.updateOptions(nextOptions);
-    if (savedPreviewAudio) updatePreviewAudio(savedPreviewAudio);
+    if (savedPreviewAudio) {
+      updatePreviewAudio(savedPreviewAudio);
+      const id = savedPreviewAudio.instrumentId;
+      if (id === "piano" || id === "violin" || id === "guitar") handlePreviewInstrumentChange(id, false);
+      else if (id && customCatalogRef.current) {
+        const instrument = customCatalogRef.current.find(item => item.id === id);
+        if (instrument) handlePreviewInstrumentChange(instrument, false);
+        else handlePreviewInstrumentChange("piano");
+      }
+    }
   }
 
   function updatePreviewAudio(preferences: PreviewAudioPreferences) {
@@ -573,11 +624,20 @@ export function usePreviewPlayback({
     updatePreviewAudio({ ...previewAudioRef.current, volume: normalizePreviewVolume(volume) });
   }
 
-  function handlePreviewInstrumentChange(instrument: PreviewInstrument) {
-    setPreviewInstrument(instrument);
+  function handlePreviewInstrumentChange(instrument: PreviewInstrument | CustomInstrument, persist = true) {
+    const id = typeof instrument === "string" ? instrument : instrument.id;
+    setPreviewInstrument(id);
+    if (persist) updatePreviewAudio({ ...previewAudioRef.current, instrumentId: id });
     const audio = instrumentAudioRef.current ??= createPreviewInstrumentAudio();
     audio.selectInstrument(instrument);
     if (!previewAudioRef.current.muted && audioOutputAllowedRef.current) void audio.prepare();
+  }
+
+  function auditionSample(file: File) {
+    const audio = instrumentAudioRef.current ??= createPreviewInstrumentAudio();
+    const { volume, muted } = previewAudioRef.current;
+    audio.setVolume(volume, muted);
+    return audio.auditionSample(file);
   }
 
   const setPreviewAudioOutputAllowed = useCallback((allowed: boolean) => {
@@ -587,6 +647,11 @@ export function usePreviewPlayback({
 
   return {
     activeKeys,
+    customInstruments,
+    customInstrumentError,
+    setCustomInstruments,
+    auditionSample,
+    stopAudition: () => instrumentAudioRef.current?.stopAudition(),
     applyPlaybackSettings,
     bottomPlayerProgress,
     canPlayPreview,

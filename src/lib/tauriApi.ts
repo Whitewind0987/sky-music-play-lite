@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { CustomArticulation, CustomInstrument } from "./customInstruments";
 import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -570,4 +571,30 @@ export function openLogDirectory(): Promise<void> {
 
 export function forceCloseApp(): Promise<void> {
   return invoke<void>("force_close_app");
+}
+
+export function listCustomInstruments() {
+  return invoke<CustomInstrument[]>("list_custom_instruments");
+}
+
+export async function importCustomInstrument(name: string, articulation: CustomArticulation, files: File[]) {
+  const header = new TextEncoder().encode(JSON.stringify({
+    name, articulation, samples: files.map(file => ({ name: file.name, size: file.size })),
+  }));
+  const size = new ArrayBuffer(4);
+  new DataView(size).setUint32(0, header.byteLength, true);
+  const bytes = await new Blob([size, header, ...files]).arrayBuffer();
+  return invoke<CustomInstrument>("import_custom_instrument", bytes);
+}
+
+export function readCustomInstrumentSample(id: string, index: number) {
+  return invoke<ArrayBuffer>("read_custom_instrument_sample", { id, index });
+}
+
+export function renameCustomInstrument(id: string, newName: string) {
+  return invoke<CustomInstrument>("rename_custom_instrument", { id, newName });
+}
+
+export function deleteCustomInstrument(id: string) {
+  return invoke<void>("delete_custom_instrument", { id });
 }

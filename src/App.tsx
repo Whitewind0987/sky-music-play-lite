@@ -19,6 +19,8 @@ import {
 import { AppNoticeToast } from "./components/AppNoticeToast";
 import { BottomPlayer } from "./components/BottomPlayer";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { CustomInstrumentDialog } from "./components/CustomInstrumentDialog";
+import { customInstrumentText } from "./i18n/customInstrumentText";
 import { CreatePlaylistDialog } from "./components/CreatePlaylistDialog";
 import { useMultiSelect } from "./hooks/useMultiSelect";
 import {
@@ -232,6 +234,7 @@ function App() {
     startQueuePlayback: playbackQueue.startQueuePlayback,
     text,
   });
+  const [showCustomInstruments, setShowCustomInstruments] = useState(false);
   const experimentalInput = useExperimentalInput({
     advanceQueuePlayback: playbackQueue.advanceQueuePlayback,
     appendLog,
@@ -1185,7 +1188,26 @@ function App() {
         text={text.playerScoreVisualization}
         timingMode={playbackOutput.visualizationTimingMode}
       />
+      {showCustomInstruments && (
+        <CustomInstrumentDialog
+          language={language}
+          instruments={previewPlayback.customInstruments ?? []}
+          catalogError={previewPlayback.customInstrumentError}
+          selectedId={previewPlayback.previewInstrument}
+          onChange={previewPlayback.setCustomInstruments}
+          onSelect={previewPlayback.handlePreviewInstrumentChange}
+          onClose={() => setShowCustomInstruments(false)}
+          audition={previewPlayback.auditionSample}
+          stopAudition={previewPlayback.stopAudition}
+          audible={!playbackOutput.isRealInputOutput && previewPlayback.isPreviewAudioEnabled && previewPlayback.previewAudio.volume > 0}
+        />
+      )}
       <BottomPlayer
+        customInstrumentMenu={{
+          items: previewPlayback.customInstruments ?? [],
+          text: customInstrumentText[language],
+          onManage: () => setShowCustomInstruments(true),
+        }}
         canManualStep={playbackOutput.canManualStep}
         canPlay={playbackCoordinator.canPlay}
         canSeek={playbackOutput.canSeek}

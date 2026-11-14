@@ -17,6 +17,8 @@ import {
 } from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
 import { previewInstruments, type PreviewInstrument } from "../lib/previewInstrumentSamples";
+import type { CustomInstrument } from "../lib/customInstruments";
+import type { customInstrumentText } from "../i18n/customInstrumentText";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
 import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
 import { createManualStepPointerGesture } from "../lib/manualStepPointerGesture";
@@ -68,7 +70,12 @@ type BottomPlayerProps = {
   onPreviewAudioToggle: () => void;
   onPreviewVolumeChange: (volume: number) => void;
   previewVolume: number;
-  onPreviewInstrumentChange: (instrument: PreviewInstrument) => void;
+  onPreviewInstrumentChange: (instrument: PreviewInstrument | CustomInstrument) => void;
+  customInstrumentMenu?: {
+    items: CustomInstrument[];
+    text: (typeof customInstrumentText)[keyof typeof customInstrumentText];
+    onManage: () => void;
+  };
   onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
   onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
   onManualStep: () => void;
@@ -88,7 +95,7 @@ type BottomPlayerProps = {
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
   progress: PreviewPlaybackProgress;
-  previewInstrument: PreviewInstrument;
+  previewInstrument: string;
   queueItems: PlaybackQueueItem[];
   queueOpen: boolean;
   songs: LibrarySong[];
@@ -248,6 +255,7 @@ export function BottomPlayer({
   onPreviewVolumeChange,
   previewVolume,
   onPreviewInstrumentChange,
+  customInstrumentMenu,
   onManualStepHoldBegin,
   onManualStepHoldEnd,
   onManualStep,
@@ -274,6 +282,9 @@ export function BottomPlayer({
   text,
 }: BottomPlayerProps) {
   const audioLabel = isPreviewAudioEnabled ? text.disablePreviewAudio : text.enablePreviewAudio;
+  const selectedBuiltIn = previewInstruments.find(item => item === previewInstrument);
+  const instrumentLabel = selectedBuiltIn ? text.previewInstruments[selectedBuiltIn]
+    : customInstrumentMenu?.items.find(item => item.id === previewInstrument)?.name ?? text.previewInstruments.piano;
   const AudioIcon = isPreviewAudioEnabled && previewVolume > 0 ? Volume2 : VolumeX;
   const progressTrackRef = useRef<HTMLDivElement | null>(null);
   const dragPreviewClearFrameRef = useRef<number | null>(null);
@@ -936,7 +947,7 @@ export function BottomPlayer({
                     <button
                       className="player-icon-button player-icon-button-secondary bottom-player-instrument-button"
                       type="button"
-                      aria-label={`${text.previewInstrument}: ${text.previewInstruments[previewInstrument]}`}
+                      aria-label={`${text.previewInstrument}: ${instrumentLabel}`}
                       title={text.previewInstrument}
                     >
                       <SlidersHorizontal className="player-icon" aria-hidden="true" />
@@ -947,7 +958,9 @@ export function BottomPlayer({
                       <DropdownMenu.Label className="library-sort-note">{text.previewInstrument}</DropdownMenu.Label>
                       <DropdownMenu.RadioGroup value={previewInstrument} onValueChange={value => {
                         const instrument = previewInstruments.find(candidate => candidate === value);
-                        if (instrument) onPreviewInstrumentChange(instrument);
+                        const custom = customInstrumentMenu?.items.find(item => item.id === value);
+                        const selection = instrument ?? custom;
+                        if (selection) onPreviewInstrumentChange(selection);
                       }}>
                         {previewInstruments.map(instrument => (
                           <DropdownMenu.RadioItem key={instrument} value={instrument} asChild>
@@ -959,7 +972,25 @@ export function BottomPlayer({
                             </button>
                           </DropdownMenu.RadioItem>
                         ))}
+                        {customInstrumentMenu?.items.length ? <>
+                          <DropdownMenu.Label className="library-sort-note">{customInstrumentMenu.text.custom}</DropdownMenu.Label>
+                          {customInstrumentMenu.items.map(item => (
+                            <DropdownMenu.RadioItem key={item.id} value={item.id} asChild>
+                              <button type="button">
+                                <span className="library-sort-check">
+                                  <DropdownMenu.ItemIndicator><Check aria-hidden="true" /></DropdownMenu.ItemIndicator>
+                                </span>
+                                <span className="custom-instrument-menu-name">{item.name}</span>
+                              </button>
+                            </DropdownMenu.RadioItem>
+                          ))}
+                        </> : null}
                       </DropdownMenu.RadioGroup>
+                      {customInstrumentMenu && (
+                        <DropdownMenu.Item asChild onSelect={customInstrumentMenu.onManage}>
+                          <button type="button">{customInstrumentMenu.text.manage}</button>
+                        </DropdownMenu.Item>
+                      )}
                     </DropdownMenu.Content>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Root>

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPreviewInstrumentAudio } from "./previewInstrumentAudio";
 import { createPreviewV1Articulation } from "./previewV1Articulation";
+import { readCustomInstrumentSample } from "./tauriApi";
+
+vi.mock("./tauriApi", () => ({ readCustomInstrumentSample: vi.fn() }));
 
 function mockAudio() {
   const voices: ReturnType<typeof createSource>[] = [];
@@ -59,6 +62,36 @@ function mockAudio() {
 
 describe("offline preview piano", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it.each(["naturalDecay", "sustained"] as const)("plays custom %s samples at original pitch and releases on cleanup", async articulation => {
+    const { context, voices, gains } = mockAudio();
+    const read = vi.mocked(readCustomInstrumentSample);
+    read.mockClear().mockResolvedValue(new ArrayBuffer(1));
+    const audio = createPreviewInstrumentAudio();
+    const releaseSeconds = articulation === "naturalDecay" ? 0.22 : 0.32;
+    audio.selectInstrument({
+      id: "f".repeat(32), name: "Custom", articulation, releaseSeconds, createdAt: 0,
+      samples: Array.from({ length: 15 }, () => ({ name: "sample.wav", size: 1 })),
+    });
+    await Promise.all([audio.prepare(), audio.prepare()]);
+    expect(read).toHaveBeenCalledTimes(15);
+    const chord = [{ key: "Key0", time: 0 }, { key: "Key14", time: 0 }];
+    const policy = createPreviewV1Articulation([...chord, { key: "Key0", time: 400 }]);
+    const envelope = policy(0, { playbackSpeed: 1, noteIntervalDelayMs: 0 });
+    audio.playGroup(chord, 1, envelope);
+    const hold = envelope[articulation === "naturalDecay" ? "piano" : "guitar"].holdMs;
+    expect(voices.map(({ start }) => start.mock.lastCall)).toEqual([[10], [10]]);
+    expect(voices.every(voice => voice.playbackRate.value === 1 && !voice.loop)).toBe(true);
+    expect(voices[0].stop.mock.lastCall?.[0]).toBeCloseTo(10 + hold / 1000 + releaseSeconds);
+    context.currentTime = 10.1;
+    audio.playGroup([{ ...chord[0], duration: 2000 }], 2);
+    expect(voices[0].stop.mock.lastCall?.[0]).toBeCloseTo(10.145);
+    expect(voices[2].stop.mock.lastCall?.[0]).toBeCloseTo(11.1 + releaseSeconds);
+    audio.setVolume(50, true);
+    expect(gains[0].gain.linearRampToValueAtTime.mock.lastCall?.[0]).toBe(0);
+    audio.stop();
+    expect(voices[2].stop.mock.lastCall?.[0]).toBeCloseTo(10.115);
+  });
 
   it("uses effective group gaps for V1 piano without moving attacks or changing V2 fallback", async () => {
     const notes = [

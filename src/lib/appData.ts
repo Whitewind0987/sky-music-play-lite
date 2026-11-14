@@ -466,7 +466,13 @@ function sanitizePlaybackSettings(
 }
 
 function sanitizePreviewAudio(value: Record<string, unknown>): PreviewAudioPreferences {
-  return { volume: normalizePreviewVolume(value.volume), muted: value.muted !== false };
+  return {
+    volume: normalizePreviewVolume(value.volume),
+    muted: value.muted !== false,
+    ...(typeof value.instrumentId === "string" && /^(piano|violin|guitar|[0-9a-f]{32})$/.test(value.instrumentId)
+      ? { instrumentId: value.instrumentId }
+      : {}),
+  };
 }
 
 function sanitizeExperimentalInputPreferences(
