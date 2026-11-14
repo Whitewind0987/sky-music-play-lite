@@ -16,15 +16,23 @@ skyKeyNames.forEach((key, index) => {
   pianoNotes.set(key, { sample, rate: 2 ** ((pitch - samplePitch) / 12) });
 });
 
-const shortNoteMs = 180;
-const releaseSeconds = 0.025;
-const voiceGain = 0.12;
+const implicitHoldMs = 120;
+const implicitReleaseSeconds = 0.26;
+const explicitReleaseSeconds = 0.18;
+const retriggerFadeSeconds = 0.045;
+const cleanupFadeSeconds = 0.015;
+const attackSeconds = 0.0008;
+// Leave headroom for overlapping voices using the bundled samples.
+const voiceGain = 0.065;
 const maxVoices = 32;
 
 type Voice = {
+  key: string;
+  hasExplicitDuration: boolean;
   source: AudioBufferSourceNode;
   gain: GainNode;
   releaseAt: number;
+  stopAt: number;
   speed: number;
 };
 
@@ -55,9 +63,24 @@ export function createPreviewPiano() {
   }
 
   function scheduleRelease(voice: Voice) {
+    const releaseSeconds = voice.hasExplicitDuration
+      ? explicitReleaseSeconds
+      : implicitReleaseSeconds;
+    voice.stopAt = voice.releaseAt + releaseSeconds;
     voice.gain.gain.setValueAtTime(voiceGain, voice.releaseAt);
-    voice.gain.gain.linearRampToValueAtTime(0, voice.releaseAt + releaseSeconds);
-    voice.source.stop(voice.releaseAt + releaseSeconds);
+    voice.gain.gain.exponentialRampToValueAtTime(voiceGain * 0.01, voice.stopAt - 0.005);
+    voice.gain.gain.linearRampToValueAtTime(0, voice.stopAt);
+    voice.source.stop(voice.stopAt);
+  }
+
+  function fadeVoice(voice: Voice, now: number, fadeSeconds: number) {
+    const end = now + fadeSeconds;
+    if (voice.stopAt <= end) return;
+    voice.releaseAt = now;
+    voice.stopAt = end;
+    voice.gain.gain.cancelAndHoldAtTime(now);
+    voice.gain.gain.linearRampToValueAtTime(0, end);
+    voice.source.stop(end);
   }
 
   function playGroup(notes: Note[], speed: number) {
@@ -67,7 +90,7 @@ export function createPreviewPiano() {
     const durations = new Map<string, number>();
     for (const note of notes) {
       const key = getPreviewKeyName(note.key);
-      const duration = isValidExplicitDuration(note.duration) ? note.duration : shortNoteMs;
+      const duration = isValidExplicitDuration(note.duration) ? note.duration : 0;
       durations.set(key, Math.max(durations.get(key) ?? 0, duration));
     }
 
@@ -77,10 +100,15 @@ export function createPreviewPiano() {
       if (!pianoNote) continue;
       const buffer = buffers.get(pianoNote.sample);
       if (!buffer) continue;
+      for (const voice of voices) {
+        if (voice.key === key && !voice.hasExplicitDuration) {
+          fadeVoice(voice, now, retriggerFadeSeconds);
+        }
+      }
       const oldest = voices.values().next().value;
       if (voices.size >= maxVoices && oldest) {
         voices.delete(oldest);
-        oldest.source.stop(now);
+        fadeVoice(oldest, now, cleanupFadeSeconds);
       }
 
       const source = audio.createBufferSource();
@@ -90,8 +118,17 @@ export function createPreviewPiano() {
       source.connect(gain);
       gain.connect(audio.destination);
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(voiceGain, now + Math.min(0.004, duration / speed / 1000));
-      const voice = { source, gain, releaseAt: now + duration / speed / 1000, speed };
+      const holdSeconds = (duration || implicitHoldMs) / speed / 1000;
+      gain.gain.linearRampToValueAtTime(voiceGain, now + Math.min(attackSeconds, holdSeconds));
+      const voice = {
+        key,
+        hasExplicitDuration: duration > 0,
+        source,
+        gain,
+        releaseAt: now + holdSeconds,
+        stopAt: now,
+        speed,
+      };
       voices.add(voice);
       source.onended = () => {
         voices.delete(voice);
@@ -118,13 +155,7 @@ export function createPreviewPiano() {
   function stop() {
     if (!context) return;
     const now = context.currentTime;
-    for (const voice of voices) {
-      const end = Math.min(now + releaseSeconds, voice.releaseAt + releaseSeconds);
-      if (end <= now) continue;
-      voice.gain.gain.cancelAndHoldAtTime(now);
-      voice.gain.gain.linearRampToValueAtTime(0, end);
-      voice.source.stop(end);
-    }
+    for (const voice of voices) fadeVoice(voice, now, cleanupFadeSeconds);
     voices.clear();
   }
 

@@ -280,7 +280,6 @@ export function usePreviewPlayback({
         },
         () => {
           const completedSongId = activePreviewSongIdRef.current;
-          pianoRef.current?.stop();
           resetActiveKeys();
           playbackControllerRef.current = null;
           activePreviewSongIdRef.current = null;
@@ -320,6 +319,7 @@ export function usePreviewPlayback({
           });
 
           if (finishDecision.type === "repeat-current") {
+            pianoRef.current?.stop();
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
@@ -329,6 +329,7 @@ export function usePreviewPlayback({
           }
 
           if (finishDecision.type === "play-next") {
+            pianoRef.current?.stop();
             const nextSong =
               currentLibrarySongs[finishDecision.nextSongIndex] ?? null;
             const logTemplate =
@@ -429,6 +430,7 @@ export function usePreviewPlayback({
 
   function handleStopPreview() {
     if (playbackControllerRef.current === null && pendingRequestRef.current === null) {
+      pianoRef.current?.stop();
       return;
     }
 
