@@ -1,12 +1,15 @@
 import { getPreviewKeyName, skyKeyNames } from "../types/keyMapping";
 import type { Note } from "../types/score";
 import { isValidExplicitDuration } from "./scoreTiming";
+import { defaultPreviewVolume } from "./previewAudioPreferences";
 import { previewInstrumentSamples, type PreviewInstrument } from "./previewInstrumentSamples";
 
 const keyIndices = new Map<string, number>(skyKeyNames.map((key, index) => [key, index]));
 const retriggerFadeSeconds = 0.045;
 const cleanupFadeSeconds = 0.015;
 const maxVoices = 32;
+// At full volume, a 15-note chord has headroom even at aligned sample peaks.
+const maxMasterGain = 1.6;
 
 type Voice = {
   key: string;
@@ -23,6 +26,8 @@ type Voice = {
 export function createPreviewInstrumentAudio() {
   let selected: PreviewInstrument = "piano";
   let context: AudioContext | undefined;
+  let master: GainNode | undefined;
+  let masterLevel = defaultPreviewVolume / 100 * maxMasterGain;
   const loading = new Map<PreviewInstrument, Promise<void>>();
   const banks = new Map<PreviewInstrument, Map<string, AudioBuffer>>();
   const voices = new Set<Voice>();
@@ -30,6 +35,11 @@ export function createPreviewInstrumentAudio() {
   async function prepare() {
     try {
       const audio = context ??= new AudioContext();
+      if (!master) {
+        master = audio.createGain();
+        master.gain.value = masterLevel;
+        master.connect(audio.destination);
+      }
       if (audio.state !== "running") void audio.resume().catch(() => {});
       const instrument = selected;
       if (!loading.has(instrument)) {
@@ -73,7 +83,7 @@ export function createPreviewInstrumentAudio() {
   function playGroup(notes: Note[], speed: number) {
     const audio = context;
     const buffers = banks.get(selected);
-    if (audio?.state !== "running" || !buffers) return;
+    if (audio?.state !== "running" || !buffers || !master) return;
     const instrument = previewInstrumentSamples[selected];
 
     const durations = new Map<string, number>();
@@ -111,7 +121,7 @@ export function createPreviewInstrumentAudio() {
         source.loopEnd = sample.loopEndFrame / 44100;
       }
       source.connect(gain);
-      gain.connect(audio.destination);
+      gain.connect(master);
       gain.gain.setValueAtTime(0, now);
       const holdSeconds = (duration || instrument.implicitHoldMs) / speed / 1000;
       gain.gain.linearRampToValueAtTime(instrument.gain, now + Math.min(instrument.attackSeconds, holdSeconds));
@@ -158,10 +168,20 @@ export function createPreviewInstrumentAudio() {
 
   function dispose() {
     stop();
+    master?.disconnect();
+    master = undefined;
     void context?.close().catch(() => {});
     context = undefined;
     loading.clear();
     banks.clear();
+  }
+
+  function setVolume(volume: number, muted: boolean) {
+    masterLevel = muted ? 0 : volume / 100 * maxMasterGain;
+    if (!context || !master) return;
+    const now = context.currentTime;
+    master.gain.cancelAndHoldAtTime(now);
+    master.gain.linearRampToValueAtTime(masterLevel, now + 0.015);
   }
 
   function selectInstrument(instrument: PreviewInstrument) {
@@ -170,5 +190,5 @@ export function createPreviewInstrumentAudio() {
     selected = instrument;
   }
 
-  return { prepare, playGroup, selectInstrument, updateSpeed, stop, dispose };
+  return { prepare, playGroup, selectInstrument, setVolume, updateSpeed, stop, dispose };
 }

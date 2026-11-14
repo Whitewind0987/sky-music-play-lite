@@ -102,6 +102,7 @@ type UseAppPersistenceOptions = {
   playbackMode: PlaybackMode;
   playbackShortcuts: PlaybackShortcuts;
   playbackSpeed: PlaybackSpeed;
+  previewAudio: PersistedAppData["playbackSettings"]["previewAudio"];
   playlists: UserPlaylist[];
   selectedLibraryCategory: LibraryCategoryId;
   selectedPlaylistId: string | null;
@@ -203,6 +204,7 @@ export function useAppPersistence({
   playbackMode,
   playbackShortcuts,
   playbackSpeed,
+  previewAudio,
   playlists,
   selectedLibraryCategory,
   selectedPlaylistId,
@@ -271,6 +273,7 @@ export function useAppPersistence({
       playbackMode,
       playbackShortcuts,
       playbackSpeed,
+      previewAudio,
       playlists,
       selectedLibraryCategory,
       selectedPlaylistId,
@@ -617,6 +620,7 @@ export function useAppPersistence({
     playbackMode,
     playbackShortcuts,
     playbackSpeed,
+    previewAudio,
     playlists,
     selectedLibraryCategory,
     selectedPlaylistId,

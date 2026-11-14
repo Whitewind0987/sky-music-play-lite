@@ -50,6 +50,8 @@ function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<Player
     onNoteIntervalDelayChange: noop,
     onPause: noop,
     onPreviewAudioToggle: noop,
+    onPreviewVolumeChange: noop,
+    previewVolume: 70,
     onPreviewInstrumentChange: noop,
     onPlay: noop,
     onPlaybackSpeedChange: noop,
@@ -91,18 +93,21 @@ function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<Player
 it("shows the audio controls only for preview output and announces their state", () => {
   const onPreviewAudioToggle = vi.fn();
   const findToggle = (props: Partial<PlayerProps>) =>
-    findDiv(renderPlayer(false, true, props).tree, "bottom-player-piano-button");
+    findDiv(renderPlayer(false, true, props).tree, "bottom-player-speaker-button");
   const muted = findToggle({ onPreviewAudioToggle });
   expect(muted?.props).toMatchObject({ "aria-label": "Enable preview audio", "aria-pressed": false });
-  expect(muted?.props.onClick).toBe(onPreviewAudioToggle);
+  muted?.props.onClick?.({} as never);
+  expect(onPreviewAudioToggle).toHaveBeenCalledOnce();
+  const slider = findDiv(renderPlayer(false, true, { previewVolume: 38 }).tree, "bottom-player-volume-slider");
+  expect(slider?.props).toMatchObject({ value: 38, "aria-label": "Preview volume", "aria-valuetext": "38%" });
   expect(findToggle({ isPreviewAudioEnabled: true })?.props).toMatchObject({
     "aria-label": "Disable preview audio",
     "aria-pressed": true,
   });
   expect(findToggle({ isRealInputOutput: true })).toBeUndefined();
-  expect(findDiv(renderPlayer(false, true, { previewInstrument: "violin" }).tree, "library-sort-trigger")
+  expect(findDiv(renderPlayer(false, true, { previewInstrument: "violin" }).tree, "bottom-player-instrument-button")
     ?.props).toMatchObject({ "aria-label": "Preview instrument: Violin" });
-  expect(findDiv(renderPlayer(false, true, { isRealInputOutput: true }).tree, "library-sort-trigger"))
+  expect(findDiv(renderPlayer(false, true, { isRealInputOutput: true }).tree, "bottom-player-instrument-button"))
     .toBeUndefined();
 });
 

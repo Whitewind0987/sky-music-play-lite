@@ -770,6 +770,7 @@ describe("sanitizePersistedAppData current version", () => {
         noteIntervalDelayMs: 123,
         playbackMode: "repeat-all",
         playbackSpeed: 1.17,
+        previewAudio: { volume: 38, muted: false },
       },
       playbackShortcuts: {
         next: {
@@ -787,6 +788,9 @@ describe("sanitizePersistedAppData current version", () => {
     expect(raw).toEqual(snapshot);
     expect(result?.playbackShortcuts.next).toEqual(raw.playbackShortcuts.next);
     expect(result?.playbackSettings).toEqual(raw.playbackSettings);
+    expect(sanitizePersistedAppData({
+      ...raw, playbackSettings: { previewAudio: { volume: 190, muted: "false" } },
+    })?.playbackSettings.previewAudio).toEqual({ volume: 100, muted: true });
     expect(result?.alwaysOnTop).toBe(true);
     expect(result?.language).toBe("en-US");
   });

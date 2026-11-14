@@ -90,10 +90,10 @@ describe("offline preview piano", () => {
       { key: "Key0", time: 0 },
       { key: "Key4", time: 0, duration: 1000 },
     ], 2);
-    expect(gains[0].gain.linearRampToValueAtTime.mock.calls[0][1]).toBeCloseTo(10.0008, 5);
-    expect(gains[0].gain.exponentialRampToValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.315);
+    expect(gains[1].gain.linearRampToValueAtTime.mock.calls[0][1]).toBeCloseTo(10.0008, 5);
+    expect(gains[1].gain.exponentialRampToValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.315);
     expect(voices[0].stop.mock.lastCall?.[0]).toBeCloseTo(10.32);
-    expect(gains[1].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.5);
+    expect(gains[2].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.5);
     expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(10.68);
 
     context.currentTime = 10.1;
@@ -104,11 +104,11 @@ describe("offline preview piano", () => {
 
     context.currentTime = 10.2;
     piano.updateSpeed(1);
-    expect(gains[1].gain.cancelScheduledValues).toHaveBeenCalledWith(10.5);
-    expect(gains[1].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.8);
+    expect(gains[2].gain.cancelScheduledValues).toHaveBeenCalledWith(10.5);
+    expect(gains[2].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.8);
     expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(10.98);
     piano.stop();
-    expect(gains[1].gain.cancelAndHoldAtTime).toHaveBeenCalledWith(10.2);
+    expect(gains[2].gain.cancelAndHoldAtTime).toHaveBeenCalledWith(10.2);
     expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(10.215);
     context.currentTime = 11;
     piano.playGroup([{ key: "Key4", time: 1200 }], 1);
@@ -149,8 +149,9 @@ describe("offline preview piano", () => {
     expect(voices.map(({ buffer, playbackRate }) =>
       Math.round(violinRoots.get(String(buffer))! + 12 * Math.log2(playbackRate.value)),
     )).toEqual([60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84]);
-    expect(voices[0]).toMatchObject({ loop: true, loopStart: 1, loopEnd: 106496 / 44100 });
+    expect(voices[0]).toMatchObject({ loop: true, loopStart: 1, loopEnd: 119840 / 44100 });
     expect(voices[0].stop).toHaveBeenCalledWith(13.28);
+    expect(voices[0].playbackRate.value).toBeCloseTo(2 ** (-0.2 / 12), 8);
 
     audio.selectInstrument("guitar");
     expect(voices[0].stop).toHaveBeenLastCalledWith(10.015);
@@ -167,5 +168,29 @@ describe("offline preview piano", () => {
     audio.selectInstrument("violin");
     await audio.prepare();
     expect(fetchSample).toHaveBeenCalledTimes(24);
+  });
+
+  it("ramps the shared gain for active voices and restores volume after mute and bank changes", async () => {
+    const { gains, voices } = mockAudio();
+    const audio = createPreviewInstrumentAudio();
+    audio.setVolume(38, false);
+    await audio.prepare();
+    audio.playGroup([{ key: "Key0", time: 0, duration: 1000 }], 1);
+    const master = gains[0];
+    expect(master.gain).toHaveProperty("value", 0.38 * 1.6);
+    expect(gains[1].connect).toHaveBeenCalledWith(master);
+    audio.setVolume(38, true);
+    expect(master.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.015);
+    expect(voices[0].stop).toHaveBeenCalledTimes(1);
+    audio.setVolume(38, false);
+    expect(master.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0.38 * 1.6, 10.015);
+    audio.setVolume(0, false);
+    expect(master.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.015);
+    audio.setVolume(38, false);
+    audio.selectInstrument("guitar");
+    await audio.prepare();
+    audio.playGroup([{ key: "Key0", time: 0 }], 1);
+    expect(gains[2].connect).toHaveBeenCalledWith(master);
+    expect(master.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0.38 * 1.6, 10.015);
   });
 });

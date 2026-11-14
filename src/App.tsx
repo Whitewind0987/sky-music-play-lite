@@ -300,6 +300,7 @@ function App() {
       experimentalInput.applyExperimentalInputPreferences,
     applyKeyMapping,
     applyPlaybackSettings: previewPlayback.applyPlaybackSettings,
+    previewAudio: previewPlayback.previewAudio,
     applyPlaybackShortcuts: playbackShortcutsController.setPlaybackShortcuts,
     applyScoreLibrary: scoreLibrary.applyScoreLibrary,
     applyUiScale: uiScale.applyPersistedUiScale,
@@ -1204,6 +1205,8 @@ function App() {
         onVisualizationOpen={playerScoreVisualization.open}
         onPause={playbackOutput.onPause}
         onPreviewAudioToggle={previewPlayback.handlePreviewAudioToggle}
+        onPreviewVolumeChange={previewPlayback.handlePreviewVolumeChange}
+        previewVolume={previewPlayback.previewAudio.volume}
         onPreviewInstrumentChange={previewPlayback.handlePreviewInstrumentChange}
         onManualStep={playbackOutput.onManualStep}
         onManualStepHoldBegin={playbackOutput.onManualStepHoldBegin}

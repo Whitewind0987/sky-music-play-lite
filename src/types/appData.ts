@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Whitewind0987 and contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { PreviewAudioPreferences } from "../lib/previewAudioPreferences";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { UiScale } from "../lib/uiScale";
 import type { LibrarySortingPreferences } from "./librarySorting";
@@ -63,6 +64,7 @@ export type PersistedAppData = {
   };
   playbackShortcuts: PlaybackShortcuts;
   playbackSettings: {
+    previewAudio?: PreviewAudioPreferences;
     isShuffleEnabled: boolean;
     noteIntervalDelayMs: NoteIntervalDelayMs;
     playbackMode: PlaybackMode;

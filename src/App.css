@@ -4831,6 +4831,71 @@ button {
   gap: 10px;
 }
 
+.bottom-player-volume {
+  position: relative;
+  display: grid;
+}
+
+.bottom-player-volume-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  z-index: 5;
+  visibility: hidden;
+  transform: translateX(-50%);
+  padding-bottom: 5px;
+}
+
+.bottom-player-volume:hover .bottom-player-volume-popup,
+.bottom-player-volume:has(:focus-visible) .bottom-player-volume-popup,
+.bottom-player-volume[data-dragging="true"] .bottom-player-volume-popup {
+  visibility: visible;
+}
+
+.bottom-player-volume-panel {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 48px;
+  padding: 12px 5px 7px;
+  border: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 14%);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bottom-player-volume-track {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 92px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bottom-player-volume-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  appearance: none;
+  width: 6px;
+  height: 92px;
+  margin: 0;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, CanvasText 20%, Canvas);
+  pointer-events: none;
+}
+
+.bottom-player-volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--app-primary);
+}
+
 .bottom-player-output {
   order: 1;
   min-width: 0;

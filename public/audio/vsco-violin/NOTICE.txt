@@ -1,4 +1,4 @@
-VSCO 2 Community Edition — Solo Violin, Arco Vib (forte)
+VSCO 2 Community Edition — Solo Violin, Arco Vib (piano layer)
 Versilian Studios
 CC0 1.0 Universal (see CC0.txt)
 https://creativecommons.org/publicdomain/zero/1.0/
@@ -7,7 +7,9 @@ SFZ mapping: https://github.com/sgossner/VSCO-2-CE/blob/1.1.0/SViolinVib.sfz
 
 Nine stereo 44.1 kHz 16-bit PCM files retain their original bowed attack.
 The source SFZ and WAVs do not define sustain loops. For each sample, the
-80 ms before frame 44100 was matched against stereo waveform windows ending
-between seconds 2 and 3. The chosen ending was crossfaded into that window
+120 ms before frame 44100 was matched against stereo waveform windows ending
+between seconds 2 and 3 using waveform correlation and energy similarity.
+The chosen ending was crossfaded into that window
 with a raised-cosine curve and the unused recording tail was removed.
 Playback loops from frame 44100 to the end of the resulting file.
+Playback applies the SFZ's -20 cent tuning correction to the C4 sample region.

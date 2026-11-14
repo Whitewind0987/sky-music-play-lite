@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 wjhhuizi (LemonGo)
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { normalizePreviewVolume, type PreviewAudioPreferences } from "./previewAudioPreferences";
 import type { LibraryCategoryId } from "../components/AppShell";
 import type { LanguageCode } from "../i18n/uiText";
 import {
@@ -188,6 +189,7 @@ export function buildPersistedAppData({
   playbackMode,
   playbackShortcuts,
   playbackSpeed,
+  previewAudio,
   playlists,
   validCollectionSongIds,
   selectedLibraryCategory,
@@ -213,6 +215,7 @@ export function buildPersistedAppData({
   playbackMode: PlaybackMode;
   playbackShortcuts: PlaybackShortcuts;
   playbackSpeed: number;
+  previewAudio?: PreviewAudioPreferences;
   playlists: UserPlaylist[];
   validCollectionSongIds?: string[];
   selectedLibraryCategory: LibraryCategoryId;
@@ -274,6 +277,7 @@ export function buildPersistedAppData({
     },
     playbackShortcuts: sanitizePlaybackShortcuts(playbackShortcuts),
     playbackSettings: {
+      ...(previewAudio && { previewAudio: sanitizePreviewAudio(previewAudio) }),
       isShuffleEnabled,
       noteIntervalDelayMs: normalizeNoteIntervalDelay(noteIntervalDelayMs),
       playbackMode,
@@ -438,7 +442,9 @@ function sanitizePlaybackSettings(
     ? rawPlaybackSettings
     : {};
 
+  const previewAudio = playbackSettings.previewAudio;
   return {
+    ...(isRecord(previewAudio) && { previewAudio: sanitizePreviewAudio(previewAudio) }),
     isShuffleEnabled:
       typeof playbackSettings.isShuffleEnabled === "boolean"
         ? playbackSettings.isShuffleEnabled
@@ -457,6 +463,10 @@ function sanitizePlaybackSettings(
       defaultPlaybackSpeed,
     ),
   };
+}
+
+function sanitizePreviewAudio(value: Record<string, unknown>): PreviewAudioPreferences {
+  return { volume: normalizePreviewVolume(value.volume), muted: value.muted !== false };
 }
 
 function sanitizeExperimentalInputPreferences(

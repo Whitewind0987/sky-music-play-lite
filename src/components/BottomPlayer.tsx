@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronDown, Minus, Plus, Volume2, VolumeX } from "lucide-react";
+import { Check, Minus, Plus, SlidersHorizontal, Volume2, VolumeX } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -66,6 +66,8 @@ type BottomPlayerProps = {
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
   onPreviewAudioToggle: () => void;
+  onPreviewVolumeChange: (volume: number) => void;
+  previewVolume: number;
   onPreviewInstrumentChange: (instrument: PreviewInstrument) => void;
   onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
   onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
@@ -243,6 +245,8 @@ export function BottomPlayer({
   onPlayQueueItem,
   onPause,
   onPreviewAudioToggle,
+  onPreviewVolumeChange,
+  previewVolume,
   onPreviewInstrumentChange,
   onManualStepHoldBegin,
   onManualStepHoldEnd,
@@ -270,7 +274,7 @@ export function BottomPlayer({
   text,
 }: BottomPlayerProps) {
   const audioLabel = isPreviewAudioEnabled ? text.disablePreviewAudio : text.enablePreviewAudio;
-  const AudioIcon = isPreviewAudioEnabled ? Volume2 : VolumeX;
+  const AudioIcon = isPreviewAudioEnabled && previewVolume > 0 ? Volume2 : VolumeX;
   const progressTrackRef = useRef<HTMLDivElement | null>(null);
   const dragPreviewClearFrameRef = useRef<number | null>(null);
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -279,6 +283,47 @@ export function BottomPlayer({
   const [isProgressDragging, setIsProgressDragging] = useState(false);
   const [isProgressHovering, setIsProgressHovering] = useState(false);
   const [isManualStepPointerHeld, setIsManualStepPointerHeld] = useState(false);
+  const [isVolumeDragging, setIsVolumeDragging] = useState(false);
+  const volumeDragRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (isRealInputOutput) {
+      volumeDragRef.current?.abort();
+      setIsVolumeDragging(false);
+    }
+    return () => volumeDragRef.current?.abort();
+  }, [isRealInputOutput]);
+
+  function handleVolumePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const track = event.currentTarget.getBoundingClientRect();
+    const pointerId = event.pointerId;
+    volumeDragRef.current?.abort();
+    const listeners = new AbortController();
+    volumeDragRef.current = listeners;
+    const update = (clientY: number) => {
+      const fraction = (track.bottom - clientY) / track.height;
+      onPreviewVolumeChange(Math.round(100 * Math.max(0, Math.min(1, fraction))));
+    };
+    const finish = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId) return;
+      listeners.abort();
+      setIsVolumeDragging(false);
+    };
+    const options = { signal: listeners.signal };
+    window.addEventListener("pointermove", pointer => {
+      if (pointer.pointerId === pointerId) update(pointer.clientY);
+    }, options);
+    window.addEventListener("pointerup", finish, options);
+    window.addEventListener("pointercancel", finish, options);
+    window.addEventListener("blur", () => {
+      listeners.abort();
+      setIsVolumeDragging(false);
+    }, options);
+    setIsVolumeDragging(true);
+    update(event.clientY);
+  }
   const onManualStepRef = useRef(onManualStep);
   const onManualStepHoldBeginRef = useRef(onManualStepHoldBegin);
   const onManualStepHoldEndRef = useRef(onManualStepHoldEnd);
@@ -849,29 +894,57 @@ export function BottomPlayer({
 
             {!isRealInputOutput && (
               <>
-                <button
-                  className={`player-icon-button player-icon-button-secondary player-icon-button-toggle bottom-player-piano-button${isPreviewAudioEnabled ? " is-active" : ""}`}
-                  type="button"
-                  aria-label={audioLabel}
-                  aria-pressed={isPreviewAudioEnabled}
-                  title={audioLabel}
-                  onClick={onPreviewAudioToggle}
-                >
-                  <AudioIcon className="player-icon" aria-hidden="true" focusable="false" />
-                </button>
+                <div className="bottom-player-volume" data-dragging={isVolumeDragging}>
+                  <button
+                    className="player-icon-button player-icon-button-secondary bottom-player-speaker-button"
+                    type="button"
+                    aria-label={audioLabel}
+                    aria-pressed={isPreviewAudioEnabled}
+                    title={audioLabel}
+                    onClick={onPreviewAudioToggle}
+                  >
+                    <AudioIcon className="player-icon" aria-hidden="true" focusable="false" />
+                  </button>
+                  <div className="bottom-player-volume-popup">
+                    <div className="bottom-player-volume-panel">
+                      <div
+                        className="bottom-player-volume-track"
+                        onPointerDown={handleVolumePointerDown}
+                      >
+                        <input
+                          className="bottom-player-volume-slider"
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={previewVolume}
+                          aria-label={text.previewVolume}
+                          aria-valuetext={`${previewVolume}%`}
+                          aria-orientation="vertical"
+                          style={{ backgroundImage: `linear-gradient(to top, var(--app-primary) ${previewVolume}%, transparent ${previewVolume}%)` }}
+                          onChange={event => onPreviewVolumeChange(event.currentTarget.valueAsNumber)}
+                          onKeyDown={event => {
+                            if (event.key === "Escape") event.currentTarget.blur();
+                          }}
+                        />
+                      </div>
+                      <span aria-hidden="true">{previewVolume}%</span>
+                    </div>
+                  </div>
+                </div>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger asChild>
                     <button
-                      className="library-sort-trigger"
+                      className="player-icon-button player-icon-button-secondary bottom-player-instrument-button"
                       type="button"
                       aria-label={`${text.previewInstrument}: ${text.previewInstruments[previewInstrument]}`}
+                      title={text.previewInstrument}
                     >
-                      <span>{text.previewInstruments[previewInstrument]}</span>
-                      <ChevronDown aria-hidden="true" />
+                      <SlidersHorizontal className="player-icon" aria-hidden="true" />
                     </button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Portal>
-                    <DropdownMenu.Content className="library-sort-menu" side="top" align="end" sideOffset={6}>
+                    <DropdownMenu.Content className="library-sort-menu" side="top" align="end" sideOffset={6} collisionPadding={8}>
+                      <DropdownMenu.Label className="library-sort-note">{text.previewInstrument}</DropdownMenu.Label>
                       <DropdownMenu.RadioGroup value={previewInstrument} onValueChange={value => {
                         const instrument = previewInstruments.find(candidate => candidate === value);
                         if (instrument) onPreviewInstrumentChange(instrument);
