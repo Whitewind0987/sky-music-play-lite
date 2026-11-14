@@ -3,17 +3,14 @@ import type { Note } from "../types/score";
 import { isValidExplicitDuration } from "./scoreTiming";
 
 const pianoPitches = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
-const samples = [
-  [60, "C4"], [63, "Ds4"], [66, "Fs4"], [69, "A4"], [72, "C5"],
-  [75, "Ds5"], [78, "Fs5"], [81, "A5"], [84, "C6"],
-] as const;
-const pianoNotes = new Map<string, { sample: string; rate: number }>();
+const samples = [60, 62, 64, 68, 72, 74, 76, 80, 84];
+const pianoNotes = new Map<string, { sample: number; rate: number }>();
 skyKeyNames.forEach((key, index) => {
   const pitch = pianoPitches[index];
-  const [samplePitch, sample] = samples.reduce((nearest, candidate) =>
-    Math.abs(candidate[0] - pitch) < Math.abs(nearest[0] - pitch) ? candidate : nearest,
+  const sample = samples.reduce((nearest, candidate) =>
+    Math.abs(candidate - pitch) < Math.abs(nearest - pitch) ? candidate : nearest,
   );
-  pianoNotes.set(key, { sample, rate: 2 ** ((pitch - samplePitch) / 12) });
+  pianoNotes.set(key, { sample, rate: 2 ** ((pitch - sample) / 12) });
 });
 
 const implicitHoldMs = 120;
@@ -39,17 +36,17 @@ type Voice = {
 export function createPreviewPiano() {
   let context: AudioContext | undefined;
   let loading: Promise<void> | undefined;
-  const buffers = new Map<string, AudioBuffer>();
+  const buffers = new Map<number, AudioBuffer>();
   const voices = new Set<Voice>();
 
   async function prepare() {
     try {
       const audio = context ??= new AudioContext();
       if (audio.state !== "running") void audio.resume().catch(() => {});
-      loading ??= Promise.all(samples.map(async ([, name]) => {
-        const response = await fetch(`${import.meta.env.BASE_URL}audio/salamander/${name}.mp3`);
-        if (!response.ok) throw new Error(`Could not load piano sample ${name}`);
-        return [name, await audio.decodeAudioData(await response.arrayBuffer())] as const;
+      loading ??= Promise.all(samples.map(async (pitch) => {
+        const response = await fetch(`${import.meta.env.BASE_URL}audio/steinway-b/${pitch}_v3.m4a`);
+        if (!response.ok) throw new Error(`Could not load piano sample ${pitch}`);
+        return [pitch, await audio.decodeAudioData(await response.arrayBuffer())] as const;
       })).then((decoded) => {
         if (context !== audio) return;
         for (const [name, buffer] of decoded) buffers.set(name, buffer);

@@ -60,22 +60,21 @@ describe("offline preview piano", () => {
     const { voices, fetchSample } = mockAudio();
     const piano = createPreviewPiano();
     await Promise.all([piano.prepare(), piano.prepare()]);
-    expect(fetchSample).toHaveBeenCalledTimes(9);
-    expect(fetchSample).toHaveBeenCalledWith("/audio/salamander/C4.mp3");
+    expect(fetchSample.mock.calls.flat()).toEqual(
+      [60, 62, 64, 68, 72, 74, 76, 80, 84].map((pitch) => `/audio/steinway-b/${pitch}_v3.m4a`),
+    );
 
     piano.playGroup(Array.from({ length: 15 }, (_, index) => ({
       key: `1Key${index}`,
       time: 0,
     })), 1);
 
-    const samplePitches = new Map([
-      ["C4.mp3", 60], ["Ds4.mp3", 63], ["Fs4.mp3", 66], ["A4.mp3", 69],
-      ["C5.mp3", 72], ["Ds5.mp3", 75], ["Fs5.mp3", 78], ["A5.mp3", 81], ["C6.mp3", 84],
-    ]);
-    expect(voices.map(({ buffer, playbackRate }) => {
-      const pitch = samplePitches.get(String(buffer))!;
-      return Math.round(pitch + 12 * Math.log2(playbackRate.value));
-    })).toEqual([60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84]);
+    const samplePitches = voices.map(({ buffer }) => Number.parseInt(String(buffer), 10));
+    expect(samplePitches).toEqual([60, 62, 64, 64, 68, 68, 72, 72, 74, 76, 76, 80, 80, 84, 84]);
+    voices.forEach(({ playbackRate }, index) => {
+      const expectedPitch = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84][index];
+      expect(samplePitches[index] + 12 * Math.log2(playbackRate.value)).toBeCloseTo(expectedPitch, 8);
+    });
     expect(voices.map(({ start }) => start.mock.calls[0])).toEqual(Array(15).fill([10]));
   });
 
