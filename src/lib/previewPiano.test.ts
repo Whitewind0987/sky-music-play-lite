@@ -39,6 +39,9 @@ function mockAudio() {
       buffer: null,
       connect: vi.fn(),
       disconnect: vi.fn(),
+      loop: false,
+      loopStart: 0,
+      loopEnd: 0,
       playbackRate: { value: 1 },
       start: vi.fn(),
       stop: vi.fn(),
@@ -61,7 +64,8 @@ describe("offline preview piano", () => {
     const piano = createPreviewPiano();
     await Promise.all([piano.prepare(), piano.prepare()]);
     expect(fetchSample.mock.calls.flat()).toEqual(
-      [60, 62, 64, 68, 72, 74, 76, 80, 84].map((pitch) => `/audio/steinway-b/${pitch}_v3.m4a`),
+      ["C4", "Ds4", "Fs4", "A4", "C5", "Ds5", "Fs5", "A5", "C6"]
+        .map((name) => `/audio/upright-piano-kw-bright/${name}vH.wav`),
     );
 
     piano.playGroup(Array.from({ length: 15 }, (_, index) => ({
@@ -69,13 +73,23 @@ describe("offline preview piano", () => {
       time: 0,
     })), 1);
 
-    const samplePitches = voices.map(({ buffer }) => Number.parseInt(String(buffer), 10));
-    expect(samplePitches).toEqual([60, 62, 64, 64, 68, 68, 72, 72, 74, 76, 76, 80, 80, 84, 84]);
+    const roots = new Map([
+      ["C4vH.wav", 60], ["Ds4vH.wav", 63], ["Fs4vH.wav", 66],
+      ["A4vH.wav", 69], ["C5vH.wav", 72], ["Ds5vH.wav", 75],
+      ["Fs5vH.wav", 78], ["A5vH.wav", 81], ["C6vH.wav", 84],
+    ]);
+    const samplePitches = voices.map(({ buffer }) => roots.get(String(buffer))!);
+    expect(samplePitches).toEqual([60, 63, 63, 66, 66, 69, 72, 72, 75, 75, 78, 78, 81, 84, 84]);
     voices.forEach(({ playbackRate }, index) => {
       const expectedPitch = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84][index];
       expect(samplePitches[index] + 12 * Math.log2(playbackRate.value)).toBeCloseTo(expectedPitch, 8);
     });
     expect(voices.map(({ start }) => start.mock.calls[0])).toEqual(Array(15).fill([10]));
+    expect(voices.map(({ loop }) => loop)).toEqual([
+      true, true, true, true, true, false, false, false, false, false, false, false, false, false, false,
+    ]);
+    expect(voices[0].loopStart).toBeCloseTo(145927 / 44100, 8);
+    expect(voices[0].loopEnd).toBeCloseTo(213380 / 44100, 8);
   });
 
   it("scales V1 and V2 holds, adjusts a live hold, and fades voices before the next group", async () => {
@@ -90,7 +104,7 @@ describe("offline preview piano", () => {
     expect(gains[0].gain.exponentialRampToValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.315);
     expect(voices[0].stop.mock.lastCall?.[0]).toBeCloseTo(10.32);
     expect(gains[1].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.5);
-    expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(10.68);
+    expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(11.1);
 
     context.currentTime = 10.1;
     piano.playGroup([{ key: "Key0", time: 200 }], 2);
@@ -102,7 +116,7 @@ describe("offline preview piano", () => {
     piano.updateSpeed(1);
     expect(gains[1].gain.cancelScheduledValues).toHaveBeenCalledWith(10.5);
     expect(gains[1].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.8);
-    expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(10.98);
+    expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(11.4);
     piano.stop();
     expect(gains[1].gain.cancelAndHoldAtTime).toHaveBeenCalledWith(10.2);
     expect(voices[1].stop.mock.lastCall?.[0]).toBeCloseTo(10.215);

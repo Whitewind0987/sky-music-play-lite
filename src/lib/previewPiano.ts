@@ -3,24 +3,42 @@ import type { Note } from "../types/score";
 import { isValidExplicitDuration } from "./scoreTiming";
 
 const pianoPitches = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
-const samples = [60, 62, 64, 68, 72, 74, 76, 80, 84];
-const pianoNotes = new Map<string, { sample: number; rate: number }>();
+type SampleRegion = {
+  root: number;
+  low: number;
+  high: number;
+  name: string;
+  loop?: readonly [startFrame: number, endFrame: number];
+};
+
+// Regions and inclusive loop endpoints from the 2019-07-03 Bright SFZ.
+const samples: SampleRegion[] = [
+  { root: 60, low: 59, high: 61, name: "C4", loop: [145927, 213379] },
+  { root: 63, low: 62, high: 64, name: "Ds4", loop: [151896, 217597] },
+  { root: 66, low: 65, high: 67, name: "Fs4", loop: [138527, 185330] },
+  { root: 69, low: 68, high: 70, name: "A4" },
+  { root: 72, low: 71, high: 73, name: "C5" },
+  { root: 75, low: 74, high: 76, name: "Ds5" },
+  { root: 78, low: 77, high: 79, name: "Fs5" },
+  { root: 81, low: 80, high: 82, name: "A5" },
+  { root: 84, low: 83, high: 85, name: "C6" },
+];
+const sampleRate = 44100;
+const pianoNotes = new Map<string, { sample: SampleRegion; rate: number }>();
 skyKeyNames.forEach((key, index) => {
   const pitch = pianoPitches[index];
-  const sample = samples.reduce((nearest, candidate) =>
-    Math.abs(candidate - pitch) < Math.abs(nearest - pitch) ? candidate : nearest,
-  );
-  pianoNotes.set(key, { sample, rate: 2 ** ((pitch - sample) / 12) });
+  const sample = samples.find(({ low, high }) => low <= pitch && pitch <= high);
+  if (sample) pianoNotes.set(key, { sample, rate: 2 ** ((pitch - sample.root) / 12) });
 });
 
 const implicitHoldMs = 120;
 const implicitReleaseSeconds = 0.26;
-const explicitReleaseSeconds = 0.18;
+const explicitReleaseSeconds = 0.6;
 const retriggerFadeSeconds = 0.045;
 const cleanupFadeSeconds = 0.015;
 const attackSeconds = 0.0008;
-// Leave headroom for overlapping voices using the bundled samples.
-const voiceGain = 0.065;
+// The Bright samples peak near full scale. Leave room for dense chords and fades.
+const voiceGain = 0.025;
 const maxVoices = 32;
 
 type Voice = {
@@ -43,10 +61,10 @@ export function createPreviewPiano() {
     try {
       const audio = context ??= new AudioContext();
       if (audio.state !== "running") void audio.resume().catch(() => {});
-      loading ??= Promise.all(samples.map(async (pitch) => {
-        const response = await fetch(`${import.meta.env.BASE_URL}audio/steinway-b/${pitch}_v3.m4a`);
-        if (!response.ok) throw new Error(`Could not load piano sample ${pitch}`);
-        return [pitch, await audio.decodeAudioData(await response.arrayBuffer())] as const;
+      loading ??= Promise.all(samples.map(async ({ root, name }) => {
+        const response = await fetch(`${import.meta.env.BASE_URL}audio/upright-piano-kw-bright/${name}vH.wav`);
+        if (!response.ok) throw new Error(`Could not load piano sample ${name}`);
+        return [root, await audio.decodeAudioData(await response.arrayBuffer())] as const;
       })).then((decoded) => {
         if (context !== audio) return;
         for (const [name, buffer] of decoded) buffers.set(name, buffer);
@@ -95,7 +113,7 @@ export function createPreviewPiano() {
     for (const [key, duration] of durations) {
       const pianoNote = pianoNotes.get(key);
       if (!pianoNote) continue;
-      const buffer = buffers.get(pianoNote.sample);
+      const buffer = buffers.get(pianoNote.sample.root);
       if (!buffer) continue;
       for (const voice of voices) {
         if (voice.key === key && !voice.hasExplicitDuration) {
@@ -112,6 +130,12 @@ export function createPreviewPiano() {
       const gain = audio.createGain();
       source.buffer = buffer;
       source.playbackRate.value = pianoNote.rate;
+      const loop = pianoNote.sample.loop;
+      if (loop) {
+        source.loop = true;
+        source.loopStart = loop[0] / sampleRate;
+        source.loopEnd = (loop[1] + 1) / sampleRate;
+      }
       source.connect(gain);
       gain.connect(audio.destination);
       gain.gain.setValueAtTime(0, now);
