@@ -105,8 +105,8 @@ it("shows the audio controls only for preview output and announces their state",
     "aria-pressed": true,
   });
   expect(findToggle({ isRealInputOutput: true })).toBeUndefined();
-  expect(findDiv(renderPlayer(false, true, { previewInstrument: "violin" }).tree, "bottom-player-instrument-button")
-    ?.props).toMatchObject({ "aria-label": "Preview instrument: Violin" });
+  expect(findDiv(renderPlayer(false, true, { previewInstrument: "guitar" }).tree, "bottom-player-instrument-button")
+    ?.props).toMatchObject({ "aria-label": "Preview instrument: Guitar" });
   expect(findDiv(renderPlayer(false, true, { isRealInputOutput: true }).tree, "bottom-player-instrument-button"))
     .toBeUndefined();
 });

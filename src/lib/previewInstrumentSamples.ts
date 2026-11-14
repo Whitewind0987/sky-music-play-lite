@@ -1,4 +1,4 @@
-export const previewInstruments = ["piano", "violin", "guitar"] as const;
+export const previewInstruments = ["piano", "guitar"] as const;
 export type PreviewInstrument = (typeof previewInstruments)[number];
 
 const pitches = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
@@ -40,14 +40,6 @@ export const previewInstrumentSamples: Record<PreviewInstrument, Instrument> = {
     implicitHoldMs: 120,
     implicitReleaseSeconds: 0.26,
     explicitReleaseSeconds: 0.18,
-  },
-  violin: {
-    directory: "iowa-violin",
-    notes: pitches.map(pitch => ({ file: `${pitch}.wav`, rate: 1 })),
-    attackSeconds: 0.018,
-    implicitHoldMs: 160,
-    implicitReleaseSeconds: 0.12,
-    explicitReleaseSeconds: 0.28,
   },
   guitar: {
     directory: "spanish-guitar",

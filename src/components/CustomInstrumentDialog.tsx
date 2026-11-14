@@ -9,6 +9,7 @@ import {
   customAudioExtension, customMaxFile, customMaxTotal, customSamplePitches,
   hasCustomAudioSignature, mapCustomSamples, resolveCustomSamples,
   customInstrumentNamingPrompt,
+  createCustomInstrumentSearchPrompt,
   type CustomArticulation, type CustomInstrument,
 } from "../lib/customInstruments";
 import { chooseCustomInstrumentFolder, deleteCustomInstrument, importCustomInstrument, renameCustomInstrument, setCustomInstrumentDisabled } from "../lib/tauriApi";
@@ -102,7 +103,7 @@ export function CustomInstrumentDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [promptCopied, setPromptCopied] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState<"naming" | "search" | null>(null);
   const busyRef = useRef(false);
   const stopRef = useRef(stopAudition);
   stopRef.current = stopAudition;
@@ -258,16 +259,22 @@ export function CustomInstrumentDialog({
                         }} />
                       </label>
                       <button className="language-option" type="button" disabled={busy || !files.length} onClick={() => autoMap(files)}>{text.auto}</button>
-                      <button type="button" className="library-import-button custom-instrument-copy-prompt" disabled={busy}
-                        onClick={() => void run(async () => {
-                          setPromptCopied(false);
-                          await navigator.clipboard.writeText(customInstrumentNamingPrompt);
-                          setPromptCopied(true);
-                        })}>
-                        {promptCopied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
-                        {text.copyPrompt}
-                        <span className="visually-hidden" role="status">{promptCopied ? text.promptCopied : ""}</span>
-                      </button>
+                      {([
+                        ["naming", customInstrumentNamingPrompt, text.copyPrompt, text.promptCopied],
+                        ["search", createCustomInstrumentSearchPrompt(name), text.copySearchPrompt, text.searchPromptCopied],
+                      ] as const).map(([kind, prompt, label, feedback]) => {
+                        const Icon = copiedPrompt === kind ? Check : Copy;
+                        return <button key={kind} type="button" className="library-import-button custom-instrument-copy-prompt" disabled={busy}
+                          onClick={() => void run(async () => {
+                            setCopiedPrompt(null);
+                            await navigator.clipboard.writeText(prompt);
+                            setCopiedPrompt(kind);
+                          })}>
+                          <Icon size={16} aria-hidden="true" />
+                          {label}
+                          <span className="visually-hidden" role="status">{copiedPrompt === kind ? feedback : ""}</span>
+                        </button>;
+                      })}
                     </div>
                     <p className="experimental-setting-description">{text.drop}</p>
                   </div>

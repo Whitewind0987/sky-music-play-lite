@@ -791,6 +791,9 @@ describe("sanitizePersistedAppData current version", () => {
     expect(sanitizePersistedAppData({
       ...raw, playbackSettings: { previewAudio: { volume: 190, muted: "false", instrumentId: "../outside" } },
     })?.playbackSettings.previewAudio).toEqual({ volume: 100, muted: true });
+    expect(sanitizePersistedAppData({
+      ...raw, playbackSettings: { previewAudio: { volume: 38, muted: false, instrumentId: "violin" } },
+    })?.playbackSettings.previewAudio).toEqual({ volume: 38, muted: false });
     expect(result?.alwaysOnTop).toBe(true);
     expect(result?.language).toBe("en-US");
   });
