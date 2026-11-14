@@ -11,7 +11,8 @@ import {
 } from "../lib/playbackScheduler";
 import { formatText } from "../lib/formatText";
 import { getLibrarySongName } from "../lib/libraryCollections";
-import { createPreviewPiano } from "../lib/previewPiano";
+import { createPreviewInstrumentAudio } from "../lib/previewInstrumentAudio";
+import type { PreviewInstrument } from "../lib/previewInstrumentSamples";
 import {
   applyNoteGroupToPreviewActiveKeys,
   getNextPreviewExpiryMs,
@@ -66,10 +67,11 @@ export function usePreviewPlayback({
   text,
 }: UsePreviewPlaybackOptions) {
   const playbackControllerRef = useRef<PreviewPlaybackController | null>(null);
-  const pianoRef = useRef<ReturnType<typeof createPreviewPiano> | null>(null);
-  const pianoOutputAllowedRef = useRef(true);
-  const pianoEnabledRef = useRef(false);
-  const [isPianoEnabled, setIsPianoEnabled] = useState(false);
+  const instrumentAudioRef = useRef<ReturnType<typeof createPreviewInstrumentAudio> | null>(null);
+  const audioOutputAllowedRef = useRef(true);
+  const previewAudioEnabledRef = useRef(false);
+  const [isPreviewAudioEnabled, setIsPreviewAudioEnabled] = useState(false);
+  const [previewInstrument, setPreviewInstrument] = useState<PreviewInstrument>("piano");
   const pendingRequestRef = useRef<object | null>(null);
   const activeKeyEntriesRef = useRef<PreviewActiveKeyEntry[]>([]);
   const activeKeyPruneTimerRef = useRef<number | null>(null);
@@ -128,7 +130,7 @@ export function usePreviewPlayback({
     return () => {
       pendingRequestRef.current = null;
       playbackControllerRef.current?.stop();
-      pianoRef.current?.dispose();
+      instrumentAudioRef.current?.dispose();
 
       if (activeKeyPruneTimerRef.current !== null) {
         window.clearTimeout(activeKeyPruneTimerRef.current);
@@ -198,7 +200,7 @@ export function usePreviewPlayback({
     pendingRequestRef.current = null;
     setIsPreviewStartPending(false);
     playbackControllerRef.current?.stop();
-    pianoRef.current?.stop();
+    instrumentAudioRef.current?.stop();
     playbackControllerRef.current = null;
     activePreviewSongIdRef.current = null;
     resetActiveKeys();
@@ -217,8 +219,8 @@ export function usePreviewPlayback({
       const previewSongId = librarySongsRef.current[songIndex]?.id ?? null;
       const [song] = await Promise.all([
         resolveSongForPlayback(songIndex),
-        pianoEnabledRef.current && pianoOutputAllowedRef.current
-          ? pianoRef.current?.prepare()
+        previewAudioEnabledRef.current && audioOutputAllowedRef.current
+          ? instrumentAudioRef.current?.prepare()
           : undefined,
       ]);
       const resolvedSongIndex = resolveActivePlaybackSongIndex({
@@ -261,8 +263,8 @@ export function usePreviewPlayback({
       playbackControllerRef.current = schedulePreviewPlayback(
         notes,
         (noteGroup) => {
-          if (pianoEnabledRef.current && pianoOutputAllowedRef.current) {
-            pianoRef.current?.playGroup(noteGroup, playbackSpeedRef.current);
+          if (previewAudioEnabledRef.current && audioOutputAllowedRef.current) {
+            instrumentAudioRef.current?.playGroup(noteGroup, playbackSpeedRef.current);
           }
           activeKeyEntriesRef.current = applyNoteGroupToPreviewActiveKeys(
             activeKeyEntriesRef.current,
@@ -319,7 +321,7 @@ export function usePreviewPlayback({
           });
 
           if (finishDecision.type === "repeat-current") {
-            pianoRef.current?.stop();
+            instrumentAudioRef.current?.stop();
             appendLog(
               formatText(text.logs.repeatOneTriggered, { songName: song.name }),
             );
@@ -329,7 +331,7 @@ export function usePreviewPlayback({
           }
 
           if (finishDecision.type === "play-next") {
-            pianoRef.current?.stop();
+            instrumentAudioRef.current?.stop();
             const nextSong =
               currentLibrarySongs[finishDecision.nextSongIndex] ?? null;
             const logTemplate =
@@ -412,7 +414,7 @@ export function usePreviewPlayback({
     }
 
     playbackControllerRef.current?.pause();
-    pianoRef.current?.stop();
+    instrumentAudioRef.current?.stop();
     resetActiveKeys();
     setPlaybackState("paused");
     appendLog(text.logs.previewPaused);
@@ -430,7 +432,7 @@ export function usePreviewPlayback({
 
   function handleStopPreview() {
     if (playbackControllerRef.current === null && pendingRequestRef.current === null) {
-      pianoRef.current?.stop();
+      instrumentAudioRef.current?.stop();
       return;
     }
 
@@ -455,7 +457,7 @@ export function usePreviewPlayback({
       return;
     }
 
-    pianoRef.current?.stop();
+    instrumentAudioRef.current?.stop();
     playbackControllerRef.current?.seekTo(timeMs);
   }
 
@@ -506,7 +508,7 @@ export function usePreviewPlayback({
 
     playbackSpeedRef.current = nextPlaybackSpeed;
     setPlaybackSpeed(nextPlaybackSpeed);
-    pianoRef.current?.updateSpeed(nextPlaybackSpeed);
+    instrumentAudioRef.current?.updateSpeed(nextPlaybackSpeed);
     playbackControllerRef.current?.updateOptions(nextOptions);
   }
 
@@ -540,25 +542,32 @@ export function usePreviewPlayback({
     setNoteIntervalDelayMs(nextNoteIntervalDelayMs);
     setPlaybackMode(nextPlaybackMode);
     setPlaybackSpeed(nextPlaybackSpeed);
-    pianoRef.current?.updateSpeed(nextPlaybackSpeed);
+    instrumentAudioRef.current?.updateSpeed(nextPlaybackSpeed);
     playbackControllerRef.current?.updateOptions(nextOptions);
   }
 
-  function handlePianoToggle() {
-    const enabled = !pianoEnabledRef.current;
-    pianoEnabledRef.current = enabled;
-    setIsPianoEnabled(enabled);
+  function handlePreviewAudioToggle() {
+    const enabled = !previewAudioEnabledRef.current;
+    previewAudioEnabledRef.current = enabled;
+    setIsPreviewAudioEnabled(enabled);
     if (enabled) {
-      const piano = pianoRef.current ??= createPreviewPiano();
-      void piano.prepare();
+      const audio = instrumentAudioRef.current ??= createPreviewInstrumentAudio();
+      void audio.prepare();
     } else {
-      pianoRef.current?.stop();
+      instrumentAudioRef.current?.stop();
     }
   }
 
-  const setPianoOutputAllowed = useCallback((allowed: boolean) => {
-    pianoOutputAllowedRef.current = allowed;
-    if (!allowed) pianoRef.current?.stop();
+  function handlePreviewInstrumentChange(instrument: PreviewInstrument) {
+    setPreviewInstrument(instrument);
+    const audio = instrumentAudioRef.current ??= createPreviewInstrumentAudio();
+    audio.selectInstrument(instrument);
+    if (previewAudioEnabledRef.current && audioOutputAllowedRef.current) void audio.prepare();
+  }
+
+  const setPreviewAudioOutputAllowed = useCallback((allowed: boolean) => {
+    audioOutputAllowedRef.current = allowed;
+    if (!allowed) instrumentAudioRef.current?.stop();
   }, []);
 
   return {
@@ -568,7 +577,8 @@ export function usePreviewPlayback({
     canPlayPreview,
     handleNoteIntervalDelayChange,
     handlePausePreview,
-    handlePianoToggle,
+    handlePreviewAudioToggle,
+    handlePreviewInstrumentChange,
     handlePlaybackSpeedChange,
     handlePlayImportedSong,
     handlePlayPreview,
@@ -579,7 +589,7 @@ export function usePreviewPlayback({
     handleStopPreview,
     getActivePreviewPlaybackSongId,
     isShuffleEnabled,
-    isPianoEnabled,
+    isPreviewAudioEnabled,
     isPreviewStartPending,
     noteIntervalDelayMs,
     playbackMode,
@@ -587,7 +597,8 @@ export function usePreviewPlayback({
     playbackSpeed,
     playbackState,
     previewDurationMs,
-    setPianoOutputAllowed,
+    previewInstrument,
+    setPreviewAudioOutputAllowed,
     stopCurrentPreview,
   };
 }

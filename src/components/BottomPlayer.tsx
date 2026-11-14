@@ -1,4 +1,5 @@
-import { Minus, Plus, Volume2, VolumeX } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Check, ChevronDown, Minus, Plus, Volume2, VolumeX } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -15,6 +16,7 @@ import {
   getLibrarySongNoteCount,
 } from "../lib/libraryCollections";
 import type { PreviewPlaybackProgress } from "../lib/playbackScheduler";
+import { previewInstruments, type PreviewInstrument } from "../lib/previewInstrumentSamples";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
 import type { ManualStepHoldSource } from "../lib/manualStepHoldController";
 import { createManualStepPointerGesture } from "../lib/manualStepPointerGesture";
@@ -51,7 +53,7 @@ type BottomPlayerProps = {
   canOpenVisualization: boolean;
   currentSong: LibrarySong | null;
   isCurrentSongLoading: boolean;
-  isPianoEnabled: boolean;
+  isPreviewAudioEnabled: boolean;
   isShuffleEnabled: boolean;
   isRealInputOutput: boolean;
   isVisualizationOpen: boolean;
@@ -63,7 +65,8 @@ type BottomPlayerProps = {
   onVisualizationOpen: () => void;
   onPlayQueueItem: (queueItem: PlaybackQueueItem) => void;
   onPause: () => void;
-  onPianoToggle: () => void;
+  onPreviewAudioToggle: () => void;
+  onPreviewInstrumentChange: (instrument: PreviewInstrument) => void;
   onManualStepHoldBegin: (source: ManualStepHoldSource) => void;
   onManualStepHoldEnd: (source: ManualStepHoldSource) => void;
   onManualStep: () => void;
@@ -83,6 +86,7 @@ type BottomPlayerProps = {
   playbackState: PlaybackState;
   playbackSpeed: PlaybackSpeed;
   progress: PreviewPlaybackProgress;
+  previewInstrument: PreviewInstrument;
   queueItems: PlaybackQueueItem[];
   queueOpen: boolean;
   songs: LibrarySong[];
@@ -226,7 +230,7 @@ export function BottomPlayer({
   canOpenVisualization,
   currentSong,
   isCurrentSongLoading,
-  isPianoEnabled,
+  isPreviewAudioEnabled,
   isShuffleEnabled,
   isRealInputOutput,
   isVisualizationOpen,
@@ -238,7 +242,8 @@ export function BottomPlayer({
   onVisualizationOpen,
   onPlayQueueItem,
   onPause,
-  onPianoToggle,
+  onPreviewAudioToggle,
+  onPreviewInstrumentChange,
   onManualStepHoldBegin,
   onManualStepHoldEnd,
   onManualStep,
@@ -258,13 +263,14 @@ export function BottomPlayer({
   playbackState,
   playbackSpeed,
   progress,
+  previewInstrument,
   queueItems,
   queueOpen,
   songs,
   text,
 }: BottomPlayerProps) {
-  const pianoLabel = isPianoEnabled ? text.disablePianoAudio : text.enablePianoAudio;
-  const PianoIcon = isPianoEnabled ? Volume2 : VolumeX;
+  const audioLabel = isPreviewAudioEnabled ? text.disablePreviewAudio : text.enablePreviewAudio;
+  const AudioIcon = isPreviewAudioEnabled ? Volume2 : VolumeX;
   const progressTrackRef = useRef<HTMLDivElement | null>(null);
   const dragPreviewClearFrameRef = useRef<number | null>(null);
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -842,16 +848,49 @@ export function BottomPlayer({
             </div>
 
             {!isRealInputOutput && (
-              <button
-                className={`player-icon-button player-icon-button-secondary player-icon-button-toggle bottom-player-piano-button${isPianoEnabled ? " is-active" : ""}`}
-                type="button"
-                aria-label={pianoLabel}
-                aria-pressed={isPianoEnabled}
-                title={pianoLabel}
-                onClick={onPianoToggle}
-              >
-                <PianoIcon className="player-icon" aria-hidden="true" focusable="false" />
-              </button>
+              <>
+                <button
+                  className={`player-icon-button player-icon-button-secondary player-icon-button-toggle bottom-player-piano-button${isPreviewAudioEnabled ? " is-active" : ""}`}
+                  type="button"
+                  aria-label={audioLabel}
+                  aria-pressed={isPreviewAudioEnabled}
+                  title={audioLabel}
+                  onClick={onPreviewAudioToggle}
+                >
+                  <AudioIcon className="player-icon" aria-hidden="true" focusable="false" />
+                </button>
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      className="library-sort-trigger"
+                      type="button"
+                      aria-label={`${text.previewInstrument}: ${text.previewInstruments[previewInstrument]}`}
+                    >
+                      <span>{text.previewInstruments[previewInstrument]}</span>
+                      <ChevronDown aria-hidden="true" />
+                    </button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content className="library-sort-menu" side="top" align="end" sideOffset={6}>
+                      <DropdownMenu.RadioGroup value={previewInstrument} onValueChange={value => {
+                        const instrument = previewInstruments.find(candidate => candidate === value);
+                        if (instrument) onPreviewInstrumentChange(instrument);
+                      }}>
+                        {previewInstruments.map(instrument => (
+                          <DropdownMenu.RadioItem key={instrument} value={instrument} asChild>
+                            <button type="button">
+                              <span className="library-sort-check">
+                                <DropdownMenu.ItemIndicator><Check aria-hidden="true" /></DropdownMenu.ItemIndicator>
+                              </span>
+                              {text.previewInstruments[instrument]}
+                            </button>
+                          </DropdownMenu.RadioItem>
+                        ))}
+                      </DropdownMenu.RadioGroup>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
+              </>
             )}
 
             <button

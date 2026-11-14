@@ -1,0 +1,11 @@
+Salamander Grand Piano
+Recorded by Alexander Holm
+Licensed under Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+https://creativecommons.org/licenses/by/3.0/
+
+Original project: https://github.com/sfzinstruments/SalamanderGrandPiano
+MP3 distribution: https://github.com/Tonejs/audio/tree/master/salamander
+Download source: https://tonejs.github.io/audio/salamander/
+
+SkyMusicPlay Lite bundles nine MP3s unchanged from the Tone.js distribution.
+The player adjusts pitch and applies gain envelopes during playback.

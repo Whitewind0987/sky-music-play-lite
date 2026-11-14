@@ -82,11 +82,11 @@ export function usePlaybackOutput({
   previewPlayback,
   text,
 }: UsePlaybackOutputOptions): PlaybackOutput {
-  const { setPianoOutputAllowed } = previewPlayback;
+  const { setPreviewAudioOutputAllowed } = previewPlayback;
   const isPreviewOutput = !experimentalInput.experimentalInputEnabled;
   useEffect(() => {
-    setPianoOutputAllowed(isPreviewOutput);
-  }, [isPreviewOutput, setPianoOutputAllowed]);
+    setPreviewAudioOutputAllowed(isPreviewOutput);
+  }, [isPreviewOutput, setPreviewAudioOutputAllowed]);
 
   const sharedControls = {
     isShuffleEnabled: previewPlayback.isShuffleEnabled,

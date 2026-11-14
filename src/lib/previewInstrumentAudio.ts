@@ -1,44 +1,11 @@
 import { getPreviewKeyName, skyKeyNames } from "../types/keyMapping";
 import type { Note } from "../types/score";
 import { isValidExplicitDuration } from "./scoreTiming";
+import { previewInstrumentSamples, type PreviewInstrument } from "./previewInstrumentSamples";
 
-const pianoPitches = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
-type SampleRegion = {
-  root: number;
-  low: number;
-  high: number;
-  name: string;
-  loop?: readonly [startFrame: number, endFrame: number];
-};
-
-// Regions and inclusive loop endpoints from the 2019-07-03 Bright SFZ.
-const samples: SampleRegion[] = [
-  { root: 60, low: 59, high: 61, name: "C4", loop: [145927, 213379] },
-  { root: 63, low: 62, high: 64, name: "Ds4", loop: [151896, 217597] },
-  { root: 66, low: 65, high: 67, name: "Fs4", loop: [138527, 185330] },
-  { root: 69, low: 68, high: 70, name: "A4" },
-  { root: 72, low: 71, high: 73, name: "C5" },
-  { root: 75, low: 74, high: 76, name: "Ds5" },
-  { root: 78, low: 77, high: 79, name: "Fs5" },
-  { root: 81, low: 80, high: 82, name: "A5" },
-  { root: 84, low: 83, high: 85, name: "C6" },
-];
-const sampleRate = 44100;
-const pianoNotes = new Map<string, { sample: SampleRegion; rate: number }>();
-skyKeyNames.forEach((key, index) => {
-  const pitch = pianoPitches[index];
-  const sample = samples.find(({ low, high }) => low <= pitch && pitch <= high);
-  if (sample) pianoNotes.set(key, { sample, rate: 2 ** ((pitch - sample.root) / 12) });
-});
-
-const implicitHoldMs = 120;
-const implicitReleaseSeconds = 0.26;
-const explicitReleaseSeconds = 0.6;
+const keyIndices = new Map<string, number>(skyKeyNames.map((key, index) => [key, index]));
 const retriggerFadeSeconds = 0.045;
 const cleanupFadeSeconds = 0.015;
-const attackSeconds = 0.0008;
-// The Bright samples peak near full scale. Leave room for dense chords and fades.
-const voiceGain = 0.025;
 const maxVoices = 32;
 
 type Voice = {
@@ -46,44 +13,49 @@ type Voice = {
   hasExplicitDuration: boolean;
   source: AudioBufferSourceNode;
   gain: GainNode;
+  peakGain: number;
+  releaseSeconds: number;
   releaseAt: number;
   stopAt: number;
   speed: number;
 };
 
-export function createPreviewPiano() {
+export function createPreviewInstrumentAudio() {
+  let selected: PreviewInstrument = "piano";
   let context: AudioContext | undefined;
-  let loading: Promise<void> | undefined;
-  const buffers = new Map<number, AudioBuffer>();
+  const loading = new Map<PreviewInstrument, Promise<void>>();
+  const banks = new Map<PreviewInstrument, Map<string, AudioBuffer>>();
   const voices = new Set<Voice>();
 
   async function prepare() {
     try {
       const audio = context ??= new AudioContext();
       if (audio.state !== "running") void audio.resume().catch(() => {});
-      loading ??= Promise.all(samples.map(async ({ root, name }) => {
-        const response = await fetch(`${import.meta.env.BASE_URL}audio/upright-piano-kw-bright/${name}vH.wav`);
-        if (!response.ok) throw new Error(`Could not load piano sample ${name}`);
-        return [root, await audio.decodeAudioData(await response.arrayBuffer())] as const;
-      })).then((decoded) => {
-        if (context !== audio) return;
-        for (const [name, buffer] of decoded) buffers.set(name, buffer);
-      }).catch(() => {
-        if (context === audio) loading = undefined;
-      });
-      await loading;
+      const instrument = selected;
+      if (!loading.has(instrument)) {
+        const { directory, notes } = previewInstrumentSamples[instrument];
+        const files = new Set(notes.map(({ file }) => file));
+        const request = Promise.all(Array.from(files, async file => {
+          const response = await fetch(`${import.meta.env.BASE_URL}audio/${directory}/${file}`);
+          if (!response.ok) throw new Error(`Could not load preview sample ${file}`);
+          return [file, await audio.decodeAudioData(await response.arrayBuffer())] as const;
+        })).then(decoded => {
+          if (context === audio) banks.set(instrument, new Map(decoded));
+        }).catch(() => {
+          if (context === audio) loading.delete(instrument);
+        });
+        loading.set(instrument, request);
+      }
+      await loading.get(instrument);
     } catch {
       // The preview scheduler can continue silently if audio is unavailable.
     }
   }
 
   function scheduleRelease(voice: Voice) {
-    const releaseSeconds = voice.hasExplicitDuration
-      ? explicitReleaseSeconds
-      : implicitReleaseSeconds;
-    voice.stopAt = voice.releaseAt + releaseSeconds;
-    voice.gain.gain.setValueAtTime(voiceGain, voice.releaseAt);
-    voice.gain.gain.exponentialRampToValueAtTime(voiceGain * 0.01, voice.stopAt - 0.005);
+    voice.stopAt = voice.releaseAt + voice.releaseSeconds;
+    voice.gain.gain.setValueAtTime(voice.peakGain, voice.releaseAt);
+    voice.gain.gain.exponentialRampToValueAtTime(voice.peakGain * 0.01, voice.stopAt - 0.005);
     voice.gain.gain.linearRampToValueAtTime(0, voice.stopAt);
     voice.source.stop(voice.stopAt);
   }
@@ -100,7 +72,9 @@ export function createPreviewPiano() {
 
   function playGroup(notes: Note[], speed: number) {
     const audio = context;
-    if (audio?.state !== "running" || buffers.size === 0) return;
+    const buffers = banks.get(selected);
+    if (audio?.state !== "running" || !buffers) return;
+    const instrument = previewInstrumentSamples[selected];
 
     const durations = new Map<string, number>();
     for (const note of notes) {
@@ -111,9 +85,10 @@ export function createPreviewPiano() {
 
     const now = audio.currentTime;
     for (const [key, duration] of durations) {
-      const pianoNote = pianoNotes.get(key);
-      if (!pianoNote) continue;
-      const buffer = buffers.get(pianoNote.sample.root);
+      const index = keyIndices.get(key);
+      if (index === undefined) continue;
+      const sample = instrument.notes[index];
+      const buffer = buffers.get(sample.file);
       if (!buffer) continue;
       for (const voice of voices) {
         if (voice.key === key && !voice.hasExplicitDuration) {
@@ -129,23 +104,24 @@ export function createPreviewPiano() {
       const source = audio.createBufferSource();
       const gain = audio.createGain();
       source.buffer = buffer;
-      source.playbackRate.value = pianoNote.rate;
-      const loop = pianoNote.sample.loop;
-      if (loop) {
+      source.playbackRate.value = sample.rate;
+      if (sample.loopEndFrame !== undefined) {
         source.loop = true;
-        source.loopStart = loop[0] / sampleRate;
-        source.loopEnd = (loop[1] + 1) / sampleRate;
+        source.loopStart = 1;
+        source.loopEnd = sample.loopEndFrame / 44100;
       }
       source.connect(gain);
       gain.connect(audio.destination);
       gain.gain.setValueAtTime(0, now);
-      const holdSeconds = (duration || implicitHoldMs) / speed / 1000;
-      gain.gain.linearRampToValueAtTime(voiceGain, now + Math.min(attackSeconds, holdSeconds));
+      const holdSeconds = (duration || instrument.implicitHoldMs) / speed / 1000;
+      gain.gain.linearRampToValueAtTime(instrument.gain, now + Math.min(instrument.attackSeconds, holdSeconds));
       const voice = {
         key,
         hasExplicitDuration: duration > 0,
         source,
         gain,
+        peakGain: instrument.gain,
+        releaseSeconds: duration > 0 ? instrument.explicitReleaseSeconds : instrument.implicitReleaseSeconds,
         releaseAt: now + holdSeconds,
         stopAt: now,
         speed,
@@ -184,9 +160,15 @@ export function createPreviewPiano() {
     stop();
     void context?.close().catch(() => {});
     context = undefined;
-    loading = undefined;
-    buffers.clear();
+    loading.clear();
+    banks.clear();
   }
 
-  return { prepare, playGroup, updateSpeed, stop, dispose };
+  function selectInstrument(instrument: PreviewInstrument) {
+    if (selected === instrument) return;
+    stop();
+    selected = instrument;
+  }
+
+  return { prepare, playGroup, selectInstrument, updateSpeed, stop, dispose };
 }

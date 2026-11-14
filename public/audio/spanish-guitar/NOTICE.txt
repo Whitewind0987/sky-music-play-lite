@@ -1,0 +1,10 @@
+FreePats Spanish Classical Guitar — nylon-string acoustic guitar (2019-06-18)
+Recorded and edited by Roberto for FreePats
+CC0 1.0 Universal (see CC0.txt)
+https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://freepats.zenvoid.org/Guitar/acoustic-guitar.html
+Archive: https://freepats.zenvoid.org/Guitar/SpanishClassicalGuitar/SpanishClassicalGuitar-SFZ%2BFLAC-20190618.7z
+
+Fifteen exact-root FLAC files were converted to mono 44.1 kHz 16-bit PCM WAV.
+The original pluck and decay are retained. Playback uses the SFZ's no-loop
+behavior and shorter releases than its 1.5-second envelope for score preview.

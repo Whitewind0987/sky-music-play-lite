@@ -37,7 +37,7 @@ function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<Player
     canStop: false,
     currentSong: null,
     isCurrentSongLoading: false,
-    isPianoEnabled: false,
+    isPreviewAudioEnabled: false,
     isRealInputOutput: false,
     isShuffleEnabled: false,
     isVisualizationOpen: isOpen,
@@ -49,7 +49,8 @@ function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<Player
     onNext: noop,
     onNoteIntervalDelayChange: noop,
     onPause: noop,
-    onPianoToggle: noop,
+    onPreviewAudioToggle: noop,
+    onPreviewInstrumentChange: noop,
     onPlay: noop,
     onPlaybackSpeedChange: noop,
     onPlayQueueItem: noop,
@@ -69,6 +70,7 @@ function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<Player
     playbackState: "idle",
     playbackSpeed: defaultPlaybackSpeed,
     progress: { currentMs: 0, percent: 0, totalMs: 0 },
+    previewInstrument: "piano",
     queueItems: [],
     queueOpen: false,
     songs: [],
@@ -86,18 +88,22 @@ function renderPlayer(isOpen: boolean, canOpen = true, overrides: Partial<Player
   };
 }
 
-it("shows the piano toggle only for preview output and announces its state", () => {
-  const onPianoToggle = vi.fn();
+it("shows the audio controls only for preview output and announces their state", () => {
+  const onPreviewAudioToggle = vi.fn();
   const findToggle = (props: Partial<PlayerProps>) =>
     findDiv(renderPlayer(false, true, props).tree, "bottom-player-piano-button");
-  const muted = findToggle({ onPianoToggle });
-  expect(muted?.props).toMatchObject({ "aria-label": "Enable piano audio", "aria-pressed": false });
-  expect(muted?.props.onClick).toBe(onPianoToggle);
-  expect(findToggle({ isPianoEnabled: true })?.props).toMatchObject({
-    "aria-label": "Disable piano audio",
+  const muted = findToggle({ onPreviewAudioToggle });
+  expect(muted?.props).toMatchObject({ "aria-label": "Enable preview audio", "aria-pressed": false });
+  expect(muted?.props.onClick).toBe(onPreviewAudioToggle);
+  expect(findToggle({ isPreviewAudioEnabled: true })?.props).toMatchObject({
+    "aria-label": "Disable preview audio",
     "aria-pressed": true,
   });
   expect(findToggle({ isRealInputOutput: true })).toBeUndefined();
+  expect(findDiv(renderPlayer(false, true, { previewInstrument: "violin" }).tree, "library-sort-trigger")
+    ?.props).toMatchObject({ "aria-label": "Preview instrument: Violin" });
+  expect(findDiv(renderPlayer(false, true, { isRealInputOutput: true }).tree, "library-sort-trigger"))
+    .toBeUndefined();
 });
 
 describe("bottom player visualization toggle", () => {
