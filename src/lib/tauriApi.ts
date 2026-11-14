@@ -577,6 +577,19 @@ export function listCustomInstruments() {
   return invoke<CustomInstrument[]>("list_custom_instruments");
 }
 
+export async function chooseCustomInstrumentFolder(title: string): Promise<File[] | null> {
+  const bytes = await invoke<ArrayBuffer>("choose_custom_instrument_folder", { title });
+  if (bytes.byteLength === 0) return null;
+  const headerEnd = 4 + new DataView(bytes).getUint32(0, true);
+  const samples: CustomInstrument["samples"] = JSON.parse(new TextDecoder().decode(bytes.slice(4, headerEnd)));
+  let offset = headerEnd;
+  return samples.map(({ name, size }) => {
+    const file = new File([bytes.slice(offset, offset + size)], name);
+    offset += size;
+    return file;
+  });
+}
+
 export async function importCustomInstrument(name: string, articulation: CustomArticulation, files: File[]) {
   const header = new TextEncoder().encode(JSON.stringify({
     name, articulation, samples: files.map(file => ({ name: file.name, size: file.size })),
@@ -597,4 +610,8 @@ export function renameCustomInstrument(id: string, newName: string) {
 
 export function deleteCustomInstrument(id: string) {
   return invoke<void>("delete_custom_instrument", { id });
+}
+
+export function setCustomInstrumentDisabled(id: string, disabled: boolean) {
+  return invoke<CustomInstrument>("set_custom_instrument_disabled", { id, disabled });
 }

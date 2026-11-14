@@ -8,11 +8,18 @@ export type CustomInstrument = {
   articulation: CustomArticulation;
   releaseSeconds: number;
   createdAt: number;
+  disabled?: boolean;
   samples: { name: string; size: number }[];
 };
 export const customMaxFile = 8 * 1024 * 1024;
 export const customMaxTotal = 48 * 1024 * 1024;
 export const customAudioExtension = /\.(mp3|wav)$/i;
+
+export const customInstrumentNamingPrompt = `请将我提供的本地音频采样整理成可直接拖入 SkyMusicPlay Lite「管理自定义音源」的文件夹。
+
+1. 保留原文件，在新的输出文件夹中生成采样副本。使用可正常解码的 MP3 或 WAV，每个文件非空且不超过 8 MiB、60 秒和 2 声道，15 个文件合计不超过 48 MiB。优先保留原格式；如需转码，不要改变音高、速度或响度。
+2. 按实际音高或我提供的明确映射，将 15 个文件命名为 Key0 到 Key14，保留 .mp3 或 .wav 扩展名。编号 0–14 依次对应 ${customSamplePitches.join("、")}。若来源明确采用同一顺序的 0–14 编号，可直接加 Key 前缀。不要按文件名排序猜测音高；遇到缺失、冲突或无法确认的映射，请先指出。
+3. 确认每个键恰好一个文件，15 个文件均位于输出文件夹顶层。最后给出可直接导入的文件夹完整路径。`;
 
 export function mapCustomSamples(files: readonly { name: string }[]) {
   const candidates = skyKeyNames.map(() => [] as number[]);

@@ -1,19 +1,39 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { AudioLines, Check, ChevronDown, FileAudio, FolderOpen, Play, X } from "lucide-react";
+import { AudioLines, Check, ChevronDown, Copy, FileAudio, FolderOpen, Play, X } from "lucide-react";
 import { isTauri } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState, type InputHTMLAttributes } from "react";
+import { useEffect, useRef, useState } from "react";
 import { customInstrumentText } from "../i18n/customInstrumentText";
 import { skyKeyNames } from "../types/keyMapping";
 import {
   customAudioExtension, customMaxFile, customMaxTotal, customSamplePitches,
   hasCustomAudioSignature, mapCustomSamples, resolveCustomSamples,
+  customInstrumentNamingPrompt,
   type CustomArticulation, type CustomInstrument,
 } from "../lib/customInstruments";
-import { deleteCustomInstrument, importCustomInstrument, renameCustomInstrument } from "../lib/tauriApi";
+import { chooseCustomInstrumentFolder, deleteCustomInstrument, importCustomInstrument, renameCustomInstrument, setCustomInstrumentDisabled } from "../lib/tauriApi";
 import { ConfirmDialog } from "./ConfirmDialog";
 
-const folderInput = { webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>;
+async function droppedSamples(transfer: DataTransfer) {
+  const files = Array.from(transfer.files);
+  const folders = Array.from(transfer.items)
+    .map(item => item.webkitGetAsEntry?.())
+    .filter((entry): entry is FileSystemDirectoryEntry => !!entry?.isDirectory);
+  const samples = files.filter(file => customAudioExtension.test(file.name));
+  for (const folder of folders) {
+    const reader = folder.createReader();
+    for (;;) {
+      const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+      if (!entries.length) break;
+      for (const entry of entries) {
+        if (!entry.isFile || !customAudioExtension.test(entry.name)) continue;
+        samples.push(await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject)));
+        if (samples.length > 60) return samples;
+      }
+    }
+  }
+  return samples;
+}
 
 function InstrumentChoice({ id, label, value, options, disabled, onChange }: {
   id?: string;
@@ -58,9 +78,7 @@ type Props = {
   language: keyof typeof customInstrumentText;
   instruments: CustomInstrument[];
   catalogError: string | null;
-  selectedId: string;
   onChange: (items: CustomInstrument[]) => void;
-  onSelect: (item: CustomInstrument) => void;
   onClose: () => void;
   audition: (file: File) => Promise<void>;
   stopAudition: () => void;
@@ -68,7 +86,7 @@ type Props = {
 };
 
 export function CustomInstrumentDialog({
-  language, instruments, catalogError, selectedId, onChange, onSelect, onClose,
+  language, instruments, catalogError, onChange, onClose,
   audition, stopAudition, audible,
 }: Props) {
   const text = customInstrumentText[language];
@@ -84,6 +102,7 @@ export function CustomInstrumentDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [promptCopied, setPromptCopied] = useState(false);
   const busyRef = useRef(false);
   const stopRef = useRef(stopAudition);
   stopRef.current = stopAudition;
@@ -109,41 +128,31 @@ export function CustomInstrumentDialog({
     setConflicts(result.conflicts);
   }
 
-  function choose(input: HTMLInputElement, folder: boolean) {
-    const chosen = Array.from(input.files ?? []).filter(file =>
-      !folder || file.webkitRelativePath.split("/").length <= 2,
-    );
-    input.value = "";
-    if (!chosen.length) {
-      setError(text.noFiles);
-      return;
+  async function loadSamples(chosen: File[]) {
+    stopAudition();
+    const samples = chosen.filter(file => customAudioExtension.test(file.name));
+    if (!samples.length) throw new Error(text.noFiles);
+    if (samples.length > 60 || samples.reduce((sum, file) => sum + file.size, 0) > customMaxTotal) {
+      throw new Error(text.limits);
     }
-    void run(async () => {
-      stopAudition();
-      const samples = chosen.filter(file => customAudioExtension.test(file.name));
-      if (!samples.length) throw new Error(text.noFiles);
-      if (samples.length > 60 || samples.reduce((sum, file) => sum + file.size, 0) > customMaxTotal) {
-        throw new Error(text.limits);
+    setStatus(text.loading);
+    const audio = new AudioContext();
+    const results: boolean[] = [];
+    try {
+      for (const file of samples) {
+        try {
+          if (!file.size || file.size > customMaxFile) { results.push(false); continue; }
+          const data = await file.arrayBuffer();
+          if (!hasCustomAudioSignature(file.name, data)) { results.push(false); continue; }
+          const decoded = await audio.decodeAudioData(data);
+          results.push(decoded.length > 0 && decoded.duration <= 60 && decoded.numberOfChannels <= 2);
+        } catch { results.push(false); }
       }
-      setStatus(text.loading);
-      const audio = new AudioContext();
-      const results: boolean[] = [];
-      try {
-        for (const file of samples) {
-          try {
-            if (!file.size || file.size > customMaxFile) { results.push(false); continue; }
-            const data = await file.arrayBuffer();
-            if (!hasCustomAudioSignature(file.name, data)) { results.push(false); continue; }
-            const decoded = await audio.decodeAudioData(data);
-            results.push(decoded.length > 0 && decoded.duration <= 60 && decoded.numberOfChannels <= 2);
-          } catch { results.push(false); }
-        }
-      } finally { await audio.close().catch(() => {}); }
-      setFiles(samples);
-      setValid(results);
-      autoMap(samples);
-      setStatus("");
-    });
+    } finally { await audio.close().catch(() => {}); }
+    setFiles(samples);
+    setValid(results);
+    autoMap(samples);
+    setStatus("");
   }
 
   function save() {
@@ -167,10 +176,15 @@ export function CustomInstrumentDialog({
         <Dialog.Portal>
           <Dialog.Overlay className="library-dialog-backdrop">
             <Dialog.Content className="library-create-playlist-dialog custom-instrument-dialog" aria-describedby={undefined}>
-              <div className="library-collect-dialog-header">
+              <div className="library-collect-dialog-header custom-instrument-header">
                 <Dialog.Title asChild><h3>{text.manage}</h3></Dialog.Title>
-                <Dialog.Close asChild><button type="button" disabled={busy} aria-label={text.close}><X size={16} /></button></Dialog.Close>
+                <Dialog.Close asChild>
+                  <button className="update-dialog-close" type="button" disabled={busy} aria-label={text.close}>
+                    <X aria-hidden="true" focusable="false" />
+                  </button>
+                </Dialog.Close>
               </div>
+              <div className="custom-instrument-body">
               {!isTauri() ? <p>{text.unavailable}</p> : <>
                 {catalogError && <p role="alert">{text.unavailableList} {catalogError}</p>}
                 {instruments.length > 0 && <ul className="custom-instrument-list">
@@ -191,7 +205,10 @@ export function CustomInstrumentDialog({
                       <button className="confirm-dialog-secondary" type="button" onClick={() => setEditing(null)}>{text.cancel}</button>
                     </form> : <>
                       <span title={item.name}><strong>{item.name}</strong><small>{text[item.articulation]}</small></span>
-                      <button className={`language-option${selectedId === item.id ? " is-selected" : ""}`} type="button" aria-pressed={selectedId === item.id} disabled={busy || selectedId === item.id} onClick={() => onSelect(item)}>{selectedId === item.id ? text.selected : text.select}</button>
+                      <button className="language-option" type="button" disabled={busy} onClick={() => void run(async () => {
+                        const updated = await setCustomInstrumentDisabled(item.id, !item.disabled);
+                        onChange(instruments.map(entry => entry.id === updated.id ? updated : entry));
+                      })}>{item.disabled ? text.enable : text.disable}</button>
                       <button className="language-option" type="button" disabled={busy} onClick={() => { setEditing(item); setRename(item.name); }}>{text.rename}</button>
                       <button className="language-option" type="button" disabled={busy} onClick={() => setDeleting(item)}>{text.delete}</button>
                     </>}
@@ -212,16 +229,47 @@ export function CustomInstrumentDialog({
                       ]}
                       onChange={value => setArticulation(value === "sustained" ? "sustained" : "naturalDecay")} />
                   </label>
-                  <div className="custom-instrument-pickers">
-                    <label className={`library-import-button${busy ? " is-disabled" : ""}`}>
-                      <FolderOpen size={16} aria-hidden="true" />{text.folder}
-                      <input {...folderInput} aria-label={text.folder} type="file" multiple disabled={busy} onChange={event => choose(event.currentTarget, true)} />
-                    </label>
-                    <label className={`library-import-button${busy ? " is-disabled" : ""}`}>
-                      <FileAudio size={16} aria-hidden="true" />{text.files}
-                      <input aria-label={text.files} type="file" multiple accept=".mp3,.wav" disabled={busy} onChange={event => choose(event.currentTarget, false)} />
-                    </label>
-                    <button className="language-option" type="button" disabled={busy || !files.length} onClick={() => autoMap(files)}>{text.auto}</button>
+                  <div className="custom-instrument-drop"
+                    onDragOver={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      event.dataTransfer.dropEffect = busy ? "none" : "copy";
+                    }}
+                    onDrop={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const transfer = event.dataTransfer;
+                      void run(async () => loadSamples(await droppedSamples(transfer)));
+                    }}>
+                    <div className="custom-instrument-pickers">
+                      <button type="button" className="library-import-button" disabled={busy}
+                        onClick={() => void run(async () => {
+                          const samples = await chooseCustomInstrumentFolder(text.folder);
+                          if (samples) await loadSamples(samples);
+                        })}>
+                        <FolderOpen size={16} aria-hidden="true" />{text.folder}
+                      </button>
+                      <label className={`library-import-button${busy ? " is-disabled" : ""}`}>
+                        <FileAudio size={16} aria-hidden="true" />{text.files}
+                        <input aria-label={text.files} type="file" multiple accept=".mp3,.wav" disabled={busy} onChange={event => {
+                          const files = Array.from(event.currentTarget.files ?? []);
+                          event.currentTarget.value = "";
+                          if (files.length) void run(() => loadSamples(files));
+                        }} />
+                      </label>
+                      <button className="language-option" type="button" disabled={busy || !files.length} onClick={() => autoMap(files)}>{text.auto}</button>
+                      <button type="button" className="library-import-button custom-instrument-copy-prompt" disabled={busy}
+                        onClick={() => void run(async () => {
+                          setPromptCopied(false);
+                          await navigator.clipboard.writeText(customInstrumentNamingPrompt);
+                          setPromptCopied(true);
+                        })}>
+                        {promptCopied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                        {text.copyPrompt}
+                        <span className="visually-hidden" role="status">{promptCopied ? text.promptCopied : ""}</span>
+                      </button>
+                    </div>
+                    <p className="experimental-setting-description">{text.drop}</p>
                   </div>
                   <p className="experimental-setting-description">{text.folderHint} {text.format} {text.limits}</p>
                   {files.length > 0 && <div className="custom-instrument-mapping">
@@ -263,6 +311,7 @@ export function CustomInstrumentDialog({
                   </div>
                 </form>
               </>}
+              </div>
             </Dialog.Content>
           </Dialog.Overlay>
         </Dialog.Portal>

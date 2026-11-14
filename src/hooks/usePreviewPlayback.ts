@@ -102,7 +102,7 @@ export function usePreviewPlayback({
     if (!customInstruments) return;
     const id = previewAudioRef.current.instrumentId;
     if (!id || id === "piano" || id === "violin" || id === "guitar") return;
-    const instrument = customInstruments.find(item => item.id === id);
+    const instrument = customInstruments.find(item => item.id === id && !item.disabled);
     if (instrument) {
       const audio = instrumentAudioRef.current ??= createPreviewInstrumentAudio();
       audio.selectInstrument(instrument);
@@ -600,7 +600,7 @@ export function usePreviewPlayback({
       const id = savedPreviewAudio.instrumentId;
       if (id === "piano" || id === "violin" || id === "guitar") handlePreviewInstrumentChange(id, false);
       else if (id && customCatalogRef.current) {
-        const instrument = customCatalogRef.current.find(item => item.id === id);
+        const instrument = customCatalogRef.current.find(item => item.id === id && !item.disabled);
         if (instrument) handlePreviewInstrumentChange(instrument, false);
         else handlePreviewInstrumentChange("piano");
       }

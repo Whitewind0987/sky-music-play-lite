@@ -45,6 +45,8 @@ pub struct Instrument {
     articulation: Articulation,
     release_seconds: f64,
     created_at: u64,
+    #[serde(default)]
+    disabled: bool,
     samples: Vec<Sample>,
 }
 
@@ -257,6 +259,7 @@ fn import(root: &Path, bytes: &[u8]) -> Result<Instrument> {
             Articulation::Sustained => 0.32,
         },
         created_at: now.as_millis() as u64,
+        disabled: false,
         samples: metadata.samples,
     };
     let temp = root.join(format!(".import-{id}"));
@@ -278,6 +281,17 @@ fn rename(root: &Path, id: &str, new_name: &str) -> Result<Instrument> {
     let dir = directory(root, id)?;
     let mut instrument = read_manifest(&dir, id)?;
     instrument.name = name(new_name)?;
+    save_manifest(&dir, instrument)
+}
+
+fn set_disabled(root: &Path, id: &str, disabled: bool) -> Result<Instrument> {
+    let dir = directory(root, id)?;
+    let mut instrument = read_manifest(&dir, id)?;
+    instrument.disabled = disabled;
+    save_manifest(&dir, instrument)
+}
+
+fn save_manifest(dir: &Path, instrument: Instrument) -> Result<Instrument> {
     let bytes = manifest_bytes(&instrument)?;
     let temp = dir.join("instrument.tmp");
     let path = dir.join("instrument.json");
@@ -354,6 +368,16 @@ pub fn rename_custom_instrument(
 }
 
 #[tauri::command]
+pub fn set_custom_instrument_disabled(
+    app: AppHandle,
+    id: String,
+    disabled: bool,
+) -> Result<Instrument> {
+    let _guard = lock()?;
+    set_disabled(&root(&app)?, &id, disabled)
+}
+
+#[tauri::command]
 pub fn delete_custom_instrument(app: AppHandle, id: String) -> Result<()> {
     let _guard = lock()?;
     delete(&root(&app)?, &id)
@@ -405,6 +429,17 @@ mod tests {
             "Renamed"
         );
         assert_eq!(list(&root).unwrap()[0].name, "Renamed");
+        let mut legacy = serde_json::to_value(&created).unwrap();
+        legacy.as_object_mut().unwrap().remove("disabled");
+        fs::write(
+            dir.join("instrument.json"),
+            serde_json::to_vec(&legacy).unwrap(),
+        )
+        .unwrap();
+        assert!(!list(&root).unwrap()[0].disabled);
+        assert!(set_disabled(&root, &created.id, true).unwrap().disabled);
+        assert!(list(&root).unwrap()[0].disabled);
+        assert!(!set_disabled(&root, &created.id, false).unwrap().disabled);
 
         fs::remove_file(dir.join("3.wav")).unwrap();
         assert!(list(&root).unwrap().is_empty());
@@ -414,4 +449,117 @@ mod tests {
         delete(&root, &created.id).unwrap();
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
     }
+}
+
+#[tauri::command]
+pub async fn choose_custom_instrument_folder(
+    window: tauri::WebviewWindow,
+    title: String,
+) -> Result<Response> {
+    #[cfg(windows)]
+    {
+        let (send, receive) = std::sync::mpsc::sync_channel(1);
+        let owner = window.clone();
+        window
+            .run_on_main_thread(move || {
+                let _ = send.send(pick_folder(&owner, &title));
+            })
+            .map_err(|e| e.to_string())?;
+        tauri::async_runtime::spawn_blocking(move || {
+            let folder = receive.recv().map_err(|e| e.to_string())??;
+            let bytes = match folder {
+                Some(path) => read_import_folder(&path)?,
+                None => Vec::new(),
+            };
+            Ok(Response::new(bytes))
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, title);
+        Err("Use multiple file selection on this platform.".into())
+    }
+}
+
+#[cfg(windows)]
+fn pick_folder(window: &tauri::WebviewWindow, title: &str) -> Result<Option<PathBuf>> {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::{
+        System::Com::CoTaskMemFree,
+        UI::Shell::{
+            SHBrowseForFolderW, SHGetPathFromIDListW, BIF_NEWDIALOGSTYLE, BIF_NONEWFOLDERBUTTON,
+            BIF_RETURNONLYFSDIRS, BROWSEINFOW,
+        },
+    };
+
+    let title: Vec<u16> = title.encode_utf16().chain([0]).collect();
+    let mut display_name = [0u16; 260];
+    let info = BROWSEINFOW {
+        hwndOwner: window.hwnd().map_err(|e| e.to_string())?.0,
+        pszDisplayName: display_name.as_mut_ptr(),
+        lpszTitle: title.as_ptr(),
+        ulFlags: BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_NONEWFOLDERBUTTON,
+        ..Default::default()
+    };
+    // Shell allocates the selected item with the COM task allocator.
+    let item = unsafe { SHBrowseForFolderW(&info) };
+    if item.is_null() {
+        return Ok(None);
+    }
+    let mut path = [0u16; 260];
+    let success = unsafe {
+        let success = SHGetPathFromIDListW(item, path.as_mut_ptr());
+        CoTaskMemFree(item.cast());
+        success
+    };
+    if success == 0 {
+        return Err("Could not resolve the selected folder.".into());
+    }
+    let length = path
+        .iter()
+        .position(|&unit| unit == 0)
+        .unwrap_or(path.len());
+    Ok(Some(PathBuf::from(std::ffi::OsString::from_wide(
+        &path[..length],
+    ))))
+}
+
+#[cfg(windows)]
+fn read_import_folder(path: &Path) -> Result<Vec<u8>> {
+    let mut samples = Vec::new();
+    let mut data = Vec::new();
+    for entry in io(fs::read_dir(path))? {
+        let entry = io(entry)?;
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if extension(&name).is_none() || !io(entry.file_type())?.is_file() {
+            continue;
+        }
+        let size = checked(&entry.path(), false)?.len();
+        if samples.len() == 60
+            || size > MAX_FILE as u64
+            || data.len() as u64 + size > MAX_TOTAL as u64
+        {
+            return Err("Selected folder exceeds the sample count or size limit.".into());
+        }
+        let offset = data.len();
+        io(io(fs::File::open(entry.path()))?
+            .take(size + 1)
+            .read_to_end(&mut data))?;
+        if data.len() - offset != size as usize {
+            return Err("Sample changed while reading.".into());
+        }
+        samples.push(Sample {
+            name,
+            size: size as usize,
+        });
+    }
+    let header = serde_json::to_vec(&samples).map_err(|e| e.to_string())?;
+    let mut packet = (header.len() as u32).to_le_bytes().to_vec();
+    packet.extend(header);
+    packet.extend(data);
+    Ok(packet)
 }

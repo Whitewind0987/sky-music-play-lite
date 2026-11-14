@@ -606,6 +606,7 @@ function App() {
     }
 
     event.preventDefault();
+    if (showCustomInstruments) return;
     dragDepthRef.current += 1;
     setIsDraggingScoreFiles(true);
   }
@@ -616,11 +617,11 @@ function App() {
     }
 
     event.preventDefault();
-    event.dataTransfer.dropEffect = isAnyPlaybackActive ? "none" : "copy";
+    event.dataTransfer.dropEffect = showCustomInstruments || isAnyPlaybackActive ? "none" : "copy";
   }
 
   function handleAppDragLeave(event: ReactDragEvent<HTMLElement>) {
-    if (!hasDraggedFiles(event)) {
+    if (showCustomInstruments || !hasDraggedFiles(event)) {
       return;
     }
 
@@ -640,6 +641,8 @@ function App() {
     event.preventDefault();
     dragDepthRef.current = 0;
     setIsDraggingScoreFiles(false);
+
+    if (showCustomInstruments) return;
 
     const files = Array.from(event.dataTransfer.files);
 
@@ -1193,9 +1196,7 @@ function App() {
           language={language}
           instruments={previewPlayback.customInstruments ?? []}
           catalogError={previewPlayback.customInstrumentError}
-          selectedId={previewPlayback.previewInstrument}
           onChange={previewPlayback.setCustomInstruments}
-          onSelect={previewPlayback.handlePreviewInstrumentChange}
           onClose={() => setShowCustomInstruments(false)}
           audition={previewPlayback.auditionSample}
           stopAudition={previewPlayback.stopAudition}
@@ -1204,9 +1205,13 @@ function App() {
       )}
       <BottomPlayer
         customInstrumentMenu={{
-          items: previewPlayback.customInstruments ?? [],
+          items: previewPlayback.customInstruments?.filter(item => !item.disabled) ?? [],
           text: customInstrumentText[language],
-          onManage: () => setShowCustomInstruments(true),
+          onManage: () => {
+            dragDepthRef.current = 0;
+            setIsDraggingScoreFiles(false);
+            setShowCustomInstruments(true);
+          },
         }}
         canManualStep={playbackOutput.canManualStep}
         canPlay={playbackCoordinator.canPlay}
