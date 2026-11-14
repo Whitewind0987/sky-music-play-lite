@@ -11,7 +11,6 @@ type Sample = {
 type Instrument = {
   directory: string;
   notes: Sample[];
-  gain: number;
   attackSeconds: number;
   implicitHoldMs: number;
   implicitReleaseSeconds: number;
@@ -37,7 +36,6 @@ export const previewInstrumentSamples: Record<PreviewInstrument, Instrument> = {
       );
       return { file: `${name}.mp3`, rate: 2 ** ((pitch - root) / 12) };
     }),
-    gain: 0.065,
     attackSeconds: 0.0008,
     implicitHoldMs: 120,
     implicitReleaseSeconds: 0.26,
@@ -46,7 +44,6 @@ export const previewInstrumentSamples: Record<PreviewInstrument, Instrument> = {
   violin: {
     directory: "iowa-violin",
     notes: pitches.map(pitch => ({ file: `${pitch}.wav`, rate: 1 })),
-    gain: 0.32,
     attackSeconds: 0.018,
     implicitHoldMs: 160,
     implicitReleaseSeconds: 0.12,
@@ -55,7 +52,6 @@ export const previewInstrumentSamples: Record<PreviewInstrument, Instrument> = {
   guitar: {
     directory: "spanish-guitar",
     notes: guitarSamples.map(name => ({ file: `${name}.wav`, rate: 1 })),
-    gain: 0.025,
     attackSeconds: 0.0008,
     implicitHoldMs: 95,
     implicitReleaseSeconds: 0.32,

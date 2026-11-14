@@ -22,7 +22,13 @@ function mockAudio() {
       gains.push(gain);
       return gain;
     },
-    decodeAudioData: vi.fn(async (buffer) => buffer),
+    decodeAudioData: vi.fn(async (buffer) => ({
+      toString: () => String(buffer),
+      length: 100,
+      sampleRate: 100,
+      numberOfChannels: 1,
+      getChannelData: () => new Float32Array(100).fill(0.1),
+    })),
     close: vi.fn(async () => {}),
   };
   function createGain() {
@@ -224,7 +230,7 @@ describe("offline preview piano", () => {
     expect(fetchSample.mock.calls.flat()).toEqual(
       pitches.map(pitch => `/audio/iowa-violin/${pitch}.wav`),
     );
-    expect(voices.map(({ buffer }) => buffer)).toEqual(pitches.map(pitch => `${pitch}.wav`));
+    expect(voices.map(({ buffer }) => String(buffer))).toEqual(pitches.map(pitch => `${pitch}.wav`));
     expect(voices.every(({ loop, playbackRate }) => !loop && playbackRate.value === 1)).toBe(true);
     expect(voices[0].stop).toHaveBeenCalledWith(13.28);
 
@@ -236,7 +242,7 @@ describe("offline preview piano", () => {
     context.currentTime = 11;
     audio.playGroup(notes, 1);
     const guitarVoices = voices.slice(15);
-    expect(guitarVoices.map(({ buffer }) => buffer)).toEqual([
+    expect(guitarVoices.map(({ buffer }) => String(buffer))).toEqual([
       "C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5",
     ].map(name => `${name}.wav`));
     expect(guitarVoices.every(({ loop, playbackRate }) => !loop && playbackRate.value === 1)).toBe(true);

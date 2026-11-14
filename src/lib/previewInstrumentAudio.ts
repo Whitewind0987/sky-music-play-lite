@@ -6,12 +6,13 @@ import { defaultPreviewVolume } from "./previewAudioPreferences";
 import { previewInstrumentSamples, type PreviewInstrument } from "./previewInstrumentSamples";
 import type { CustomInstrument } from "./customInstruments";
 import { readCustomInstrumentSample } from "./tauriApi";
+import { measurePreviewSampleGain } from "./previewSampleGain";
 
 const keyIndices = new Map<string, number>(skyKeyNames.map((key, index) => [key, index]));
 const retriggerFadeSeconds = 0.045;
 const cleanupFadeSeconds = 0.015;
 const maxVoices = 32;
-// At full volume, a 15-note chord has headroom even at aligned sample peaks.
+// Sample peak limits account for this full-volume multiplier.
 const maxMasterGain = 1.6;
 const customNotes = skyKeyNames.map((_, index) => ({ file: String(index), rate: 1 }));
 
@@ -38,6 +39,13 @@ export function createPreviewInstrumentAudio() {
   const loading = new Map<PreviewInstrument, Promise<void>>();
   const banks = new Map<PreviewInstrument, Map<string, AudioBuffer>>();
   const voices = new Set<Voice>();
+  const sampleGains = new WeakMap<AudioBuffer, number>();
+
+  async function decodeSample(audio: AudioContext, bytes: ArrayBuffer) {
+    const buffer = await audio.decodeAudioData(bytes);
+    sampleGains.set(buffer, measurePreviewSampleGain(buffer));
+    return buffer;
+  }
 
   function openAudio() {
     const audio = context ??= new AudioContext();
@@ -60,7 +68,7 @@ export function createPreviewInstrumentAudio() {
           for (const index of skyKeyNames.keys()) {
             if (selected !== instrument || context !== audio) return;
             const bytes = await readCustomInstrumentSample(instrument.id, index);
-            buffers.set(String(index), await audio.decodeAudioData(bytes));
+            buffers.set(String(index), await decodeSample(audio, bytes));
           }
           if (selected === instrument && context === audio) customBank = buffers;
         })().catch(() => {
@@ -75,7 +83,7 @@ export function createPreviewInstrumentAudio() {
         const request = Promise.all(Array.from(files, async file => {
           const response = await fetch(`${import.meta.env.BASE_URL}audio/${directory}/${file}`);
           if (!response.ok) throw new Error(`Could not load preview sample ${file}`);
-          return [file, await audio.decodeAudioData(await response.arrayBuffer())] as const;
+          return [file, await decodeSample(audio, await response.arrayBuffer())] as const;
         })).then(decoded => {
           if (context === audio) banks.set(instrument, new Map(decoded));
         }).catch(() => {
@@ -114,7 +122,7 @@ export function createPreviewInstrumentAudio() {
     if (audio?.state !== "running" || !buffers || !master) return;
     const instrument = typeof selected === "string" ? previewInstrumentSamples[selected] : {
       notes: customNotes,
-      gain: 0.016, attackSeconds: 0.0008, implicitHoldMs: 150,
+      attackSeconds: 0.0008, implicitHoldMs: 150,
       implicitReleaseSeconds: selected.releaseSeconds, explicitReleaseSeconds: selected.releaseSeconds,
     };
     const adaptive = custom ? v1Articulation?.[custom.articulation === "naturalDecay" ? "piano" : "guitar"]
@@ -134,6 +142,7 @@ export function createPreviewInstrumentAudio() {
       const sample = instrument.notes[index];
       const buffer = buffers.get(sample.file);
       if (!buffer) continue;
+      const peakGain = sampleGains.get(buffer)!;
       for (const voice of voices) {
         if (voice.key === key && !voice.hasExplicitDuration) {
           fadeVoice(voice, now, retriggerFadeSeconds);
@@ -153,13 +162,13 @@ export function createPreviewInstrumentAudio() {
       gain.connect(master);
       gain.gain.setValueAtTime(0, now);
       const holdSeconds = (adaptive?.holdMs ?? (duration || instrument.implicitHoldMs) / speed) / 1000;
-      gain.gain.linearRampToValueAtTime(instrument.gain, now + Math.min(instrument.attackSeconds, holdSeconds));
+      gain.gain.linearRampToValueAtTime(peakGain, now + Math.min(instrument.attackSeconds, holdSeconds));
       const voice = {
         key,
         hasExplicitDuration: duration > 0,
         source,
         gain,
-        peakGain: instrument.gain,
+        peakGain,
         releaseSeconds: (custom ? custom.releaseSeconds : adaptive?.releaseSeconds) ??
           (duration > 0 ? instrument.explicitReleaseSeconds : instrument.implicitReleaseSeconds),
         releaseAt: now + holdSeconds,
@@ -208,7 +217,7 @@ export function createPreviewInstrumentAudio() {
     stopAudition();
     const request = auditionRequest;
     const audio = openAudio();
-    const buffer = await audio.decodeAudioData(await file.arrayBuffer());
+    const buffer = await decodeSample(audio, await file.arrayBuffer());
     if (request !== auditionRequest || context !== audio || !master) return;
     const source = audio.createBufferSource();
     const gain = audio.createGain();
@@ -217,8 +226,9 @@ export function createPreviewInstrumentAudio() {
     source.connect(gain);
     gain.connect(master);
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.3, now + 0.004);
-    const voice = { key: "", hasExplicitDuration: true, source, gain, peakGain: 0.3,
+    const peakGain = sampleGains.get(buffer)!;
+    gain.gain.linearRampToValueAtTime(peakGain, now + 0.004);
+    const voice = { key: "", hasExplicitDuration: true, source, gain, peakGain,
       releaseSeconds: 0.22, releaseAt: now + buffer.duration, stopAt: now + buffer.duration, speed: 1 };
     audition = voice;
     source.onended = () => {
