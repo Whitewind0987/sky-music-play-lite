@@ -1,6 +1,7 @@
 import { getPreviewKeyName, skyKeyNames } from "../types/keyMapping";
 import type { Note } from "../types/score";
 import { isValidExplicitDuration } from "./scoreTiming";
+import type { PreviewV1Articulation } from "./previewV1Articulation";
 import { defaultPreviewVolume } from "./previewAudioPreferences";
 import { previewInstrumentSamples, type PreviewInstrument } from "./previewInstrumentSamples";
 
@@ -80,12 +81,12 @@ export function createPreviewInstrumentAudio() {
     voice.source.stop(end);
   }
 
-  function playGroup(notes: Note[], speed: number, v1Articulation?: { holdMs: number; releaseSeconds: number }) {
+  function playGroup(notes: Note[], speed: number, v1Articulation?: PreviewV1Articulation) {
     const audio = context;
     const buffers = banks.get(selected);
     if (audio?.state !== "running" || !buffers || !master) return;
     const instrument = previewInstrumentSamples[selected];
-    const adaptive = selected === "piano" ? v1Articulation : undefined;
+    const adaptive = selected === "violin" ? undefined : v1Articulation?.[selected];
 
     const durations = new Map<string, number>();
     for (const note of notes) {

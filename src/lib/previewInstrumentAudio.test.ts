@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPreviewInstrumentAudio } from "./previewInstrumentAudio";
-import { createPreviewPianoArticulation } from "./previewPianoArticulation";
+import { createPreviewV1Articulation } from "./previewV1Articulation";
 
 function mockAudio() {
   const voices: ReturnType<typeof createSource>[] = [];
@@ -66,14 +66,14 @@ describe("offline preview piano", () => {
       { key: "Key2", time: 380 }, { key: "Key3", time: 1180 }, { key: "Key4", time: 3780 },
       { key: "Key5", time: Number.NaN },
     ];
-    const policy = createPreviewPianoArticulation(notes);
+    const policy = createPreviewV1Articulation(notes);
     const timing = { playbackSpeed: 1, noteIntervalDelayMs: 0 };
-    const holds = [0, 80, 380, 1180, 3780].map(time => Math.round(policy(time, timing).holdMs));
+    const holds = [0, 80, 380, 1180, 3780].map(time => Math.round(policy(time, timing).piano.holdMs));
     expect(holds).toEqual([66, 246, 656, 780, 780]);
     const faster = { playbackSpeed: 2, noteIntervalDelayMs: -50 };
-    expect(policy(0, faster).holdMs).toBe(45);
-    expect(policy(0, { ...timing, noteIntervalDelayMs: 100 }).holdMs).toBeCloseTo(147.6);
-    expect(createPreviewPianoArticulation([])(0, timing).holdMs).toBeCloseTo(344.4);
+    expect(policy(0, faster).piano.holdMs).toBe(45);
+    expect(policy(0, { ...timing, noteIntervalDelayMs: 100 }).piano.holdMs).toBeCloseTo(147.6);
+    expect(createPreviewV1Articulation([])(0, timing).piano.holdMs).toBeCloseTo(344.4);
 
     const { context, voices } = mockAudio();
     const audio = createPreviewInstrumentAudio();
@@ -90,6 +90,21 @@ describe("offline preview piano", () => {
     context.currentTime = 11;
     audio.playGroup([notes[0]], 1);
     expect(voices[3].stop.mock.lastCall?.[0]).toBeCloseTo(11.38);
+  });
+
+  it("uses adaptive V1 guitar holds and leaves V2 guitar durations intact", async () => {
+    const { voices, gains } = mockAudio();
+    const audio = createPreviewInstrumentAudio();
+    audio.selectInstrument("guitar");
+    await audio.prepare();
+    const chord = [{ key: "Key0", time: 0 }, { key: "Key1", time: 0 }];
+    const policy = createPreviewV1Articulation([...chord, { key: "Key0", time: 600 }]);
+    audio.playGroup(chord, 2, policy(0, { playbackSpeed: 2, noteIntervalDelayMs: 100 }));
+    expect(voices.map(voice => voice.start.mock.lastCall)).toEqual([[10], [10]]);
+    expect(gains[1].gain.setValueAtTime.mock.lastCall?.[1]).toBeCloseTo(10.3);
+    expect(voices[0].stop.mock.lastCall?.[0]).toBeCloseTo(10.3 + 0.18 + 400 / 2400);
+    audio.playGroup([{ ...chord[0], duration: 800 }], 2);
+    expect(voices[2].stop.mock.lastCall?.[0]).toBeCloseTo(10.64);
   });
 
   it("maps all logical keys to local samples and starts a chord on one audio clock tick", async () => {
