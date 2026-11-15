@@ -68,6 +68,7 @@ Thanks to everyone who uses, stars, provides feedback for, or supports SkyMusicP
 - **Score formats**: SkyStudio-style scores, encrypted numeric scores, `scores-v2`, long / sustained notes, and V1 → V2 conversion
 - **Playback controls**: play, pause, resume, stop, next track, seeking, playback speed, and note interval adjustment
 - **Playback modes**: repeat all, repeat one, shuffle, playback queue, and Play Next
+- **Offline audio preview**: built-in piano and classical guitar, custom MP3 / WAV samples, instrument switching, volume control, and mute
 - **Score visualization**: keyboard and score-timeline visualization
 - **Performance recording**: record manual performances in Sky and save them as local scores
 - **Customization**: key mapping, playback shortcuts, Chinese / English UI, accent color, and exit confirmation
