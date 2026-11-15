@@ -1,4 +1,13 @@
-SkyMusicPlay Lite v0.9.0 新增离线音频试听与自定义音源管理，并改进曲库批量操作和播放队列。
+本次版本重点更新了离线音频试听、自定义音源管理与曲库批量操作。
+
+## 下载说明
+
+提供两个 Windows x64 安装包：
+
+- **正常版（推荐）**：`SkyMusicPlay-Lite_0.9.0_Windows-x64_Setup.exe`，缺少 WebView2 时会联网安装。
+- **内置 WebView2 版**：`SkyMusicPlay-Lite_0.9.0_Windows-x64_WebView2-Offline_Setup.exe`，包含 WebView2 离线安装程序。
+
+两个版本的软件功能相同，仅 WebView2 安装方式不同。可以直接覆盖安装旧版本，无需提前卸载。
 
 ## 离线音频试听
 
@@ -10,20 +19,21 @@ SkyMusicPlay Lite v0.9.0 新增离线音频试听与自定义音源管理，并�
 
 - 可选择文件夹、多选文件或拖入 MP3 / WAV 采样。支持按音名或 `Key0` 至 `Key14` 自动映射 15 个键位，也可手动调整并逐键试听。
 - 支持自然衰减和持续发声两种方式。音源保存在本地，可重命名、启用、禁用或删除。
-- 音频试听全程在本机运行，无需服务器。自定义采样由用户提供，仅用于曲谱预览。前台和后台真实播放仍使用原有键盘输入方式。
 
 ## 曲库与播放
 
 - 曲库支持多选、拖动勾选和全选本页，可批量管理收藏和歌单、移动分类或删除本地曲谱。
 - 修复停止后重新播放时的队列恢复问题，并改进「下一首播放」的衔接。
 
-## 下载与升级
+## 注意事项
 
-- **正常版（推荐）** `SkyMusicPlay-Lite_0.9.0_Windows-x64_Setup.exe`，体积较小，缺少 WebView2 时会联网安装。
-- **内置 WebView2 版** `SkyMusicPlay-Lite_0.9.0_Windows-x64_WebView2-Offline_Setup.exe`，包含 WebView2 离线安装程序，适合离线环境或正常版无法安装 WebView2 的情况。
+- 音频试听全程在本机运行，无需服务器。请自行提供自定义采样。自定义音源仅用于曲谱预览，前台和后台真实播放仍使用原有键盘输入方式。
+- 更新前建议先退出正在运行的旧版软件。
+- 正常升级会保留本地曲谱和应用数据。请勿删除原安装目录中的 `imported-scores` 文件夹。
+- 由于安装包尚未进行代码签名，Windows 可能显示 SmartScreen 安全提示。
 
-两个版本的软件功能相同。升级前请退出旧版，可直接覆盖安装。正常升级会保留本地曲谱和应用数据，请保留原安装目录中的 `imported-scores` 文件夹。安装包尚未进行代码签名，Windows 可能显示 SmartScreen 安全提示。
+## 使用手册
 
-[SkyMusicPlay Lite 使用手册](https://www.kdocs.cn/l/ca0kaYgxB59Z)
+https://www.kdocs.cn/l/ca0kaYgxB59Z
 
-项目许可证为 GPL-3.0-only。
+项目许可证：GPL-3.0-only。
