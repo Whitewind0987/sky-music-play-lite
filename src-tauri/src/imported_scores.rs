@@ -819,6 +819,200 @@ pub fn migrate_legacy_score_mirror() -> Result<MirrorMigrationReport, String> {
     Ok(report)
 }
 
+/// 镜像文件夹里发现的、尚未导入软件的曲谱文件。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorImportCandidate {
+    /// 相对镜像根目录的文件夹名（清单登记过的目录）。
+    pub folder: String,
+    /// 该文件夹内的文件名。
+    pub file_name: String,
+    /// 解析出的曲谱内容。
+    pub song: Value,
+}
+
+/// 扫描镜像文件夹里「用户手动放进来」的曲谱文件。
+///
+/// 只扫描清单登记过的目录；一个文件满足以下全部条件才算候选：
+/// ① 扩展名是 .json 或 .txt；
+/// ② 相对路径不在清单里（清单里的都是程序自己写的镜像文件）；
+/// ③ 文件名不是镜像标准格式（标准格式的文件名含「标题__ID 片段」，是程序写的）；
+/// ④ 内容能通过完整的曲谱校验解析出恰好一首曲谱。
+///
+/// 任何一条不满足的文件都原样保留、原样跳过——包括解析失败的文件，
+/// 它们很可能是用户自己的文档，绝不能动。
+#[tauri::command]
+pub fn scan_mirror_for_new_scores() -> Result<Vec<MirrorImportCandidate>, String> {
+    let root = current_exe_score_archive_directory()?;
+
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let manifest = read_mirror_manifest(&root);
+    let registered: std::collections::BTreeSet<String> = manifest
+        .files
+        .iter()
+        .map(|relative| relative.replace('\\', "/"))
+        .collect();
+
+    let mut candidates = Vec::new();
+
+    for directory_name in &manifest.directories {
+        let Some(directory) = resolve_manifest_path(&root, directory_name) else {
+            continue;
+        };
+
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            if !path.is_file() {
+                continue;
+            }
+
+            let file_name = match path.file_name().and_then(|value| value.to_str()) {
+                Some(value) => value.to_string(),
+                None => continue,
+            };
+
+            let extension_ok = file_name.to_ascii_lowercase().ends_with(".txt")
+                || file_name.to_ascii_lowercase().ends_with(".json");
+            if !extension_ok {
+                continue;
+            }
+
+            let relative = format!("{}/{}", directory_name.replace('\\', "/"), file_name);
+            if registered.contains(&relative) {
+                continue;
+            }
+
+            // 镜像标准格式（含「标题__ID 片段」）的程序文件不属于用户导入。
+            let stem = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .unwrap_or("");
+            if stem.contains(CANONICAL_FILE_NAME_SEPARATOR) {
+                continue;
+            }
+
+            // 完整曲谱校验：解析失败 = 不是曲谱 = 保留不动。
+            let song = match read_one_song_from_file(&path) {
+                Ok(song) => song,
+                Err(_) => continue,
+            };
+
+            candidates.push(MirrorImportCandidate {
+                folder: directory_name.clone(),
+                file_name,
+                song,
+            });
+        }
+    }
+
+    Ok(candidates)
+}
+
+/// 镜像文件夹文件收编结果。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirrorAdoptReport {
+    /// 收编后的文件相对路径（已登记进清单，下次同步会正常管理它）。
+    pub adopted_path: String,
+    /// 是否发生了重命名（false 表示目标镜像文件已存在，原文件直接清理）。
+    pub renamed: bool,
+}
+
+/// 把用户放进镜像文件夹的曲谱文件收编为程序管理的镜像文件。
+///
+/// 前置条件：这个文件的内容已经导入软件（imported-scores 里有正本），
+/// 所以本命令不会丢失任何数据：
+/// * 目标镜像文件不存在 → 原文件重命名为镜像标准名并登记进清单；
+/// * 目标镜像文件已存在（同步已写过同一首）→ 原文件是冗余副本，直接清理。
+///
+/// 安全约束：folder 必须在清单登记的目录里，file_name 只取文件名部分，
+/// 全程走 resolve_manifest_path 校验，无法逃出镜像根目录。
+#[tauri::command]
+pub fn adopt_mirror_imported_file(
+    folder: String,
+    file_name: String,
+    song_id: String,
+    title: String,
+) -> Result<MirrorAdoptReport, String> {
+    let root = current_exe_score_archive_directory()?;
+    let manifest = read_mirror_manifest(&root);
+
+    if !manifest.directories.iter().any(|name| name == &folder) {
+        return Err(format!(
+            "Refusing to adopt a file in a directory the mirror does not manage: {}",
+            folder
+        ));
+    }
+
+    // file_name 只允许纯文件名，拒绝任何路径成分。
+    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
+        return Err(format!("Invalid mirror import file name: {}", file_name));
+    }
+
+    let directory = resolve_manifest_path(&root, &folder).ok_or_else(|| {
+        format!("Invalid mirror directory: {}", folder)
+    })?;
+    let source = directory.join(&file_name);
+
+    if !path_exists_without_following(&source)? {
+        return Err(format!(
+            "Mirror import file no longer exists: {}",
+            source.display()
+        ));
+    }
+
+    let title_segment = sanitize_exported_score_title(&title);
+    let target_name = archive_score_file_name(&title_segment, &song_id);
+    let target = directory.join(&target_name);
+    let target_relative = format!("{}/{}", folder.replace('\\', "/"), target_name);
+
+    let mut renamed = false;
+
+    if path_exists_without_following(&target).unwrap_or(false) {
+        // 镜像里已经有同一首（同步写过的标准文件）：原文件是冗余副本。
+        fs::remove_file(&source).map_err(|error| {
+            format!(
+                "Failed to clean up the redundant mirror import file at {}: {}",
+                source.display(),
+                error
+            )
+        })?;
+    } else {
+        fs::rename(&source, &target).map_err(|error| {
+            format!(
+                "Failed to adopt the mirror import file {} -> {}: {}",
+                source.display(),
+                target.display(),
+                error
+            )
+        })?;
+        renamed = true;
+    }
+
+    // 登记进清单，让后续同步把它当作程序自己的内容管理。
+    let mut next_manifest = manifest;
+    if !next_manifest.files.iter().any(|item| item == &target_relative) {
+        next_manifest.files.push(target_relative.clone());
+        next_manifest.file_song_ids.push(song_id.clone());
+    }
+    if let Err(error) = write_mirror_manifest(&root, &next_manifest) {
+        return Err(error);
+    }
+
+    Ok(MirrorAdoptReport {
+        adopted_path: target_relative,
+        renamed,
+    })
+}
+
 /// 全量同步镜像：按当前歌单/分类重建「曲谱分类」下的镜像内容。
 ///
 /// 安全约定：

@@ -417,6 +417,48 @@ export function migrateLegacyScoreMirror(): Promise<MirrorMigrationReport> {
   return invoke<MirrorMigrationReport>("migrate_legacy_score_mirror");
 }
 
+/**
+ * 扫描镜像文件夹里「用户手动放进来」的曲谱文件（双向同步的反向通道）。
+ *
+ * 只返回清单登记目录下、未登记、非镜像标准格式、且能通过完整曲谱校验的
+ * 文件。解析失败的文件（用户的文档等）不会出现在结果里，也不会被动。
+ */
+export type MirrorImportCandidate = {
+  folder: string;
+  fileName: string;
+  song: Record<string, unknown>;
+};
+
+export function scanMirrorForNewScores(): Promise<MirrorImportCandidate[]> {
+  return invoke<MirrorImportCandidate[]>("scan_mirror_for_new_scores");
+}
+
+/**
+ * 把已导入软件的镜像文件夹文件收编为程序管理的镜像文件。
+ *
+ * 内容已在 imported-scores 有正本，所以本命令不丢数据：
+ * 目标镜像名已存在时直接清理原文件（冗余副本），否则重命名。
+ * 收编后的路径登记进清单，由后续同步正常管理。
+ */
+export type MirrorAdoptReport = {
+  adoptedPath: string;
+  renamed: boolean;
+};
+
+export function adoptMirrorImportedFile(
+  folder: string,
+  fileName: string,
+  songId: string,
+  title: string,
+): Promise<MirrorAdoptReport> {
+  return invoke<MirrorAdoptReport>("adopt_mirror_imported_file", {
+    fileName,
+    folder,
+    songId,
+    title,
+  });
+}
+
 export function clearScoreArchiveDirectory(): Promise<number> {
   return invoke<number>("clear_score_archive_directory");
 }

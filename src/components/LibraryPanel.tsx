@@ -42,6 +42,7 @@ import {
   parseLibraryPageInput,
 } from "../lib/libraryPagination";
 import { calculateCenteredScrollTop } from "../lib/libraryScroll";
+import { isSupportedScoreFileName } from "../lib/scoreFileImport";
 import { getLibraryPlaybackIndicator } from "../lib/libraryPlaybackPresentation";
 import type { ManualPlaybackUiState } from "../lib/manualPlaybackState";
 import type { PlaybackState } from "../types/playback";
@@ -99,6 +100,9 @@ type LibraryPanelProps = {
   onArchiveLibraryToFolders: () => void;
   onMoveLocalSong: (songId: LibrarySongId, group: LocalLibraryGroup) => void;
   onMoveSelectedSongs?: (group: LocalLibraryGroup) => void;
+  onImportFolderFiles?: (files: File[], folderName: string) => void;
+  /** 歌单视图多选「移动到歌单」：从当前歌单移除并加入目标歌单。 */
+  onMoveSongsToPlaylist?: (fromPlaylistId: string, toPlaylistId: string, songIds: LibrarySongId[]) => void;
   onDeletePlaylist: (playlistId: string) => void;
   onImportFiles: (files: File[]) => void;
   onLocateSelectedSong: () => void;
@@ -482,11 +486,47 @@ function LibraryPlusIcon() {
 function LibraryImportArea({
   importDisabled,
   onImportFiles,
+  onImportFolderFiles,
+  isPlaylistContext,
   text,
 }: Pick<
   LibraryPanelProps,
-  "importDisabled" | "onImportFiles" | "text"
->) {
+  "importDisabled" | "onImportFiles" | "onImportFolderFiles" | "text"
+> & { isPlaylistContext: boolean }) {
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+
+  // webkitdirectory 是非标准属性，React 不转发，手动设置。
+  // 选择器会列出文件夹里的全部文件，配合 webkitRelativePath 拿到顶层文件夹名。
+  useEffect(() => {
+    folderInputRef.current?.setAttribute("webkitdirectory", "");
+  }, []);
+
+  const handleFolderChange = (fileList: FileList | null) => {
+    const allFiles = readFilesFromInput(fileList);
+
+    // webkitdirectory 会把文件夹里的所有文件都列出来，先按扩展名过滤
+    const scoreFiles = allFiles.filter((file) =>
+      isSupportedScoreFileName(file.name),
+    );
+
+    // 顶层文件夹名 = webkitRelativePath 的第一段（"文件夹名/子路径/文件名"）
+    const folderName =
+      scoreFiles.length > 0
+        ? (scoreFiles[0] as File & { webkitRelativePath?: string })
+            .webkitRelativePath?.split("/")[0] ?? ""
+        : "";
+
+    if (folderInputRef.current) {
+      folderInputRef.current.value = "";
+    }
+
+    if (scoreFiles.length === 0) {
+      return;
+    }
+
+    onImportFolderFiles?.(scoreFiles, folderName);
+  };
+
   return (
     <div className="library-import-area">
       <label
@@ -513,6 +553,30 @@ function LibraryImportArea({
 
             event.currentTarget.value = "";
           }}
+        />
+      </label>
+      <label
+        className={`library-import-button${importDisabled ? " is-disabled" : ""}`}
+        aria-disabled={importDisabled}
+      >
+        <span>{text.importFolderTitle}</span>
+        <input
+          aria-label={text.importFolderLabel}
+          aria-describedby={
+            importDisabled ? "library-import-disabled-reason" : undefined
+          }
+          title={
+            importDisabled
+              ? text.importDisabledDescription
+              : isPlaylistContext
+                ? text.importFolderDescriptionInPlaylist
+                : text.importFolderDescription
+          }
+          disabled={importDisabled}
+          multiple
+          type="file"
+          ref={folderInputRef}
+          onChange={(event) => handleFolderChange(event.currentTarget.files)}
         />
       </label>
     </div>
@@ -1161,8 +1225,16 @@ function LibrarySongTable({
                 setContextMenuPosition({ songId: librarySong.id, x: event.clientX, y: event.clientY });
                 onOpenActionMenu(librarySong.id);
               }}
-              onClick={() => {
+              onClick={(event) => {
                 if (multiSelect.enabled) {
+                  if (event.shiftKey) {
+                    // Shift+点击：从上次交互的曲谱到当前曲谱，区间全部并入选中集。
+                    multiSelect.selectRange(
+                      librarySong.id,
+                      items.map((item) => item.librarySong.id),
+                    );
+                    return;
+                  }
                   multiSelect.toggle(librarySong.id);
                   return;
                 }
@@ -1436,6 +1508,8 @@ export function LibraryPanel({
   onArchiveLibraryToFolders,
   onMoveLocalSong,
   onMoveSelectedSongs,
+  onImportFolderFiles,
+  onMoveSongsToPlaylist,
   onDeletePlaylist,
   onImportFiles,
   onLocateSelectedSong,
@@ -1680,10 +1754,12 @@ export function LibraryPanel({
               >
                 {text.archiveToFolders}
               </button>
-              {isLocalImports ? (
+              {isLocalImports || (isPlaylists && selectedPlaylist) ? (
                 <LibraryImportArea
                   importDisabled={importDisabled}
                   onImportFiles={onImportFiles}
+                  onImportFolderFiles={onImportFolderFiles}
+                  isPlaylistContext={isPlaylists && Boolean(selectedPlaylist)}
                   text={text}
                 />
               ) : null}
@@ -1708,6 +1784,7 @@ export function LibraryPanel({
           isViewingPlaylist={isPlaylists}
           onDeleteLocalSongs={onDeleteLocalSongs}
           onAddSongsToPlaylist={onAddSongsToPlaylist}
+          onMoveSongsToPlaylist={onMoveSongsToPlaylist}
           onRemoveSongsFromPlaylist={onRemoveSongsFromPlaylist}
           moveTargetGroup={batchMoveTarget}
           onMoveSelectedSongs={onMoveSelectedSongs}

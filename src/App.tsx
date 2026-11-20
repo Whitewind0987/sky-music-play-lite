@@ -832,6 +832,18 @@ function App() {
           }
           onDeletePlaylist={libraryDialogs.requestDeletePlaylist}
           onImportFiles={handleImportScoreFiles}
+          onImportFolderFiles={(files, folderName) => {
+            // 歌单视图：导入直接进当前歌单；本地导入视图：按文件夹名创建/复用歌单。
+            const selectedPlaylistId =
+              scoreLibrary.selectedLibraryCategory === "playlists"
+                ? scoreLibrary.selectedPlaylistId
+                : null;
+            void scoreLibrary.handleImportFolderScores(
+              files,
+              folderName,
+              selectedPlaylistId,
+            );
+          }}
           onLocateSelectedSong={scoreLibrary.handleLocateSelectedSong}
           onPaginationNotice={showAppNotice}
           onPrepareSong={warmPlaybackPlan}
@@ -847,6 +859,13 @@ function App() {
             libraryDialogs.requestDeleteLocalSongs(songIds);
           }}
           onAddSongsToPlaylist={scoreLibrary.handleAddSongsToPlaylist}
+          onMoveSongsToPlaylist={(fromPlaylistId, toPlaylistId, songIds) => {
+            void scoreLibrary.handleMoveSongsToPlaylist(
+              fromPlaylistId,
+              toPlaylistId,
+              songIds,
+            );
+          }}
           onRemoveSongsFromPlaylist={scoreLibrary.handleRemoveSongsFromPlaylist}
           onResolveUpgradeSource={scoreLibrary.preloadSong}
           onUpgradeSourceLoadFailed={(item) =>

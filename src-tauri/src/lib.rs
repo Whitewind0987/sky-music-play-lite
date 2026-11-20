@@ -229,6 +229,8 @@ pub fn run() {
             imported_scores::rename_archive_folder,
             imported_scores::open_score_archive_directory,
             imported_scores::sync_score_mirror,
+            imported_scores::scan_mirror_for_new_scores,
+            imported_scores::adopt_mirror_imported_file,
             imported_scores::migrate_legacy_score_mirror,
             imported_scores::export_scores_into_exported_folder,
             imported_scores::clear_score_archive_directory,

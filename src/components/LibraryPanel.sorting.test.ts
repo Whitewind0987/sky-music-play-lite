@@ -49,7 +49,7 @@ function props(overrides: Partial<Props> = {}): Props {
     onRemoveFromLiked: noOp, onRemoveSongFromPlaylist: noOp, onRenamePlaylist: noOp,
     multiSelect: {
       enabled: false, selected: new Set(), count: 0,
-      isSelected: () => false, toggle: noOp, selectAll: noOp, clear: noOp,
+      isSelected: () => false, toggle: noOp, selectAll: noOp, selectRange: noOp, clear: noOp,
       setEnabled: noOp,
     },
     onResolveUpgradeSource: async () => null, onUpgradeSourceLoadFailed: noOp,

@@ -138,6 +138,15 @@ export const uiText = {
       aria: "曲库页面",
       importEyebrow: "本地曲谱",
       importTitle: "导入曲谱",
+      importFolderTitle: "导入文件夹",
+      importFolderLabel: "选择包含曲谱的文件夹",
+      importFolderDescription:
+        "扫描文件夹（含子文件夹）中的 .json / .txt 曲谱并导入",
+      importFolderDescriptionInPlaylist:
+        "扫描文件夹中的曲谱并导入到当前歌单",
+      importFolderEmpty: "文件夹里没有找到可导入的曲谱文件。",
+      importFolderNoNewScores:
+        "文件夹“{folderName}”里的曲谱都已导入过，没有新增曲谱。",
       importDisabledDescription: "播放中不能导入曲谱，请先停止播放。",
       importDescription:
         "导入一个或多个 SkyStudio-style JSON / TXT 曲谱文件。",
@@ -258,6 +267,7 @@ export const uiText = {
       multiSelectCancel: "取消",
       multiSelectDeleteConfirm: "确定删除所选的 {count} 首曲谱吗？此操作不可撤销。",
       multiSelectAddToPlaylist: "加入歌单",
+      multiSelectMoveToPlaylist: "移动到歌单",
       multiSelectRemoveFromPlaylist: "从歌单移除",
       deleteLocalSong: "删除",
       deleteFromLocalImports: "从本地导入删除",
@@ -584,6 +594,10 @@ export const uiText = {
       appReady: "应用布局已准备好。",
       importedScores: "已从 {fileName} 导入 {count} 首曲谱。",
       importedScoresFromFiles: "已从 {fileCount} 个文件导入 {count} 首曲谱。",
+      importFolderCompleted:
+        "已从文件夹“{folderName}”导入 {count} 首曲谱到歌单“{playlistName}”。",
+      movedScoresToPlaylist:
+        "已把 {count} 首曲谱移动到歌单“{playlistName}”。",
       localScoreExported: "已导出“{fileName}”，可以直接发送给其他人。",
       playlistExportedToFolder:
         "已把 {count} 首曲谱导出到文件夹“{folderName}”。",
@@ -1011,6 +1025,15 @@ export const uiText = {
       aria: "Library page",
       importEyebrow: "Local scores",
       importTitle: "Import scores",
+      importFolderTitle: "Import folder",
+      importFolderLabel: "Choose a folder containing scores",
+      importFolderDescription:
+        "Scan a folder (including subfolders) for .json / .txt scores and import them",
+      importFolderDescriptionInPlaylist:
+        "Scan a folder for scores and import them into the current playlist",
+      importFolderEmpty: "No importable score files found in the folder.",
+      importFolderNoNewScores:
+        "All scores in folder “{folderName}” were already imported; nothing new was added.",
       importDisabledDescription: "Stop playback before importing scores.",
       importDescription:
         "Import one or more SkyStudio-style JSON / TXT score files.",
@@ -1134,6 +1157,7 @@ export const uiText = {
       multiSelectDeleteConfirm:
         "Delete the {count} selected score(s)? This cannot be undone.",
       multiSelectAddToPlaylist: "Add to playlist",
+      multiSelectMoveToPlaylist: "Move to playlist",
       multiSelectRemoveFromPlaylist: "Remove from playlist",
       deleteLocalSong: "Delete",
       deleteFromLocalImports: "Delete from Local Imports",
@@ -1484,6 +1508,10 @@ export const uiText = {
       importedScores: "Imported {count} score(s) from {fileName}.",
       importedScoresFromFiles:
         "Imported {count} score(s) from {fileCount} file(s).",
+      importFolderCompleted:
+        "Imported {count} score(s) from folder “{folderName}” into playlist “{playlistName}”.",
+      movedScoresToPlaylist:
+        "Moved {count} score(s) to playlist “{playlistName}”.",
       localScoreExported:
         "Exported “{fileName}”. You can share this file directly.",
       playlistExportedToFolder:

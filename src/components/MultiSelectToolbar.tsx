@@ -16,6 +16,8 @@ type MultiSelectToolbarProps = {
   isViewingPlaylist: boolean;
   onDeleteLocalSongs?: (songIds: LibrarySongId[]) => void;
   onAddSongsToPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
+  /** 歌单视图下的「移动到歌单」：从当前歌单移除并加入目标歌单。 */
+  onMoveSongsToPlaylist?: (fromPlaylistId: string, toPlaylistId: string, songIds: LibrarySongId[]) => void;
   onRemoveSongsFromPlaylist?: (playlistId: string, songIds: LibrarySongId[]) => void;
   /**
    * 批量移动分类的目标组；null 表示当前分类不支持移动，按钮不渲染。
@@ -34,6 +36,7 @@ export function MultiSelectToolbar({
   isViewingPlaylist,
   onDeleteLocalSongs,
   onAddSongsToPlaylist,
+  onMoveSongsToPlaylist,
   onRemoveSongsFromPlaylist,
   moveTargetGroup = null,
   onMoveSelectedSongs,
@@ -122,23 +125,46 @@ export function MultiSelectToolbar({
             <select
               className="library-multi-select-playlist"
               value=""
-              aria-label={text.multiSelectAddToPlaylist}
+              aria-label={
+                isViewingPlaylist
+                  ? text.multiSelectMoveToPlaylist
+                  : text.multiSelectAddToPlaylist
+              }
               onChange={(event) => {
                 const playlistId = event.currentTarget.value;
                 event.currentTarget.value = "";
                 if (!playlistId) {
                   return;
                 }
-                onAddSongsToPlaylist?.(playlistId, selectedIds);
+                if (
+                  isViewingPlaylist &&
+                  selectedPlaylistId &&
+                  playlistId !== selectedPlaylistId &&
+                  onMoveSongsToPlaylist
+                ) {
+                  // 歌单视图：下拉选择目标歌单 = 把所选曲谱从当前歌单移动过去。
+                  onMoveSongsToPlaylist(selectedPlaylistId, playlistId, selectedIds);
+                } else {
+                  onAddSongsToPlaylist?.(playlistId, selectedIds);
+                }
                 multiSelect.clear();
               }}
             >
-              <option value="">{text.multiSelectAddToPlaylist}</option>
-              {playlists.map((playlist) => (
-                <option key={playlist.id} value={playlist.id}>
-                  {playlist.name}
-                </option>
-              ))}
+              <option value="">
+                {isViewingPlaylist
+                  ? text.multiSelectMoveToPlaylist
+                  : text.multiSelectAddToPlaylist}
+              </option>
+              {playlists
+                .filter(
+                  (playlist) =>
+                    !(isViewingPlaylist && playlist.id === selectedPlaylistId),
+                )
+                .map((playlist) => (
+                  <option key={playlist.id} value={playlist.id}>
+                    {playlist.name}
+                  </option>
+                ))}
             </select>
             {isViewingPlaylist && selectedPlaylistId ? (
               <button
