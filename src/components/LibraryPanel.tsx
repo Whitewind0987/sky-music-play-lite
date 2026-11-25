@@ -497,16 +497,14 @@ function LibraryImportArea({
       <label
         className={`library-import-button${importDisabled ? " is-disabled" : ""}`}
         aria-disabled={importDisabled}
+        title={importDisabled ? text.importDisabledDescription : undefined}
       >
         <LibraryPlusIcon />
         <span>{text.importTitle}</span>
         <input
           accept=".json,.txt"
           aria-label={text.importLabel}
-          aria-describedby={
-            importDisabled ? "library-import-disabled-reason" : undefined
-          }
-          title={importDisabled ? text.importDisabledDescription : text.importDescription}
+          title={importDisabled ? undefined : text.importDescription}
           disabled={importDisabled}
           multiple
           type="file"
@@ -1713,11 +1711,6 @@ export function LibraryPanel({
           convertibleSelectionCount={convertibleSelectionCount}
           onMoveSelectedSongs={onMoveSelectedSongs}
         />
-        {isLocalImports && importDisabled ? (
-          <p className="library-import-hint" id="library-import-disabled-reason">
-            {text.importDisabledDescription}
-          </p>
-        ) : null}
         {isLocalImports && importError ? (
           <p className="parse-error library-import-error" role="alert">
             {importError}

@@ -1192,17 +1192,12 @@ button {
   white-space: nowrap;
 }
 
-.library-import-hint,
 .library-import-error {
   min-width: 0;
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-
-.library-import-hint {
-  color: #52616f;
 }
 
 .library-content {
