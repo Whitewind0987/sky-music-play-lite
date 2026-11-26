@@ -13,7 +13,6 @@
   <a href="https://github.com/Whitewind0987/sky-music-play-lite"><img src="https://img.shields.io/github/stars/Whitewind0987/sky-music-play-lite?style=flat&amp;label=Stars" alt="Stars"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue?style=flat" alt="GPL-3.0-only"></a>
   <a href="https://github.com/Whitewind0987/sky-music-play-lite/releases/latest"><img src="https://img.shields.io/github/v/release/Whitewind0987/sky-music-play-lite?style=flat&amp;label=Latest" alt="Latest"></a>
-  <a href="https://github.com/Whitewind0987/sky-music-play-lite/releases"><img src="https://img.shields.io/github/downloads/Whitewind0987/sky-music-play-lite/total?style=flat&amp;label=Downloads" alt="Downloads"></a>
   <a href="https://github.com/Whitewind0987/sky-music-play-lite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Whitewind0987/sky-music-play-lite/ci.yml?branch=main&amp;style=flat&amp;label=CI" alt="CI"></a>
 </p>
 
